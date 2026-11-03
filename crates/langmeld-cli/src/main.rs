@@ -1,3 +1,4 @@
+mod check;
 mod cli;
 mod configure;
 mod generate;
@@ -21,6 +22,13 @@ fn main() -> std::process::ExitCode {
             Err(message) => {
                 eprintln!("langmeld: {message}");
                 std::process::ExitCode::from(2)
+            }
+        },
+        cli::Commands::Check(arguments) => match check::check_workspace(arguments) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err((code, message)) => {
+                eprintln!("langmeld: {message}");
+                std::process::ExitCode::from(code)
             }
         },
         cli::Commands::Generate(arguments) => match generate::generate(arguments) {

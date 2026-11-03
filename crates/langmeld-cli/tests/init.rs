@@ -69,6 +69,14 @@ fn run_configure(project: &std::path::Path, arguments: &[&str]) -> std::process:
         .expect("langmeld configure starts")
 }
 
+fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(arguments)
+        .current_dir(project)
+        .output()
+        .expect("langmeld check starts")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -216,6 +224,75 @@ fn configure_interactive_blank_answers_preserve_existing_values() {
         serde_json::from_slice(&fs::read(&manifest_path).expect("updated manifest is readable"))
             .expect("updated manifest is valid JSON");
     assert_eq!(updated, original);
+}
+
+#[test]
+fn check_and_validate_report_workspace_diagnostics_with_stable_exit_codes() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("checked");
+    let init = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "Checked",
+    ]);
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    let first = project.join("examples/second.checked.lmprog");
+    fs::copy(project.join("examples/hello.checked.lmprog"), &first)
+        .expect("second project source is copied");
+
+    let valid = run_check(
+        &project,
+        &["validate", "--project", "langmeld.json", "--format", "json"],
+    );
+    assert!(
+        valid.status.success(),
+        "validation failed:\n{}\n{}",
+        String::from_utf8_lossy(&valid.stdout),
+        String::from_utf8_lossy(&valid.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&valid.stdout)
+        .expect("workspace validation writes machine-readable JSON");
+    assert_eq!(json["valid"], true);
+    assert_eq!(json["files"].as_array().unwrap().len(), 2);
+
+    fs::write(&first, "not a valid program\n").expect("invalid source is written");
+    let invalid = run_check(
+        &project,
+        &["check", "--project", "langmeld.json", "--format", "json"],
+    );
+    assert_eq!(invalid.status.code(), Some(1));
+    let json: serde_json::Value = serde_json::from_slice(&invalid.stdout)
+        .expect("invalid source still produces diagnostics JSON");
+    assert_eq!(json["valid"], false);
+    assert!(json["files"].as_array().unwrap().iter().any(|file| {
+        file["source"]
+            .as_str()
+            .is_some_and(|source| source.ends_with("second.checked.lmprog"))
+            && !file["diagnostics"].as_array().unwrap().is_empty()
+    }));
+
+    let direct = run_check(
+        &project,
+        &[
+            "check",
+            "--language",
+            "language/language.lm",
+            "--source",
+            "examples/hello.checked.lmprog",
+        ],
+    );
+    assert!(
+        direct.status.success(),
+        "{}",
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert!(String::from_utf8_lossy(&direct.stdout).contains("no issues found"));
 }
 
 #[test]

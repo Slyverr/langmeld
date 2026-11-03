@@ -21,6 +21,9 @@ pub(crate) enum Commands {
     Init(InitArgs),
     /// Update project source discovery settings.
     Configure(ConfigureArgs),
+    /// Parse source files and run generic workspace analysis.
+    #[command(alias = "validate")]
+    Check(ValidationArgs),
     /// Rebuild generated language and editor tooling.
     Generate(GenerateArgs),
 }
@@ -58,6 +61,30 @@ pub(crate) struct ConfigureArgs {
     /// Inherit source extensions from the language definition.
     #[arg(long, conflicts_with = "source_extensions")]
     pub(crate) inherit_source_extensions: bool,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum OutputFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Args)]
+#[command(group(clap::ArgGroup::new("language_input").required(true).multiple(false)))]
+pub(crate) struct ValidationArgs {
+    /// Project manifest; loads its language definition and configured sources.
+    #[arg(long, group = "language_input", conflicts_with = "sources")]
+    pub(crate) project: Option<PathBuf>,
+    /// Language definition to validate against when checking explicit source files.
+    #[arg(long, group = "language_input")]
+    pub(crate) language: Option<PathBuf>,
+    /// Source file to check. Repeat to analyze a workspace.
+    #[arg(long = "source", required_unless_present = "project")]
+    pub(crate) sources: Vec<PathBuf>,
+    /// Diagnostic output format.
+    #[arg(long, value_enum, default_value = "text")]
+    pub(crate) format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -142,6 +169,7 @@ mod tests {
         let mut command = Cli::command();
         assert!(command.render_long_help().to_string().contains("init"));
         assert!(command.render_long_help().to_string().contains("configure"));
+        assert!(command.render_long_help().to_string().contains("check"));
         assert!(command.render_long_help().to_string().contains("generate"));
         let init = command
             .get_subcommands()
@@ -159,6 +187,17 @@ mod tests {
         assert!(help.contains("--source-root"));
         assert!(help.contains("--source-extension"));
         assert!(help.contains("--clear-sources"));
+        let check = command
+            .get_subcommands()
+            .find(|subcommand| subcommand.get_name() == "check")
+            .expect("check command is registered");
+        assert!(
+            check
+                .clone()
+                .render_long_help()
+                .to_string()
+                .contains("--format")
+        );
         let generate = command
             .get_subcommands()
             .find(|subcommand| subcommand.get_name() == "generate")
@@ -196,5 +235,32 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn check_alias_accepts_validate_and_requires_one_input_mode() {
+        assert!(
+            Cli::try_parse_from([
+                "langmeld",
+                "validate",
+                "--language",
+                "language.lm",
+                "--source",
+                "input.calc"
+            ])
+            .is_ok()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "langmeld",
+                "check",
+                "--project",
+                "langmeld.json",
+                "--source",
+                "input.calc"
+            ])
+            .is_err()
+        );
+        assert!(Cli::try_parse_from(["langmeld", "check"]).is_err());
     }
 }

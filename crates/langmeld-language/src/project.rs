@@ -7,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use langmeld_core::{SourceFile, ValidatedLanguageSpec};
+use langmeld_core::{LanguageSpec, SourceFile, ValidatedLanguageSpec};
 use serde::{Deserialize, Serialize};
 
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
@@ -111,6 +111,41 @@ pub fn load_project_manifest(path: &Path) -> Result<ProjectManifest, String> {
     Ok(manifest)
 }
 
+/// Loads one standalone readable `.lm` or canonical JSON language definition.
+pub fn load_language(path: &Path) -> Result<ValidatedLanguageSpec, String> {
+    if path
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        let bytes = read_bounded(path, MAX_MANIFEST_BYTES, "language definition")?;
+        let spec: LanguageSpec = serde_json::from_slice(&bytes).map_err(|error| {
+            format!(
+                "cannot parse language definition '{}': {error}",
+                path.display()
+            )
+        })?;
+        return spec.validate().map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+    }
+    crate::parse_language_definition_project(path).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| format!("{}: {}", error.code, error.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
+}
+
+/// Loads explicit source files using the same bounds and file checks as projects.
+pub fn load_source_files(paths: &[PathBuf]) -> Result<Vec<SourceFile>, String> {
+    load_project_sources_from_paths(paths.to_vec())
+}
+
 /// Loads, resolves, and validates a project from its manifest on disk.
 pub fn load_project(manifest_path: &Path) -> Result<ProjectSnapshot, String> {
     let manifest = load_project_manifest(manifest_path)?;
@@ -128,14 +163,7 @@ pub fn load_project_with_manifest(
     manifest.to_json()?;
     let root = project_root(manifest_path)?;
     let definition_path = root.join(&manifest.language);
-    let language =
-        crate::parse_language_definition_project(&definition_path).map_err(|errors| {
-            errors
-                .into_iter()
-                .map(|error| format!("{}: {}", error.code, error.message))
-                .collect::<Vec<_>>()
-                .join("\n")
-        })?;
+    let language = load_language(&definition_path)?;
     let paths = project_source_paths(manifest_path, manifest, &language.spec().source_extensions)?;
     let sources = load_project_sources_from_paths(paths)?;
     Ok(ProjectSnapshot {
@@ -246,9 +274,26 @@ fn project_source_paths(
 }
 
 fn load_project_sources_from_paths(paths: Vec<PathBuf>) -> Result<Vec<SourceFile>, String> {
-    let mut total_bytes = 0_usize;
-    let mut sources = Vec::with_capacity(paths.len());
+    if paths.len() > MAX_SOURCE_FILES {
+        return Err(format!("project source count exceeds {MAX_SOURCE_FILES}"));
+    }
+    let mut unique_paths = Vec::with_capacity(paths.len());
+    let mut seen = BTreeSet::new();
     for path in paths {
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("cannot inspect source file '{}': {error}", path.display()))?;
+        if !metadata.file_type().is_file() {
+            return Err(format!("source '{}' is not a regular file", path.display()));
+        }
+        let path = fs::canonicalize(&path)
+            .map_err(|error| format!("cannot resolve source file '{}': {error}", path.display()))?;
+        if seen.insert(path.clone()) {
+            unique_paths.push(path);
+        }
+    }
+    let mut total_bytes = 0_usize;
+    let mut sources = Vec::with_capacity(unique_paths.len());
+    for path in unique_paths {
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("cannot inspect source file '{}': {error}", path.display()))?;
         if !metadata.file_type().is_file() {
@@ -280,7 +325,10 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
 }
 
 fn project_root(manifest_path: &Path) -> Result<PathBuf, String> {
-    let parent = manifest_path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = manifest_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     fs::canonicalize(parent).map_err(|error| {
         format!(
             "cannot resolve project directory '{}': {error}",
@@ -393,7 +441,10 @@ fn read_bounded(path: &Path, limit: usize, role: &str) -> Result<Vec<u8>, String
 }
 
 fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     let file_name = path.file_name().ok_or_else(|| {
         format!(
             "project manifest path '{}' has no file name",

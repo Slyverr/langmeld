@@ -1,6 +1,6 @@
 use langmeld_language::{
-    ProjectManifest, load_project, load_project_manifest, load_project_sources,
-    load_project_with_manifest, write_project_manifest,
+    ProjectManifest, load_language, load_project, load_project_manifest, load_project_sources,
+    load_project_with_manifest, load_source_files, write_project_manifest,
 };
 use std::{
     fs,
@@ -194,6 +194,35 @@ fn project_manifest_loader_and_writer_refuse_symlinks() {
             .expect_err("manifest writer refuses symlinks")
             .contains("not a regular file")
     );
+}
+
+#[test]
+fn standalone_json_language_and_direct_sources_share_project_input_limits() {
+    use langmeld_core::{ConstructBuilder, LanguageBuilder};
+
+    let project = TempProject::new();
+    let language = LanguageBuilder::new("JsonLanguage")
+        .version("0.1.0")
+        .root("program")
+        .source_extension(".calc")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["entry"]),
+        )
+        .construct(ConstructBuilder::new("entry").syntax("entry"))
+        .build()
+        .expect("JSON language model is valid");
+    let json = serde_json::to_string(language.spec()).expect("language serializes to JSON");
+    let definition = project.write("language.json", &json);
+    let loaded = load_language(&definition).expect("standalone JSON language loads");
+    assert_eq!(loaded.spec().source_extensions, [".calc"]);
+
+    let source = project.write("program.calc", "program {}\n");
+    let loaded_sources = load_source_files(&[source.clone(), source])
+        .expect("direct source inputs are bounded and de-duplicated");
+    assert_eq!(loaded_sources.len(), 1);
+    assert_eq!(loaded_sources[0].text, "program {}\n");
 }
 
 #[test]

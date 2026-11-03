@@ -55,6 +55,10 @@ From a generated project, update source discovery interactively with
 `langmeld configure`, or pass options such as `--source-root`, `--source`, and
 `--source-extension`. Configuration resolves the proposed language and source
 set before atomically updating `langmeld.json`.
+Use `langmeld check --project langmeld.json` (or its `validate` alias) to parse
+the configured sources and run generic workspace analysis. This command cannot
+register a language's Rust callbacks; callback-dependent languages must use a
+host integration that binds those implementations.
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default
