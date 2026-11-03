@@ -28,6 +28,8 @@ pub struct ParseLimits {
     pub max_ast_nodes: usize,
     /// Maximum nested construct blocks.
     pub max_nesting_depth: usize,
+    /// Maximum recursive pattern matching and backtracking steps per parse.
+    pub max_pattern_steps: usize,
 }
 
 impl Default for ParseLimits {
@@ -37,6 +39,7 @@ impl Default for ParseLimits {
             max_tokens: 250_000,
             max_ast_nodes: 250_000,
             max_nesting_depth: MAX_NESTING_DEPTH,
+            max_pattern_steps: 1_000_000,
         }
     }
 }

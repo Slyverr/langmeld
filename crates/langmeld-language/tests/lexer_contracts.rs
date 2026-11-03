@@ -75,4 +75,5 @@ fn parser_limits_have_bounded_defaults() {
     assert_eq!(limits.max_tokens, 250_000);
     assert_eq!(limits.max_ast_nodes, 250_000);
     assert_eq!(limits.max_nesting_depth, 128);
+    assert_eq!(limits.max_pattern_steps, 1_000_000);
 }

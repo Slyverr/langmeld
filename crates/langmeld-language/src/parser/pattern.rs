@@ -17,11 +17,15 @@ pub(super) enum PatternPart {
     Choice(Vec<Vec<PatternPart>>),
     ZeroOrMore {
         parts: Vec<PatternPart>,
+        capture_fields: BTreeSet<String>,
         separator: Option<Vec<PatternPart>>,
+        nested: bool,
     },
     OneOrMore {
         parts: Vec<PatternPart>,
+        capture_fields: BTreeSet<String>,
         separator: Option<Vec<PatternPart>>,
+        nested: bool,
     },
 }
 
@@ -87,15 +91,21 @@ fn compile_at_depth(
                 if separator.is_some() {
                     repeated.pop();
                 }
+                let capture_fields = capture_fields(&repeated);
+                let nested = repeat_depth > 0;
                 let repeated = if quantifier == '+' {
                     PatternPart::OneOrMore {
                         parts: repeated,
+                        capture_fields,
                         separator,
+                        nested,
                     }
                 } else {
                     PatternPart::ZeroOrMore {
                         parts: repeated,
+                        capture_fields,
                         separator,
+                        nested,
                     }
                 };
                 parts.push(repeated);
@@ -239,6 +249,31 @@ fn capture_kind(kind: &FieldKind, repeat_depth: usize) -> Option<&FieldKind> {
     Some(current)
 }
 
+fn capture_fields(parts: &[PatternPart]) -> BTreeSet<String> {
+    fn collect(parts: &[PatternPart], fields: &mut BTreeSet<String>) {
+        for part in parts {
+            match part {
+                PatternPart::Capture { field, .. } => {
+                    fields.insert(field.clone());
+                }
+                PatternPart::Optional(inner)
+                | PatternPart::ZeroOrMore { parts: inner, .. }
+                | PatternPart::OneOrMore { parts: inner, .. } => collect(inner, fields),
+                PatternPart::Choice(alternatives) => {
+                    if let Some(first) = alternatives.first() {
+                        collect(first, fields);
+                    }
+                }
+                PatternPart::Literal(_) => {}
+            }
+        }
+    }
+
+    let mut fields = BTreeSet::new();
+    collect(parts, &mut fields);
+    fields
+}
+
 fn repetition_end(pattern: &str, opening: usize) -> Option<(usize, char)> {
     let mut depth = 0_usize;
     let mut escaped = false;
@@ -345,8 +380,12 @@ pub(super) fn collect_keywords(parts: &[PatternPart], output: &mut BTreeSet<Stri
                     collect_keywords(alternative, output);
                 }
             }
-            PatternPart::ZeroOrMore { parts, separator }
-            | PatternPart::OneOrMore { parts, separator } => {
+            PatternPart::ZeroOrMore {
+                parts, separator, ..
+            }
+            | PatternPart::OneOrMore {
+                parts, separator, ..
+            } => {
                 collect_keywords(parts, output);
                 if let Some(separator) = separator {
                     collect_keywords(separator, output);
@@ -405,7 +444,7 @@ mod tests {
         assert!(matches!(parts[2], PatternPart::Optional(_)));
         assert!(matches!(
             parts[3],
-            PatternPart::ZeroOrMore { ref parts, separator: Some(ref separator) }
+            PatternPart::ZeroOrMore { ref parts, separator: Some(ref separator), .. }
                 if matches!(parts.as_slice(), [PatternPart::Capture { field, kind: FieldKind::Identifier }] if field == "items")
                     && matches!(separator.as_slice(), [PatternPart::Literal(TokenKind::Punctuation(','))])
         ));
