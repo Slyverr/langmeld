@@ -60,7 +60,8 @@ returning an edit. Embedded Rust hosts can also register bounded, typed
 completion providers. In project mode, clients that support dynamic watched-file
 registration receive watches for language definitions, the manifest, and the
 definition lock; valid changes reload the language and reparse open documents.
-Unopened project-file navigation and WASM adapters remain pending.
+Navigation does not yet discover unopened project files. The browser language
+adapter is described below; the LSP server itself does not run in WebAssembly.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.
@@ -140,6 +141,25 @@ After registering Rust backends in the generated host, run
 `--backend`, `--format`, `--target`, and `--set KEY=VALUE` for scripted
 updates. These preferences are stored under `build` in `langmeld.json` and
 are consumed by the host's `build` command.
+
+## Browser and WebAssembly adapter
+
+`langmeld init --wasm` adds an optional browser adapter to a generated Rust
+language project; the interactive initializer also offers it. This runs the
+Langmeld parser and generic editor analysis inside WebAssembly. It is a runtime
+adapter, not a compiler backend that translates a user's language into
+WebAssembly.
+
+The generated `LanguageHost` can load an in-memory `.lm` root and module bundle
+or canonical `LanguageSpec` JSON for generic parsing and analysis. Its
+`fromProject()` constructor instead uses the generated project's compiled
+language model and Rust callbacks, including custom parser behavior. The
+adapter returns parse diagnostics, generic syntax data, editor classifications,
+completion context, and cross-file generic references from explicitly
+provided source text. It does not read files or resolve imports; the caller
+supplies all modules and workspace files. Source ranges are UTF-8 byte offsets,
+and opaque host values are not serialized. Generated projects include
+`README-wasm.md` with build and JavaScript binding instructions.
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default
