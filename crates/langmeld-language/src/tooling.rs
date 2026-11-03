@@ -2,7 +2,9 @@ use std::{collections::BTreeSet, fmt::Write};
 
 use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, ValidatedLanguageSpec};
 
-use crate::{CLASSIFICATION_TYPES, PreparedLanguage, rust_codegen::generate_rust_ast};
+use crate::{
+    CLASSIFICATION_TYPES, PreparedLanguage, generate_tree_sitter, rust_codegen::generate_rust_ast,
+};
 
 /// Generated artifacts keyed by safe, relative destination paths.
 pub type GeneratedArtifacts = std::collections::BTreeMap<String, String>;
@@ -16,6 +18,13 @@ pub fn generate_tooling(
     language: &ValidatedLanguageSpec,
 ) -> Result<GeneratedArtifacts, serde_json::Error> {
     let spec = language.spec();
+    let (tree_sitter_support, tree_sitter_artifacts) = match generate_tree_sitter(language) {
+        Ok(artifacts) => (serde_json::json!({ "available": true }), Some(artifacts)),
+        Err(reason) => (
+            serde_json::json!({ "available": false, "reason": reason }),
+            None,
+        ),
+    };
     let prepared = PreparedLanguage::new(language.clone()).map_err(|error| {
         serde_json::Error::io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -83,9 +92,9 @@ pub fn generate_tooling(
                 "typed_rust_ast", "metadata", "reference_document", "language_configuration",
                 "textmate_lexical_highlighting", "agent_skill"
             ],
+            "optional_artifacts": { "tree_sitter": tree_sitter_support },
             "not_yet_available": [
-                "tree_sitter_export", "source_formatter", "lsp", "project_cli",
-                "wasm_adapter", "generic_execution"
+                "source_formatter", "lsp", "project_cli", "wasm_adapter", "generic_execution"
             ],
             "parser_support": ["declarative_patterns", "registered_custom_construct_callbacks"],
             "editor_configuration_assumptions": {
@@ -97,6 +106,9 @@ pub fn generate_tooling(
             "requires_host_implementation_for": ["execution", "domain_lowering", "custom_type_systems"]
         }))?,
     );
+    if let Some(tree_sitter_artifacts) = tree_sitter_artifacts {
+        artifacts.extend(tree_sitter_artifacts);
+    }
 
     Ok(artifacts)
 }

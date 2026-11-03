@@ -22,7 +22,10 @@ and runs only the passes needed for requested outputs; the host owns its IR
 values and pass context. Single-program backend contracts validate descriptors,
 settings, required IR, artifacts, and source maps. Workspace backends apply the
 same checks across multiple sources and require explicit source indexes for
-ambiguous mappings. Tree-sitter export and source formatting remain in progress.
+ambiguous mappings. The optional Tree-sitter exporter emits a grammar for
+compatible declarative syntax and reports when a definition cannot be
+represented. Its grammar has not been checked with the Tree-sitter CLI in this
+environment. Source formatting remains in progress.
 
 ## Workspace checks
 

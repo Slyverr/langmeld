@@ -14,6 +14,7 @@ mod pipeline;
 mod rust_codegen;
 mod syntax;
 mod tooling;
+mod tree_sitter;
 
 pub use analysis::*;
 pub use backend::{
@@ -51,6 +52,7 @@ pub use syntax::{
     SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,
 };
 pub use tooling::{GeneratedArtifacts, generate_tooling};
+pub use tree_sitter::generate_tree_sitter;
 
 /// Maximum nested construct bodies traversed by the recursive generic parser.
 ///

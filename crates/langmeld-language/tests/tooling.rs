@@ -46,6 +46,11 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         "metadata.json",
         "rust/ast.rs",
         "syntaxes/demo-language.tmLanguage.json",
+        "tree-sitter/README.md",
+        "tree-sitter/grammar.js",
+        "tree-sitter/package.json",
+        "tree-sitter/queries/highlights.scm",
+        "tree-sitter/tree-sitter.json",
     ];
     assert_eq!(
         artifacts.keys().map(String::as_str).collect::<Vec<_>>(),
@@ -109,11 +114,9 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .any(|item| item == "lsp")
     );
     assert!(
-        capabilities["not_yet_available"]
-            .as_array()
+        capabilities["optional_artifacts"]["tree_sitter"]["available"]
+            .as_bool()
             .unwrap()
-            .iter()
-            .any(|item| item == "tree_sitter_export")
     );
     assert!(
         capabilities["not_yet_available"]
@@ -128,4 +131,46 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
         .expect("editor config is JSON");
     assert_eq!(config["comments"]["lineComment"], "#");
+}
+
+#[test]
+fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
+    let language = LanguageBuilder::new("CustomParserLanguage")
+        .version("0.1.0")
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["custom"]),
+        )
+        .construct(
+            ConstructBuilder::new("custom")
+                .syntax("custom {value}")
+                .field(FieldSpec::required("value", FieldKind::Identifier))
+                .custom_parser("host-custom"),
+        )
+        .build()
+        .expect("custom parser fixture validates");
+
+    let artifacts = generate_tooling(&language).expect("baseline tooling remains available");
+    assert!(artifacts.contains_key("metadata.json"));
+    assert!(
+        !artifacts
+            .keys()
+            .any(|path| path.starts_with("tree-sitter/"))
+    );
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capabilities are JSON");
+    assert!(
+        !capabilities["optional_artifacts"]["tree_sitter"]["available"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        capabilities["optional_artifacts"]["tree_sitter"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("custom parser `host-custom`")
+    );
 }
