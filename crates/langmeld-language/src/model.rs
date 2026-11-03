@@ -1,26 +1,6 @@
+use crate::analysis::ValueType;
 use langmeld_core::{Diagnostic, SourceFile, Span};
 use std::{any::Any, collections::BTreeMap, fmt, sync::Arc};
-
-/// General value category observed in a parsed syntax tree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ValueType {
-    /// An identifier token.
-    Identifier,
-    /// A finite numeric value.
-    Number,
-    /// A quoted text value.
-    Text,
-    /// A declared enum value.
-    Enum,
-    /// An unresolved or resolved reference spelling.
-    Reference,
-    /// A named property record.
-    Properties,
-    /// An ordered list.
-    List,
-    /// A key/value map.
-    Map,
-}
 
 /// A parsed language program. Nodes preserve source ranges but not comments or whitespace.
 #[derive(Clone, Debug, PartialEq)]

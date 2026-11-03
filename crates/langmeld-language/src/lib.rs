@@ -1,5 +1,6 @@
 //! Shared lexical contracts and resource limits for Langmeld language parsers.
 
+mod analysis;
 mod definition;
 mod definition_import;
 mod definition_meta;
@@ -10,6 +11,7 @@ mod model;
 mod parser;
 mod syntax;
 
+pub use analysis::*;
 pub use definition::{
     DefinitionLimits, parse_definition, parse_definition_with_limits,
     parse_language_definition_modules, parse_language_definition_modules_with_limits,
@@ -25,7 +27,7 @@ pub use lexer::{
 };
 pub use model::{
     AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, CustomConstructParserFn,
-    HostData, MapEntry, ParseResult, Program, Value, ValueType,
+    HostData, MapEntry, ParseResult, Program, Value,
 };
 pub use parser::{
     ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
