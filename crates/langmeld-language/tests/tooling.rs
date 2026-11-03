@@ -152,6 +152,11 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .unwrap()
     );
     assert!(
+        capabilities["editor_support"]["lsp_rename"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
         capabilities["not_yet_available"]
             .as_array()
             .unwrap()

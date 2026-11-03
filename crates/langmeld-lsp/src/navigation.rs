@@ -1,12 +1,20 @@
 //! Generic navigation over declarations and references in open documents.
 
-use langmeld_core::{FieldKind, Span, ValidatedLanguageSpec};
+use langmeld_core::{FieldKind, ScopeLookup, ScopeSpec, Span, ValidatedLanguageSpec};
 use langmeld_language::{AstNode, CapturedValue, Program, Value, WorkspaceAnalysis};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct SymbolOccurrence {
     pub(super) span: Span,
     pub(super) is_declaration: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct SymbolIdentity {
+    pub(super) name: String,
+    kind: String,
+    scope: Option<Vec<(String, String)>>,
+    scope_lookup: ScopeLookup,
 }
 
 pub(super) fn occurrence_at(
@@ -41,6 +49,179 @@ pub(super) fn resolved_target(
                 reference.declaration_span,
             )
         })
+}
+
+pub(super) fn validate_rename_target(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&langmeld_core::SourceFile, &Program)],
+    source_index: usize,
+    declaration_span: Span,
+    new_name: &str,
+) -> Option<SymbolIdentity> {
+    let target_program = files.get(source_index)?.1;
+    let target = find_symbol_identity(
+        spec,
+        &target_program.nodes,
+        &mut Vec::new(),
+        declaration_span,
+    )?;
+    let mut target_declarations = 0_usize;
+    let mut name_conflict = false;
+    for (current_source_index, (_, program)) in files.iter().enumerate() {
+        inspect_rename_symbols(
+            spec,
+            &program.nodes,
+            &mut Vec::new(),
+            &target,
+            new_name,
+            source_index,
+            declaration_span,
+            current_source_index,
+            &mut target_declarations,
+            &mut name_conflict,
+        );
+    }
+    (target_declarations == 1 && !name_conflict).then_some(target)
+}
+
+fn find_symbol_identity<'a>(
+    spec: &ValidatedLanguageSpec,
+    nodes: &'a [AstNode],
+    ancestors: &mut Vec<&'a AstNode>,
+    span: Span,
+) -> Option<SymbolIdentity> {
+    for node in nodes {
+        ancestors.push(node);
+        if let Some(construct) = spec.construct(&node.construct)
+            && let Some(symbol) = &construct.symbol
+            && let Some(value) = node.fields.get(&symbol.name_field)
+            && value.span == span
+            && let Value::Identifier(name) = &value.value
+        {
+            let Some(scope) = scope_identity(symbol.scope.as_ref(), ancestors) else {
+                ancestors.pop();
+                return None;
+            };
+            let identity = SymbolIdentity {
+                name: name.clone(),
+                kind: symbol.kind.clone(),
+                scope,
+                scope_lookup: symbol
+                    .scope
+                    .as_ref()
+                    .map_or(ScopeLookup::Exact, |scope| scope.lookup),
+            };
+            ancestors.pop();
+            return Some(identity);
+        }
+        if let Some(identity) = find_symbol_identity(spec, &node.children, ancestors, span) {
+            ancestors.pop();
+            return Some(identity);
+        }
+        ancestors.pop();
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inspect_rename_symbols<'a>(
+    spec: &ValidatedLanguageSpec,
+    nodes: &'a [AstNode],
+    ancestors: &mut Vec<&'a AstNode>,
+    target: &SymbolIdentity,
+    new_name: &str,
+    target_source_index: usize,
+    target_span: Span,
+    current_source_index: usize,
+    target_declarations: &mut usize,
+    name_conflict: &mut bool,
+) {
+    for node in nodes {
+        ancestors.push(node);
+        if let Some(construct) = spec.construct(&node.construct)
+            && let Some(symbol) = &construct.symbol
+            && symbol.kind == target.kind
+        {
+            let declaration_scope = scope_identity(symbol.scope.as_ref(), ancestors);
+            let same_scope = declaration_scope.as_ref() == Some(&target.scope);
+            let visible_from_target = match (&target.scope, &declaration_scope) {
+                (Some(target), Some(Some(declaration))) => {
+                    declaration.starts_with(target.as_slice())
+                }
+                (None, Some(None)) => true,
+                _ => false,
+            };
+            let check_declaration = match target.scope_lookup {
+                ScopeLookup::Exact => same_scope,
+                ScopeLookup::LexicalParents => visible_from_target,
+            };
+            if let Some(value) = node.fields.get(&symbol.name_field)
+                && let Value::Identifier(name) = &value.value
+            {
+                let is_target =
+                    current_source_index == target_source_index && value.span == target_span;
+                if is_target {
+                    *target_declarations = target_declarations.saturating_add(1);
+                } else {
+                    if same_scope && name == target.name.as_str() {
+                        *target_declarations = target_declarations.saturating_add(1);
+                    }
+                    let unclassified_scope = declaration_scope.is_none();
+                    if name == new_name
+                        && new_name != target.name
+                        && (check_declaration
+                            || (unclassified_scope
+                                && target.scope_lookup == ScopeLookup::LexicalParents))
+                    {
+                        *name_conflict = true;
+                    }
+                }
+            }
+        }
+        inspect_rename_symbols(
+            spec,
+            &node.children,
+            ancestors,
+            target,
+            new_name,
+            target_source_index,
+            target_span,
+            current_source_index,
+            target_declarations,
+            name_conflict,
+        );
+        ancestors.pop();
+    }
+}
+
+fn scope_identity(
+    scope: Option<&ScopeSpec>,
+    ancestors: &[&AstNode],
+) -> Option<Option<Vec<(String, String)>>> {
+    let Some(scope) = scope else {
+        return Some(None);
+    };
+    let matching_scopes = ancestors
+        .iter()
+        .filter(|ancestor| ancestor.construct == scope.construct)
+        .filter_map(|ancestor| {
+            ancestor
+                .fields
+                .get(&scope.name_field)
+                .and_then(|field| match &field.value {
+                    Value::Identifier(name) => Some((scope.construct.clone(), name.clone())),
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    if matching_scopes.is_empty() {
+        return None;
+    }
+    let identity = match scope.lookup {
+        ScopeLookup::Exact => vec![matching_scopes.last()?.clone()],
+        ScopeLookup::LexicalParents => matching_scopes,
+    };
+    Some(Some(identity))
 }
 
 fn collect_occurrences(

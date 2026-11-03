@@ -39,9 +39,12 @@ open-document diagnostics over LSP. Start it with
 `cargo run -p langmeld-lsp -- --language language/language.lm` (or
 `--project langmeld.json`). It supports versioned full/ranged document edits,
 diagnostics, global literal-keyword completion, parsed-construct document
-symbols, schema-based hover, and semantic tokens. Definition and references
-work across currently open documents when the language declares symbol
-metadata. It also suggests enum values and in-scope symbols in captured fields,
+symbols, schema-based hover, and semantic tokens. Definition, references, and
+safe rename work across currently open documents when the language declares
+symbol metadata. Rename rejects unresolved references and same-scope name
+collisions, returns no partial edits when analysis is limited, and caps names
+and edits; callback-provided symbol resolution is not renameable. It also
+suggests enum values and in-scope symbols in captured fields,
 offers parser-context enum values, simple child-construct snippets, and
 parser-derived continuations for incomplete patterns with unambiguous literal
 and field sequences. Embedded Rust hosts can register bounded, typed completion
@@ -125,8 +128,8 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ## Project guidance
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) describes the staged workflow, verification,
-  and commit conventions.
+- [CONTRIBUTING.md](CONTRIBUTING.md) describes the development workflow,
+  verification, and commit conventions.
 - [AGENTS.md](AGENTS.md) gives coding agents the repository-specific rules and
   links to the project-local Rust skills under `.agents/skills/`.
 

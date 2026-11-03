@@ -1,7 +1,7 @@
 //! A small LSP transport and diagnostic server for declarative Langmeld languages.
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, Read, Write},
 };
 
@@ -28,6 +28,8 @@ const MAX_COMPLETION_LABEL_BYTES: usize = 256;
 const MAX_COMPLETION_DETAIL_BYTES: usize = 1024;
 const MAX_COMPLETION_INSERT_BYTES: usize = 4096;
 const MAX_DOCUMENT_SYMBOLS: usize = 10_000;
+const MAX_RENAME_NAME_BYTES: usize = 1024;
+const MAX_RENAME_EDITS: usize = 100_000;
 
 /// LSP completion item kind supported by the host completion API.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -460,6 +462,7 @@ impl Server {
                         id,
                         self.supports_completion(),
                         self.supports_navigation(),
+                        self.supports_rename(),
                         self.supports_hover(),
                     )
                 })
@@ -526,6 +529,17 @@ impl Server {
                         "jsonrpc": "2.0",
                         "id": id,
                         "result": self.reference_results(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/rename" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.rename_result(params)
                     })
                 })
                 .into_iter()
@@ -724,6 +738,10 @@ impl Server {
             .constructs
             .iter()
             .any(|construct| construct.symbol.is_some())
+    }
+
+    fn supports_rename(&self) -> bool {
+        self.supports_navigation() && self.symbol_resolver_hooks.is_empty()
     }
 
     fn supports_hover(&self) -> bool {
@@ -1130,6 +1148,79 @@ impl Server {
         vec![json!({ "uri": uri, "range": lsp_range(&source.text, span) })]
     }
 
+    fn rename_result(&self, params: &Value) -> Option<Value> {
+        if !self.supports_rename() {
+            return None;
+        }
+        let new_name = params.get("newName")?.as_str()?;
+        if new_name.len() > MAX_RENAME_NAME_BYTES || !valid_symbol_name(new_name) {
+            return None;
+        }
+        let request = self.navigation_request(params)?;
+        if request.analysis.resource_limited {
+            return None;
+        }
+        let (target_index, target_span) = navigation::resolved_target(
+            request.occurrence,
+            request.source_index,
+            &request.analysis,
+        )?;
+        let target = navigation::validate_rename_target(
+            &self.language,
+            &request.files,
+            target_index,
+            target_span,
+            new_name,
+        )?;
+        if new_name == target.name {
+            return Some(json!({ "changes": {} }));
+        }
+
+        let mut occurrences = vec![(target_index, target_span)];
+        for reference in request
+            .analysis
+            .resolved_references
+            .iter()
+            .filter(|reference| {
+                reference.declaration_source_index == target_index
+                    && reference.declaration_span == target_span
+            })
+        {
+            if reference.name != target.name {
+                return None;
+            }
+            occurrences.push((reference.source_index, reference.reference_span));
+        }
+        if occurrences.len() > MAX_RENAME_EDITS {
+            return None;
+        }
+        occurrences.sort_by_key(|(source_index, span)| (*source_index, span.start, span.end));
+
+        let mut changes = BTreeMap::<String, Vec<Value>>::new();
+        let mut last_by_source = None::<(usize, Span)>;
+        for (source_index, span) in occurrences {
+            if let Some((last_source_index, last_span)) = last_by_source
+                && last_source_index == source_index
+                && last_span.end > span.start
+            {
+                return None;
+            }
+            let uri = request.uris.get(source_index)?;
+            let (source, _) = request.files.get(source_index)?;
+            if span.start >= span.end
+                || source.text.get(span.start..span.end) != Some(target.name.as_str())
+            {
+                return None;
+            }
+            changes.entry(uri.clone()).or_default().push(json!({
+                "range": lsp_range(&source.text, span),
+                "newText": new_name
+            }));
+            last_by_source = Some((source_index, span));
+        }
+        Some(json!({ "changes": changes }))
+    }
+
     fn reference_results(&self, params: &Value) -> Vec<Value> {
         let Some(request) = self.navigation_request(params) else {
             return Vec::new();
@@ -1208,6 +1299,7 @@ fn initialize_response(
     id: Value,
     supports_completion: bool,
     supports_navigation: bool,
+    supports_rename: bool,
     supports_hover: bool,
 ) -> Value {
     let mut capabilities = json!({
@@ -1220,6 +1312,9 @@ fn initialize_response(
     if supports_navigation {
         capabilities["definitionProvider"] = json!(true);
         capabilities["referencesProvider"] = json!(true);
+    }
+    if supports_rename {
+        capabilities["renameProvider"] = json!(true);
     }
     if supports_hover {
         capabilities["hoverProvider"] = json!(true);
@@ -1569,6 +1664,15 @@ fn completion_prefix(text: &str, offset: usize) -> (usize, &str) {
             line_start + index + value.len_utf8()
         });
     (word_start, &text[word_start..offset])
+}
+
+fn valid_symbol_name(value: &str) -> bool {
+    let mut characters = value.chars();
+    characters
+        .next()
+        .is_some_and(|character| character == '_' || character.is_alphabetic())
+        && characters
+            .all(|character| character == '_' || character == '-' || character.is_alphanumeric())
 }
 
 fn construct_pattern_snippet(pattern: &str) -> Option<String> {
@@ -2100,7 +2204,7 @@ mod tests {
     fn keyword_completion_is_empty_without_keywords_and_initialization_is_gated() {
         let items = keyword_completion_items("", 0, std::iter::empty());
         assert!(items.is_empty());
-        let response = initialize_response(json!(1), false, false, false);
+        let response = initialize_response(json!(1), false, false, false, false);
         assert!(
             response["result"]["capabilities"]
                 .get("completionProvider")
@@ -2114,6 +2218,11 @@ mod tests {
         assert!(
             response["result"]["capabilities"]
                 .get("referencesProvider")
+                .is_none()
+        );
+        assert!(
+            response["result"]["capabilities"]
+                .get("renameProvider")
                 .is_none()
         );
     }
@@ -2167,7 +2276,7 @@ mod tests {
     fn embedded_server_runs_registered_custom_parser_and_analysis_callbacks() {
         use langmeld_core::{
             BehaviorStage, ConstructBuilder, Diagnostic, FieldKind, FieldSpec, LanguageBuilder,
-            Span,
+            Span, SymbolSpec,
         };
         use langmeld_language::{
             CapturedValue, ConfiguredSemanticHookRegistration, CustomConstructMatch,
@@ -2199,6 +2308,7 @@ mod tests {
                 ConstructBuilder::new("native")
                     .syntax_variant("native", "host syntax {name}")
                     .field(FieldSpec::required("name", FieldKind::Identifier))
+                    .symbol(SymbolSpec::new("native", "name"))
                     .custom_parser("parse-native"),
             )
             .build()
@@ -2359,6 +2469,16 @@ mod tests {
                     "position": { "line": 1, "character": 11 }
                 }
             }),
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/rename",
+                "params": {
+                    "textDocument": { "uri": "file:///embedded.demo" },
+                    "position": { "line": 1, "character": 11 },
+                    "newName": "renamed"
+                }
+            }),
             json!({ "jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": null }),
             json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
         ];
@@ -2405,6 +2525,23 @@ mod tests {
                 .find(|response| response["id"] == 1)
                 .unwrap()["result"]["capabilities"]["completionProvider"]["resolveProvider"],
             false
+        );
+        let initialize = responses
+            .iter()
+            .find(|response| response["id"] == 1)
+            .expect("initialize response exists");
+        assert!(
+            initialize["result"]["capabilities"]
+                .get("renameProvider")
+                .is_none(),
+            "host resolver callbacks do not advertise generic rename"
+        );
+        assert_eq!(
+            responses
+                .iter()
+                .find(|response| response["id"] == 5)
+                .expect("rename response exists")["result"],
+            Value::Null
         );
         for code in ["HOST0001", "HOST0002", "HOST0003"] {
             assert!(

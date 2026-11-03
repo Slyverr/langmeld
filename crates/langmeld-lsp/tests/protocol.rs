@@ -72,6 +72,80 @@ impl TempLanguage {
         .expect("symbol language definition is written");
     }
 
+    fn write_rename_language(&self) {
+        fs::write(
+            &self.0,
+            r#"language RenameSymbols {
+  version: "0.1.0"
+  root: program
+  construct program {
+    syntax { default: "program {namespace} {" }
+    fields { namespace: identifier required }
+    block: [function, usage]
+  }
+  construct function {
+    syntax { default: "fn {label} {name} -> {result}" }
+    fields {
+      label: text required
+      name: identifier required
+      result: identifier required
+    }
+    symbol {
+      kind: function
+      name: name
+      scope: program
+      scope_name: namespace
+    }
+  }
+  construct usage {
+    syntax { default: "use {label} {target}" }
+    fields {
+      label: text required
+      target: ref<function> required
+    }
+  }
+}
+"#,
+        )
+        .expect("rename language definition is written");
+    }
+
+    fn write_lexical_rename_language(&self) {
+        fs::write(
+            &self.0,
+            r#"language LexicalRename {
+  version: "0.1.0"
+  root: program
+  construct program {
+    syntax { default: "program {" }
+    block: [module]
+  }
+  construct module {
+    syntax { default: "module {name} {" }
+    fields { name: identifier required }
+    block: [module, function, usage]
+  }
+  construct function {
+    syntax { default: "fn {name}" }
+    fields { name: identifier required }
+    symbol {
+      kind: function
+      name: name
+      scope: module
+      scope_name: name
+      scope_lookup: lexical_parents
+    }
+  }
+  construct usage {
+    syntax { default: "use {target}" }
+    fields { target: ref<function> required }
+  }
+}
+"#,
+        )
+        .expect("lexical rename language definition is written");
+    }
+
     fn write_enum_language(&self) {
         fs::write(
             &self.0,
@@ -954,4 +1028,252 @@ fn child_process_resolves_definitions_and_references_across_open_documents() {
     }));
     assert_eq!(by_id(4)["result"], json!([]));
     assert_eq!(by_id(5)["result"], Value::Null);
+}
+
+#[test]
+fn child_process_renames_resolved_symbols_with_safe_utf16_workspace_edits() {
+    let language = TempLanguage::new();
+    language.write_rename_language();
+    let declaration_uri = format!(
+        "file://{}",
+        language.0.with_file_name("declarations.demo").display()
+    );
+    let reference_uri = format!(
+        "file://{}",
+        language.0.with_file_name("references.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": declaration_uri,
+                "languageId": "rename-symbols",
+                "version": 1,
+                "text": "program Demo {\nfn \"😀\" api -> i32\nfn \"😀\" db -> i32\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": reference_uri,
+                "languageId": "rename-symbols",
+                "version": 1,
+                "text": "program Demo {\nuse \"😀\" api\nuse \"😀\" missing\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 10 },
+                "newName": "service"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 10 },
+                "newName": "db"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 10 },
+                "newName": "bad name"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 2, "character": 10 },
+                "newName": "service"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 5 },
+                "newName": "service"
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 7, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("rename requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let capabilities = &responses
+        .iter()
+        .find(|response| response["id"] == 1)
+        .expect("initialize response exists")["result"]["capabilities"];
+    assert_eq!(capabilities["renameProvider"], true);
+
+    let rename = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("rename response exists");
+    let declaration_edits = rename["result"]["changes"][declaration_uri]
+        .as_array()
+        .expect("declaration document edits are returned");
+    assert_eq!(declaration_edits.len(), 1);
+    assert_eq!(declaration_edits[0]["newText"], "service");
+    assert_eq!(
+        declaration_edits[0]["range"]["start"],
+        json!({ "line": 1, "character": 8 })
+    );
+    assert_eq!(
+        declaration_edits[0]["range"]["end"],
+        json!({ "line": 1, "character": 11 })
+    );
+    let reference_edits = rename["result"]["changes"][reference_uri]
+        .as_array()
+        .expect("reference document edits are returned");
+    assert_eq!(reference_edits.len(), 1);
+    assert_eq!(reference_edits[0]["newText"], "service");
+    assert_eq!(
+        reference_edits[0]["range"]["start"],
+        json!({ "line": 1, "character": 9 })
+    );
+    assert_eq!(
+        reference_edits[0]["range"]["end"],
+        json!({ "line": 1, "character": 12 })
+    );
+    for id in [3, 4, 5, 6] {
+        assert_eq!(
+            responses
+                .iter()
+                .find(|response| response["id"] == id)
+                .expect("rename response exists")["result"],
+            Value::Null,
+            "rename request {id} must not return partial or unsafe edits"
+        );
+    }
+}
+
+#[test]
+fn child_process_rename_uses_full_lexical_scope_paths() {
+    let language = TempLanguage::new();
+    language.write_lexical_rename_language();
+    let uri = format!(
+        "file://{}",
+        language.0.with_file_name("scopes.demo").display()
+    );
+    let text = "program {\nmodule Shared {\nfn outer\nuse outer\nmodule Nest {\nfn foo\nuse foo\n}\nmodule Deep {\nfn busy\n}\n}\nmodule Other {\nmodule Nest {\nfn busy\n}\n}\n}\n";
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": uri,
+                "languageId": "lexical-rename",
+                "version": 1,
+                "text": text
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": uri },
+                "position": { "line": 5, "character": 4 },
+                "newName": "busy"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": uri },
+                "position": { "line": 2, "character": 4 },
+                "newName": "busy"
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("rename requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let safe_rename = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("rename response exists");
+    let edits = safe_rename["result"]["changes"][uri]
+        .as_array()
+        .expect("same names in distinct lexical paths can be renamed");
+    assert_eq!(edits.len(), 2);
+    assert!(edits.iter().all(|edit| edit["newText"] == "busy"));
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 3)
+            .expect("rename response exists")["result"],
+        Value::Null,
+        "a descendant declaration must not capture references after rename"
+    );
 }

@@ -839,6 +839,10 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
         serde_json::Value::Bool(false)
     );
     assert_eq!(
+        value["current_capabilities"]["lsp_rename"],
+        serde_json::Value::Bool(false)
+    );
+    assert_eq!(
         value["current_capabilities"]["lsp_navigation_open_documents_only"],
         serde_json::Value::Bool(false)
     );

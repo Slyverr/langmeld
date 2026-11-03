@@ -113,6 +113,7 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
             "lsp_parser_continuation_completion": true,
             "lsp_navigation": lsp_navigation,
             "lsp_navigation_open_documents_only": lsp_navigation,
+            "lsp_rename": lsp_navigation,
             "wasm_implemented": false,
         },
         "host_implementation_required_for": [
