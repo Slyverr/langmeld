@@ -18,7 +18,8 @@ WASM, and generated tooling are still being ported. A generic artifact pass
 pipeline plans lowering dependencies and runs only the passes needed for
 requested outputs; the host owns its IR values and pass context. Single-program
 backend contracts validate descriptors, settings, required IR, artifacts, and
-source maps. Workspace backends are still being ported.
+source maps. Workspace backends apply the same checks across multiple sources
+and require explicit source indexes for ambiguous mappings.
 
 ## Workspace checks
 

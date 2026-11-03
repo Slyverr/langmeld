@@ -4,7 +4,8 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_language::{
     ArtifactBackend, BackendDescriptor, BackendDescriptorIssue, BackendError, BackendFormat,
     BackendInputs, BackendOptions, BackendSetting, CompilationArtifact, Program, SourceMapEntry,
-    compile_with_backend, resolve_backend_settings, validate_backend_descriptor,
+    WorkspaceArtifactBackend, WorkspaceBackendInputs, compile_with_backend,
+    compile_workspace_with_backend, resolve_backend_settings, validate_backend_descriptor,
 };
 
 struct TestBackend {
@@ -365,4 +366,202 @@ fn backend_diagnostics_are_preserved() {
         compile_with_backend(&backend, &inputs(&program), &BackendOptions::new("text")),
         Err(BackendError::Diagnostics(vec![diagnostic]))
     );
+}
+
+struct WorkspaceTestBackend {
+    descriptor: BackendDescriptor,
+    result: Result<CompilationArtifact, Vec<Diagnostic>>,
+    called: Cell<bool>,
+    received_file_count: Cell<usize>,
+    received_host_ir: Cell<bool>,
+}
+
+impl WorkspaceArtifactBackend for WorkspaceTestBackend {
+    fn descriptor(&self) -> BackendDescriptor {
+        self.descriptor.clone()
+    }
+
+    fn compile_workspace(
+        &self,
+        inputs: &WorkspaceBackendInputs<'_>,
+        _options: &BackendOptions,
+    ) -> Result<CompilationArtifact, Vec<Diagnostic>> {
+        self.called.set(true);
+        self.received_file_count.set(inputs.files.len());
+        self.received_host_ir
+            .set(inputs.artifacts.contains_key("host.ir"));
+        self.result.clone()
+    }
+}
+
+fn workspace_backend() -> WorkspaceTestBackend {
+    WorkspaceTestBackend {
+        descriptor: BackendDescriptor {
+            required_ir: vec!["langmeld.workspace".to_owned(), "host.ir".to_owned()],
+            ..descriptor()
+        },
+        result: Ok(artifact()),
+        called: Cell::new(false),
+        received_file_count: Cell::new(0),
+        received_host_ir: Cell::new(false),
+    }
+}
+
+#[test]
+fn workspace_backend_checks_ir_and_receives_all_sources() {
+    let backend = workspace_backend();
+    let first_source = SourceFile::new("first.lang", "first");
+    let second_source = SourceFile::new("second.lang", "second");
+    let first_program = Program { nodes: Vec::new() };
+    let second_program = Program { nodes: Vec::new() };
+    let files = [
+        (&first_source, &first_program),
+        (&second_source, &second_program),
+    ];
+    let options = BackendOptions::new("text");
+
+    assert!(matches!(
+        compile_workspace_with_backend(
+            &backend,
+            &WorkspaceBackendInputs::new(&files),
+            &options
+        ),
+        Err(BackendError::MissingRequiredIr { artifact, .. }) if artifact == "host.ir"
+    ));
+    assert!(!backend.called.get());
+
+    let result = compile_workspace_with_backend(
+        &backend,
+        &WorkspaceBackendInputs::new(&files).with_artifact("host.ir", b"ir".to_vec()),
+        &options,
+    )
+    .expect("workspace backend receives built-in and host artifacts");
+
+    assert_eq!(result, artifact());
+    assert!(backend.called.get());
+    assert_eq!(backend.received_file_count.get(), 2);
+    assert!(backend.received_host_ir.get());
+}
+
+#[test]
+fn workspace_program_ir_requires_exactly_one_source() {
+    let mut backend = workspace_backend();
+    backend.descriptor.required_ir = vec!["langmeld.program".to_owned()];
+    let first_source = SourceFile::new("first.lang", "first");
+    let second_source = SourceFile::new("second.lang", "second");
+    let program = Program { nodes: Vec::new() };
+    let two_files = [(&first_source, &program), (&second_source, &program)];
+
+    assert!(matches!(
+        compile_workspace_with_backend(
+            &backend,
+            &WorkspaceBackendInputs::new(&two_files),
+            &BackendOptions::new("text")
+        ),
+        Err(BackendError::MissingRequiredIr { artifact, .. })
+            if artifact == "langmeld.program (exactly one source)"
+    ));
+    assert!(!backend.called.get());
+
+    let one_file = [(&first_source, &program)];
+    compile_workspace_with_backend(
+        &backend,
+        &WorkspaceBackendInputs::new(&one_file),
+        &BackendOptions::new("text"),
+    )
+    .expect("the generic program is available for one source");
+    assert!(backend.called.get());
+}
+
+#[test]
+fn workspace_backend_diagnostics_and_artifact_metadata_are_preserved() {
+    let mut backend = workspace_backend();
+    backend.descriptor.required_ir.clear();
+    let source = SourceFile::new("main.lang", "source");
+    let program = Program { nodes: Vec::new() };
+    let files = [(&source, &program)];
+    let inputs = WorkspaceBackendInputs::new(&files);
+    let options = BackendOptions::new("text");
+    let diagnostic = Diagnostic::error("LM3002", "workspace lowering failed", Span::new(0, 4));
+
+    backend.result = Err(vec![diagnostic.clone()]);
+    assert_eq!(
+        compile_workspace_with_backend(&backend, &inputs, &options),
+        Err(BackendError::Diagnostics(vec![diagnostic]))
+    );
+
+    backend.result = Ok(CompilationArtifact {
+        media_type: "application/octet-stream".to_owned(),
+        ..artifact()
+    });
+    assert!(matches!(
+        compile_workspace_with_backend(&backend, &inputs, &options),
+        Err(BackendError::InvalidArtifact { .. })
+    ));
+}
+
+#[test]
+fn workspace_source_maps_require_unambiguous_valid_source_ranges() {
+    let mut backend = workspace_backend();
+    backend.descriptor.required_ir.clear();
+    backend.descriptor.supports_source_maps = true;
+    let first_source = SourceFile::new("first.lang", "alpha");
+    let second_source = SourceFile::new("second.lang", "βeta");
+    let program = Program { nodes: Vec::new() };
+    let files = [(&first_source, &program), (&second_source, &program)];
+    let inputs = WorkspaceBackendInputs::new(&files);
+    let options = BackendOptions {
+        source_maps: true,
+        ..BackendOptions::new("text")
+    };
+
+    backend.result = Ok(CompilationArtifact {
+        bytes: b"out".to_vec(),
+        source_map: vec![SourceMapEntry::in_source(
+            Span::new(0, 1),
+            Span::new(0, 2),
+            1,
+        )],
+        ..artifact()
+    });
+    compile_workspace_with_backend(&backend, &inputs, &options)
+        .expect("valid multi-source map identifies its input");
+
+    backend.result = Ok(CompilationArtifact {
+        bytes: b"out".to_vec(),
+        source_map: vec![SourceMapEntry::new(Span::new(0, 1), Span::new(0, 1))],
+        ..artifact()
+    });
+    assert!(matches!(
+        compile_workspace_with_backend(&backend, &inputs, &options),
+        Err(BackendError::MissingSourceMapSourceIndex { .. })
+    ));
+
+    backend.result = Ok(CompilationArtifact {
+        bytes: b"out".to_vec(),
+        source_map: vec![SourceMapEntry::in_source(
+            Span::new(0, 1),
+            Span::new(0, 1),
+            8,
+        )],
+        ..artifact()
+    });
+    assert!(matches!(
+        compile_workspace_with_backend(&backend, &inputs, &options),
+        Err(BackendError::InvalidSourceMapSourceIndex { .. })
+    ));
+
+    backend.result = Ok(CompilationArtifact {
+        bytes: b"out".to_vec(),
+        source_map: vec![SourceMapEntry::in_source(
+            Span::new(0, 1),
+            Span::new(0, 1),
+            1,
+        )],
+        ..artifact()
+    });
+    assert!(matches!(
+        compile_workspace_with_backend(&backend, &inputs, &options),
+        Err(BackendError::InvalidSourceMapSourceRange { .. })
+    ));
 }

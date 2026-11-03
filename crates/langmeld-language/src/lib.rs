@@ -17,7 +17,8 @@ pub use analysis::*;
 pub use backend::{
     ArtifactBackend, BackendDescriptor, BackendDescriptorIssue, BackendError, BackendFormat,
     BackendInputs, BackendOptions, BackendSetting, CompilationArtifact, SourceMapEntry,
-    compile_with_backend, resolve_backend_settings, validate_backend_descriptor,
+    WorkspaceArtifactBackend, WorkspaceBackendInputs, compile_with_backend,
+    compile_workspace_with_backend, resolve_backend_settings, validate_backend_descriptor,
     validate_backend_settings,
 };
 pub use definition::{

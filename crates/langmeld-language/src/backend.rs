@@ -89,7 +89,9 @@ pub struct BackendDescriptor {
     pub formats: Vec<BackendFormat>,
     /// Named IR or analysis artifacts required by this backend.
     ///
-    /// The built-in `langmeld.program` artifact is provided by [`BackendInputs::program`].
+    /// The built-in `langmeld.program` artifact is provided by [`BackendInputs::program`] and is
+    /// available in workspace mode only when exactly one source is supplied. The built-in
+    /// `langmeld.workspace` artifact is available to every workspace backend.
     pub required_ir: Vec<String>,
     /// Whether the backend can map generated spans to source spans.
     pub supports_source_maps: bool,
@@ -249,6 +251,33 @@ impl<'a> BackendInputs<'a> {
     }
 }
 
+/// Inputs for lowering an analyzed set of source files as one workspace.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkspaceBackendInputs<'a> {
+    /// Source snapshots paired with parsed programs in the same input order.
+    pub files: &'a [(&'a SourceFile, &'a Program)],
+    /// Host-defined intermediate representations keyed by stable artifact IDs.
+    pub artifacts: BTreeMap<String, Vec<u8>>,
+}
+
+impl<'a> WorkspaceBackendInputs<'a> {
+    /// Creates workspace backend inputs from source/program pairs.
+    #[must_use]
+    pub fn new(files: &'a [(&'a SourceFile, &'a Program)]) -> Self {
+        Self {
+            files,
+            artifacts: BTreeMap::new(),
+        }
+    }
+
+    /// Adds a named host IR artifact required by this backend.
+    #[must_use]
+    pub fn with_artifact(mut self, id: impl Into<String>, bytes: impl Into<Vec<u8>>) -> Self {
+        self.artifacts.insert(id.into(), bytes.into());
+        self
+    }
+}
+
 /// Host-implemented backend that lowers a Langmeld program to an artifact.
 pub trait ArtifactBackend {
     /// Returns the backend's formats and required input capabilities.
@@ -269,6 +298,30 @@ pub trait ArtifactBackend {
     fn compile(
         &self,
         inputs: &BackendInputs<'_>,
+        options: &BackendOptions,
+    ) -> Result<CompilationArtifact, Vec<Diagnostic>>;
+}
+
+/// Host-implemented backend that lowers multiple analyzed files together.
+pub trait WorkspaceArtifactBackend {
+    /// Returns the backend's formats and required input capabilities.
+    fn descriptor(&self) -> BackendDescriptor;
+
+    /// Returns settings understood by this backend. Unlisted settings are rejected.
+    fn settings(&self) -> Vec<BackendSetting> {
+        Vec::new()
+    }
+
+    /// Lowers a workspace using selected options and resolved defaults.
+    ///
+    /// The caller owns parse and semantic orchestration and decides whether these programs are
+    /// valid for the requested output.
+    ///
+    /// # Errors
+    /// Returns source diagnostics when the backend cannot lower the workspace.
+    fn compile_workspace(
+        &self,
+        inputs: &WorkspaceBackendInputs<'_>,
         options: &BackendOptions,
     ) -> Result<CompilationArtifact, Vec<Diagnostic>>;
 }
@@ -319,13 +372,15 @@ pub enum BackendError {
         end: usize,
         artifact_len: usize,
     },
-    /// A single-file source map refers to a nonexistent source file.
+    /// A source map refers to a nonexistent input source file.
     InvalidSourceMapSourceIndex {
         backend: String,
         entry_index: usize,
         source_index: usize,
         source_count: usize,
     },
+    /// A workspace source map omitted its input-file index when multiple files were supplied.
+    MissingSourceMapSourceIndex { backend: String, entry_index: usize },
     /// A source-map range is outside its input or splits a UTF-8 code point.
     InvalidSourceMapSourceRange {
         backend: String,
@@ -415,6 +470,13 @@ impl fmt::Display for BackendError {
             } => write!(
                 formatter,
                 "backend `{backend}` returned source index {source_index} for source-map entry {entry_index}, but the compilation has {source_count} source file(s)"
+            ),
+            Self::MissingSourceMapSourceIndex {
+                backend,
+                entry_index,
+            } => write!(
+                formatter,
+                "backend `{backend}` omitted the source-file index for source-map entry {entry_index} in a multi-file compilation"
             ),
             Self::InvalidSourceMapSourceRange {
                 backend,
@@ -628,6 +690,78 @@ pub fn compile_with_backend(
     validate_artifact(&descriptor, format, artifact, &sources, options.source_maps)
 }
 
+/// Validates inputs, options, and output metadata around one workspace lowering call.
+///
+/// `langmeld.workspace` is always supplied by the complete workspace inputs.
+/// `langmeld.program` is available only when the workspace has exactly one source.
+/// Other required IR artifacts must be attached by earlier host passes.
+///
+/// # Errors
+/// Rejects unsupported options and missing IR before backend invocation, preserves backend
+/// diagnostics, and validates output metadata and source maps against all workspace sources.
+pub fn compile_workspace_with_backend(
+    backend: &impl WorkspaceArtifactBackend,
+    inputs: &WorkspaceBackendInputs<'_>,
+    options: &BackendOptions,
+) -> Result<CompilationArtifact, BackendError> {
+    let descriptor = backend.descriptor();
+    validate_backend_descriptor(&descriptor)?;
+    let resolved_settings =
+        resolve_backend_settings(&descriptor.id, &backend.settings(), &options.settings)?;
+    let Some(format) = descriptor
+        .formats
+        .iter()
+        .find(|format| format.id == options.format)
+    else {
+        return Err(BackendError::UnsupportedFormat {
+            backend: descriptor.id,
+            format: options.format.clone(),
+        });
+    };
+    if let Some(artifact) = descriptor.required_ir.iter().find(|required| {
+        !matches!(required.as_str(), "langmeld.program" | "langmeld.workspace")
+            && !inputs.artifacts.contains_key(*required)
+    }) {
+        return Err(BackendError::MissingRequiredIr {
+            backend: descriptor.id,
+            artifact: artifact.clone(),
+        });
+    }
+    if descriptor
+        .required_ir
+        .iter()
+        .any(|required| required == "langmeld.program")
+        && inputs.files.len() != 1
+    {
+        return Err(BackendError::MissingRequiredIr {
+            backend: descriptor.id,
+            artifact: "langmeld.program (exactly one source)".to_owned(),
+        });
+    }
+    if options.source_maps && !descriptor.supports_source_maps {
+        return Err(BackendError::UnsupportedSourceMaps {
+            backend: descriptor.id,
+        });
+    }
+    if options.source_maps && inputs.files.is_empty() {
+        return Err(BackendError::MissingSourceSnapshotForMaps {
+            backend: descriptor.id,
+        });
+    }
+
+    let mut resolved_options = options.clone();
+    resolved_options.settings = resolved_settings;
+    let artifact = backend
+        .compile_workspace(inputs, &resolved_options)
+        .map_err(BackendError::Diagnostics)?;
+    let sources = inputs
+        .files
+        .iter()
+        .map(|(source, _)| *source)
+        .collect::<Vec<_>>();
+    validate_artifact(&descriptor, format, artifact, &sources, options.source_maps)
+}
+
 fn validate_artifact(
     descriptor: &BackendDescriptor,
     format: &BackendFormat,
@@ -672,32 +806,42 @@ fn validate_artifact(
             artifact_len: artifact.bytes.len(),
         });
     }
-    if let Some(source) = sources.first() {
-        for (entry_index, entry) in artifact.source_map.iter().enumerate() {
-            let source_index = entry.source_index.unwrap_or(0);
-            if source_index != 0 {
-                return Err(BackendError::InvalidSourceMapSourceIndex {
+    for (entry_index, entry) in artifact.source_map.iter().enumerate() {
+        if sources.is_empty() {
+            continue;
+        }
+        let source_index = match entry.source_index {
+            Some(index) => index,
+            None if sources.len() == 1 => 0,
+            None => {
+                return Err(BackendError::MissingSourceMapSourceIndex {
                     backend: descriptor.id.clone(),
                     entry_index,
-                    source_index,
-                    source_count: 1,
                 });
             }
-            let span = entry.source;
-            if span.start > span.end
-                || span.end > source.text.len()
-                || !source.text.is_char_boundary(span.start)
-                || !source.text.is_char_boundary(span.end)
-            {
-                return Err(BackendError::InvalidSourceMapSourceRange {
-                    backend: descriptor.id.clone(),
-                    entry_index,
-                    source_index,
-                    start: span.start,
-                    end: span.end,
-                    source_len: source.text.len(),
-                });
-            }
+        };
+        let Some(source) = sources.get(source_index) else {
+            return Err(BackendError::InvalidSourceMapSourceIndex {
+                backend: descriptor.id.clone(),
+                entry_index,
+                source_index,
+                source_count: sources.len(),
+            });
+        };
+        let span = entry.source;
+        if span.start > span.end
+            || span.end > source.text.len()
+            || !source.text.is_char_boundary(span.start)
+            || !source.text.is_char_boundary(span.end)
+        {
+            return Err(BackendError::InvalidSourceMapSourceRange {
+                backend: descriptor.id.clone(),
+                entry_index,
+                source_index,
+                start: span.start,
+                end: span.end,
+                source_len: source.text.len(),
+            });
         }
     }
     Ok(artifact)
