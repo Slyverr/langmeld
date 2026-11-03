@@ -394,6 +394,29 @@ fn init_supports_rust_and_combined_authoring_projects() {
         if has_extension {
             assert!(project.join("language/extensions/starter.lm").is_file());
             assert_eq!(manifest["extensions"].as_array().unwrap().len(), 1);
+            let language_test_path = project.join("tests/language.rs");
+            let mut language_test =
+                fs::read_to_string(&language_test_path).expect("generated language test reads");
+            language_test.push_str(
+                r#"
+
+#[test]
+fn extension_construct_is_available_in_the_typed_ast() {
+    let source = SourceFile::new(
+        "extension.lmprog",
+        "program {\n  print \"hello\"\n  note \"shared extension\"\n}\n",
+    );
+    let parsed = parse_source(&source).expect("extension parser prepares");
+    let roots = ast::from_program(&parsed.program).expect("extension typed AST converts");
+    assert_eq!(roots[0].children.len(), 2);
+    let note = ast::Note::try_from(&parsed.program.nodes[0].children[1])
+        .expect("combined extension child converts to a note");
+    assert_eq!(note.text.value, "shared extension");
+}
+"#,
+            );
+            fs::write(&language_test_path, language_test)
+                .expect("extension typed AST test is added");
         } else {
             assert!(manifest["extensions"].as_array().is_none());
         }

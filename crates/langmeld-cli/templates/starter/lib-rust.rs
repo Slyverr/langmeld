@@ -11,6 +11,11 @@ pub mod host;
 mod language;
 @WASM_MODULE@
 
+/// Typed syntax-tree views generated from the effective language model.
+pub mod ast {
+    include!(concat!(env!("OUT_DIR"), "/langmeld_ast.rs"));
+}
+
 /// Parsed and analyzed inputs supplied to this language's execution hook.
 pub struct RuntimeContext<'a> {
     /// Validated language model used to parse and analyze the inputs.

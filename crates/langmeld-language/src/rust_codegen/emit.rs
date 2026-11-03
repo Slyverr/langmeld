@@ -12,8 +12,7 @@ use super::{pascal_case, rust_keyword_safe, snake_case, unique};
 ///
 /// The generated module embeds the canonical language definition and includes
 /// conversions from [`crate::AstNode`] and [`crate::Program`]. Consumers compile
-/// the output in a crate that depends on both `langmeld-core` and
-/// `langmeld-language`.
+/// the output through the public `langmeld` facade.
 #[must_use]
 pub fn generate_rust_ast(language: &ValidatedLanguageSpec) -> String {
     let spec = language.spec();
@@ -84,6 +83,8 @@ pub fn generate_rust_ast(language: &ValidatedLanguageSpec) -> String {
     let mut output = String::from(
         "// Generated typed views for a Langmeld language syntax tree.\n\n\
 use std::{collections::BTreeMap, fmt, marker::PhantomData};\n\
+use langmeld::core as langmeld_core;\n\
+use langmeld::language as langmeld_language;\n\
 use langmeld_core::{Diagnostic, Severity, SourceFile, Span};\n\
 use langmeld_language::{AstNode, Program as GenericProgram};\n\n",
     );

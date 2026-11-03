@@ -172,6 +172,10 @@ Langmeld composes the extension's declarations into the effective language
 used by checking and generated tooling. The extension does not supply
 executable Rust behavior; custom parser, analysis, runtime, or backend
 callbacks remain part of the language host's trusted build.
+Generated Rust host projects expose an `ast` module built from that same
+effective model. Call `ast::from_program(&parsed.program)` to convert the
+generic parser result into typed Rust constructs, including constructs added
+by declarative extensions.
 `langmeld format --language language/language.lm --source examples/demo.lang`
 prints the formatted source. Add `--write` to update the file; invalid source
 is reported without writing.

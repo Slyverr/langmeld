@@ -4,6 +4,16 @@ use langmeld_core::{
 };
 use langmeld_language::generate_rust_ast;
 
+extern crate self as langmeld;
+
+pub mod core {
+    pub use langmeld_core::*;
+}
+
+pub mod language {
+    pub use langmeld_language::*;
+}
+
 #[allow(dead_code)]
 #[rustfmt::skip]
 #[path = "fixtures/generated_ast.rs"]

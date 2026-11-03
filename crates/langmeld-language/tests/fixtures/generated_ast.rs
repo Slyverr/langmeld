@@ -1,6 +1,8 @@
 // Generated typed views for a Langmeld language syntax tree.
 
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
+use langmeld::core as langmeld_core;
+use langmeld::language as langmeld_language;
 use langmeld_core::{Diagnostic, Severity, SourceFile, Span};
 use langmeld_language::{AstNode, Program as GenericProgram};
 

@@ -1,6 +1,6 @@
 use langmeld::core::SourceFile;
 use @CRATE@::{
-    load_language, load_language_runtime, load_project, load_project_runtime, parse_source,
+    ast, load_language, load_language_runtime, load_project, load_project_runtime, parse_source,
 };
 
 #[test]
@@ -21,4 +21,9 @@ fn starter_definition_and_example_parse() {
     assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
     assert_eq!(parsed.program.nodes[0].construct, "program");
     assert_eq!(parsed.program.nodes[0].children[0].construct, "statement");
+    let roots = ast::from_program(&parsed.program).expect("typed AST conversion succeeds");
+    assert!(!roots[0].children.is_empty());
+    let statement = ast::Statement::try_from(&parsed.program.nodes[0].children[0])
+        .expect("starter child converts to a statement");
+    assert_eq!(statement.message.value, "Hello from @NAME@!");
 }
