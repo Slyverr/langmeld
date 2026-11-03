@@ -201,7 +201,7 @@ pub(crate) fn generate_host_scaffold(
     std::collections::BTreeMap::from([
         (
             "host/mod.rs".to_owned(),
-            "pub mod analysis;\npub mod lexer;\npub mod parser;\npub mod runtime;\n".to_owned(),
+            "pub mod analysis;\npub mod backend;\npub mod lexer;\npub mod parser;\npub mod runtime;\n".to_owned(),
         ),
         ("host/parser.rs".to_owned(), parser_source),
         ("host/analysis.rs".to_owned(), analysis_source),
@@ -219,6 +219,7 @@ This generated module tree follows the language definition and Langmeld's extens
 - `parser.rs` contains one stub per declared custom parser. Return source-spanned generic fields for shared Langmeld services, and attach a native Rust AST with `CustomConstructMatch::with_host_data(...)` when your language needs its own representation.
 - `lexer.rs` is the host's optional custom-lexer implementation. Start from `langmeld::language::lex_source(source)` when only some lexical rules need adapting.
 - `analysis.rs` contains semantic, symbol-resolution, and workspace behavior stubs plus checked registries.
+- `backend.rs` registers the project's Rust-defined single-file and workspace backends. This host-owned module is not generated from `.lm` declarations.
 - `runtime.rs` binds parser callbacks and an optional custom lexer to a validated language.
 - `mod.rs` connects the Rust modules.
 
@@ -235,8 +236,8 @@ preserving marked callback implementations.
 
 The starter exposes `pub mod host;`, binds parser and lexer callbacks through
 `host::runtime::configured_parser`, and calls the checked analysis registries
-from its project-aware CLI. Backend and lowering-pass scaffolds will be added
-with the host compilation workflow.
+from its project-aware CLI. Add backend implementations to the user-owned
+`src/host/backend.rs`; `.lm` declarations do not select executable backends.
 
 The generated host tree contains callbacks derived from the language definition. Keep implementation code in the project host until Langmeld provides its safe install and refresh workflow.
 "#

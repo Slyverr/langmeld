@@ -644,7 +644,7 @@ pub fn validate_backend_settings(
 /// Rejects unsupported options and missing IR before invoking the backend, preserves backend
 /// diagnostics, and validates returned format metadata and source-map ranges.
 pub fn compile_with_backend(
-    backend: &impl ArtifactBackend,
+    backend: &(impl ArtifactBackend + ?Sized),
     inputs: &BackendInputs<'_>,
     options: &BackendOptions,
 ) -> Result<CompilationArtifact, BackendError> {
@@ -700,7 +700,7 @@ pub fn compile_with_backend(
 /// Rejects unsupported options and missing IR before backend invocation, preserves backend
 /// diagnostics, and validates output metadata and source maps against all workspace sources.
 pub fn compile_workspace_with_backend(
-    backend: &impl WorkspaceArtifactBackend,
+    backend: &(impl WorkspaceArtifactBackend + ?Sized),
     inputs: &WorkspaceBackendInputs<'_>,
     options: &BackendOptions,
 ) -> Result<CompilationArtifact, BackendError> {

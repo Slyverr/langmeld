@@ -258,6 +258,159 @@ fn init_can_create_a_library_without_a_cli_target() {
 }
 
 #[test]
+fn generated_host_registry_dispatches_and_validates_workspace_backends() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("backend-consumer");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "BuildHost",
+        "--no-agent-skill",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+
+    let backend_path = project.join("src/host/backend.rs");
+    let backend = fs::read_to_string(&backend_path).expect("host registry is readable");
+    let backend = backend.replace(
+        "    Vec::new()\n}",
+        "    vec![\n        RegisteredBackend::Workspace(Box::new(TestBackend)),\n        RegisteredBackend::Single(Box::new(SingleTestBackend)),\n    ]\n}",
+    );
+    let implementations = r#"
+struct TestBackend;
+
+impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
+    fn descriptor(&self) -> langmeld::language::BackendDescriptor {
+        langmeld::language::BackendDescriptor {
+            id: "workspace-test".to_owned(),
+            formats: vec![langmeld::language::BackendFormat {
+                id: "text".to_owned(),
+                media_type: "text/plain".to_owned(),
+                extension: "txt".to_owned(),
+            }],
+            required_ir: vec!["langmeld.workspace".to_owned()],
+            supports_source_maps: false,
+        }
+    }
+
+    fn settings(&self) -> Vec<langmeld::language::BackendSetting> {
+        vec![langmeld::language::BackendSetting::text("mode", "Mode")
+            .default_value("strict")]
+    }
+
+    fn compile_workspace(
+        &self,
+        _inputs: &langmeld::language::WorkspaceBackendInputs<'_>,
+        options: &langmeld::language::BackendOptions,
+    ) -> Result<langmeld::language::CompilationArtifact, Vec<langmeld::core::Diagnostic>> {
+        assert_eq!(options.settings.get("mode").map(String::as_str), Some("strict"));
+        Ok(langmeld::language::CompilationArtifact {
+            format: "text".to_owned(),
+            media_type: "text/plain".to_owned(),
+            bytes: b"compiled-workspace".to_vec(),
+            source_map: Vec::new(),
+        })
+    }
+}
+
+struct SingleTestBackend;
+
+impl langmeld::language::ArtifactBackend for SingleTestBackend {
+    fn descriptor(&self) -> langmeld::language::BackendDescriptor {
+        langmeld::language::BackendDescriptor {
+            id: "single-test".to_owned(),
+            formats: vec![langmeld::language::BackendFormat {
+                id: "text".to_owned(),
+                media_type: "text/plain".to_owned(),
+                extension: "txt".to_owned(),
+            }],
+            required_ir: vec!["langmeld.program".to_owned()],
+            supports_source_maps: false,
+        }
+    }
+
+    fn compile(
+        &self,
+        _inputs: &langmeld::language::BackendInputs<'_>,
+        _options: &langmeld::language::BackendOptions,
+    ) -> Result<langmeld::language::CompilationArtifact, Vec<langmeld::core::Diagnostic>> {
+        Ok(langmeld::language::CompilationArtifact {
+            format: "text".to_owned(),
+            media_type: "text/plain".to_owned(),
+            bytes: b"compiled-single".to_vec(),
+            source_map: Vec::new(),
+        })
+    }
+}
+"#;
+    fs::write(&backend_path, format!("{backend}\n{implementations}"))
+        .expect("workspace and single backends are registered");
+
+    fs::write(
+        project.join("tests/backend_registry.rs"),
+        r#"use std::collections::BTreeMap;
+use buildhost_language::{host::backend::compile_registered_backend, parser};
+use langmeld::core::SourceFile;
+use langmeld::language::BackendOptions;
+
+#[test]
+fn registered_backend_returns_a_validated_workspace_artifact() {
+    let source = SourceFile::new("example.buildhost", "program {\n  print \"hello\"\n}\n");
+    let parsed = parser().expect("host parser initializes").parse(&source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    let files = [(&source, &parsed.program)];
+    let artifact = compile_registered_backend(
+        "workspace-test",
+        &files,
+        BTreeMap::new(),
+        &BackendOptions::new("text"),
+    ).expect("registered backend compiles the workspace");
+    assert_eq!(artifact.bytes, b"compiled-workspace");
+    assert_eq!(artifact.media_type, "text/plain");
+    let single = compile_registered_backend(
+        "single-test",
+        &files,
+        BTreeMap::new(),
+        &BackendOptions::new("text"),
+    ).expect("single-source backend compiles one program");
+    assert_eq!(single.bytes, b"compiled-single");
+    let multiple = [(&source, &parsed.program), (&source, &parsed.program)];
+    assert!(compile_registered_backend(
+        "single-test",
+        &multiple,
+        BTreeMap::new(),
+        &BackendOptions::new("text"),
+    ).unwrap_err().to_string().contains("accepts one source file"));
+    assert!(compile_registered_backend(
+        "missing",
+        &files,
+        BTreeMap::new(),
+        &BackendOptions::new("text"),
+    ).unwrap_err().to_string().contains("available backends: single-test, workspace-test"));
+}
+"#,
+    )
+    .expect("backend registry test is written");
+    let check = Command::new(env!("CARGO"))
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .args(["--test", "backend_registry"])
+        .output()
+        .expect("generated backend registry test starts");
+    assert!(
+        check.status.success(),
+        "generated backend registry test failed:\n{}\n{}",
+        String::from_utf8_lossy(&check.stdout),
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+#[test]
 fn configure_validates_candidate_before_writing_and_supports_noninteractive_updates() {
     let temporary = TempWorkspace::new();
     let project = temporary.project("configured");

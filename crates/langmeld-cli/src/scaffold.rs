@@ -132,6 +132,10 @@ fn starter_files(
     add(".gitignore", include_str!("../templates/starter/gitignore"));
     add("README.md", include_str!("../templates/starter/README.md"));
     add("src/lib.rs", include_str!("../templates/starter/lib.rs"));
+    add(
+        "src/host/backend.rs",
+        include_str!("../templates/starter/backend.rs"),
+    );
     if !options.library_only {
         add("src/main.rs", include_str!("../templates/starter/main.rs"));
     }
