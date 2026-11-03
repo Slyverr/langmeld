@@ -116,6 +116,26 @@ jobs:
               exit 1
             fi
           done
+      - name: Emit Langmeld definition Tree-sitter fixture
+        if: matrix.full == true
+        env:
+          LANGMELD_DEFINITION_TREE_SITTER_FIXTURE_DIR: ${{ runner.temp }}/langmeld-definition-tree-sitter
+        run: cargo test --locked -p langmeld-language --test tree_sitter -- --ignored --exact write_definition_meta_tree_sitter_validation_fixture
+      - name: Validate Langmeld definition grammar and highlights
+        if: matrix.full == true
+        run: |
+          grammar_dir="$RUNNER_TEMP/langmeld-definition-tree-sitter"
+          cd "$grammar_dir"
+          tree-sitter generate --js-runtime bun
+          for sample in samples/language.lm samples/constructs/*.lm; do
+            tree-sitter parse --json-summary --grammar-path . "$sample" > parse-summary.json
+            bun -e 'const summary = await Bun.file("parse-summary.json").json(); if (!summary.parse_summaries?.every(({ successful }) => successful)) process.exit(1);'
+            tree-sitter query --quiet --grammar-path . queries/highlights.scm "$sample"
+          done
+          if tree-sitter parse --quiet --grammar-path . invalid/unknown-root.lm; then
+            echo "Tree-sitter accepted invalid Langmeld definition syntax"
+            exit 1
+          fi
       - name: Emit complex Tree-sitter exporter fixture
         if: matrix.full == true
         env:

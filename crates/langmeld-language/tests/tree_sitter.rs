@@ -1,7 +1,7 @@
 use langmeld_core::{
     ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind, SourceFile, SymbolSpec,
 };
-use langmeld_language::{PreparedLanguage, generate_tree_sitter};
+use langmeld_language::{PreparedLanguage, generate_tree_sitter, langmeld_definition_language};
 use std::{env, fs, path::Path};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
@@ -275,4 +275,68 @@ fn write_tree_sitter_cli_validation_fixture() {
         invalid_string_source,
     )
     .expect("invalid string sample is written");
+}
+
+#[test]
+#[ignore = "emits Tree-sitter validation fixtures from Langmeld's own definition grammar"]
+fn write_definition_meta_tree_sitter_validation_fixture() {
+    let output = env::var_os("LANGMELD_DEFINITION_TREE_SITTER_FIXTURE_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("LANGMELD_DEFINITION_TREE_SITTER_FIXTURE_DIR must name a temporary directory");
+    fs::create_dir_all(&output).expect("fixture output directory is created");
+
+    let language = langmeld_definition_language().expect("definition metagrammar validates");
+    for (path, contents) in generate_tree_sitter(&language).expect("definition grammar exports") {
+        let relative = path
+            .strip_prefix("tree-sitter/")
+            .expect("generated artifact is under tree-sitter/");
+        let destination = output.join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).expect("artifact parent directory is created");
+        }
+        fs::write(destination, contents).expect("generated artifact is written");
+    }
+
+    let samples = [
+        (
+            "language.lm",
+            include_str!("../src/definition_meta/language.lm"),
+        ),
+        (
+            "constructs/00_language.lm",
+            include_str!("../src/definition_meta/constructs/00_language.lm"),
+        ),
+        (
+            "constructs/01_types.lm",
+            include_str!("../src/definition_meta/constructs/01_types.lm"),
+        ),
+        (
+            "constructs/02_constructs.lm",
+            include_str!("../src/definition_meta/constructs/02_constructs.lm"),
+        ),
+        (
+            "constructs/03_fields.lm",
+            include_str!("../src/definition_meta/constructs/03_fields.lm"),
+        ),
+        (
+            "constructs/04_syntax.lm",
+            include_str!("../src/definition_meta/constructs/04_syntax.lm"),
+        ),
+        (
+            "constructs/05_symbols.lm",
+            include_str!("../src/definition_meta/constructs/05_symbols.lm"),
+        ),
+    ];
+    for (relative, contents) in samples {
+        let destination = output.join("samples").join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).expect("sample parent directory is created");
+        }
+        fs::write(destination, contents).expect("definition sample is written");
+    }
+    let invalid = output.join("invalid/unknown-root.lm");
+    fs::create_dir_all(invalid.parent().expect("invalid fixture has a parent"))
+        .expect("invalid fixture directory is created");
+    fs::write(invalid, "this is not a language definition\n")
+        .expect("invalid definition sample is written");
 }

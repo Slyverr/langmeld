@@ -94,6 +94,9 @@ runs highlight queries with the Tree-sitter CLI. CI also compiles a grammar
 emitted from the Rust-authored function-signature example, parses its
 zero-argument and multi-argument declarations, rejects a one-argument
 signature, and runs its highlight query.
+It also exports and compiles a grammar from Langmeld's built-in `.lm`
+metagrammar, parses the checked-in root and construct modules, runs their
+highlight queries, and rejects malformed definition syntax.
 These checks validate grammar and query syntax, not semantic equivalence with
 Langmeld. The library also exposes a structural formatter that preserves
 comments and strings, normalizes CRLF to LF, and supports space or tab
