@@ -2,6 +2,7 @@ mod check;
 mod cli;
 mod configure;
 mod extensions;
+mod format;
 mod generate;
 mod host;
 mod init;
@@ -47,6 +48,13 @@ fn main() -> std::process::ExitCode {
                 }
             }
         }
+        cli::Commands::Format(arguments) => match format::format_file(arguments) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err((code, message)) => {
+                eprintln!("langmeld: {message}");
+                std::process::ExitCode::from(code)
+            }
+        },
         cli::Commands::Check(arguments) => match check::check_workspace(arguments) {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err((code, message)) => {

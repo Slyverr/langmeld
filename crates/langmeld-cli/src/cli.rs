@@ -25,6 +25,8 @@ pub(crate) enum Commands {
     Lock(LockArgs),
     /// Manage the project's local language extensions.
     Extension(ExtensionArgs),
+    /// Format one source file using a language definition.
+    Format(FormatArgs),
     /// Parse source files and run generic workspace analysis.
     #[command(alias = "validate")]
     Check(ValidationArgs),
@@ -152,6 +154,19 @@ pub(crate) struct ExtensionRemoveArgs {
     pub(crate) path: Option<PathBuf>,
 }
 
+#[derive(Debug, Args)]
+pub(crate) struct FormatArgs {
+    /// Language definition to use.
+    #[arg(long)]
+    pub(crate) language: PathBuf,
+    /// Source file to format.
+    #[arg(long)]
+    pub(crate) source: PathBuf,
+    /// Write the formatted source back to the file.
+    #[arg(long)]
+    pub(crate) write: bool,
+}
+
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub(crate) enum OutputFormat {
@@ -272,6 +287,7 @@ mod tests {
         assert!(command.render_long_help().to_string().contains("init"));
         assert!(command.render_long_help().to_string().contains("configure"));
         assert!(command.render_long_help().to_string().contains("lock"));
+        assert!(command.render_long_help().to_string().contains("format"));
         assert!(command.render_long_help().to_string().contains("check"));
         assert!(command.render_long_help().to_string().contains("generate"));
         let init = command

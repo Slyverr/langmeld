@@ -139,7 +139,7 @@ fn print_json(value: &Value) -> Result<(), String> {
     Ok(())
 }
 
-fn format_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) -> String {
+pub(crate) fn format_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) -> String {
     let severity = match diagnostic.severity {
         Severity::Error => "error",
         Severity::Warning => "warning",

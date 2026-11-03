@@ -86,6 +86,20 @@ fn run_extension(project: &std::path::Path, arguments: &[&str]) -> std::process:
         .expect("langmeld extension starts")
 }
 
+fn run_format(
+    language: &std::path::Path,
+    source: &std::path::Path,
+    write: bool,
+) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
+    command.args(["format", "--language"]).arg(language);
+    command.arg("--source").arg(source);
+    if write {
+        command.arg("--write");
+    }
+    command.output().expect("langmeld format starts")
+}
+
 fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(arguments)
@@ -347,6 +361,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
     fields { name: identifier required }
   }
 }
+
 "#,
     )
     .expect("extension definition is written");
@@ -460,6 +475,52 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         "{}",
         String::from_utf8_lossy(&removed_package.stderr)
     );
+}
+
+#[test]
+fn format_command_prints_by_default_writes_only_when_requested_and_preserves_invalid_input() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("format-project");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().expect("project path is UTF-8"),
+        "--name",
+        "FormatLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    let language = project.join("language/language.lm");
+    let source = project.join("examples/format.lmprog");
+    let original = "program {\n    print \"hello\"\n}\n";
+    let expected = "program {\n  print \"hello\"\n}\n";
+    fs::write(&source, original).expect("source file is written");
+
+    let printed = run_format(&language, &source, false);
+    assert!(
+        printed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&printed.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&printed.stdout), expected);
+    assert_eq!(fs::read_to_string(&source).unwrap(), original);
+
+    let written = run_format(&language, &source, true);
+    assert!(
+        written.status.success(),
+        "{}",
+        String::from_utf8_lossy(&written.stderr)
+    );
+    assert_eq!(fs::read_to_string(&source).unwrap(), expected);
+
+    let invalid = "program {\n";
+    fs::write(&source, invalid).expect("invalid source is written");
+    let rejected = run_format(&language, &source, true);
+    assert_eq!(rejected.status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&source).unwrap(), invalid);
 }
 
 #[test]
