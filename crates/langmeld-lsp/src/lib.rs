@@ -55,6 +55,16 @@ pub enum CompletionItemKind {
     Constant,
 }
 
+/// Format used for a completion candidate's inserted text.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CompletionInsertTextFormat {
+    /// Insert text literally.
+    #[default]
+    PlainText,
+    /// Interpret inserted text as an LSP snippet.
+    Snippet,
+}
+
 impl CompletionItemKind {
     const fn lsp_number(self) -> u8 {
         match self {
@@ -84,6 +94,8 @@ pub struct CompletionCandidate {
     pub kind: CompletionItemKind,
     /// Text inserted when the suggestion is accepted; defaults to `label`.
     pub insert_text: Option<String>,
+    /// Whether inserted text is plain text or an LSP snippet.
+    pub insert_text_format: CompletionInsertTextFormat,
     /// Optional UTF-8 byte range replaced by the suggestion.
     pub replacement: Option<Span>,
 }
@@ -944,6 +956,74 @@ impl Server {
                 }
             }
         }
+        let frontier = document
+            .parsed
+            .completion_frontiers
+            .iter()
+            .filter(|frontier| frontier.span.start <= offset && offset <= frontier.span.end)
+            .min_by_key(|frontier| frontier.span.end - frontier.span.start);
+        let has_frontier = frontier.is_some();
+        if let Some(frontier) = frontier.filter(|frontier| !frontier.ambiguous) {
+            for capture in &frontier.captures {
+                if let langmeld_core::FieldKind::Enum { values }
+                | langmeld_core::FieldKind::NamedEnum { values, .. } = &capture.kind
+                {
+                    for value in values
+                        .iter()
+                        .filter(|value| value.starts_with(prefix))
+                        .take(MAX_COMPLETION_ITEMS.saturating_sub(items.len()))
+                    {
+                        if let Some(item) = completion_item(
+                            value,
+                            value,
+                            CompletionItemKind::EnumMember,
+                            Some(&capture.field),
+                            Span::new(word_start, offset),
+                            text,
+                        ) {
+                            push_unique_completion(&mut items, &mut labels, item);
+                        }
+                    }
+                }
+            }
+        }
+        if !has_frontier && items.len() < MAX_COMPLETION_ITEMS {
+            let spec = self.language.spec();
+            let block = document
+                .parsed
+                .completion_blocks
+                .iter()
+                .filter(|block| block.span.start <= offset && offset <= block.span.end)
+                .min_by_key(|block| block.span.end - block.span.start);
+            if let Some(block) = block {
+                for construct in spec.constructs.iter().filter(|construct| {
+                    block.allowed.iter().any(|allowed| {
+                        allowed == &construct.id || construct.implements.contains(allowed)
+                    }) && construct.id.starts_with(prefix)
+                }) {
+                    let Some(pattern) = construct.syntax.first() else {
+                        continue;
+                    };
+                    let Some(snippet) = construct_pattern_snippet(pattern) else {
+                        continue;
+                    };
+                    if let Some(mut item) = completion_item(
+                        &construct.id,
+                        &snippet,
+                        CompletionItemKind::Class,
+                        Some(&block.parent),
+                        Span::new(word_start, offset),
+                        text,
+                    ) {
+                        item["insertTextFormat"] = json!(2);
+                        push_unique_completion(&mut items, &mut labels, item);
+                    }
+                    if items.len() >= MAX_COMPLETION_ITEMS {
+                        break;
+                    }
+                }
+            }
+        }
         let workspace = uris
             .iter()
             .filter_map(|open_uri| {
@@ -1473,6 +1553,53 @@ fn completion_prefix(text: &str, offset: usize) -> (usize, &str) {
     (word_start, &text[word_start..offset])
 }
 
+fn construct_pattern_snippet(pattern: &str) -> Option<String> {
+    let mut output = String::with_capacity(pattern.len());
+    let mut characters = pattern.char_indices().peekable();
+    let mut tab_stop = 1;
+    while let Some((offset, character)) = characters.next() {
+        match character {
+            '\\' => {
+                let (_, escaped) = characters.next()?;
+                push_snippet_literal(&mut output, escaped);
+            }
+            '{' => {
+                let remaining = &pattern[offset + character.len_utf8()..];
+                let Some(end) = remaining.find('}') else {
+                    if offset + character.len_utf8() == pattern.len() {
+                        push_snippet_literal(&mut output, character);
+                        continue;
+                    }
+                    return None;
+                };
+                let field = &remaining[..end];
+                if field.is_empty()
+                    || !field
+                        .chars()
+                        .all(|value| value.is_ascii_alphanumeric() || value == '_')
+                {
+                    return None;
+                }
+                for _ in 0..=field.chars().count() {
+                    characters.next()?;
+                }
+                output.push_str(&format!("${{{tab_stop}:{field}}}"));
+                tab_stop += 1;
+            }
+            '[' | ']' | '(' | ')' | '|' | '*' | '+' | '@' => return None,
+            value => push_snippet_literal(&mut output, value),
+        }
+    }
+    Some(output)
+}
+
+fn push_snippet_literal(output: &mut String, value: char) {
+    if matches!(value, '$' | '}' | '\\') {
+        output.push('\\');
+    }
+    output.push(value);
+}
+
 fn completion_item(
     label: &str,
     insert_text: &str,
@@ -1523,14 +1650,18 @@ fn completion_candidate_item(
         return None;
     }
     let insertion = candidate.insert_text.as_deref().unwrap_or(&candidate.label);
-    completion_item(
+    let mut item = completion_item(
         &candidate.label,
         insertion,
         candidate.kind,
         candidate.detail.as_deref(),
         replacement,
         source,
-    )
+    )?;
+    if candidate.insert_text_format == CompletionInsertTextFormat::Snippet {
+        item["insertTextFormat"] = json!(2);
+    }
+    Some(item)
 }
 
 fn push_unique_completion(items: &mut Vec<Value>, labels: &mut BTreeSet<String>, item: Value) {
@@ -1905,6 +2036,19 @@ mod tests {
             response["result"]["capabilities"]
                 .get("referencesProvider")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn construct_pattern_snippets_expand_fields_and_skip_pattern_operators() {
+        assert_eq!(
+            construct_pattern_snippet(r#"paint {color} at \({x}, {y}\)"#),
+            Some(r#"paint ${1:color} at (${2:x}, ${3:y})"#.to_owned())
+        );
+        assert_eq!(construct_pattern_snippet("if [{condition}]"), None);
+        assert_eq!(
+            construct_pattern_snippet("block {"),
+            Some("block {".to_owned())
         );
     }
 

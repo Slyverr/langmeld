@@ -32,6 +32,60 @@ fn language() -> PreparedLanguage {
     PreparedLanguage::new(spec).expect("all syntax patterns compile")
 }
 
+fn completion_language() -> PreparedLanguage {
+    let spec = LanguageBuilder::new("CompletionTests")
+        .version("0.1.0")
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["paint"]),
+        )
+        .construct(
+            ConstructBuilder::new("paint")
+                .syntax("paint {color}")
+                .field(FieldSpec::required(
+                    "color",
+                    FieldKind::Enum {
+                        values: vec!["red".to_owned(), "green".to_owned()],
+                    },
+                )),
+        )
+        .build()
+        .expect("completion language is valid");
+    PreparedLanguage::new(spec).expect("completion syntax compiles")
+}
+
+#[test]
+fn parser_retains_expected_capture_and_block_contexts_for_completion() {
+    let parser = completion_language()
+        .with_custom_parsers([])
+        .expect("no custom parsers are required");
+    let source = SourceFile::new("completion.lang", "program {\npaint gr\n}\n");
+    let parsed = parser.parse(&source);
+    let frontier = parsed
+        .completion_frontiers
+        .iter()
+        .find(|frontier| frontier.span == Span::new(16, 18))
+        .expect("incomplete enum capture has a completion frontier");
+    assert!(!frontier.ambiguous);
+    assert_eq!(frontier.captures.len(), 1);
+    assert_eq!(frontier.captures[0].construct, "paint");
+    assert_eq!(frontier.captures[0].field, "color");
+    assert_eq!(
+        frontier.captures[0].kind,
+        FieldKind::Enum {
+            values: vec!["red".to_owned(), "green".to_owned()]
+        }
+    );
+    assert!(parsed.completion_blocks.iter().any(|context| {
+        context.parent == "program"
+            && context.allowed == ["paint"]
+            && context.span.start <= 16
+            && context.span.end >= 18
+    }));
+}
+
 fn configured() -> langmeld_language::ConfiguredLanguageParser {
     language()
         .with_custom_parsers([CustomConstructParser::new("host-special", |_, _| Ok(None))])

@@ -24,8 +24,47 @@ pub struct ParseResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Source ranges recognized by host-provided construct parsers.
     pub custom_parser_spans: Vec<Span>,
+    /// Parser-derived completion expectations for incomplete declarative syntax.
+    pub completion_frontiers: Vec<CompletionFrontier>,
+    /// Active child-construct contexts inferred while parsing declarative blocks.
+    pub completion_blocks: Vec<CompletionBlockContext>,
     /// Whether a source, token, AST, nesting, or matcher-work limit stopped parsing.
     pub resource_limited: bool,
+}
+
+/// Expected captures at the furthest valid prefix of one incomplete construct.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompletionFrontier {
+    /// Source range of the token or zero-width cursor position at the frontier.
+    pub span: Span,
+    /// Whether equally advanced grammar branches disagree about expected fields.
+    pub ambiguous: bool,
+    /// Schema fields that can continue this prefix.
+    pub captures: Vec<ExpectedCapture>,
+}
+
+/// One declared field expected at an incomplete grammar frontier.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExpectedCapture {
+    /// Construct whose syntax pattern expects the field.
+    pub construct: String,
+    /// Syntax variant that reached this expectation.
+    pub syntax_variant: String,
+    /// Field or property name expected by the pattern.
+    pub field: String,
+    /// Declared type of the expected capture.
+    pub kind: langmeld_core::FieldKind,
+}
+
+/// Allowed child constructs at a cursor position inside a parsed block.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompletionBlockContext {
+    /// Parent construct that declares this block.
+    pub parent: String,
+    /// Construct IDs or categories accepted by the block.
+    pub allowed: Vec<String>,
+    /// Source range from the previous child through the current child prefix.
+    pub span: Span,
 }
 
 /// A generic syntax node produced from one declared construct.

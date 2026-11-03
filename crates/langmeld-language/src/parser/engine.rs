@@ -7,23 +7,42 @@ use langmeld_core::{
 };
 
 use crate::{
-    AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, LanguageToken,
-    LanguageTokenKind as TokenKind, ParseLimits, Program, Value, ValueType,
+    AstNode, CapturedValue, CompletionBlockContext, CompletionFrontier, CustomConstructMatch,
+    CustomConstructParser, ExpectedCapture, LanguageToken, LanguageTokenKind as TokenKind,
+    ParseLimits, Program, Value, ValueType,
 };
 
 use super::{
     candidates::BlockCandidateIndex,
-    matching::{PatternMatcher, default_value},
+    matching::{PatternMatcher, PatternProgress, default_value},
     prepared::{ConfiguredLanguageParser, PreparedLanguage},
 };
+
+const MAX_COMPLETION_FRONTIERS: usize = 1024;
+const MAX_COMPLETION_BLOCKS: usize = 1024;
+const MAX_COMPLETION_EXPECTED_CAPTURES: usize = 64;
 
 pub(super) fn parse_tokens(
     parser: &ConfiguredLanguageParser,
     source: &SourceFile,
     tokens: Vec<LanguageToken>,
     limits: ParseLimits,
-) -> (Program, Vec<Diagnostic>, Vec<Span>, bool) {
-    let (program, diagnostics, custom_parser_spans, resource_limited) = Parser {
+) -> (
+    Program,
+    Vec<Diagnostic>,
+    Vec<Span>,
+    Vec<CompletionFrontier>,
+    Vec<CompletionBlockContext>,
+    bool,
+) {
+    let (
+        program,
+        diagnostics,
+        custom_parser_spans,
+        completion_frontiers,
+        completion_blocks,
+        resource_limited,
+    ) = Parser {
         language: &parser.language,
         source,
         tokens,
@@ -31,6 +50,8 @@ pub(super) fn parse_tokens(
         position: 0,
         diagnostics: Vec::new(),
         custom_parser_spans: Vec::new(),
+        completion_frontiers: Vec::new(),
+        completion_blocks: Vec::new(),
         depth: 0,
         ast_node_count: 0,
         limits,
@@ -38,7 +59,14 @@ pub(super) fn parse_tokens(
         resource_limited: false,
     }
     .parse();
-    (program, diagnostics, custom_parser_spans, resource_limited)
+    (
+        program,
+        diagnostics,
+        custom_parser_spans,
+        completion_frontiers,
+        completion_blocks,
+        resource_limited,
+    )
 }
 
 struct Parser<'a> {
@@ -49,6 +77,8 @@ struct Parser<'a> {
     position: usize,
     diagnostics: Vec<Diagnostic>,
     custom_parser_spans: Vec<Span>,
+    completion_frontiers: Vec<CompletionFrontier>,
+    completion_blocks: Vec<CompletionBlockContext>,
     depth: usize,
     ast_node_count: usize,
     limits: ParseLimits,
@@ -69,7 +99,16 @@ struct Candidate {
 }
 
 impl Parser<'_> {
-    fn parse(mut self) -> (Program, Vec<Diagnostic>, Vec<Span>, bool) {
+    fn parse(
+        mut self,
+    ) -> (
+        Program,
+        Vec<Diagnostic>,
+        Vec<Span>,
+        Vec<CompletionFrontier>,
+        Vec<CompletionBlockContext>,
+        bool,
+    ) {
         self.skip_separators();
         let root = self.language.spec.spec().root.clone();
         let nodes =
@@ -86,10 +125,17 @@ impl Parser<'_> {
             } else {
                 Vec::new()
             };
+        let (completion_frontiers, completion_blocks) = if self.resource_limited {
+            (Vec::new(), Vec::new())
+        } else {
+            (self.completion_frontiers, self.completion_blocks)
+        };
         (
             Program { nodes },
             self.diagnostics,
             self.custom_parser_spans,
+            completion_frontiers,
+            completion_blocks,
             self.resource_limited,
         )
     }
@@ -107,6 +153,7 @@ impl Parser<'_> {
         let mut tied = false;
         let mut best_value_error = None;
         let mut custom_error = None;
+        let mut furthest_progress: Option<(usize, CompletionFrontier)> = None;
 
         for construct_id in candidates {
             let Some(compiled) = self.language.compiled.get(construct_id) else {
@@ -154,6 +201,7 @@ impl Parser<'_> {
                     &mut self.remaining_pattern_steps,
                 );
                 let matched = matcher.match_pattern(&pattern.parts, start_position);
+                let pattern_progress = matcher.progress().cloned();
                 let matched = match matched {
                     Ok(value) => value,
                     Err(diagnostic) if diagnostic.code == "LM1304" => {
@@ -163,13 +211,27 @@ impl Parser<'_> {
                         return None;
                     }
                     Err(diagnostic) => {
+                        merge_completion_frontier(
+                            &mut furthest_progress,
+                            &construct.id,
+                            &pattern.variant_id,
+                            pattern_progress,
+                        );
                         if best_value_error.is_none() {
                             best_value_error = Some(diagnostic);
                         }
                         continue;
                     }
                 };
-                let Some(mut matched) = matched else { continue };
+                let Some(mut matched) = matched else {
+                    merge_completion_frontier(
+                        &mut furthest_progress,
+                        &construct.id,
+                        &pattern.variant_id,
+                        pattern_progress,
+                    );
+                    continue;
+                };
                 if let Err(diagnostic) = matched.normalize_record_captures(construct) {
                     if best_value_error.is_none() {
                         best_value_error = Some(diagnostic);
@@ -204,6 +266,15 @@ impl Parser<'_> {
         }
 
         let Some(mut candidate) = best else {
+            let custom_parser_limited = custom_error
+                .as_ref()
+                .is_some_and(|diagnostic| diagnostic.code == "LM1304");
+            if !self.resource_limited
+                && !custom_parser_limited
+                && let Some((_, frontier)) = furthest_progress
+            {
+                self.record_completion_frontier(frontier);
+            }
             if let Some(diagnostic) = custom_error.or(best_value_error) {
                 self.resource_limited |= diagnostic.code == "LM1302";
                 self.diagnostics.push(diagnostic);
@@ -295,7 +366,11 @@ impl Parser<'_> {
                 }
             } else {
                 self.depth += 1;
-                let children = self.parse_children(&construct.id, &block.allowed);
+                let open_end = self
+                    .tokens
+                    .get(candidate.end_position.saturating_sub(1))
+                    .map_or(candidate.span.end, |token| token.span.end);
+                let children = self.parse_children(&construct.id, &block.allowed, open_end);
                 self.depth -= 1;
                 node.children = children.0;
                 if let Some(close) = children.1 {
@@ -319,6 +394,59 @@ impl Parser<'_> {
             }
         }
         Some(node)
+    }
+
+    fn record_completion_frontier(&mut self, frontier: CompletionFrontier) {
+        if let Some(existing) = self
+            .completion_frontiers
+            .iter_mut()
+            .find(|existing| existing.span == frontier.span)
+        {
+            if existing.ambiguous || frontier.ambiguous {
+                existing.ambiguous = true;
+                return;
+            }
+            for capture in &frontier.captures {
+                if !existing.captures.iter().any(|current| {
+                    current.construct == capture.construct
+                        && current.field == capture.field
+                        && current.kind == capture.kind
+                }) {
+                    existing.ambiguous = true;
+                    return;
+                }
+            }
+            existing.captures.extend(frontier.captures);
+        } else if self.completion_frontiers.len() < MAX_COMPLETION_FRONTIERS {
+            self.completion_frontiers.push(frontier);
+        }
+    }
+
+    fn record_completion_block(&mut self, parent: &str, allowed: &[String], span: Span) {
+        if self.completion_blocks.len() >= MAX_COMPLETION_BLOCKS
+            || span.start > span.end
+            || !self.source.text.is_char_boundary(span.start)
+            || !self.source.text.is_char_boundary(span.end)
+        {
+            return;
+        }
+        if let Some(existing) = self
+            .completion_blocks
+            .iter_mut()
+            .find(|context| context.parent == parent && context.span == span)
+        {
+            for allowed in allowed {
+                if !existing.allowed.contains(allowed) {
+                    existing.allowed.push(allowed.clone());
+                }
+            }
+            return;
+        }
+        self.completion_blocks.push(CompletionBlockContext {
+            parent: parent.to_owned(),
+            allowed: allowed.to_vec(),
+            span,
+        });
     }
 
     fn candidate_ids<'a>(
@@ -592,13 +720,28 @@ impl Parser<'_> {
         &mut self,
         parent_id: &str,
         declared_allowed: &[String],
+        open_end: usize,
     ) -> (Vec<AstNode>, Option<usize>) {
-        let mut children = Vec::new();
+        let mut children: Vec<AstNode> = Vec::new();
         let allowed = self.expanded_allowed(declared_allowed);
         let candidate_index = self.language.block_candidates.get(parent_id).cloned();
         let mut close = None;
         loop {
             self.skip_separators();
+            let gap_start = children.last().map_or(open_end, |child| child.span.end);
+            let token = self.current();
+            let gap_end = match token.kind {
+                TokenKind::Punctuation('}') => token.span.start,
+                TokenKind::End => self.source.text.len(),
+                _ => token.span.end,
+            };
+            if gap_start <= gap_end {
+                self.record_completion_block(
+                    parent_id,
+                    declared_allowed,
+                    Span::new(gap_start, gap_end),
+                );
+            }
             match self.current().kind {
                 TokenKind::Punctuation('}') => {
                     close = Some(self.current().span.end);
@@ -903,6 +1046,64 @@ impl Parser<'_> {
             self.position += 1;
         }
     }
+}
+
+fn merge_completion_frontier(
+    current: &mut Option<(usize, CompletionFrontier)>,
+    construct: &str,
+    syntax_variant: &str,
+    progress: Option<PatternProgress>,
+) {
+    let Some(progress) = progress else {
+        return;
+    };
+    let mut captures = progress
+        .captures
+        .into_iter()
+        .map(|capture| ExpectedCapture {
+            construct: construct.to_owned(),
+            syntax_variant: syntax_variant.to_owned(),
+            field: capture.field,
+            kind: capture.kind,
+        })
+        .collect::<Vec<_>>();
+    let overflowed = captures.len() > MAX_COMPLETION_EXPECTED_CAPTURES;
+    captures.truncate(MAX_COMPLETION_EXPECTED_CAPTURES);
+    let mut candidate = CompletionFrontier {
+        span: progress.span,
+        ambiguous: progress.has_non_capture || overflowed || captures.len() > 1,
+        captures,
+    };
+    let Some((current_position, current_frontier)) = current else {
+        *current = Some((progress.token_position, candidate));
+        return;
+    };
+    if progress.token_position > *current_position {
+        *current = Some((progress.token_position, candidate));
+        return;
+    }
+    if progress.token_position < *current_position {
+        return;
+    }
+    if current_frontier.span != candidate.span {
+        current_frontier.ambiguous = true;
+        return;
+    }
+    if current_frontier.ambiguous || candidate.ambiguous {
+        current_frontier.ambiguous = true;
+        return;
+    }
+    for capture in &candidate.captures {
+        if !current_frontier.captures.iter().any(|existing| {
+            existing.construct == capture.construct
+                && existing.field == capture.field
+                && existing.kind == capture.kind
+        }) {
+            current_frontier.ambiguous = true;
+            return;
+        }
+    }
+    current_frontier.captures.append(&mut candidate.captures);
 }
 
 fn apply_defaults(

@@ -425,6 +425,105 @@ fn child_process_completes_enum_members_from_the_captured_field_schema() {
 }
 
 #[test]
+fn child_process_completes_partial_enum_values_and_child_construct_snippets() {
+    let language = TempLanguage::new();
+    language.write_enum_language();
+    let enum_uri = format!(
+        "file://{}",
+        language.0.with_file_name("partial.demo").display()
+    );
+    let block_uri = format!(
+        "file://{}",
+        language.0.with_file_name("block.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": enum_uri,
+                "languageId": "colors",
+                "version": 1,
+                "text": "program {\npaint }\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": block_uri,
+                "languageId": "colors",
+                "version": 1,
+                "text": "program {\n\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": enum_uri },
+                "position": { "line": 1, "character": 6 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": block_uri },
+                "position": { "line": 1, "character": 0 }
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let enum_completion = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .unwrap();
+    assert_eq!(enum_completion["result"][0]["label"], "red");
+    assert_eq!(enum_completion["result"][1]["label"], "green");
+    assert_eq!(enum_completion["result"][2]["label"], "blue");
+    let child_completion = responses
+        .iter()
+        .find(|response| response["id"] == 3)
+        .unwrap();
+    assert_eq!(child_completion["result"][0]["label"], "paint");
+    assert_eq!(
+        child_completion["result"][0]["textEdit"]["newText"],
+        "paint ${1:color}"
+    );
+    assert_eq!(child_completion["result"][0]["insertTextFormat"], 2);
+}
+
+#[test]
 fn child_process_publishes_nested_document_symbols_with_utf16_ranges() {
     let language = TempLanguage::new();
     language.write_symbol_language();

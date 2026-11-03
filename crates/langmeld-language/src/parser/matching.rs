@@ -18,6 +18,20 @@ pub(super) struct PatternMatch {
     pub(super) end_position: usize,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct CaptureAttempt {
+    pub(super) field: String,
+    pub(super) kind: FieldKind,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct PatternProgress {
+    pub(super) token_position: usize,
+    pub(super) span: Span,
+    pub(super) captures: Vec<CaptureAttempt>,
+    pub(super) has_non_capture: bool,
+}
+
 impl PatternMatch {
     /// Combines dotted repeated property captures into their declared list of records.
     pub(super) fn normalize_record_captures(
@@ -122,11 +136,37 @@ impl PatternMatch {
     }
 }
 
+fn record_expected_part(progress: &mut PatternProgress, part: Option<&PatternPart>) {
+    match part {
+        Some(PatternPart::Capture { field, kind }) => {
+            if !progress
+                .captures
+                .iter()
+                .any(|attempt| attempt.field == *field && attempt.kind == *kind)
+            {
+                progress.captures.push(CaptureAttempt {
+                    field: field.clone(),
+                    kind: kind.clone(),
+                });
+            }
+        }
+        Some(PatternPart::Literal(_)) => progress.has_non_capture = true,
+        Some(
+            PatternPart::Optional(_)
+            | PatternPart::Choice(_)
+            | PatternPart::ZeroOrMore { .. }
+            | PatternPart::OneOrMore { .. },
+        )
+        | None => {}
+    }
+}
+
 pub(super) struct PatternMatcher<'source, 'tokens, 'budget> {
     source: &'source SourceFile,
     tokens: &'tokens [LanguageToken],
     remaining_steps: &'budget mut usize,
     best_error: Option<Diagnostic>,
+    progress: Option<PatternProgress>,
 }
 
 impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
@@ -140,6 +180,7 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
             tokens,
             remaining_steps,
             best_error: None,
+            progress: None,
         }
     }
 
@@ -149,6 +190,7 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
         position: usize,
     ) -> Result<Option<PatternMatch>, Diagnostic> {
         self.best_error = None;
+        self.progress = None;
         let mut fields = BTreeMap::new();
         let end = self.match_parts(parts, position, &mut fields, &[])?;
         if let Some(end_position) = end {
@@ -163,6 +205,10 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
         }
     }
 
+    pub(super) fn progress(&self) -> Option<&PatternProgress> {
+        self.progress.as_ref()
+    }
+
     fn match_parts(
         &mut self,
         parts: &[PatternPart],
@@ -172,12 +218,14 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
     ) -> Result<Option<usize>, Diagnostic> {
         self.step(position)?;
         let Some((part, rest)) = parts.split_first() else {
+            self.observe_progress(position, None);
             return if continuation.is_empty() {
                 Ok(Some(position))
             } else {
                 self.match_parts(continuation, position, fields, &[])
             };
         };
+        self.observe_progress(position, Some(part));
         match part {
             PatternPart::Literal(expected) => {
                 if self
@@ -259,6 +307,28 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
                 fields,
                 continuation,
             ),
+        }
+    }
+
+    fn observe_progress(&mut self, position: usize, part: Option<&PatternPart>) {
+        let Some(token) = self.tokens.get(position) else {
+            return;
+        };
+        match self.progress.as_mut() {
+            Some(progress) if position < progress.token_position => {}
+            Some(progress) if position == progress.token_position => {
+                record_expected_part(progress, part);
+            }
+            _ => {
+                let mut progress = PatternProgress {
+                    token_position: position,
+                    span: token.span,
+                    captures: Vec::new(),
+                    has_non_capture: false,
+                };
+                record_expected_part(&mut progress, part);
+                self.progress = Some(progress);
+            }
         }
     }
 
