@@ -1,12 +1,15 @@
 # Langmeld
 
-Langmeld is an early-stage Rust project. This repository currently contains a
-minimal command-line executable that prints `Hello, Langmeld!`.
+Langmeld is an early-stage Rust language framework. The workspace currently
+contains `langmeld-core`, which provides source snapshots, stable source
+identities, byte spans, and structured diagnostics. The CLI and language
+processing crates have not been added yet.
 
-## Run
+## Workspace checks
 
 ```sh
-cargo run
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 ## Project guidance
@@ -15,6 +18,7 @@ cargo run
   and commit conventions.
 - [AGENTS.md](AGENTS.md) gives coding agents the repository-specific rules and
   links to the project-local Rust skills under `.agents/skills/`.
+
 
 ## License
 
