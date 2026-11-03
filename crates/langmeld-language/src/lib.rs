@@ -4,6 +4,7 @@ mod lexer;
 mod lexing;
 mod model;
 mod parser;
+mod syntax;
 
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
@@ -15,6 +16,10 @@ pub use model::{
 pub use parser::{
     ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
     PatternCompileError, PreparedLanguage,
+};
+pub use syntax::{
+    CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,
+    SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,
 };
 
 /// Maximum nested construct bodies traversed by the recursive generic parser.

@@ -29,11 +29,17 @@ pub struct Program {
     pub nodes: Vec<AstNode>,
 }
 
-/// Best-effort result of parsing one source snapshot.
+/// Best-effort parse output, including a lossless source tree and token stream.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseResult {
-    /// Generic syntax tree nodes recovered from the source.
+    /// Generic syntax nodes recovered from the source.
     pub program: Program,
+    /// Parent-aware tree containing constructs, field values, and token leaves.
+    /// Its root span covers the complete original source snapshot.
+    pub syntax_tree: crate::SyntaxNode,
+    /// Lossless source segments. Non-empty spans partition the original source;
+    /// zero-width entries represent synthetic recovery tokens.
+    pub syntax_tokens: Vec<crate::SyntaxToken>,
     /// Lexical and syntactic diagnostics, including recoverable errors.
     pub diagnostics: Vec<Diagnostic>,
     /// Source ranges recognized by host-provided construct parsers.

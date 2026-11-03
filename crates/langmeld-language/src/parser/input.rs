@@ -2,7 +2,11 @@
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::{LanguageToken, LanguageTokenKind, LexedSource, ParseLimits, ParseResult, Program};
+use crate::{
+    LanguageToken, LanguageTokenKind, LexedSource, ParseLimits, ParseResult, Program, SyntaxToken,
+    SyntaxTokenKind,
+    syntax::{append_missing_tokens, build_syntax_tree, lossless_syntax_tokens},
+};
 
 use super::prepared::ConfiguredLanguageParser;
 
@@ -13,6 +17,7 @@ pub(super) fn parse_configured(
 ) -> ParseResult {
     if source.text.len() > limits.max_source_bytes {
         return failure(
+            source,
             Diagnostic::error(
                 "LM1300",
                 format!(
@@ -27,6 +32,7 @@ pub(super) fn parse_configured(
     }
     if limits.max_tokens == 0 {
         return failure(
+            source,
             Diagnostic::error(
                 "LM1301",
                 "token count exceeds the limit of 0",
@@ -40,16 +46,21 @@ pub(super) fn parse_configured(
         let output = (lexer.lex)(source);
         match validate_custom_tokens(source, output, limits.max_tokens) {
             Ok((tokens, diagnostics)) => (tokens, diagnostics, false),
-            Err((diagnostic, limited)) => return failure(diagnostic, limited),
+            Err((diagnostic, limited)) => return failure(source, diagnostic, limited),
         }
     } else {
         crate::lexing::lex(source, limits.max_tokens)
     };
+    let mut syntax_tokens = lossless_syntax_tokens(source, &tokens);
     let (program, mut parse_diagnostics, custom_parser_spans, parse_limited) =
         super::engine::parse_tokens(parser, source, tokens, limits);
     diagnostics.append(&mut parse_diagnostics);
+    append_missing_tokens(source, &diagnostics, &mut syntax_tokens);
+    let syntax_tree = build_syntax_tree(&program, &syntax_tokens, source);
     ParseResult {
         program,
+        syntax_tree,
+        syntax_tokens,
         diagnostics,
         custom_parser_spans,
         resource_limited: resource_limited || parse_limited,
@@ -122,9 +133,21 @@ fn valid_span(source: &SourceFile, span: Span) -> bool {
         && source.text.is_char_boundary(span.end)
 }
 
-fn failure(diagnostic: Diagnostic, resource_limited: bool) -> ParseResult {
+fn failure(source: &SourceFile, diagnostic: Diagnostic, resource_limited: bool) -> ParseResult {
+    let syntax_tokens = if source.text.is_empty() {
+        Vec::new()
+    } else {
+        vec![SyntaxToken {
+            kind: SyntaxTokenKind::Unknown,
+            span: Span::new(0, source.text.len()),
+        }]
+    };
+    let program = Program { nodes: Vec::new() };
+    let syntax_tree = build_syntax_tree(&program, &syntax_tokens, source);
     ParseResult {
-        program: Program { nodes: Vec::new() },
+        program,
+        syntax_tree,
+        syntax_tokens,
         diagnostics: vec![diagnostic],
         custom_parser_spans: Vec::new(),
         resource_limited,

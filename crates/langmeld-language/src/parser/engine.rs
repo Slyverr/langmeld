@@ -290,6 +290,8 @@ impl Parser<'_> {
                 ));
                 if let Some(close) = self.skip_balanced_block() {
                     node.span.end = close;
+                } else {
+                    node.span.end = self.source.text.len();
                 }
             } else {
                 self.depth += 1;
@@ -298,6 +300,8 @@ impl Parser<'_> {
                 node.children = children.0;
                 if let Some(close) = children.1 {
                     node.span.end = close;
+                } else {
+                    node.span.end = self.source.text.len();
                 }
             }
         }
