@@ -181,6 +181,7 @@ dependencies = [
  "clap",
  "inquire",
  "langmeld",
+ "langmeld-lsp",
  "serde_json",
 ]
 
@@ -324,6 +325,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "langmeld-lsp"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "langmeld-core",
+ "langmeld-language",
+ "serde_json",
 ]
 
 [[package]]

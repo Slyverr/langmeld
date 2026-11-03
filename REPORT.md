@@ -38,7 +38,8 @@ line, and language-server support.
 - **Consumer examples:** Independent consumers cover declarative interpretation
   and extension composition, Rust API parsing and code generation, combined
   Rust-base plus `.lm` extension authoring with host-owned Markdown rendering,
-  and C prototype parsing through a host callback.
+  and C prototype parsing through a host callback. The C consumer now embeds
+  the LSP server with that parser, verified by a protocol-level diagnostic test.
 
 ## Design boundaries
 
@@ -80,7 +81,8 @@ language inside WebAssembly requires a compatible host and runtime build.
 - More source-language consumers, language-server features, continuous
   integration across supported platforms, and measured performance baselines
   would improve confidence and usability. The current examples cover
-  declarative, Rust API, combined authoring, and a custom C prototype parser.
+  declarative, Rust API, combined authoring, and a custom C prototype parser;
+  the embedded server path is exercised against valid and unsupported C input.
 
 ## Verification
 

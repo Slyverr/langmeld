@@ -13,9 +13,16 @@ parser; it does not claim to parse all of C.
 cargo test --offline --locked
 cargo run --offline --locked --bin csignatures-host -- check --project
 cargo run --offline --locked --bin csignatures-host -- run --project
+cargo run --offline --locked --bin csignatures-host -- lsp
 ```
 
 The generic model provides construct metadata and relationships. The parser in
 `src/host/parser.rs` owns C tokenization and declaration parsing, while
 `src/lib.rs` owns the C-to-Rust output contract. Edit the `.lm` model and host
 parser together when adding syntax.
+
+The `lsp` command embeds Langmeld's LSP server with the same registered C
+parser used by `check` and `run`. It reads and writes the standard LSP stream on
+stdin and stdout, so an editor can launch it as a language server. The
+integration test opens valid and unsupported C declarations and checks the
+diagnostics produced by the host parser.

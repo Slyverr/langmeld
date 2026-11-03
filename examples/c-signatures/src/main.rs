@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -14,6 +14,7 @@ use langmeld::{
         ProjectSnapshot, load_source_files,
     },
 };
+use langmeld_lsp::LanguageServerConfig;
 
 mod configure;
 
@@ -37,6 +38,8 @@ enum Command {
     Configure(configure::ConfigureArgs),
     /// Execute source files through the language runtime in src/lib.rs.
     Run(InputArgs),
+    /// Serve the language through the host-configured Language Server Protocol.
+    Lsp,
 }
 
 #[derive(Clone, Debug, Default, Args)]
@@ -92,6 +95,7 @@ fn main() -> std::process::ExitCode {
         Command::Run(input) => process(input, false),
         Command::Build(args) => build(args),
         Command::Configure(args) => configure::configure(args).map_err(|error| (2, error)),
+        Command::Lsp => serve_lsp(),
     };
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
@@ -100,6 +104,26 @@ fn main() -> std::process::ExitCode {
             std::process::ExitCode::from(code)
         }
     }
+}
+
+fn serve_lsp() -> Result<(), (u8, String)> {
+    let parser = csignatures_language::parser().map_err(|errors| {
+        (
+            2,
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    })?;
+    langmeld_lsp::serve_configured(
+        io::stdin().lock(),
+        io::stdout().lock(),
+        LanguageServerConfig::new(parser),
+    )
+    .map(|_| ())
+    .map_err(|error| (2, error))
 }
 
 fn process(input: InputArgs, check_only: bool) -> Result<(), (u8, String)> {
