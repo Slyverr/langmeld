@@ -4,6 +4,7 @@ members = [
     "crates/langmeld-expression",
     "crates/langmeld-language",
     "crates/langmeld",
+    "crates/langmeld-cli",
 ]
 resolver = "3"
 

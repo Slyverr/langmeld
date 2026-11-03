@@ -14,9 +14,11 @@ imports. Prepared grammars compile declarative patterns once and provide
 token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
-and workspace type-analysis passes. The project CLI, language facade, LSP, and
-WASM adapter remain to be ported. `langmeld-language` generates deterministic
-Rust source for typed AST views and schema reconstruction, plus metadata,
+and workspace type-analysis passes. The CLI currently exposes Clap-based
+`langmeld init` options; interactive project creation and the remaining
+commands are pending. LSP and WASM adapters are also pending.
+`langmeld-language` generates deterministic Rust source for typed AST views and
+schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor
 configuration. A generic artifact pass pipeline plans lowering dependencies
 and runs only the passes needed for requested outputs; the host owns its IR

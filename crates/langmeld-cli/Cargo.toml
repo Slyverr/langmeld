@@ -1,0 +1,23 @@
+[package]
+name = "langmeld-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line tools for bootstrapping Langmeld language projects."
+
+[[bin]]
+name = "langmeld"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+console = "0.16.6"
+indicatif = "0.18.6"
+inquire = "0.9.4"
+langmeld = { version = "0.1.0", path = "../langmeld" }
+langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+langmeld-language = { version = "0.1.0", path = "../langmeld-language" }
+serde_json.workspace = true
+
+[lints]
+workspace = true
