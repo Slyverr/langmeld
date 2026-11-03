@@ -23,6 +23,8 @@ pub(crate) enum Commands {
     Configure(ConfigureArgs),
     /// Refresh the integrity lock for local language definitions.
     Lock(LockArgs),
+    /// Manage the project's local language extensions.
+    Extension(ExtensionArgs),
     /// Parse source files and run generic workspace analysis.
     #[command(alias = "validate")]
     Check(ValidationArgs),
@@ -72,6 +74,82 @@ pub(crate) struct LockArgs {
     /// Project manifest whose language definitions should be pinned.
     #[arg(long, default_value = "langmeld.json")]
     pub(crate) project: PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ExtensionArgs {
+    /// Project manifest to update.
+    #[arg(long, default_value = "langmeld.json")]
+    pub(crate) project: PathBuf,
+    #[command(subcommand)]
+    pub(crate) command: ExtensionCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum ExtensionCommand {
+    /// List declarations in manifest order; this does not validate resolution.
+    List,
+    /// Add a versioned package or an unversioned local definition path.
+    Add(ExtensionAddArgs),
+    /// Update a versioned package by ID.
+    Update(ExtensionUpdateArgs),
+    /// Remove a versioned package by ID or a path declaration by path.
+    Remove(ExtensionRemoveArgs),
+}
+
+#[derive(Debug, Args)]
+#[command(group(clap::ArgGroup::new("extension_kind").required(true).multiple(false)))]
+pub(crate) struct ExtensionAddArgs {
+    /// Add an unversioned local definition path.
+    #[arg(long, group = "extension_kind")]
+    pub(crate) path_only: Option<PathBuf>,
+    /// Package ID (requires --version, --path, and --language-version).
+    #[arg(long, group = "extension_kind")]
+    pub(crate) id: Option<String>,
+    /// Exact package semantic version.
+    #[arg(long, requires = "id")]
+    pub(crate) version: Option<String>,
+    /// Package definition path relative to the manifest.
+    #[arg(long, requires = "id")]
+    pub(crate) path: Option<PathBuf>,
+    /// Compatible target language version range.
+    #[arg(long, requires = "id")]
+    pub(crate) language_version: Option<String>,
+    /// Dependency in ID@VERSION-REQUIREMENT form; repeat for multiple.
+    #[arg(long = "depends", requires = "id")]
+    pub(crate) dependencies: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ExtensionUpdateArgs {
+    /// Existing package ID.
+    pub(crate) id: String,
+    /// Replace the exact package semantic version.
+    #[arg(long)]
+    pub(crate) version: Option<String>,
+    /// Replace the package definition path.
+    #[arg(long)]
+    pub(crate) path: Option<PathBuf>,
+    /// Replace the compatible target language version range.
+    #[arg(long)]
+    pub(crate) language_version: Option<String>,
+    /// Replace dependencies; repeat in ID@VERSION-REQUIREMENT form.
+    #[arg(long = "depends", conflicts_with = "clear_dependencies")]
+    pub(crate) dependencies: Vec<String>,
+    /// Remove all dependencies from this package.
+    #[arg(long, conflicts_with = "dependencies")]
+    pub(crate) clear_dependencies: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(group(clap::ArgGroup::new("extension_target").required(true).multiple(false)))]
+pub(crate) struct ExtensionRemoveArgs {
+    /// Versioned package ID.
+    #[arg(group = "extension_target")]
+    pub(crate) id: Option<String>,
+    /// Exact unversioned local definition path.
+    #[arg(long, group = "extension_target")]
+    pub(crate) path: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]

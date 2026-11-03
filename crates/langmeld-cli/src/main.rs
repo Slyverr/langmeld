@@ -1,6 +1,7 @@
 mod check;
 mod cli;
 mod configure;
+mod extensions;
 mod generate;
 mod host;
 mod init;
@@ -31,6 +32,15 @@ fn main() -> std::process::ExitCode {
                     println!("updated {}", path.display());
                     std::process::ExitCode::SUCCESS
                 }
+                Err(message) => {
+                    eprintln!("langmeld: {message}");
+                    std::process::ExitCode::from(2)
+                }
+            }
+        }
+        cli::Commands::Extension(arguments) => {
+            match extensions::manage_extensions(&arguments.project, arguments.command) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
                 Err(message) => {
                     eprintln!("langmeld: {message}");
                     std::process::ExitCode::from(2)

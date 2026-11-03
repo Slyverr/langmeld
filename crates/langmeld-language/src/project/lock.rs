@@ -107,7 +107,49 @@ pub fn write_project_lockfile(manifest_path: &Path) -> Result<PathBuf, String> {
         &base_language,
     )?;
     let lockfile = expected_lockfile(&project_root, &manifest, &language)?;
-    let mut contents = serde_json::to_vec_pretty(&lockfile)
+    let contents = serialize_lockfile(&lockfile)?;
+    write_atomically(&lock_path, &contents, "project lockfile")?;
+    Ok(lock_path)
+}
+
+/// Replaces the extension declarations and refreshes their lock as one
+/// recoverable project update.
+///
+/// The candidate language is fully resolved before either file is changed.
+/// If replacing the lock fails after the manifest write, the original
+/// manifest bytes are restored.
+pub fn write_project_extensions(
+    manifest_path: &Path,
+    extensions: Vec<ManifestExtension>,
+) -> Result<(), String> {
+    let mut manifest = super::load_project_manifest(manifest_path)?;
+    let manifest_bytes =
+        read_bounded(manifest_path, super::MAX_MANIFEST_BYTES, "project manifest")?;
+    manifest.extensions = extensions;
+    let manifest_contents = manifest.to_json()?;
+    let project = super::load_project_with_manifest(manifest_path, &manifest)?;
+    let lock_path = lockfile_path(manifest_path);
+    ensure_lockfile_destination(&lock_path)?;
+    let root = project_root(manifest_path)?;
+    let lockfile = expected_lockfile(&root, &manifest, &project.language)?;
+    let lock_contents = serialize_lockfile(&lockfile)?;
+
+    write_atomically(
+        manifest_path,
+        manifest_contents.as_bytes(),
+        "project manifest",
+    )?;
+    if let Err(lock_error) = write_atomically(&lock_path, &lock_contents, "project lockfile") {
+        return match write_atomically(manifest_path, &manifest_bytes, "project manifest rollback") {
+            Ok(()) => Err(lock_error),
+            Err(rollback_error) => Err(format!("{lock_error}; additionally, {rollback_error}")),
+        };
+    }
+    Ok(())
+}
+
+fn serialize_lockfile(lockfile: &ProjectLockfile) -> Result<Vec<u8>, String> {
+    let mut contents = serde_json::to_vec_pretty(lockfile)
         .map_err(|error| format!("cannot serialize project lockfile: {error}"))?;
     contents.push(b'\n');
     if contents.len() > MAX_LOCK_BYTES {
@@ -115,8 +157,7 @@ pub fn write_project_lockfile(manifest_path: &Path) -> Result<PathBuf, String> {
             "project lockfile exceeds the {MAX_LOCK_BYTES}-byte limit"
         ));
     }
-    write_atomically(&lock_path, &contents, "project lockfile")?;
-    Ok(lock_path)
+    Ok(contents)
 }
 
 pub(super) fn verify_project_lockfile(

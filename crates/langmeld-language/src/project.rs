@@ -17,7 +17,7 @@ pub use extensions::{
 };
 pub use lock::{
     LockedDefinition, LockedExtension, LockedExtensionDependency, ProjectLockfile,
-    write_project_lockfile,
+    write_project_extensions, write_project_lockfile,
 };
 
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;

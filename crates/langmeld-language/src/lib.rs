@@ -54,7 +54,7 @@ pub use project::{
     LockedExtensionDependency, ManifestExtension, ProjectBuildConfig, ProjectLockfile,
     ProjectManifest, ProjectSnapshot, compose_extensions, load_language, load_project,
     load_project_manifest, load_project_sources, load_project_with_manifest, load_source_files,
-    write_project_lockfile, write_project_manifest,
+    write_project_extensions, write_project_lockfile, write_project_manifest,
 };
 pub use rust_codegen::generate_rust_ast;
 pub use syntax::{

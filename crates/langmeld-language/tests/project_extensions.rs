@@ -1,6 +1,7 @@
 use langmeld_language::{
-    ExtensionDependency, ExtensionPackage, ManifestExtension, ProjectManifest,
-    load_project_manifest, load_project_with_manifest,
+    ExtensionDependency, ExtensionPackage, ManifestExtension, ProjectManifest, load_project,
+    load_project_manifest, load_project_with_manifest, write_project_extensions,
+    write_project_lockfile,
 };
 use std::{
     fs,
@@ -207,6 +208,116 @@ fn project_accepts_an_unversioned_local_definition_path() {
     let loaded = load_project_with_manifest(&project.0.join("langmeld.json"), &manifest)
         .expect("local extension paths compose");
     assert!(loaded.language.construct("local").is_some());
+}
+
+#[test]
+fn extension_update_validates_and_refreshes_manifest_and_lock_together() {
+    let project = TempProject::new();
+    project.write("language.lm", BASE);
+    project.write("source.calc", "catalog demo {}\n");
+    project.write(
+        "extensions/local.lm",
+        r#"language Catalog {
+  version: "0.1.0"
+  root: catalog
+  construct local {
+    syntax { default: "local {name}" }
+    implements: Item
+    fields { name: identifier required }
+  }
+}
+"#,
+    );
+    let manifest_path = project.0.join("langmeld.json");
+    let manifest = project.manifest(Vec::new());
+    project.write("langmeld.json", &manifest.to_json().unwrap());
+
+    write_project_extensions(
+        &manifest_path,
+        vec![ManifestExtension::Path(PathBuf::from(
+            "extensions/local.lm",
+        ))],
+    )
+    .expect("valid extension update writes both files");
+
+    let loaded = load_project(&manifest_path).expect("new lock agrees with the extension manifest");
+    assert!(
+        loaded
+            .language
+            .spec()
+            .constructs
+            .iter()
+            .any(|item| item.id == "local")
+    );
+}
+
+#[test]
+fn invalid_extension_update_leaves_manifest_and_lock_unchanged() {
+    let project = TempProject::new();
+    project.write("language.lm", BASE);
+    project.write("source.calc", "catalog demo {}\n");
+    let manifest_path = project.0.join("langmeld.json");
+    let manifest = project.manifest(Vec::new());
+    project.write("langmeld.json", &manifest.to_json().unwrap());
+    let lock_path = write_project_lockfile(&manifest_path).expect("initial lock is written");
+    let old_manifest = fs::read(&manifest_path).unwrap();
+    let old_lock = fs::read(&lock_path).unwrap();
+
+    let error = write_project_extensions(
+        &manifest_path,
+        vec![ManifestExtension::Path(PathBuf::from("missing.lm"))],
+    )
+    .expect_err("missing extension is rejected before writing");
+
+    assert!(error.contains("cannot inspect extension definition"));
+    assert_eq!(fs::read(&manifest_path).unwrap(), old_manifest);
+    assert_eq!(fs::read(&lock_path).unwrap(), old_lock);
+}
+
+#[test]
+fn failed_lock_write_rolls_back_extension_manifest() {
+    let project = TempProject::new();
+    project.write("language.lm", BASE);
+    project.write("source.calc", "catalog demo {}\n");
+    project.write(
+        "extensions/local.lm",
+        r#"language Catalog {
+  version: "0.1.0"
+  root: catalog
+  construct local {
+    syntax { default: "local {name}" }
+    implements: Item
+    fields { name: identifier required }
+  }
+}
+"#,
+    );
+    let manifest_path = project.0.join("langmeld.json");
+    let manifest = project.manifest(Vec::new());
+    project.write("langmeld.json", &manifest.to_json().unwrap());
+    let lock_path = write_project_lockfile(&manifest_path).expect("initial lock is written");
+    let old_manifest = fs::read(&manifest_path).unwrap();
+    let old_lock = fs::read(&lock_path).unwrap();
+    for attempt in 0..32 {
+        fs::create_dir(project.0.join(format!(
+            ".langmeld.lock.{}.{}.tmp",
+            std::process::id(),
+            attempt
+        )))
+        .expect("lock temporary path is blocked");
+    }
+
+    let error = write_project_extensions(
+        &manifest_path,
+        vec![ManifestExtension::Path(PathBuf::from(
+            "extensions/local.lm",
+        ))],
+    )
+    .expect_err("blocked lock replacement fails");
+
+    assert!(error.contains("cannot create a unique temporary project lockfile"));
+    assert_eq!(fs::read(&manifest_path).unwrap(), old_manifest);
+    assert_eq!(fs::read(&lock_path).unwrap(), old_lock);
 }
 
 #[test]

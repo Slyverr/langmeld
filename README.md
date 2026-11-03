@@ -15,7 +15,7 @@ token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
 and workspace type-analysis passes. The Clap-based CLI provides `init`,
-`configure`, `check`, `lock`, `host`, and `generate` commands for Rust hosts with
+`configure`, `check`, `lock`, `extension`, `host`, and `generate` commands for Rust hosts with
 modular `.lm` definitions. Generation rebuilds language tooling and emits Rust
 parser, lexer, and analysis callback scaffolds under
 `.langmeld/generated/host/`; callback bodies are declaration-driven and
@@ -68,6 +68,13 @@ data-only `.lm` or JSON extensions; versioned packages declare SemVer language
 compatibility and package dependencies. Run `langmeld lock` to pin the resolved
 definition files. A changed language definition then requires refreshing the
 lock before project checks will proceed.
+Manage declarations with `langmeld extension list`, `add`, `update`, and
+`remove`. The list command shows manifest declarations; mutations validate the
+effective language and refresh `langmeld.lock` as part of the update. For
+example, add an unversioned path with `langmeld extension add --path-only
+language/extensions/ui.lm`, or a local package with `--id`, `--version`,
+`--path`, and `--language-version`. Package dependencies use repeated
+`--depends ID@VERSION-REQUIREMENT` options. Nothing is downloaded or executed.
 Use `langmeld check --project langmeld.json` (or its `validate` alias) to parse
 the configured sources and run generic workspace analysis. This command cannot
 register a language's Rust callbacks; callback-dependent languages must use a

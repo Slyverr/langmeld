@@ -77,6 +77,15 @@ fn run_lock(project: &std::path::Path) -> std::process::Output {
         .expect("langmeld lock starts")
 }
 
+fn run_extension(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["extension", "--project"])
+        .arg(project.join("langmeld.json"))
+        .args(arguments)
+        .output()
+        .expect("langmeld extension starts")
+}
+
 fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(arguments)
@@ -309,6 +318,148 @@ fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
     );
     let checked = run_check(&project, &["check", "--project", "langmeld.json"]);
     assert!(checked.status.success(), "refreshed lock should load");
+}
+
+#[test]
+fn extension_commands_manage_local_paths_and_versioned_packages() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("extension-project");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().expect("project path is UTF-8"),
+        "--name",
+        "ExtensionLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    fs::create_dir_all(project.join("extensions")).expect("extension directory is created");
+    fs::write(
+        project.join("extensions/local.lm"),
+        r#"language ExtensionLanguage {
+  version: "0.1.0"
+  root: program
+  construct note {
+    syntax { default: "note {name}" }
+    fields { name: identifier required }
+  }
+}
+"#,
+    )
+    .expect("extension definition is written");
+    fs::write(
+        project.join("extensions/extra.lm"),
+        r#"language ExtensionLanguage {
+  version: "0.1.0"
+  root: program
+  construct extra {
+    syntax { default: "extra {name}" }
+    fields { name: identifier required }
+  }
+}
+"#,
+    )
+    .expect("dependent extension definition is written");
+
+    let added_path = run_extension(&project, &["add", "--path-only", "extensions/local.lm"]);
+    assert!(
+        added_path.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added_path.stderr)
+    );
+    let listed = run_extension(&project, &["list"]);
+    assert!(listed.status.success());
+    assert!(String::from_utf8_lossy(&listed.stdout).contains("extensions/local.lm"));
+    assert!(
+        run_check(&project, &["check", "--project", "langmeld.json"])
+            .status
+            .success()
+    );
+
+    let removed_path = run_extension(&project, &["remove", "--path", "extensions/local.lm"]);
+    assert!(
+        removed_path.status.success(),
+        "{}",
+        String::from_utf8_lossy(&removed_path.stderr)
+    );
+    let added_package = run_extension(
+        &project,
+        &[
+            "add",
+            "--id",
+            "local.notes",
+            "--version",
+            "1.0.0",
+            "--path",
+            "extensions/local.lm",
+            "--language-version",
+            "^0.1",
+        ],
+    );
+    assert!(
+        added_package.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added_package.stderr)
+    );
+    let added_dependent = run_extension(
+        &project,
+        &[
+            "add",
+            "--id",
+            "local.extra",
+            "--version",
+            "1.0.0",
+            "--path",
+            "extensions/extra.lm",
+            "--language-version",
+            "^0.1",
+            "--depends",
+            "local.notes@^1.0",
+        ],
+    );
+    assert!(
+        added_dependent.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added_dependent.stderr)
+    );
+    let rejected_removal = run_extension(&project, &["remove", "local.notes"]);
+    assert_eq!(rejected_removal.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&rejected_removal.stderr).contains("requires package"),
+        "unexpected removal error: {}",
+        String::from_utf8_lossy(&rejected_removal.stderr)
+    );
+    let updated = run_extension(
+        &project,
+        &[
+            "update",
+            "local.notes",
+            "--version",
+            "1.1.0",
+            "--clear-dependencies",
+        ],
+    );
+    assert!(
+        updated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&updated.stderr)
+    );
+    assert!(
+        run_check(&project, &["check", "--project", "langmeld.json"])
+            .status
+            .success()
+    );
+    let removed_dependent = run_extension(&project, &["remove", "local.extra"]);
+    assert!(removed_dependent.status.success());
+    let removed_package = run_extension(&project, &["remove", "local.notes"]);
+    assert!(
+        removed_package.status.success(),
+        "{}",
+        String::from_utf8_lossy(&removed_package.stderr)
+    );
 }
 
 #[test]
