@@ -79,7 +79,10 @@ definition project, including imports and language-level constraints. Editor
 integrations can use `parse_language_definition_project_with_overlays` from
 `langmeld-language` to validate unsaved text for existing project files without
 writing those buffers to disk; overlays retain the project's root and size
-limits.
+limits. The companion `parse_language_definition_project_with_overlays_and_diagnostics`
+API includes the canonical source path when a diagnostic can be attributed to
+one; project-level findings have no source path and must not be assigned to an
+arbitrary file.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

@@ -2,6 +2,7 @@ use langmeld_language::{
     DefinitionLimits, langmeld_definition_language, parse_language_definition_project,
     parse_language_definition_project_with_limits, parse_language_definition_project_with_meta,
     parse_language_definition_project_with_overlays,
+    parse_language_definition_project_with_overlays_and_diagnostics,
     parse_language_definition_project_with_overlays_and_limits,
 };
 use std::{
@@ -175,6 +176,53 @@ fn project_loader_rejects_overlays_outside_the_root_and_bounds_overlay_text() {
             .message
             .contains("overlays exceed the total parsing limit")
     );
+}
+
+#[test]
+fn project_parser_retains_imported_file_identity_for_syntax_diagnostics() {
+    let project = TempProject::new();
+    let entries = project.write("entries.lm", ENTRIES);
+    let root = project.write("catalog.lm", ROOT);
+    let overlays = BTreeMap::from([(entries.clone(), "language Catalog {".to_owned())]);
+
+    let diagnostics = parse_language_definition_project_with_overlays_and_diagnostics(
+        &root,
+        &overlays,
+        DefinitionLimits::default(),
+    )
+    .expect_err("the imported module has incomplete syntax");
+
+    let entry_path = fs::canonicalize(&entries).expect("import path is canonical");
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].source_path.as_ref(), Some(&entry_path));
+    assert!(diagnostics[0].diagnostic.span.is_some());
+}
+
+#[test]
+fn project_parser_does_not_guess_a_file_for_cross_module_diagnostics() {
+    let project = TempProject::new();
+    project.write("shared.lm", COMMON);
+    project.write("entries.lm", ENTRIES);
+    let root = project.write("catalog.lm", ROOT);
+    let overlays = BTreeMap::from([(root.clone(), ROOT.replace("0.1.0", "0.2.0"))]);
+
+    let diagnostics = parse_language_definition_project_with_overlays_and_diagnostics(
+        &root,
+        &overlays,
+        DefinitionLimits::default(),
+    )
+    .expect_err("the root and imported module target different versions");
+
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| {
+            diagnostic
+                .diagnostic
+                .message
+                .contains("different language name, version, or root")
+        })
+        .unwrap_or_else(|| panic!("cross-module incompatibility is diagnosed: {diagnostics:#?}"));
+    assert_eq!(diagnostic.source_path, None);
 }
 
 #[test]

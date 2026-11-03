@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    AstNode, DefinitionLimits, PreparedLanguage,
+    AstNode, DefinitionLimits, DefinitionProjectDiagnostic, PreparedLanguage,
     definition_tree::{
         convert_language_module_specs, error, limit_diagnostics, parse_definition_tree, text,
     },
@@ -17,6 +17,8 @@ use crate::{
 
 const MAX_DIRECTORY_ENTRIES: usize = 100_000;
 const MAX_DIRECTORY_DEPTH: usize = 128;
+
+type ProjectDiagnostics = Vec<DefinitionProjectDiagnostic>;
 
 pub(crate) fn parse_project(
     path: &Path,
@@ -32,14 +34,32 @@ pub(crate) fn parse_project_with_overlays(
     limits: DefinitionLimits,
     overlays: &BTreeMap<PathBuf, String>,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    parse_project_with_overlays_and_diagnostics(path, prepared, limits, overlays)
+        .map_err(diagnostics_without_source)
+}
+
+pub(crate) fn parse_project_with_overlays_and_diagnostics(
+    path: &Path,
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+    overlays: &BTreeMap<PathBuf, String>,
+) -> Result<ValidatedLanguageSpec, Vec<DefinitionProjectDiagnostic>> {
     let (spec, source_len) = parse_project_spec_and_length(path, prepared, limits, overlays)?;
-    let result = spec.validate().map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|issue| Diagnostic::error(issue.code, issue.message, Span::new(0, source_len)))
-            .collect()
-    });
-    limit_diagnostics(result, limits.max_diagnostics, source_len)
+    let result: Result<ValidatedLanguageSpec, ProjectDiagnostics> =
+        spec.validate().map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|issue| DefinitionProjectDiagnostic {
+                    source_path: None,
+                    diagnostic: Diagnostic::error(
+                        issue.code,
+                        issue.message,
+                        Span::new(0, source_len),
+                    ),
+                })
+                .collect()
+        });
+    limit_project_diagnostics(result, limits.max_diagnostics, source_len)
 }
 
 pub(crate) fn project_source_paths(
@@ -47,7 +67,8 @@ pub(crate) fn project_source_paths(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let project = load_project(path, prepared, limits, &BTreeMap::new())?;
+    let project = load_project(path, prepared, limits, &BTreeMap::new())
+        .map_err(diagnostics_without_source)?;
     Ok(project.paths)
 }
 
@@ -56,7 +77,8 @@ pub(crate) fn parse_project_spec_with_sources(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<(langmeld_core::LanguageSpec, Vec<PathBuf>, usize), Vec<Diagnostic>> {
-    let project = load_project(path, prepared, limits, &BTreeMap::new())?;
+    let project = load_project(path, prepared, limits, &BTreeMap::new())
+        .map_err(diagnostics_without_source)?;
     let source_len = project
         .modules
         .last()
@@ -79,7 +101,7 @@ fn parse_project_spec_and_length(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
     overlays: &BTreeMap<PathBuf, String>,
-) -> Result<(langmeld_core::LanguageSpec, usize), Vec<Diagnostic>> {
+) -> Result<(langmeld_core::LanguageSpec, usize), Vec<DefinitionProjectDiagnostic>> {
     let project = load_project(path, prepared, limits, overlays)?;
     let source_len = project
         .modules
@@ -94,7 +116,8 @@ fn parse_project_spec_and_length(
         ),
         limits.max_diagnostics,
         source_len,
-    )?;
+    )
+    .map_err(unlocated_diagnostics)?;
     Ok((spec, source_len))
 }
 
@@ -122,35 +145,45 @@ fn load_project(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
     overlays: &BTreeMap<PathBuf, String>,
-) -> Result<LoadedProject, Vec<Diagnostic>> {
+) -> Result<LoadedProject, ProjectDiagnostics> {
     if path
         .extension()
         .is_some_and(|extension| extension == "json")
     {
-        return Err(file_error(
+        return Err(file_error_at(
+            path,
             "the readable definition loader accepts `.lm` files only",
         ));
     }
     let root_path = fs::canonicalize(path).map_err(|error| {
-        file_error(format!(
-            "cannot resolve language definition '{}': {error}",
-            path.display()
-        ))
+        file_error_at(
+            path,
+            format!(
+                "cannot resolve language definition '{}': {error}",
+                path.display()
+            ),
+        )
     })?;
     if root_path
         .extension()
         .is_none_or(|extension| extension != "lm")
     {
-        return Err(file_error(format!(
-            "language definition '{}' must have a `.lm` extension",
-            root_path.display()
-        )));
+        return Err(file_error_at(
+            &root_path,
+            format!(
+                "language definition '{}' must have a `.lm` extension",
+                root_path.display()
+            ),
+        ));
     }
     let root_directory = root_path.parent().ok_or_else(|| {
-        file_error(format!(
-            "language definition '{}' has no parent directory",
-            root_path.display()
-        ))
+        file_error_at(
+            &root_path,
+            format!(
+                "language definition '{}' has no parent directory",
+                root_path.display()
+            ),
+        )
     })?;
     if overlays.len() > limits.max_files {
         return Err(file_error(format!(
@@ -169,46 +202,64 @@ fn load_project(
             )));
         }
         let canonical_path = fs::canonicalize(overlay_path).map_err(|error| {
-            file_error(format!(
-                "cannot resolve language definition overlay '{}': {error}",
-                overlay_path.display()
-            ))
+            file_error_at(
+                overlay_path,
+                format!(
+                    "cannot resolve language definition overlay '{}': {error}",
+                    overlay_path.display()
+                ),
+            )
         })?;
         if !canonical_path.starts_with(root_directory) {
-            return Err(file_error(format!(
-                "language definition overlay '{}' escapes the language directory",
-                overlay_path.display()
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "language definition overlay '{}' escapes the language directory",
+                    overlay_path.display()
+                ),
+            ));
         }
         if canonical_path
             .extension()
             .is_none_or(|extension| extension != "lm")
         {
-            return Err(file_error(format!(
-                "language definition overlay '{}' must have a `.lm` extension",
-                canonical_path.display()
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "language definition overlay '{}' must have a `.lm` extension",
+                    canonical_path.display()
+                ),
+            ));
         }
         let metadata = fs::metadata(&canonical_path).map_err(|error| {
-            file_error(format!(
-                "cannot inspect language definition overlay '{}': {error}",
-                canonical_path.display()
-            ))
+            file_error_at(
+                &canonical_path,
+                format!(
+                    "cannot inspect language definition overlay '{}': {error}",
+                    canonical_path.display()
+                ),
+            )
         })?;
         if !metadata.is_file() {
-            return Err(file_error(format!(
-                "language definition overlay '{}' must name a regular file",
-                canonical_path.display()
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "language definition overlay '{}' must name a regular file",
+                    canonical_path.display()
+                ),
+            ));
         }
         if canonical_overlays
             .insert(canonical_path.clone(), text.as_str())
             .is_some()
         {
-            return Err(file_error(format!(
-                "multiple language definition overlays resolve to '{}'",
-                canonical_path.display()
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "multiple language definition overlays resolve to '{}'",
+                    canonical_path.display()
+                ),
+            ));
         }
     }
     let mut state = LoadState {
@@ -231,18 +282,24 @@ fn load_project(
     })
 }
 
-fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnostic>> {
+fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), ProjectDiagnostics> {
     let canonical_path = fs::canonicalize(path).map_err(|error| {
-        file_error(format!(
-            "cannot resolve imported definition '{}': {error}",
-            path.display()
-        ))
+        file_error_at(
+            path,
+            format!(
+                "cannot resolve imported definition '{}': {error}",
+                path.display()
+            ),
+        )
     })?;
     if !canonical_path.starts_with(&state.root_directory) {
-        return Err(file_error(format!(
-            "imported definition '{}' escapes the language directory",
-            path.display()
-        )));
+        return Err(file_error_at(
+            &canonical_path,
+            format!(
+                "imported definition '{}' escapes the language directory",
+                path.display()
+            ),
+        ));
     }
     if let Some(cycle_start) = state
         .visiting
@@ -254,10 +311,10 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
             .map(|path| path.display().to_string())
             .collect::<Vec<_>>();
         cycle.push(canonical_path.display().to_string());
-        return Err(file_error(format!(
-            "language definition import cycle: {}",
-            cycle.join(" -> ")
-        )));
+        return Err(file_error_at(
+            &canonical_path,
+            format!("language definition import cycle: {}", cycle.join(" -> ")),
+        ));
     }
     if state.loaded.contains(&canonical_path) {
         return Ok(());
@@ -272,10 +329,13 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
         .extension()
         .is_none_or(|extension| extension != "lm")
     {
-        return Err(file_error(format!(
-            "imported definition '{}' must be a `.lm` file",
-            canonical_path.display()
-        )));
+        return Err(file_error_at(
+            &canonical_path,
+            format!(
+                "imported definition '{}' must be a `.lm` file",
+                canonical_path.display()
+            ),
+        ));
     }
 
     let remaining_bytes = state
@@ -284,24 +344,33 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
         .saturating_sub(state.total_bytes);
     let source_text = if let Some(text) = state.overlays.get(&canonical_path) {
         if text.len() > remaining_bytes {
-            return Err(file_error(format!(
-                "language definition project exceeds its total parsing limit of {} bytes",
-                state.limits.max_source_bytes
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "language definition project exceeds its total parsing limit of {} bytes",
+                    state.limits.max_source_bytes
+                ),
+            ));
         }
         (*text).to_owned()
     } else {
         let metadata = fs::metadata(&canonical_path).map_err(|error| {
-            file_error(format!(
-                "cannot inspect language definition '{}': {error}",
-                canonical_path.display()
-            ))
+            file_error_at(
+                &canonical_path,
+                format!(
+                    "cannot inspect language definition '{}': {error}",
+                    canonical_path.display()
+                ),
+            )
         })?;
         if !metadata.is_file() {
-            return Err(file_error(format!(
-                "language definition '{}' must be a regular file",
-                canonical_path.display()
-            )));
+            return Err(file_error_at(
+                &canonical_path,
+                format!(
+                    "language definition '{}' must be a regular file",
+                    canonical_path.display()
+                ),
+            ));
         }
         read_source(
             &canonical_path,
@@ -311,8 +380,10 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
     };
     state.total_bytes = state.total_bytes.saturating_add(source_text.len());
     let source = SourceFile::new(canonical_path.display().to_string(), source_text);
-    let module = parse_definition_tree(&source, state.prepared, state.limits)?;
-    check_conventional_section(&canonical_path, &state.root_directory, &module, &source)?;
+    let module = parse_definition_tree(&source, state.prepared, state.limits)
+        .map_err(|diagnostics| sourced_diagnostics(&canonical_path, diagnostics))?;
+    check_conventional_section(&canonical_path, &state.root_directory, &module, &source)
+        .map_err(|diagnostics| sourced_diagnostics(&canonical_path, diagnostics))?;
 
     state.visiting.push(canonical_path.clone());
     let result = (|| {
@@ -343,32 +414,39 @@ fn load_imports(
     module: &AstNode,
     canonical_path: &Path,
     state: &mut LoadState<'_>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<(), ProjectDiagnostics> {
     for import in module
         .children
         .iter()
         .filter(|declaration| declaration.construct == "import_decl")
     {
-        let import_name = text(import, "path")?;
+        let import_name = text(import, "path")
+            .map_err(|diagnostics| sourced_diagnostics(canonical_path, diagnostics))?;
         let import_path = Path::new(&import_name);
         if import_path.is_absolute()
             || import_path
                 .components()
                 .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
         {
-            return Err(vec![error(
-                import,
-                format!("definition import `{import_name}` must be a relative path"),
-            )]);
+            return Err(sourced_diagnostics(
+                canonical_path,
+                vec![error(
+                    import,
+                    format!("definition import `{import_name}` must be a relative path"),
+                )],
+            ));
         }
         if import_path
             .extension()
             .is_none_or(|extension| extension != "lm")
         {
-            return Err(vec![error(
-                import,
-                format!("definition import `{import_name}` must name a `.lm` file"),
-            )]);
+            return Err(sourced_diagnostics(
+                canonical_path,
+                vec![error(
+                    import,
+                    format!("definition import `{import_name}` must name a `.lm` file"),
+                )],
+            ));
         }
         let resolved = canonical_path
             .parent()
@@ -515,34 +593,98 @@ fn read_source(
     path: &Path,
     remaining_bytes: usize,
     project_limit: usize,
-) -> Result<String, Vec<Diagnostic>> {
+) -> Result<String, ProjectDiagnostics> {
     let file = File::open(path).map_err(|error| {
-        file_error(format!(
-            "cannot read imported definition '{}': {error}",
-            path.display()
-        ))
+        file_error_at(
+            path,
+            format!(
+                "cannot read imported definition '{}': {error}",
+                path.display()
+            ),
+        )
     })?;
     let mut limited = file.take(remaining_bytes.saturating_add(1) as u64);
     let mut bytes = Vec::new();
     limited.read_to_end(&mut bytes).map_err(|error| {
-        file_error(format!(
-            "cannot read imported definition '{}': {error}",
-            path.display()
-        ))
+        file_error_at(
+            path,
+            format!(
+                "cannot read imported definition '{}': {error}",
+                path.display()
+            ),
+        )
     })?;
     if bytes.len() > remaining_bytes {
-        return Err(file_error(format!(
-            "definition project exceeds its total parsing limit of {project_limit} bytes"
-        )));
+        return Err(file_error_at(
+            path,
+            format!("definition project exceeds its total parsing limit of {project_limit} bytes"),
+        ));
     }
     String::from_utf8(bytes).map_err(|error| {
-        file_error(format!(
-            "language definition '{}' is not UTF-8: {error}",
-            path.display()
-        ))
+        file_error_at(
+            path,
+            format!(
+                "language definition '{}' is not UTF-8: {error}",
+                path.display()
+            ),
+        )
     })
 }
 
-fn file_error(message: impl Into<String>) -> Vec<Diagnostic> {
-    vec![Diagnostic::spec_error("LMBOOT001", message)]
+fn file_error(message: impl Into<String>) -> ProjectDiagnostics {
+    unlocated_diagnostics(vec![Diagnostic::spec_error("LMBOOT001", message)])
+}
+
+fn file_error_at(path: &Path, message: impl Into<String>) -> ProjectDiagnostics {
+    sourced_diagnostics(path, vec![Diagnostic::spec_error("LMBOOT001", message)])
+}
+
+fn sourced_diagnostics(path: &Path, diagnostics: Vec<Diagnostic>) -> ProjectDiagnostics {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| DefinitionProjectDiagnostic {
+            source_path: Some(path.to_path_buf()),
+            diagnostic,
+        })
+        .collect()
+}
+
+fn unlocated_diagnostics(diagnostics: Vec<Diagnostic>) -> ProjectDiagnostics {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| DefinitionProjectDiagnostic {
+            source_path: None,
+            diagnostic,
+        })
+        .collect()
+}
+
+fn diagnostics_without_source(diagnostics: ProjectDiagnostics) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| diagnostic.diagnostic)
+        .collect()
+}
+
+fn limit_project_diagnostics<T>(
+    result: Result<T, ProjectDiagnostics>,
+    max_diagnostics: usize,
+    source_len: usize,
+) -> Result<T, ProjectDiagnostics> {
+    let Err(mut diagnostics) = result else {
+        return result;
+    };
+    let limit = max_diagnostics.max(1);
+    if diagnostics.len() > limit {
+        diagnostics.truncate(limit.saturating_sub(1));
+        diagnostics.push(DefinitionProjectDiagnostic {
+            source_path: None,
+            diagnostic: Diagnostic::error(
+                "LMDEF102",
+                format!("definition diagnostics exceed the limit of {limit}"),
+                Span::new(0, source_len),
+            ),
+        });
+    }
+    Err(diagnostics)
 }

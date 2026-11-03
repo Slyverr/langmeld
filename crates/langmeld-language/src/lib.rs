@@ -27,13 +27,14 @@ pub use backend::{
     validate_backend_settings,
 };
 pub use definition::{
-    DefinitionLimits, language_definition_source_paths, parse_definition,
-    parse_definition_with_limits, parse_language_definition_modules,
+    DefinitionLimits, DefinitionProjectDiagnostic, language_definition_source_paths,
+    parse_definition, parse_definition_with_limits, parse_language_definition_modules,
     parse_language_definition_modules_with_limits, parse_language_definition_modules_with_meta,
     parse_language_definition_modules_with_meta_and_limits, parse_language_definition_project,
     parse_language_definition_project_with_limits, parse_language_definition_project_with_meta,
     parse_language_definition_project_with_meta_and_limits,
     parse_language_definition_project_with_overlays,
+    parse_language_definition_project_with_overlays_and_diagnostics,
     parse_language_definition_project_with_overlays_and_limits,
     parse_language_definition_with_meta, parse_language_definition_with_meta_and_limits,
 };

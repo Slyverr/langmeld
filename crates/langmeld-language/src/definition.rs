@@ -18,6 +18,19 @@ pub struct DefinitionLimits {
     pub max_diagnostics: usize,
 }
 
+/// One definition-project diagnostic with its originating file when known.
+///
+/// Cross-module validation can report project-level issues without a reliable
+/// source identity. Those findings have no `source_path`; consumers must not
+/// assign their diagnostic span to an arbitrary project file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DefinitionProjectDiagnostic {
+    /// Canonical path of the file that produced this diagnostic, when known.
+    pub source_path: Option<PathBuf>,
+    /// Diagnostic code, message, severity, and source range.
+    pub diagnostic: Diagnostic,
+}
+
 impl Default for DefinitionLimits {
     fn default() -> Self {
         Self {
@@ -155,11 +168,45 @@ pub fn parse_language_definition_project_with_overlays_and_limits(
     overlays: &BTreeMap<PathBuf, String>,
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    crate::definition_import::parse_project_with_overlays(
+    crate::definition_import::parse_project_with_overlays_and_diagnostics(
         root_path,
         prepared_definition_parser()?,
         limits,
         overlays,
+    )
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| diagnostic.diagnostic)
+            .collect()
+    })
+}
+
+/// Loads a file-based `.lm` project with source overlays and returns each
+/// diagnostic with the canonical file path that produced it when known.
+///
+/// Project-level conversion and specification findings may have no source
+/// path or span when the definition model cannot identify one reliably.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, specification, or overlay
+/// boundary diagnostics.
+pub fn parse_language_definition_project_with_overlays_and_diagnostics(
+    root_path: &Path,
+    overlays: &BTreeMap<PathBuf, String>,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<DefinitionProjectDiagnostic>> {
+    let prepared = prepared_definition_parser().map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| DefinitionProjectDiagnostic {
+                source_path: None,
+                diagnostic,
+            })
+            .collect::<Vec<_>>()
+    })?;
+    crate::definition_import::parse_project_with_overlays_and_diagnostics(
+        root_path, prepared, limits, overlays,
     )
 }
 
