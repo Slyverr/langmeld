@@ -66,6 +66,19 @@ fn valid_language_definition_has_a_validated_state() {
 }
 
 #[test]
+fn validation_rejects_unsupported_language_model_schema_versions() {
+    let mut spec = valid_spec();
+    spec.schema_version = 2;
+
+    let errors = spec
+        .validate()
+        .expect_err("unsupported language model schema is rejected");
+    assert!(errors.iter().any(|error| {
+        error.code == "LM1001" && error.message.contains("unsupported schema_version 2")
+    }));
+}
+
+#[test]
 fn construct_builder_accumulates_categories_across_composition_steps() {
     let language = LanguageBuilder::new("ComposableCategories")
         .version("0.1.0")

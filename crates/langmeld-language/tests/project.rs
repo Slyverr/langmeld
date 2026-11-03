@@ -113,6 +113,16 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
 }
 
 #[test]
+fn manifest_loader_rejects_unsupported_schema_versions() {
+    let project = TempProject::new();
+    let manifest = project.manifest(r#"{"schema_version":3,"language":"language/language.lm"}"#);
+
+    let error = load_project_manifest(&manifest)
+        .expect_err("unsupported project manifest schema is rejected");
+    assert!(error.contains("unsupported project manifest schema version 3"));
+}
+
+#[test]
 fn version_one_manifest_reads_and_writes_in_its_legacy_shape() {
     let project = TempProject::new();
     project.write_language();

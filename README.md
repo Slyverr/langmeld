@@ -113,16 +113,22 @@ indentation for valid programs.
 
 ## Compatibility
 
-Langmeld is pre-1.0. Public Rust APIs and generated host code may change in a
-minor release, so rebuild generated hosts when upgrading; there is no stable
-binary plugin ABI. The Rust crate version does not version language or project
-data formats.
+Langmeld is pre-1.0. Its version boundaries are independent:
 
-Project manifests and definition lockfiles have their own schema versions.
-The loader supports project manifest versions 1 and 2 and lockfile version 1,
-and rejects unsupported versions. It preserves existing manifest versions;
-there is no automatic schema migration. Generated files under
-`.langmeld/generated/` are derived and can be rebuilt from project sources.
+| Boundary | Current versioning | Upgrade behavior |
+| --- | --- | --- |
+| Rust crates, host callbacks, and generated Rust code | Crate SemVer; APIs may change in a minor release before 1.0 | Rebuild and compile-check the host after upgrading. There is no stable binary plugin ABI. |
+| Canonical language-model data | `schema_version: 1` describes the `LanguageSpec` data shape; `version` identifies the language release and must be SemVer when versioned extensions are used | Unsupported model schema versions are rejected. The language version does not version the Langmeld schema. |
+| `langmeld.json` | Manifest schema 1 supports declarative definitions; schema 2 supports declarative and Rust-host definitions | The loader rejects unsupported schemas and preserves the existing schema when writing. There is no automatic conversion between versions. |
+| `langmeld.lock` | Lock schema 1 records definition hashes, resolved extension metadata, and the effective language hash | Missing locks are allowed; stale locks stop project checks until refreshed with `langmeld lock`. Unsupported schemas are rejected. |
+| Local declarative extension packages | Each package declares its own SemVer, target-language version range, and package dependencies | Packages resolve only from declared local paths. The lock pins package metadata and definition bytes; the package does not add executable host code. |
+| `.langmeld/generated/` | Derived artifacts emitted by the installed Langmeld version | Regenerate from project sources with `langmeld generate`; generated artifact layouts are not a cross-version stability promise before 1.0. |
+
+These boundaries are covered independently: serialized language-model round
+trips and strict schema rejection, manifest v1/v2 preservation and validation,
+and lockfile hashing, stale-input detection, refresh, and unsupported-version
+errors. There is no automatic schema migration; back up project sources and
+review format changes when upgrading.
 
 ## Bootstrap a language project
 
