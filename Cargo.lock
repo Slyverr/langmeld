@@ -349,6 +349,7 @@ name = "langmeld-language"
 version = "0.1.0"
 dependencies = [
  "langmeld-core",
+ "semver",
  "serde",
  "serde_json",
 ]
