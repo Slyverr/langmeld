@@ -1,8 +1,9 @@
 use langmeld_language::{
-    ProjectManifest, load_language, load_project, load_project_manifest, load_project_sources,
-    load_project_with_manifest, load_source_files, write_project_manifest,
+    ProjectBuildConfig, ProjectManifest, load_language, load_project, load_project_manifest,
+    load_project_sources, load_project_with_manifest, load_source_files, write_project_manifest,
 };
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicUsize, Ordering},
@@ -100,6 +101,45 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
     manifest.language = PathBuf::from("../outside.lm");
     manifest.language = PathBuf::from("../shared/language.lm");
     assert!(manifest.to_json().is_ok());
+}
+
+#[test]
+fn project_build_defaults_round_trip_and_reject_invalid_nested_fields() {
+    let mut manifest = ProjectManifest::new("language/main.lm");
+    manifest.build = Some(ProjectBuildConfig {
+        backend: "web-target".to_owned(),
+        format: Some("module".to_owned()),
+        target: Some("wasm32-unknown-unknown".to_owned()),
+        source_maps: Some(true),
+        settings: BTreeMap::from([("optimization".to_owned(), "size".to_owned())]),
+    });
+    let json = manifest.to_json().expect("build defaults serialize");
+    let project = TempProject::new();
+    let path = project.manifest(&json);
+    assert_eq!(
+        load_project_manifest(&path).expect("build defaults load"),
+        manifest
+    );
+
+    let empty_backend = ProjectManifest {
+        build: Some(ProjectBuildConfig::new("  ")),
+        ..ProjectManifest::new("language/main.lm")
+    };
+    assert!(
+        empty_backend
+            .to_json()
+            .expect_err("empty backend IDs are rejected")
+            .contains("backend ID must not be empty")
+    );
+
+    let unknown = project.manifest(
+        r#"{"schema_version":1,"language":"language/main.lm","build":{"backend":"web-target","surprise":true}}"#,
+    );
+    assert!(
+        load_project_manifest(&unknown)
+            .expect_err("unknown nested build fields are rejected")
+            .contains("unknown field")
+    );
 }
 
 #[test]

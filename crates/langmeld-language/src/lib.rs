@@ -50,8 +50,9 @@ pub use parser::{
 };
 pub use pipeline::{PassDescriptor, PassPipeline, PipelineError, PipelinePlanError};
 pub use project::{
-    ProjectManifest, ProjectSnapshot, load_language, load_project, load_project_manifest,
-    load_project_sources, load_project_with_manifest, load_source_files, write_project_manifest,
+    ProjectBuildConfig, ProjectManifest, ProjectSnapshot, load_language, load_project,
+    load_project_manifest, load_project_sources, load_project_with_manifest, load_source_files,
+    write_project_manifest,
 };
 pub use rust_codegen::generate_rust_ast;
 pub use syntax::{

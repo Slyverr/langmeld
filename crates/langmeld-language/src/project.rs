@@ -1,7 +1,7 @@
 //! Project configuration and bounded discovery of language source files.
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Component, Path, PathBuf},
@@ -33,6 +33,43 @@ pub struct ProjectManifest {
     /// Source suffixes used when scanning roots; empty inherits the language definition.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_extensions: Vec<String>,
+    /// Optional backend defaults used by the project's Rust host.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<ProjectBuildConfig>,
+}
+
+/// Backend preferences persisted in a project manifest.
+///
+/// The backend implementation remains registered by the project's Rust host;
+/// this data only records that host's selected defaults.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectBuildConfig {
+    /// Stable ID of a backend registered by the project host.
+    pub backend: String,
+    /// Default output format, or `None` when the backend has a single format.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+    /// Backend-specific target, such as an architecture or preview profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// Whether to request generated-to-source mappings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_maps: Option<bool>,
+    /// Backend-owned setting values keyed by their declared setting IDs.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub settings: BTreeMap<String, String>,
+}
+
+impl ProjectBuildConfig {
+    /// Creates backend preferences for one host-registered backend.
+    #[must_use]
+    pub fn new(backend: impl Into<String>) -> Self {
+        Self {
+            backend: backend.into(),
+            ..Self::default()
+        }
+    }
 }
 
 /// A validated project view shared by CLI commands and editor integrations.
@@ -56,6 +93,7 @@ impl ProjectManifest {
             sources: Vec::new(),
             source_roots: Vec::new(),
             source_extensions: Vec::new(),
+            build: None,
         }
     }
 
@@ -320,6 +358,28 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
     }
     for path in &manifest.source_roots {
         validate_relative_path(path, "source root")?;
+    }
+    if let Some(build) = &manifest.build {
+        if build.backend.trim().is_empty() {
+            return Err("project build backend ID must not be empty".to_owned());
+        }
+        if build
+            .format
+            .as_deref()
+            .is_some_and(|format| format.trim().is_empty())
+        {
+            return Err("project build format must not be empty".to_owned());
+        }
+        if build
+            .target
+            .as_deref()
+            .is_some_and(|target| target.trim().is_empty())
+        {
+            return Err("project build target must not be empty".to_owned());
+        }
+        if build.settings.keys().any(|key| key.trim().is_empty()) {
+            return Err("project build setting keys must not be empty".to_owned());
+        }
     }
     Ok(())
 }
