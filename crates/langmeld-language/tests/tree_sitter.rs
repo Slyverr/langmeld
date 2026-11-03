@@ -1,5 +1,7 @@
-use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind};
-use langmeld_language::generate_tree_sitter;
+use langmeld_core::{
+    ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind, SourceFile, SymbolSpec,
+};
+use langmeld_language::{PreparedLanguage, generate_tree_sitter};
 use std::{env, fs, path::Path};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
@@ -16,8 +18,9 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
             ConstructBuilder::new("binding")
                 .syntax_variant(
                     "binding",
-                    "let {mode} {name} -> {value} tags {tags} attrs {attrs} config {config}",
+                    "let {mode} {name} -> {value} tags {tags} attrs {attrs} config {config} status {status} owner {owner} flags {flags} labels {labels} history {history} metadata {metadata}",
                 )
+                .symbol(SymbolSpec::new("binding", "name"))
                 .field(FieldSpec::required(
                     "mode",
                     FieldKind::named_enumeration("Mode", ["fast", "safe"]),
@@ -36,7 +39,46 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
                     "config",
                     FieldKind::Properties {
                         name: None,
-                        fields: vec![FieldSpec::optional("note", FieldKind::Text)],
+                        fields: vec![
+                            FieldSpec::required("title", FieldKind::Text),
+                            FieldSpec::optional("note", FieldKind::Text),
+                        ],
+                    },
+                ))
+                .field(FieldSpec::required(
+                    "status",
+                    FieldKind::Enum {
+                        values: vec!["draft".to_owned(), "published".to_owned()],
+                    },
+                ))
+                .field(FieldSpec::required(
+                    "owner",
+                    FieldKind::Reference {
+                        target: "binding".to_owned(),
+                    },
+                ))
+                .field(FieldSpec::required(
+                    "flags",
+                    FieldKind::list(FieldKind::Enum {
+                        values: vec!["on".to_owned(), "off".to_owned()],
+                    }),
+                ))
+                .field(FieldSpec::required(
+                    "labels",
+                    FieldKind::map(MapKeyKind::Text, FieldKind::Number),
+                ))
+                .field(FieldSpec::required(
+                    "history",
+                    FieldKind::list(FieldKind::Properties {
+                        name: None,
+                        fields: vec![FieldSpec::required("note", FieldKind::Text)],
+                    }),
+                ))
+                .field(FieldSpec::required(
+                    "metadata",
+                    FieldKind::Properties {
+                        name: None,
+                        fields: Vec::new(),
                     },
                 )),
         )
@@ -74,6 +116,7 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     ));
     assert!(grammar.contains("field(\"name\", $.lm_identifier)"));
     assert!(grammar.contains("field(\"value\", $.lm_number)"));
+    assert!(grammar.contains("field(\"owner\", $.lm_identifier)"));
     assert!(grammar.contains("field(\"attrs\", $.lm_type_"));
     assert!(grammar.contains(
         "choice(repeat($.lm_separator), seq(repeat($.lm_separator), $.lm_construct_binding"
@@ -84,6 +127,8 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(
         grammar.contains("field(\"key\", $.lm_identifier), \":\", field(\"value\", $.lm_string)")
     );
+    assert!(grammar.contains("field(\"key\", $.lm_string), \":\", field(\"value\", $.lm_number)"));
+    assert!(grammar.contains("seq(\"{\", repeat(choice(\",\", \";\", $.lm_newline)), \"}\")"));
     assert!(!grammar.contains("choice(\",\", $.lm_newline)"));
     assert!(artifacts["tree-sitter/README.md"].contains("conventional `#` line comments"));
     assert!(artifacts["tree-sitter/README.md"].contains("Langmeld validation"));
@@ -110,6 +155,7 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(highlights.contains("\"let\" @keyword"));
     assert!(highlights.contains("\"->\" @operator"));
     assert!(highlights.contains("\"fast\" @constant.builtin"));
+    assert!(highlights.contains("\"draft\" @constant.builtin"));
 }
 
 #[test]
@@ -144,7 +190,8 @@ fn write_tree_sitter_cli_validation_fixture() {
         .expect("LANGMELD_TREE_SITTER_FIXTURE_DIR must name a temporary output directory");
     fs::create_dir_all(&output).expect("fixture output directory is created");
 
-    for (path, contents) in generate_tree_sitter(&language()).expect("fixture exports") {
+    let language = language();
+    for (path, contents) in generate_tree_sitter(&language).expect("fixture exports") {
         let relative = path
             .strip_prefix("tree-sitter/")
             .expect("generated artifact is under tree-sitter/");
@@ -162,9 +209,50 @@ fn write_tree_sitter_cli_validation_fixture() {
         }
         fs::write(destination, contents).expect("generated artifact is written");
     }
+    let samples = [
+        (
+            "complete.demo",
+            "program {\n  let fast demo -> 42 tags [\"one\", \"two\"] attrs {count: \"2\"} config {title: \"sample\"; note: \"optional\"} status draft owner root flags [on, off] labels {\"build target\": 3} history [{note: \"created\"}] metadata {}\n}\n",
+        ),
+        (
+            "empty-collections.demo",
+            "program {\n  let safe empty -> 0 tags [] attrs {} config {title: \"empty\"} status published owner root flags [] labels {} history [] metadata {}\n}\n",
+        ),
+        (
+            "multiline-properties.demo",
+            "program {\n  let fast multiline -> 1 tags [\"one\",\n    \"two\",] attrs {\n    first: \"a\",\n    second: \"b\";\n  } config {\n    title: \"record\"\n    note: \"line separated\"\n  } status draft owner root flags [on] labels {\n    \"one\": 1,\n    \"two\": 2\n  } history [\n    {note: \"created\"},\n    {note: \"edited\"}\n  ] metadata {}\n}\n",
+        ),
+    ];
+    let parser = PreparedLanguage::new(language)
+        .expect("fixture patterns compile")
+        .configure()
+        .expect("fixture parser configures");
+    let samples_dir = output.join("samples");
+    fs::create_dir_all(&samples_dir).expect("sample directory is created");
+    for (name, source) in samples {
+        let parsed = parser.parse(&SourceFile::new(name, source));
+        assert!(
+            !parsed.resource_limited,
+            "sample `{name}` stays within parser limits"
+        );
+        assert!(
+            parsed.diagnostics.is_empty(),
+            "sample `{name}` parses: {:#?}",
+            parsed.diagnostics
+        );
+        fs::write(samples_dir.join(name), source).expect("sample program is written");
+    }
+    let invalid_source = "program {\n  let fast invalid -> 1 tags [] attrs {first: \"a\"\n    second: \"b\"} config {title: \"invalid\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n";
+    let invalid = parser.parse(&SourceFile::new("invalid-map.demo", invalid_source));
+    assert!(
+        !invalid.diagnostics.is_empty(),
+        "Langmeld rejects map entries separated by a newline without a comma or semicolon"
+    );
+    let invalid_dir = output.join("invalid");
+    fs::create_dir_all(&invalid_dir).expect("invalid sample directory is created");
     fs::write(
-        output.join("sample.demo"),
-        "program {\n  let fast demo -> 42 tags [\"one\", \"two\"] attrs {count: \"2\"} config {note: \"sample\"}\n}\n",
+        invalid_dir.join("map-missing-separator.demo"),
+        invalid_source,
     )
-    .expect("sample program is written");
+    .expect("invalid sample program is written");
 }

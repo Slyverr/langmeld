@@ -376,10 +376,11 @@ impl TypeRuleBuilder {
                     }
                 };
                 let value = self.expression(value)?;
-                let separator = "choice(\",\", \";\", $.lm_newline)";
-                let separators = format!("repeat({separator})");
+                let newlines = "repeat($.lm_newline)";
+                let separator = "choice(\",\", \";\")";
+                let entry = format!("field(\"key\", {key}), \":\", field(\"value\", {value})");
                 format!(
-                    "seq(\"{{\", choice({separators}, seq({separators}, field(\"key\", {key}), \":\", field(\"value\", {value}), repeat(seq(repeat1({separator}), field(\"key\", {key}), \":\", field(\"value\", {value}))), {separators})), \"}}\")"
+                    "seq(\"{{\", choice({newlines}, seq({newlines}, {entry}, repeat(seq({newlines}, {separator}, {newlines}, {entry})), {newlines}, optional(seq({separator}, {newlines})))), \"}}\")"
                 )
             }
             FieldKind::Identifier
