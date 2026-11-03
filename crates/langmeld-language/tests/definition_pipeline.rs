@@ -149,7 +149,7 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
     let module = SourceFile::new("constructs/program.lm", "constructs { } ");
     let diagnostics = parse_language_definition_modules_with_limits(
         &root,
-        &[module],
+        std::slice::from_ref(&module),
         DefinitionLimits {
             max_source_bytes: root.text.len(),
             ..DefinitionLimits::default()
@@ -157,6 +157,17 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
     )
     .expect_err("the aggregate module size is bounded");
     assert_eq!(diagnostics[0].code, "LMDEF100");
+
+    let diagnostics = parse_language_definition_modules_with_limits(
+        &root,
+        std::slice::from_ref(&module),
+        DefinitionLimits {
+            max_files: 1,
+            ..DefinitionLimits::default()
+        },
+    )
+    .expect_err("the in-memory project file count is bounded");
+    assert_eq!(diagnostics[0].code, "LMDEF103");
 
     let diagnostics = parse_definition_with_limits(
         &too_large,

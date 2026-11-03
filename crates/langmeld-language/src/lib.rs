@@ -1,6 +1,7 @@
 //! Shared lexical contracts and resource limits for Langmeld language parsers.
 
 mod definition;
+mod definition_import;
 mod definition_meta;
 mod definition_tree;
 mod lexer;
@@ -13,7 +14,9 @@ pub use definition::{
     DefinitionLimits, parse_definition, parse_definition_with_limits,
     parse_language_definition_modules, parse_language_definition_modules_with_limits,
     parse_language_definition_modules_with_meta,
-    parse_language_definition_modules_with_meta_and_limits, parse_language_definition_with_meta,
+    parse_language_definition_modules_with_meta_and_limits, parse_language_definition_project,
+    parse_language_definition_project_with_limits, parse_language_definition_project_with_meta,
+    parse_language_definition_project_with_meta_and_limits, parse_language_definition_with_meta,
     parse_language_definition_with_meta_and_limits,
 };
 pub use definition_meta::{langmeld_definition_language, langmeld_definition_parser};

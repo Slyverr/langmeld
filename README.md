@@ -5,10 +5,13 @@ contains `langmeld-core` for source snapshots, stable source identities, byte
 spans, structured diagnostics, and validated language definitions, plus
 `langmeld-expression` for configurable expression parsing and host-defined type
 and runtime rules, and `langmeld-language` for source-spanned tokens, the
-built-in lexer, custom lexer contracts, and parser resource limits. Prepared
-grammars compile declarative patterns once, expose keyword and capture
-metadata, and provide token-based block-child candidate hints. AST parsing,
-CLI, and full language tooling are still being ported.
+built-in lexer, custom lexer contracts, and a generic parser that builds typed
+ASTs, lossless syntax trees, and editor classifications. The readable `.lm`
+definition format uses the same generic parser, rebuilds its embedded grammar
+from modular sources, and supports in-memory modules and safe relative file
+imports. Prepared grammars compile declarative patterns once and provide
+token-based block-child candidate hints. The CLI, language facade, analysis,
+backends, LSP, WASM, and generated tooling are still being ported.
 
 ## Workspace checks
 

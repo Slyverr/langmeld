@@ -18,7 +18,7 @@ pub(super) fn convert_language(
     convert_language_modules(std::iter::once((node, source)))
 }
 
-pub(super) fn convert_language_modules<'a>(
+pub(crate) fn convert_language_modules<'a>(
     modules: impl IntoIterator<Item = (&'a AstNode, &'a SourceFile)>,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     let modules: Vec<_> = modules.into_iter().collect();

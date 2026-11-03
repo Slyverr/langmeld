@@ -9,6 +9,9 @@ use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 
 use crate::{AstNode, DefinitionLimits, ParseLimits, PreparedLanguage};
 
+pub(crate) use conversion::convert_language_modules;
+pub(crate) use helpers::{error, text};
+
 pub(crate) fn parse_language_definition_with_meta(
     source: &SourceFile,
     meta_language: &ValidatedLanguageSpec,
@@ -72,6 +75,17 @@ pub(crate) fn parse_language_definition_modules_with_prepared(
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     let result = (|| {
+        let file_count = modules.len().saturating_add(1);
+        if file_count > limits.max_files {
+            return Err(vec![Diagnostic::error(
+                "LMDEF103",
+                format!(
+                    "definition project contains {file_count} files; limit is {}",
+                    limits.max_files
+                ),
+                Span::new(0, root_source.text.len()),
+            )]);
+        }
         let mut parsed_modules = Vec::with_capacity(modules.len() + 1);
         let mut total_bytes = 0usize;
         for source in modules.iter().chain(std::iter::once(root_source)) {
@@ -116,7 +130,7 @@ fn reject_imports(node: &AstNode, source: &SourceFile) -> Result<(), Vec<Diagnos
     Ok(())
 }
 
-fn limit_diagnostics<T>(
+pub(crate) fn limit_diagnostics<T>(
     result: Result<T, Vec<Diagnostic>>,
     max_diagnostics: usize,
     source_len: usize,
@@ -144,7 +158,7 @@ fn parse_limits(limits: DefinitionLimits) -> ParseLimits {
     }
 }
 
-fn parse_definition_tree(
+pub(crate) fn parse_definition_tree(
     source: &SourceFile,
     meta_language: &PreparedLanguage,
     limits: DefinitionLimits,

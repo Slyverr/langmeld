@@ -1,6 +1,7 @@
 //! Resource-bounded parsing APIs for readable language definitions.
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
+use std::path::Path;
 
 use crate::{definition_meta::langmeld_definition_parser, definition_tree};
 
@@ -11,6 +12,8 @@ pub struct DefinitionLimits {
     pub max_source_bytes: usize,
     /// Maximum lexer tokens, including the end-of-file sentinel.
     pub max_tokens: usize,
+    /// Maximum distinct definition files in an in-memory or file-based project.
+    pub max_files: usize,
     /// Maximum diagnostics returned for malformed definitions.
     pub max_diagnostics: usize,
 }
@@ -20,6 +23,7 @@ impl Default for DefinitionLimits {
         Self {
             max_source_bytes: 4 * 1024 * 1024,
             max_tokens: 250_000,
+            max_files: 128,
             max_diagnostics: 10_000,
         }
     }
@@ -57,12 +61,7 @@ pub fn parse_definition_with_limits(
             Span::new(0, source.text.len()),
         )]);
     }
-    let prepared = langmeld_definition_parser().map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| Diagnostic::spec_error(error.code, error.message))
-            .collect::<Vec<_>>()
-    })?;
+    let prepared = prepared_definition_parser()?;
     let validated = definition_tree::parse_language_definition_with_prepared_and_limits(
         source, prepared, limits,
     )?;
@@ -93,15 +92,63 @@ pub fn parse_language_definition_modules_with_limits(
     modules: &[SourceFile],
     limits: DefinitionLimits,
 ) -> Result<langmeld_core::ValidatedLanguageSpec, Vec<Diagnostic>> {
-    let prepared = langmeld_definition_parser().map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| Diagnostic::spec_error(error.code, error.message))
-            .collect::<Vec<_>>()
-    })?;
+    let prepared = prepared_definition_parser()?;
     definition_tree::parse_language_definition_modules_with_prepared(
         root, modules, prepared, limits,
     )
+}
+
+/// Loads and converts a file-based `.lm` definition project with the built-in grammar.
+///
+/// Imports are resolved relative to the root file. The root directory is the
+/// trust boundary for imported paths.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, or specification diagnostics.
+pub fn parse_language_definition_project(
+    root_path: &Path,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    parse_language_definition_project_with_limits(root_path, DefinitionLimits::default())
+}
+
+/// Loads a file-based `.lm` project with caller-selected resource limits.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, or specification diagnostics.
+pub fn parse_language_definition_project_with_limits(
+    root_path: &Path,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    crate::definition_import::parse_project(root_path, prepared_definition_parser()?, limits)
+}
+
+/// Loads a file-based `.lm` project with a caller-supplied meta-language.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, or specification diagnostics.
+pub fn parse_language_definition_project_with_meta(
+    root_path: &Path,
+    meta_language: &ValidatedLanguageSpec,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    parse_language_definition_project_with_meta_and_limits(
+        root_path,
+        meta_language,
+        DefinitionLimits::default(),
+    )
+}
+
+/// Loads a file-based `.lm` project with a supplied meta-language and limits.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, or specification diagnostics.
+pub fn parse_language_definition_project_with_meta_and_limits(
+    root_path: &Path,
+    meta_language: &ValidatedLanguageSpec,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let prepared = crate::PreparedLanguage::new(meta_language.clone())
+        .map_err(|error| vec![Diagnostic::spec_error("LM1080", error.to_string())])?;
+    crate::definition_import::parse_project(root_path, &prepared, limits)
 }
 
 /// Parses a readable `.lm` source using a caller-supplied meta-language.
@@ -165,4 +212,13 @@ pub fn parse_language_definition_with_meta_and_limits(
     limits: DefinitionLimits,
 ) -> Result<langmeld_core::ValidatedLanguageSpec, Vec<Diagnostic>> {
     definition_tree::parse_language_definition_with_meta_and_limits(source, meta_language, limits)
+}
+
+fn prepared_definition_parser() -> Result<&'static crate::PreparedLanguage, Vec<Diagnostic>> {
+    langmeld_definition_parser().map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| Diagnostic::spec_error(error.code, error.message))
+            .collect::<Vec<_>>()
+    })
 }
