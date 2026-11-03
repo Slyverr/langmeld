@@ -90,10 +90,14 @@ represented. CI is configured to compile the generated Ledger grammar and a
 grammar fixture covering enums, references, typed lists and maps, nested
 properties, and empty collections. It parses four positive programs, including
 CRLF, comments, and escaped strings, rejects invalid map and string syntax, and
-runs highlight queries with the Tree-sitter CLI. These checks validate grammar
-and query syntax, not semantic equivalence with Langmeld. The library also
-exposes a structural formatter that preserves comments and strings, normalizes
-CRLF to LF, and supports space or tab indentation for valid programs.
+runs highlight queries with the Tree-sitter CLI. CI also compiles a grammar
+emitted from the Rust-authored function-signature example, parses its
+zero-argument and multi-argument declarations, rejects a one-argument
+signature, and runs its highlight query.
+These checks validate grammar and query syntax, not semantic equivalence with
+Langmeld. The library also exposes a structural formatter that preserves
+comments and strings, normalizes CRLF to LF, and supports space or tab
+indentation for valid programs.
 
 ## Compatibility
 

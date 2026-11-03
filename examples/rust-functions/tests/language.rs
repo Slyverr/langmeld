@@ -3,6 +3,7 @@ use functions_language::{
     load_project, load_project_runtime, parse_source,
 };
 use langmeld::core::SourceFile;
+use langmeld::language::generate_tree_sitter;
 use std::{
     fs,
     process::Command,
@@ -105,4 +106,33 @@ fn lowering_rejects_types_outside_its_supported_target_contract() {
     })
     .expect_err("unsupported target types must fail explicitly");
     assert!(error.contains("unsupported type `String`"));
+}
+
+#[test]
+#[ignore = "emits a Tree-sitter fixture from the Rust-authored language model"]
+fn write_rust_authored_tree_sitter_validation_fixture() {
+    let output = std::env::var_os("LANGMELD_RUST_TREE_SITTER_FIXTURE_DIR")
+        .expect("fixture output directory is configured");
+    let output = std::path::PathBuf::from(output);
+    fs::create_dir_all(&output).expect("fixture directory is created");
+    for (path, contents) in generate_tree_sitter(&load_language().expect("language loads"))
+        .expect("Rust-authored grammar exports")
+    {
+        let relative = path
+            .strip_prefix("tree-sitter/")
+            .expect("artifacts are nested under tree-sitter");
+        let path = output.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("artifact directory is created");
+        }
+        fs::write(path, contents).expect("Tree-sitter artifact is written");
+    }
+    let invalid = output.join("invalid/one-parameter.functions.lmprog");
+    fs::create_dir_all(invalid.parent().expect("invalid fixture has a parent"))
+        .expect("invalid fixture directory is created");
+    fs::write(
+        invalid,
+        "module {\n  fn invalid(value: i32) -> i32\n}\n",
+    )
+    .expect("invalid function signature is written");
 }
