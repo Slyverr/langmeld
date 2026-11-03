@@ -40,9 +40,13 @@ jobs:
           components: clippy, rustfmt
       - name: Check formatting
         if: matrix.full == true
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all -- --check
+          cargo fmt --manifest-path benchmarks/langmeld-performance/Cargo.toml -- --check
       - name: Test workspace
         run: cargo test --workspace --locked
+      - name: Check standalone performance consumer
+        run: cargo check --locked --manifest-path benchmarks/langmeld-performance/Cargo.toml --bench language_workloads
       - name: Run strict Clippy
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Build documentation

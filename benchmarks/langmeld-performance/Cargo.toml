@@ -1,0 +1,19 @@
+[package]
+name = "langmeld-performance"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+langmeld = { path = "../../crates/langmeld" }
+ledger-language = { path = "../../examples/declarative-interpreter" }
+csignatures-language = { path = "../../examples/c-signatures" }
+functions-language = { path = "../../examples/rust-functions" }
+
+[dev-dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "language_workloads"
+harness = false
