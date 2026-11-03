@@ -1,8 +1,11 @@
 use langmeld_language::{
     DefinitionLimits, langmeld_definition_language, parse_language_definition_project,
     parse_language_definition_project_with_limits, parse_language_definition_project_with_meta,
+    parse_language_definition_project_with_overlays,
+    parse_language_definition_project_with_overlays_and_limits,
 };
 use std::{
+    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     sync::atomic::{AtomicUsize, Ordering},
@@ -105,6 +108,73 @@ fn project_loader_resolves_recursive_imports_and_deduplicates_shared_files() {
     assert!(built_in.construct("item").is_some());
     assert!(built_in.construct("catalog").is_some());
     assert_eq!(built_in.spec().types.len(), 1);
+}
+
+#[test]
+fn project_loader_uses_unsaved_overlays_without_changing_disk_sources() {
+    let project = TempProject::new();
+    project.write("shared.lm", COMMON);
+    let entries = project.write("entries.lm", ENTRIES);
+    let root = project.write("catalog.lm", ROOT);
+    let changed_root = BTreeMap::from([(root.clone(), ROOT.replace("0.1.0", "0.2.0"))]);
+    let changed_import = BTreeMap::from([(entries.clone(), ENTRIES.replace("0.1.0", "0.2.0"))]);
+
+    let diagnostics = parse_language_definition_project_with_overlays(&root, &changed_root)
+        .expect_err("the unsaved root version must be checked against imported modules");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("different language name, version, or root")
+    }));
+
+    let diagnostics = parse_language_definition_project_with_overlays(&root, &changed_import)
+        .expect_err("an unsaved imported-module version must be checked against the root");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("different language name, version, or root")
+    }));
+    assert_eq!(
+        fs::read_to_string(&root).expect("root remains on disk"),
+        ROOT
+    );
+    assert_eq!(
+        fs::read_to_string(&entries).expect("import remains on disk"),
+        ENTRIES
+    );
+}
+
+#[test]
+fn project_loader_rejects_overlays_outside_the_root_and_bounds_overlay_text() {
+    let project = TempProject::new();
+    let root = project.write("language.lm", ROOT);
+    let outside_project = TempProject::new();
+    let outside = outside_project.write("outside.lm", ROOT);
+    let outside_overlays = BTreeMap::from([(outside.clone(), ROOT.to_owned())]);
+
+    let diagnostics = parse_language_definition_project_with_overlays(&root, &outside_overlays)
+        .expect_err("an overlay cannot cross the language root boundary");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("escapes the language directory")
+    );
+
+    let oversized_overlays = BTreeMap::from([(root.clone(), ROOT.to_owned())]);
+    let diagnostics = parse_language_definition_project_with_overlays_and_limits(
+        &root,
+        &oversized_overlays,
+        DefinitionLimits {
+            max_source_bytes: 1,
+            ..DefinitionLimits::default()
+        },
+    )
+    .expect_err("overlay text is bounded before parsing");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("overlays exceed the total parsing limit")
+    );
 }
 
 #[test]

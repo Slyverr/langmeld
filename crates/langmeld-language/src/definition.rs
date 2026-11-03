@@ -1,7 +1,7 @@
 //! Resource-bounded parsing APIs for readable language definitions.
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path, path::PathBuf};
 
 use crate::{definition_meta::langmeld_definition_parser, definition_tree};
 
@@ -120,6 +120,47 @@ pub fn parse_language_definition_project_with_limits(
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     crate::definition_import::parse_project(root_path, prepared_definition_parser()?, limits)
+}
+
+/// Loads a file-based `.lm` project while replacing selected on-disk snapshots
+/// with caller-provided source text.
+///
+/// Overlay keys must identify existing `.lm` files inside the root definition
+/// directory. Imported files not present in `overlays` are read from disk.
+/// Overlay text and loaded disk sources share the project source-byte limit.
+/// This supports editor validation without writing unsaved buffers to disk.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, specification, or overlay
+/// boundary diagnostics.
+pub fn parse_language_definition_project_with_overlays(
+    root_path: &Path,
+    overlays: &BTreeMap<PathBuf, String>,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    parse_language_definition_project_with_overlays_and_limits(
+        root_path,
+        overlays,
+        DefinitionLimits::default(),
+    )
+}
+
+/// Loads a file-based `.lm` project with source overlays and caller-selected
+/// resource limits.
+///
+/// # Errors
+/// Returns parser, conversion, import-resolution, specification, or overlay
+/// boundary diagnostics.
+pub fn parse_language_definition_project_with_overlays_and_limits(
+    root_path: &Path,
+    overlays: &BTreeMap<PathBuf, String>,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    crate::definition_import::parse_project_with_overlays(
+        root_path,
+        prepared_definition_parser()?,
+        limits,
+        overlays,
+    )
 }
 
 pub(crate) fn parse_language_definition_project_spec_with_sources(

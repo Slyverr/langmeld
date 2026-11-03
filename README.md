@@ -75,7 +75,11 @@ To edit Langmeld definition files themselves, start
 grammar for parser-backed diagnostics, completion, formatting, and semantic
 tokens across open root and module files. Use `langmeld check --project
 langmeld.json` or `langmeld generate --project-root .` to validate the combined
-definition project, including imports and language-level constraints.
+definition project, including imports and language-level constraints. Editor
+integrations can use `parse_language_definition_project_with_overlays` from
+`langmeld-language` to validate unsaved text for existing project files without
+writing those buffers to disk; overlays retain the project's root and size
+limits.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

@@ -2,7 +2,7 @@
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File},
     io::Read,
     path::{Component, Path, PathBuf},
@@ -23,7 +23,16 @@ pub(crate) fn parse_project(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    let (spec, source_len) = parse_project_spec_and_length(path, prepared, limits)?;
+    parse_project_with_overlays(path, prepared, limits, &BTreeMap::new())
+}
+
+pub(crate) fn parse_project_with_overlays(
+    path: &Path,
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+    overlays: &BTreeMap<PathBuf, String>,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let (spec, source_len) = parse_project_spec_and_length(path, prepared, limits, overlays)?;
     let result = spec.validate().map_err(|errors| {
         errors
             .into_iter()
@@ -38,7 +47,7 @@ pub(crate) fn project_source_paths(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let project = load_project(path, prepared, limits)?;
+    let project = load_project(path, prepared, limits, &BTreeMap::new())?;
     Ok(project.paths)
 }
 
@@ -47,7 +56,7 @@ pub(crate) fn parse_project_spec_with_sources(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<(langmeld_core::LanguageSpec, Vec<PathBuf>, usize), Vec<Diagnostic>> {
-    let project = load_project(path, prepared, limits)?;
+    let project = load_project(path, prepared, limits, &BTreeMap::new())?;
     let source_len = project
         .modules
         .last()
@@ -69,8 +78,9 @@ fn parse_project_spec_and_length(
     path: &Path,
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
+    overlays: &BTreeMap<PathBuf, String>,
 ) -> Result<(langmeld_core::LanguageSpec, usize), Vec<Diagnostic>> {
-    let project = load_project(path, prepared, limits)?;
+    let project = load_project(path, prepared, limits, overlays)?;
     let source_len = project
         .modules
         .last()
@@ -98,6 +108,7 @@ struct LoadState<'a> {
     root_path: PathBuf,
     root_directory: PathBuf,
     prepared: &'a PreparedLanguage,
+    overlays: BTreeMap<PathBuf, &'a str>,
     limits: DefinitionLimits,
     total_bytes: usize,
     visiting: Vec<PathBuf>,
@@ -110,6 +121,7 @@ fn load_project(
     path: &Path,
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
+    overlays: &BTreeMap<PathBuf, String>,
 ) -> Result<LoadedProject, Vec<Diagnostic>> {
     if path
         .extension()
@@ -140,10 +152,70 @@ fn load_project(
             root_path.display()
         ))
     })?;
+    if overlays.len() > limits.max_files {
+        return Err(file_error(format!(
+            "language definition overlays exceed the limit of {} files",
+            limits.max_files
+        )));
+    }
+    let mut overlay_bytes = 0usize;
+    let mut canonical_overlays = BTreeMap::new();
+    for (overlay_path, text) in overlays {
+        overlay_bytes = overlay_bytes.saturating_add(text.len());
+        if overlay_bytes > limits.max_source_bytes {
+            return Err(file_error(format!(
+                "language definition overlays exceed the total parsing limit of {} bytes",
+                limits.max_source_bytes
+            )));
+        }
+        let canonical_path = fs::canonicalize(overlay_path).map_err(|error| {
+            file_error(format!(
+                "cannot resolve language definition overlay '{}': {error}",
+                overlay_path.display()
+            ))
+        })?;
+        if !canonical_path.starts_with(root_directory) {
+            return Err(file_error(format!(
+                "language definition overlay '{}' escapes the language directory",
+                overlay_path.display()
+            )));
+        }
+        if canonical_path
+            .extension()
+            .is_none_or(|extension| extension != "lm")
+        {
+            return Err(file_error(format!(
+                "language definition overlay '{}' must have a `.lm` extension",
+                canonical_path.display()
+            )));
+        }
+        let metadata = fs::metadata(&canonical_path).map_err(|error| {
+            file_error(format!(
+                "cannot inspect language definition overlay '{}': {error}",
+                canonical_path.display()
+            ))
+        })?;
+        if !metadata.is_file() {
+            return Err(file_error(format!(
+                "language definition overlay '{}' must name a regular file",
+                canonical_path.display()
+            )));
+        }
+        if canonical_overlays
+            .insert(canonical_path.clone(), text.as_str())
+            .is_some()
+        {
+            return Err(file_error(format!(
+                "multiple language definition overlays resolve to '{}'",
+                canonical_path.display()
+            )));
+        }
+    }
     let mut state = LoadState {
         root_path: root_path.clone(),
         root_directory: root_directory.to_path_buf(),
         prepared,
+        overlays: canonical_overlays,
         limits,
         total_bytes: 0,
         visiting: Vec::new(),
@@ -210,23 +282,33 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
         .limits
         .max_source_bytes
         .saturating_sub(state.total_bytes);
-    let metadata = fs::metadata(&canonical_path).map_err(|error| {
-        file_error(format!(
-            "cannot inspect language definition '{}': {error}",
-            canonical_path.display()
-        ))
-    })?;
-    if !metadata.is_file() {
-        return Err(file_error(format!(
-            "language definition '{}' must be a regular file",
-            canonical_path.display()
-        )));
-    }
-    let source_text = read_source(
-        &canonical_path,
-        remaining_bytes,
-        state.limits.max_source_bytes,
-    )?;
+    let source_text = if let Some(text) = state.overlays.get(&canonical_path) {
+        if text.len() > remaining_bytes {
+            return Err(file_error(format!(
+                "language definition project exceeds its total parsing limit of {} bytes",
+                state.limits.max_source_bytes
+            )));
+        }
+        (*text).to_owned()
+    } else {
+        let metadata = fs::metadata(&canonical_path).map_err(|error| {
+            file_error(format!(
+                "cannot inspect language definition '{}': {error}",
+                canonical_path.display()
+            ))
+        })?;
+        if !metadata.is_file() {
+            return Err(file_error(format!(
+                "language definition '{}' must be a regular file",
+                canonical_path.display()
+            )));
+        }
+        read_source(
+            &canonical_path,
+            remaining_bytes,
+            state.limits.max_source_bytes,
+        )?
+    };
     state.total_bytes = state.total_bytes.saturating_add(source_text.len());
     let source = SourceFile::new(canonical_path.display().to_string(), source_text);
     let module = parse_definition_tree(&source, state.prepared, state.limits)?;
