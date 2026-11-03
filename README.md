@@ -49,8 +49,12 @@ and edits; callback-provided symbol resolution is not renameable. It also
 suggests enum values and in-scope symbols in captured fields,
 offers parser-context enum values, simple child-construct snippets, and
 parser-derived continuations for incomplete patterns with unambiguous literal
-and field sequences. Embedded Rust hosts can register bounded, typed completion
-providers. In project mode, clients that support dynamic watched-file
+and field sequences. For declarative languages using Langmeld's built-in
+lexer, it also returns source-formatting edits and a versioned format code
+action. Embedded Rust hosts can provide a formatter for custom syntax; Langmeld
+validates its result by reparsing and analyzing the edited open workspace before
+returning an edit. Embedded Rust hosts can also register bounded, typed
+completion providers. In project mode, clients that support dynamic watched-file
 registration receive watches for language definitions, the manifest, and the
 definition lock; valid changes reload the language and reparse open documents.
 Unopened project-file navigation and WASM adapters remain pending.

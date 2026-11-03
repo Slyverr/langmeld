@@ -341,6 +341,12 @@ impl ConfiguredLanguageParser {
         &self.language
     }
 
+    /// Returns whether parsing uses a host-provided lexer.
+    #[must_use]
+    pub const fn has_custom_lexer(&self) -> bool {
+        self.lexer.is_some()
+    }
+
     /// Parses source with default input and work limits.
     #[must_use]
     pub fn parse(&self, source: &SourceFile) -> ParseResult {
@@ -404,7 +410,7 @@ mod tests {
     use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder};
 
     use super::*;
-    use crate::LanguageTokenKind;
+    use crate::{LanguageTokenKind, LexedSource};
 
     fn language() -> ValidatedLanguageSpec {
         LanguageBuilder::new("Prepared")
@@ -451,6 +457,18 @@ mod tests {
             second.compiled["program"].patterns[0].variant_id
         );
         assert_eq!(first.spec().spec().name, "Prepared");
+    }
+
+    #[test]
+    fn configured_parser_reports_custom_lexer_registration() {
+        let parser = PreparedLanguage::new(language())
+            .expect("language prepares")
+            .configure()
+            .expect("declarative parser configures");
+        assert!(!parser.has_custom_lexer());
+
+        let parser = parser.with_custom_lexer(CustomLexer::new(|_| LexedSource::default()));
+        assert!(parser.has_custom_lexer());
     }
 
     #[test]

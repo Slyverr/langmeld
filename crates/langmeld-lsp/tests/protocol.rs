@@ -422,6 +422,285 @@ fn project_lsp_completes_constructs_from_a_declared_language_extension() {
 }
 
 #[test]
+fn formatting_and_source_action_return_safe_versioned_edits() {
+    let language = TempLanguage::new();
+    let uri = format!(
+        "file://{}",
+        language.0.with_file_name("format.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": uri,
+                "languageId": "demo",
+                "version": 2,
+                "text": "program {\nprint \"brace {value}\" # keep }\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                },
+                "context": { "diagnostics": [], "only": ["source"] }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "range": {
+                    "start": { "line": 9, "character": 0 },
+                    "end": { "line": 10, "character": 0 }
+                },
+                "context": { "diagnostics": [] }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": "file:///broken.demo",
+                "languageId": "demo",
+                "version": 1,
+                "text": "program {\nunknown\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": "file:///broken.demo", "version": 1 },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": uri, "version": 3 },
+                "contentChanges": [{ "text": "program {\n  print \"brace {value}\" # keep }\n}\n" }]
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                },
+                "context": { "diagnostics": [] }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": uri, "version": 3 },
+                "options": { "tabSize": 0, "insertSpaces": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": "file:///unclosed.demo",
+                "languageId": "demo",
+                "version": 1,
+                "text": "program {\nprint \"open\""
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": "file:///unclosed.demo", "version": 1 },
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 0 }
+                },
+                "context": {
+                    "diagnostics": [{
+                        "range": {
+                            "start": { "line": 1, "character": 12 },
+                            "end": { "line": 1, "character": 12 }
+                        },
+                        "severity": 1,
+                        "code": "LM1204",
+                        "source": "langmeld",
+                        "message": "expected `}` before the end of the file"
+                    }],
+                    "only": ["quickfix"]
+                }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": "file:///unclosed.demo", "version": 2 },
+                "contentChanges": [{ "text": "program {\nprint \"open\"\n}\n" }]
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 8, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let capabilities = &responses[0]["result"]["capabilities"];
+    assert_eq!(capabilities["documentFormattingProvider"], true);
+    let action_kinds = capabilities["codeActionProvider"]["codeActionKinds"]
+        .as_array()
+        .expect("code action kinds are advertised");
+    assert!(action_kinds.contains(&json!("source")));
+    assert!(action_kinds.contains(&json!("quickfix")));
+
+    let formatting = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("formatting response exists");
+    assert_eq!(
+        formatting["result"].as_array().unwrap().len(),
+        1,
+        "valid, unformatted input should produce a TextEdit: {responses:#?}"
+    );
+    assert_eq!(
+        formatting["result"][0]["newText"],
+        "program {\n  print \"brace {value}\" # keep }\n}\n"
+    );
+
+    let action = responses
+        .iter()
+        .find(|response| response["id"] == 3)
+        .expect("formatting code action exists");
+    assert_eq!(action["result"][0]["kind"], "source");
+    assert_eq!(
+        action["result"][0]["edit"]["documentChanges"][0]["textDocument"]["version"],
+        2
+    );
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 4)
+            .unwrap()["result"],
+        json!([])
+    );
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 5)
+            .unwrap()["result"],
+        json!([])
+    );
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 6)
+            .unwrap()["result"],
+        json!([])
+    );
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 7)
+            .unwrap()["result"],
+        json!([])
+    );
+    assert_eq!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 9)
+            .unwrap()["result"],
+        json!([])
+    );
+    let quickfix = responses
+        .iter()
+        .find(|response| response["id"] == 10)
+        .expect("missing-closer quick fix exists");
+    assert_eq!(quickfix["result"][0]["kind"], "quickfix");
+    assert_eq!(quickfix["result"][0]["title"], "Insert missing `}`");
+    assert_eq!(
+        quickfix["result"][0]["edit"]["documentChanges"][0]["textDocument"]["version"],
+        1
+    );
+    assert_eq!(
+        quickfix["result"][0]["edit"]["documentChanges"][0]["edits"][0]["newText"],
+        "\n}"
+    );
+    let repaired_diagnostics = responses
+        .iter()
+        .find(|response| {
+            response["method"] == "textDocument/publishDiagnostics"
+                && response["params"]["uri"] == "file:///unclosed.demo"
+                && response["params"]["version"] == 2
+        })
+        .expect("repaired document diagnostics are published");
+    assert!(
+        repaired_diagnostics["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
     let language = TempLanguage::new();
     let uri = format!(

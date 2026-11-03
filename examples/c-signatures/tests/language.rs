@@ -109,7 +109,7 @@ fn embedded_lsp_uses_the_host_registered_c_parser() {
             "jsonrpc":"2.0", "method":"textDocument/didOpen",
             "params":{"textDocument":{
                 "uri":"file:///math.c", "languageId":"c", "version":1,
-                "text":"int add(int left, int right);\n"
+                "text":"int add(int left, int right);   \n"
             }}
         }),
         serde_json::json!({
@@ -118,6 +118,23 @@ fn embedded_lsp_uses_the_host_registered_c_parser() {
                 "uri":"file:///unsupported.c", "languageId":"c", "version":1,
                 "text":"long count(void);\n"
             }}
+        }),
+        serde_json::json!({
+            "jsonrpc":"2.0", "id":3, "method":"textDocument/formatting",
+            "params":{"textDocument":{"uri":"file:///math.c", "version":1},
+                "options":{"tabSize":4, "insertSpaces":true}}
+        }),
+        serde_json::json!({
+            "jsonrpc":"2.0", "method":"textDocument/didOpen",
+            "params":{"textDocument":{
+                "uri":"file:///malformed.c", "languageId":"c", "version":1,
+                "text":"int broken(void);\n"
+            }}
+        }),
+        serde_json::json!({
+            "jsonrpc":"2.0", "id":4, "method":"textDocument/formatting",
+            "params":{"textDocument":{"uri":"file:///malformed.c", "version":1},
+                "options":{"tabSize":4, "insertSpaces":true}}
         }),
         serde_json::json!({"jsonrpc":"2.0", "id":2, "method":"shutdown", "params":null}),
         serde_json::json!({"jsonrpc":"2.0", "method":"exit", "params":null}),
@@ -133,13 +150,47 @@ fn embedded_lsp_uses_the_host_registered_c_parser() {
         serve_configured(
             Cursor::new(input),
             &mut output,
-            LanguageServerConfig::new(parser),
+            LanguageServerConfig::new(parser).with_formatting_provider(
+                |_, source, _, _| {
+                    if source.text.contains("broken") {
+                        Ok("not a C declaration\n".to_owned())
+                    } else {
+                        Ok(source.text.trim().to_owned() + "\n")
+                    }
+                },
+            ),
         )
         .expect("embedded LSP serves the custom parser"),
         "server observes shutdown before exit"
     );
 
     let messages = read_lsp_messages(output);
+    let capabilities = messages
+        .iter()
+        .find(|message| message["id"] == 1)
+        .expect("initialize response exists")
+        .pointer("/result/capabilities")
+        .expect("server capabilities are returned");
+    assert_eq!(capabilities["documentFormattingProvider"], true);
+    assert_eq!(
+        capabilities["codeActionProvider"]["codeActionKinds"],
+        serde_json::json!(["source"])
+    );
+    assert_eq!(
+        messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("custom formatter response exists")["result"][0]["newText"],
+        "int add(int left, int right);\n"
+    );
+    assert_eq!(
+        messages
+            .iter()
+            .find(|message| message["id"] == 4)
+            .expect("invalid custom formatter response exists")["result"],
+        serde_json::json!([]),
+        "invalid formatter output must not become an edit"
+    );
     let valid = diagnostics_for(&messages, "file:///math.c");
     assert!(valid.is_empty(), "valid C declaration has no diagnostics");
     let invalid = diagnostics_for(&messages, "file:///unsupported.c");

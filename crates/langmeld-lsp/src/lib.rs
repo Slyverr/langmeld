@@ -4,16 +4,18 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, Read, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
-use langmeld_core::{BehaviorStage, Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
+use langmeld_core::{BehaviorStage, Diagnostic, Severity, SourceFile, Span, ValidatedLanguageSpec};
 use langmeld_language::{
     AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
     ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
-    ParseResult, PreparedLanguage, Program, ProjectSnapshot, SemanticHook,
-    SemanticHookRegistration, WorkspaceAnalysis, WorkspaceSymbolResolverRegistration,
-    WorkspaceSymbolResolverRegistry, WorkspaceTypeAnalysisRegistration,
-    WorkspaceTypeAnalysisRegistry, analyze_workspace_with_host_callbacks, load_project,
+    FormatOptions, ParseResult, PreparedLanguage, Program, ProjectSnapshot, SemanticHook,
+    SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
+    WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
+    WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
+    analyze_workspace_with_host_callbacks, format_parsed_source, load_project,
 };
 use serde_json::{Value, json};
 
@@ -29,6 +31,7 @@ const MAX_COMPLETION_LABEL_BYTES: usize = 256;
 const MAX_COMPLETION_DETAIL_BYTES: usize = 1024;
 const MAX_COMPLETION_INSERT_BYTES: usize = 4096;
 const MAX_DOCUMENT_SYMBOLS: usize = 10_000;
+const MAX_FORMAT_TAB_SIZE: usize = 32;
 const MAX_RENAME_NAME_BYTES: usize = 1024;
 const MAX_RENAME_EDITS: usize = 100_000;
 const PROJECT_WATCHER_REGISTRATION_ID: &str = "langmeld-project-watchers";
@@ -203,6 +206,7 @@ pub struct LanguageServerConfig {
     project_snapshot: Option<(PathBuf, ProjectSnapshot)>,
     semantic_hooks: Vec<SemanticHookRegistration>,
     configured_semantic_hooks: Vec<ConfiguredSemanticHookRegistration>,
+    formatting_provider: Option<Arc<FormattingProviderFn>>,
     symbol_resolvers: Vec<WorkspaceSymbolResolverRegistration>,
     type_analysis_hooks: Vec<WorkspaceTypeAnalysisRegistration>,
     completion_providers: Vec<CompletionProviderRegistration>,
@@ -217,6 +221,7 @@ impl LanguageServerConfig {
             project_snapshot: None,
             semantic_hooks: Vec::new(),
             configured_semantic_hooks: Vec::new(),
+            formatting_provider: None,
             symbol_resolvers: Vec::new(),
             type_analysis_hooks: Vec::new(),
             completion_providers: Vec::new(),
@@ -289,6 +294,26 @@ impl LanguageServerConfig {
         self
     }
 
+    /// Registers a host formatter for languages whose syntax needs custom
+    /// formatting. The returned text is reparsed and analyzed before an edit
+    /// is offered; the host remains responsible for preserving semantics.
+    #[must_use]
+    pub fn with_formatting_provider(
+        mut self,
+        provider: impl Fn(
+            &ValidatedLanguageSpec,
+            &SourceFile,
+            &ParseResult,
+            FormatOptions,
+        ) -> Result<String, String>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.formatting_provider = Some(Arc::new(provider));
+        self
+    }
+
     fn into_server(self) -> Result<Server, String> {
         if self.completion_providers.len() > MAX_COMPLETION_PROVIDERS {
             return Err(format!(
@@ -339,6 +364,7 @@ impl LanguageServerConfig {
             parser: self.parser,
             semantic_hooks,
             configured_semantic_hooks,
+            formatting_provider: self.formatting_provider,
             symbol_resolver_hooks,
             type_analysis_hooks,
             completion_providers: self
@@ -484,6 +510,7 @@ struct Server {
     parser: ConfiguredLanguageParser,
     semantic_hooks: Vec<SemanticHook>,
     configured_semantic_hooks: Vec<ConfiguredSemanticHook>,
+    formatting_provider: Option<Arc<FormattingProviderFn>>,
     symbol_resolver_hooks: Vec<langmeld_language::WorkspaceSymbolResolverHook>,
     type_analysis_hooks: Vec<langmeld_language::WorkspaceTypeAnalysisHook>,
     completion_providers: Vec<CompletionProvider>,
@@ -504,6 +531,10 @@ struct OpenDocument {
     source: SourceFile,
     parsed: ParseResult,
 }
+
+type FormattingProviderFn = dyn Fn(&ValidatedLanguageSpec, &SourceFile, &ParseResult, FormatOptions) -> Result<String, String>
+    + Send
+    + Sync;
 
 struct NavigationRequest<'a> {
     uris: Vec<String>,
@@ -546,6 +577,8 @@ impl Server {
                             self.supports_navigation(),
                             self.supports_rename(),
                             self.supports_hover(),
+                            self.supports_formatting(),
+                            self.supports_missing_closer_quickfix(),
                         )
                     })
                     .collect()
@@ -656,6 +689,28 @@ impl Server {
                         "jsonrpc": "2.0",
                         "id": id,
                         "result": self.semantic_tokens(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/formatting" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.formatting_edits(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/codeAction" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.code_actions(params)
                     })
                 })
                 .into_iter()
@@ -944,6 +999,235 @@ impl Server {
             .constructs
             .iter()
             .any(|construct| !construct.fields.is_empty() || construct.symbol.is_some())
+    }
+
+    fn supports_builtin_formatting(&self) -> bool {
+        !self.parser.has_custom_lexer()
+            && self
+                .language
+                .spec()
+                .constructs
+                .iter()
+                .all(|construct| construct.custom_parser.is_none())
+    }
+
+    fn supports_formatting(&self) -> bool {
+        self.formatting_provider.is_some() || self.supports_builtin_formatting()
+    }
+
+    fn supports_missing_closer_quickfix(&self) -> bool {
+        self.supports_builtin_formatting()
+    }
+
+    fn format_document(
+        &self,
+        uri: &str,
+        document: &OpenDocument,
+        options: FormatOptions,
+    ) -> Option<String> {
+        if document.parsed.resource_limited {
+            return None;
+        }
+        if let Some(provider) = &self.formatting_provider {
+            let formatted =
+                provider(&self.language, &document.source, &document.parsed, options).ok()?;
+            return if self.validate_formatted_document(uri, document, &formatted) {
+                Some(formatted)
+            } else {
+                None
+            };
+        }
+        if !self.supports_builtin_formatting() || !document.parsed.custom_parser_spans.is_empty() {
+            return None;
+        }
+        format_parsed_source(&self.language, &document.source, &document.parsed, options).ok()
+    }
+
+    fn validate_formatted_document(
+        &self,
+        uri: &str,
+        document: &OpenDocument,
+        formatted: &str,
+    ) -> bool {
+        if formatted.len() > MAX_DOCUMENT_BYTES {
+            return false;
+        }
+        let source = SourceFile::new(document.source.name.as_str(), formatted);
+        let parsed = self.parser.parse(&source);
+        if parsed.resource_limited
+            || parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.severity == Severity::Error)
+        {
+            return false;
+        }
+
+        let mut files = Vec::with_capacity(self.documents.len());
+        let mut formatted_index = None;
+        for (open_uri, open_document) in &self.documents {
+            if open_uri == uri {
+                formatted_index = Some(files.len());
+                files.push((&source, &parsed.program));
+            } else {
+                files.push((&open_document.source, &open_document.parsed.program));
+            }
+        }
+        let Some(formatted_index) = formatted_index else {
+            return false;
+        };
+        let analysis = self.analyze_files(&files);
+        !analysis.resource_limited
+            && !analysis.diagnostics.iter().any(|diagnostic| {
+                diagnostic.source_index == formatted_index
+                    && diagnostic.diagnostic.severity == Severity::Error
+            })
+    }
+
+    fn formatting_edits(&self, params: &Value) -> Vec<Value> {
+        let Some(uri) = params.pointer("/textDocument/uri").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        if !requested_version_matches(params, document) {
+            return Vec::new();
+        }
+        let Some(options) = formatting_options(params) else {
+            return Vec::new();
+        };
+        let Some(formatted) = self.format_document(uri, document, options) else {
+            return Vec::new();
+        };
+        if formatted == document.source.text {
+            return Vec::new();
+        }
+        vec![json!({
+            "range": lsp_range(
+                &document.source.text,
+                Span::new(0, document.source.text.len())
+            ),
+            "newText": formatted
+        })]
+    }
+
+    fn code_actions(&self, params: &Value) -> Vec<Value> {
+        let Some(uri) = params.pointer("/textDocument/uri").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        if !requested_version_matches(params, document)
+            || !valid_request_range(params, &document.source.text)
+        {
+            return Vec::new();
+        }
+        let mut actions = Vec::new();
+        if requested_action_kind(params, "quickfix")
+            && let Some(action) = self.missing_closer_action(uri, document, params)
+        {
+            actions.push(action);
+        }
+        if requested_action_kind(params, "source")
+            && let Some(formatted) = self.format_document(uri, document, FormatOptions::default())
+            && formatted != document.source.text
+        {
+            let edits = [json!({
+                "range": lsp_range(
+                    &document.source.text,
+                    Span::new(0, document.source.text.len())
+                ),
+                "newText": formatted
+            })];
+            actions.push(json!({
+                "title": "Format document",
+                "kind": "source",
+                "edit": {
+                    "documentChanges": [{
+                        "textDocument": { "uri": uri, "version": document.version },
+                        "edits": edits
+                    }]
+                }
+            }));
+        }
+        actions
+    }
+
+    fn missing_closer_action(
+        &self,
+        uri: &str,
+        document: &OpenDocument,
+        params: &Value,
+    ) -> Option<Value> {
+        if !self.supports_missing_closer_quickfix() || document.parsed.resource_limited {
+            return None;
+        }
+        let missing: Vec<_> = document
+            .parsed
+            .syntax_tokens
+            .iter()
+            .filter(|token| {
+                matches!(
+                    token.kind,
+                    SyntaxTokenKind::MissingRightBrace | SyntaxTokenKind::MissingRightBracket
+                )
+            })
+            .collect();
+        let [token] = missing.as_slice() else {
+            return None;
+        };
+        let (code, closer) = match token.kind {
+            SyntaxTokenKind::MissingRightBrace => ("LM1204", "}"),
+            SyntaxTokenKind::MissingRightBracket => ("LM1219", "]"),
+            _ => return None,
+        };
+        let errors: Vec<_> = document
+            .parsed
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.severity == Severity::Error)
+            .collect();
+        let [diagnostic] = errors.as_slice() else {
+            return None;
+        };
+        if diagnostic.code != code {
+            return None;
+        }
+        let diagnostic_value = lsp_diagnostic(&document.source, diagnostic);
+        let requested = params.pointer("/context/diagnostics")?.as_array()?;
+        if !requested.iter().any(|candidate| {
+            candidate["code"] == diagnostic_value["code"]
+                && candidate["range"] == diagnostic_value["range"]
+        }) {
+            return None;
+        }
+        let insertion = if closer == "}"
+            && !document.source.text.ends_with('\n')
+            && !document.source.text.ends_with('\r')
+        {
+            format!("\n{closer}")
+        } else {
+            closer.to_owned()
+        };
+        Some(json!({
+            "title": format!("Insert missing `{closer}`"),
+            "kind": "quickfix",
+            "diagnostics": [diagnostic_value],
+            "edit": {
+                "documentChanges": [{
+                    "textDocument": { "uri": uri, "version": document.version },
+                    "edits": [{
+                        "range": lsp_range(
+                            &document.source.text,
+                            Span::new(document.source.text.len(), document.source.text.len())
+                        ),
+                        "newText": insertion
+                    }]
+                }]
+            }
+        }))
     }
 
     fn semantic_tokens(&self, params: &Value) -> Value {
@@ -1495,6 +1779,8 @@ fn initialize_response(
     supports_navigation: bool,
     supports_rename: bool,
     supports_hover: bool,
+    supports_formatting: bool,
+    supports_missing_closer_quickfix: bool,
 ) -> Value {
     let mut capabilities = json!({
         "textDocumentSync": { "openClose": true, "change": 2 },
@@ -1512,6 +1798,14 @@ fn initialize_response(
     }
     if supports_hover {
         capabilities["hoverProvider"] = json!(true);
+    }
+    if supports_formatting {
+        capabilities["documentFormattingProvider"] = json!(true);
+        let mut kinds = vec!["source"];
+        if supports_missing_closer_quickfix {
+            kinds.push("quickfix");
+        }
+        capabilities["codeActionProvider"] = json!({ "codeActionKinds": kinds });
     }
     capabilities["semanticTokensProvider"] = json!({
         "legend": {
@@ -1531,6 +1825,57 @@ fn initialize_response(
             }
         }
     })
+}
+
+fn formatting_options(params: &Value) -> Option<FormatOptions> {
+    let options = params.get("options")?;
+    let defaults = FormatOptions::default();
+    let tab_size = match options.get("tabSize") {
+        Some(value) => usize::try_from(value.as_u64()?).ok()?,
+        None => defaults.tab_size,
+    };
+    if tab_size == 0 || tab_size > MAX_FORMAT_TAB_SIZE {
+        return None;
+    }
+    let insert_spaces = match options.get("insertSpaces") {
+        Some(value) => value.as_bool()?,
+        None => defaults.insert_spaces,
+    };
+    Some(FormatOptions {
+        tab_size,
+        insert_spaces,
+    })
+}
+
+fn requested_version_matches(params: &Value, document: &OpenDocument) -> bool {
+    params
+        .pointer("/textDocument/version")
+        .is_none_or(|version| version.as_i64() == Some(document.version))
+}
+
+fn requested_action_kind(params: &Value, expected: &str) -> bool {
+    let Some(only) = params.pointer("/context/only") else {
+        return true;
+    };
+    only.as_array()
+        .is_some_and(|kinds| kinds.iter().any(|kind| kind.as_str() == Some(expected)))
+}
+
+fn valid_request_range(params: &Value, source: &str) -> bool {
+    let position = |path: &str| {
+        let line = u32::try_from(params.pointer(&format!("/range/{path}/line"))?.as_u64()?).ok()?;
+        let character = u32::try_from(
+            params
+                .pointer(&format!("/range/{path}/character"))?
+                .as_u64()?,
+        )
+        .ok()?;
+        offset_at_position(source, line, character)
+    };
+    match (position("start"), position("end")) {
+        (Some(start), Some(end)) => start <= end,
+        _ => false,
+    }
 }
 
 fn log_message(kind: u8, message: String) -> Value {
@@ -2619,7 +2964,7 @@ mod tests {
     fn keyword_completion_is_empty_without_keywords_and_initialization_is_gated() {
         let items = keyword_completion_items("", 0, std::iter::empty());
         assert!(items.is_empty());
-        let response = initialize_response(json!(1), false, false, false, false);
+        let response = initialize_response(json!(1), false, false, false, false, false, false);
         assert!(
             response["result"]["capabilities"]
                 .get("completionProvider")
@@ -2628,6 +2973,11 @@ mod tests {
         assert!(
             response["result"]["capabilities"]
                 .get("definitionProvider")
+                .is_none()
+        );
+        assert!(
+            response["result"]["capabilities"]
+                .get("documentFormattingProvider")
                 .is_none()
         );
         assert!(
