@@ -5,7 +5,7 @@ use langmeld::language::{
     AstNode, ConfiguredLanguageParser, ParseResult, Program, ProjectSnapshot, Value,
     WorkspaceAnalysis, analyze_workspace_with_host_callbacks,
 };
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 pub mod host;
 mod language;
@@ -136,33 +136,80 @@ pub fn generate_rust(context: &RuntimeContext<'_>) -> Result<String, String> {
 }
 
 fn emit_function(function: &AstNode, output: &mut String) -> Result<(), String> {
-    match function.construct.as_str() {
-        "function0" => {
-            let name = identifier(function, "name")?;
-            ensure_rust_identifier(name)?;
-            ensure_i32(function, "return_type")?;
-            output.push_str(&format!("pub fn {name}() -> i32 {{\n    0\n}}\n\n"));
-        }
-        "function2" => {
-            let name = identifier(function, "name")?;
-            let left = identifier(function, "left")?;
-            let right = identifier(function, "right")?;
-            ensure_rust_identifier(name)?;
-            ensure_rust_identifier(left)?;
-            ensure_rust_identifier(right)?;
-            if left == right {
-                return Err("function parameters must have distinct names".to_owned());
-            }
-            ensure_i32(function, "left_type")?;
-            ensure_i32(function, "right_type")?;
-            ensure_i32(function, "return_type")?;
-            output.push_str(&format!(
-                "pub fn {name}({left}: i32, {right}: i32) -> i32 {{\n    {left} + {right}\n}}\n\n"
-            ));
-        }
-        other => return Err(format!("unsupported function construct `{other}`")),
+    if function.construct != "function" {
+        return Err(format!(
+            "unsupported function construct `{}`",
+            function.construct
+        ));
     }
+    let name = identifier(function, "name")?;
+    ensure_rust_identifier(name)?;
+    ensure_i32(function, "return_type")?;
+    let parameters = parameters(function)?;
+    let modifier = match function.fields.get("modifier").map(|value| &value.value) {
+        None => "",
+        Some(Value::Enum(value)) if value == "unsafe" => "unsafe ",
+        Some(_) => return Err("function modifier is not supported".to_owned()),
+    };
+    let mut names = BTreeSet::new();
+    for (parameter_name, parameter_type) in &parameters {
+        ensure_rust_identifier(parameter_name)?;
+        ensure_i32_type(parameter_type, "function parameter")?;
+        if !names.insert(*parameter_name) {
+            return Err("function parameters must have distinct names".to_owned());
+        }
+    }
+
+    let signature = parameters
+        .iter()
+        .map(|(name, _)| format!("{name}: i32"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let body = if names.is_empty() {
+        "0".to_owned()
+    } else {
+        parameters
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    output.push_str(&format!(
+        "pub {modifier}fn {name}({signature}) -> i32 {{\n    {body}\n}}\n\n"
+    ));
     Ok(())
+}
+
+fn parameters(function: &AstNode) -> Result<Vec<(&str, &str)>, String> {
+    let Some(captured) = function.fields.get("parameters") else {
+        return Ok(Vec::new());
+    };
+    let Value::List(parameters) = &captured.value else {
+        return Err("function.parameters is not a list".to_owned());
+    };
+    parameters
+        .iter()
+        .map(|parameter| {
+            let Value::Properties(fields) = &parameter.value else {
+                return Err("function parameter is not a record".to_owned());
+            };
+            let name = fields
+                .get("name")
+                .and_then(|value| match &value.value {
+                    Value::Identifier(name) => Some(name.as_str()),
+                    _ => None,
+                })
+                .ok_or_else(|| "function parameter name is not an identifier".to_owned())?;
+            let parameter_type = fields
+                .get("type")
+                .and_then(|value| match &value.value {
+                    Value::Identifier(value) => Some(value.as_str()),
+                    _ => None,
+                })
+                .ok_or_else(|| "function parameter type is not an identifier".to_owned())?;
+            Ok((name, parameter_type))
+        })
+        .collect()
 }
 
 fn identifier<'a>(node: &'a AstNode, field: &str) -> Result<&'a str, String> {
@@ -173,9 +220,13 @@ fn identifier<'a>(node: &'a AstNode, field: &str) -> Result<&'a str, String> {
 }
 
 fn ensure_i32(node: &AstNode, field: &str) -> Result<(), String> {
-    match identifier(node, field)? {
+    ensure_i32_type(identifier(node, field)?, field)
+}
+
+fn ensure_i32_type(value: &str, label: &str) -> Result<(), String> {
+    match value {
         "i32" => Ok(()),
-        other => Err(format!("unsupported type `{other}` in {}", node.construct)),
+        other => Err(format!("unsupported type `{other}` in {label}")),
     }
 }
 

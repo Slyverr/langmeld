@@ -7,22 +7,29 @@ use langmeld::core::{
 pub fn validated_language() -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
     let module = ConstructBuilder::new("module")
         .syntax_variant("root", "module {")
-        .block(["function0", "function2"]);
-    let function0 = ConstructBuilder::new("function0")
-        .syntax_variant("signature", "fn {name}\\(\\) -> {return_type}")
-        .field(FieldSpec::required("name", FieldKind::Identifier))
-        .field(FieldSpec::required("return_type", FieldKind::Identifier))
-        .symbol(SymbolSpec::new("function", "name"));
-    let function2 = ConstructBuilder::new("function2")
+        .block(["function"]);
+    let function = ConstructBuilder::new("function")
         .syntax_variant(
             "signature",
-            "fn {name}\\({left}: {left_type}, {right}: {right_type}\\) -> {return_type}",
+            r"(fn|func) [{modifier}] {name}\(({parameters.name}: {parameters.type}[,])*\) -> {return_type}",
         )
         .field(FieldSpec::required("name", FieldKind::Identifier))
-        .field(FieldSpec::required("left", FieldKind::Identifier))
-        .field(FieldSpec::required("left_type", FieldKind::Identifier))
-        .field(FieldSpec::required("right", FieldKind::Identifier))
-        .field(FieldSpec::required("right_type", FieldKind::Identifier))
+        .field(FieldSpec::optional(
+            "modifier",
+            FieldKind::Enum {
+                values: vec!["unsafe".to_owned()],
+            },
+        ))
+        .field(FieldSpec::optional(
+            "parameters",
+            FieldKind::list(FieldKind::Properties {
+                name: None,
+                fields: vec![
+                    FieldSpec::required("name", FieldKind::Identifier),
+                    FieldSpec::required("type", FieldKind::Identifier),
+                ],
+            }),
+        ))
         .field(FieldSpec::required("return_type", FieldKind::Identifier))
         .symbol(SymbolSpec::new("function", "name"));
 
@@ -31,7 +38,6 @@ pub fn validated_language() -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
         .root("module")
         .source_extension(".functions.lmprog")
         .construct(module)
-        .construct(function0)
-        .construct(function2)
+        .construct(function)
         .build()
 }

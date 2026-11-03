@@ -464,13 +464,16 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
             }
             if let Some(separator) = separator
                 && let Some(after_separator) = self.match_literal_sequence(separator, *end)?
-                && let Some(next) =
-                    self.match_parts(&tail, after_separator, &mut branch.clone(), &[])?
             {
-                *fields = branch;
-                return Ok(Some(next));
+                let mut separated_branch = branch.clone();
+                if let Some(next) =
+                    self.match_parts(&tail, after_separator, &mut separated_branch, &[])?
+                {
+                    *fields = separated_branch;
+                    return Ok(Some(next));
+                }
             }
-            if let Some(next) = self.match_parts(&tail, *end, &mut branch.clone(), &[])? {
+            if let Some(next) = self.match_parts(&tail, *end, &mut branch, &[])? {
                 *fields = branch;
                 return Ok(Some(next));
             }
@@ -1084,6 +1087,32 @@ mod tests {
             panic!("repeated capture is a list")
         };
         assert_eq!(items.len(), 2);
+        assert_eq!(result.end_position, 5);
+    }
+
+    #[test]
+    fn captures_after_repetition_are_preserved() {
+        let (source, tokens) = lex("left,right; result");
+        let mut budget = 1_000;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
+        let repeat = PatternPart::ZeroOrMore {
+            parts: parts([ident("parameter")]),
+            capture_fields: BTreeSet::from(["parameter".to_owned()]),
+            separator: Some(parts([literal(',')])),
+            nested: false,
+        };
+        let syntax = parts([repeat, literal(';'), ident("result")]);
+        let result = matcher
+            .match_pattern(&syntax, 0)
+            .expect("matching stays within budget")
+            .expect("repeated and trailing captures match");
+
+        assert!(
+            matches!(result.fields["parameter"].value, Value::List(ref values) if values.len() == 2)
+        );
+        assert!(
+            matches!(result.fields["result"].value, Value::Identifier(ref name) if name == "result")
+        );
         assert_eq!(result.end_position, 5);
     }
 

@@ -89,7 +89,15 @@ pub fn generate_tree_sitter(spec: &ValidatedLanguageSpec) -> Result<GeneratedArt
         js_string(&grammar_name),
         rules.join(",\n    "),
     );
-    let highlights = highlighting_query(language, &type_rules.used_builtin_nodes);
+    let enum_rule_names = type_rules
+        .entries
+        .iter()
+        .filter_map(|(kind, name)| {
+            matches!(kind, FieldKind::Enum { .. } | FieldKind::NamedEnum { .. })
+                .then_some(name.as_str())
+        })
+        .collect::<Vec<_>>();
+    let highlights = highlighting_query(language, &type_rules.used_builtin_nodes, &enum_rule_names);
     let tree_sitter_json = json_file(&serde_json::json!({
         "grammars": [{
             "name": grammar_name,
@@ -259,7 +267,10 @@ fn pattern_part_expression(
         },
         PatternPart::Capture { field, kind } => {
             let expression = type_rules.expression(kind)?;
-            Ok(format!("field({}, {expression})", js_string(field)))
+            Ok(format!(
+                "field({}, {expression})",
+                js_string(&tree_sitter_field_name(field))
+            ))
         }
         PatternPart::Optional(inner) => Ok(format!(
             "optional({})",
@@ -349,8 +360,8 @@ impl TypeRuleBuilder {
                     let value = self.expression(&field.kind)?;
                     properties.push(format!(
                         "field({}, seq({}, \":\", {value}))",
-                        js_string(&field.name),
-                        js_string(&field.name)
+                        js_string(&tree_sitter_field_name(&field.name)),
+                        js_string(&tree_sitter_field_name(&field.name))
                     ));
                 }
                 let separator = "choice(\",\", \";\", $.lm_newline)";
@@ -401,6 +412,26 @@ fn choice_expr(mut expressions: Vec<String>) -> String {
     }
 }
 
+fn tree_sitter_field_name(name: &str) -> String {
+    let mut bytes = name.bytes();
+    let valid_identifier = bytes
+        .next()
+        .is_some_and(|byte| byte == b'_' || byte.is_ascii_alphabetic())
+        && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
+        && !name.starts_with("lmf_enc_");
+    if valid_identifier {
+        return name.to_owned();
+    }
+
+    let mut encoded = String::with_capacity("lmf_enc_".len() + name.len() * 2);
+    encoded.push_str("lmf_enc_");
+    for byte in name.bytes() {
+        encoded.push(char::from(b"0123456789abcdef"[(byte >> 4) as usize]));
+        encoded.push(char::from(b"0123456789abcdef"[(byte & 0x0f) as usize]));
+    }
+    encoded
+}
+
 fn seq_expr(mut expressions: Vec<String>) -> String {
     match expressions.len() {
         0 => "seq()".to_owned(),
@@ -442,18 +473,18 @@ fn safe_identifier(value: &str) -> String {
     }
 }
 
-fn highlighting_query(language: &LanguageSpec, used_builtin_nodes: &BTreeSet<&str>) -> String {
+fn highlighting_query(
+    language: &LanguageSpec,
+    used_builtin_nodes: &BTreeSet<&str>,
+    enum_rule_names: &[&str],
+) -> String {
     let mut keywords = BTreeSet::new();
     let mut operators = BTreeSet::new();
-    let mut enums = BTreeSet::new();
     for construct in &language.constructs {
         for pattern in &construct.syntax {
             if let Some(parts) = compile_pattern(pattern, construct) {
                 collect_query_tokens(&parts, &mut keywords, &mut operators);
             }
-        }
-        for field in &construct.fields {
-            collect_enum_values(&field.kind, &mut enums);
         }
     }
     let mut query = String::from("(comment) @comment\n");
@@ -472,8 +503,8 @@ fn highlighting_query(language: &LanguageSpec, used_builtin_nodes: &BTreeSet<&st
     for operator in operators {
         query.push_str(&format!("{} @operator\n", js_string(&operator)));
     }
-    for value in enums {
-        query.push_str(&format!("{} @constant.builtin\n", js_string(&value)));
+    for rule in enum_rule_names {
+        query.push_str(&format!("({rule}) @constant.builtin\n"));
     }
     query
 }
@@ -523,28 +554,6 @@ fn collect_query_tokens(
             )
             | PatternPart::Capture { .. } => {}
         }
-    }
-}
-
-fn collect_enum_values(kind: &FieldKind, values: &mut BTreeSet<String>) {
-    match kind {
-        FieldKind::Enum { values: variants }
-        | FieldKind::NamedEnum {
-            values: variants, ..
-        } => {
-            values.extend(variants.iter().cloned());
-        }
-        FieldKind::Properties { fields, .. } => {
-            for field in fields {
-                collect_enum_values(&field.kind, values);
-            }
-        }
-        FieldKind::List { item } => collect_enum_values(item, values),
-        FieldKind::Map { value, .. } => collect_enum_values(value, values),
-        FieldKind::Identifier
-        | FieldKind::Number
-        | FieldKind::Text
-        | FieldKind::Reference { .. } => {}
     }
 }
 
@@ -833,10 +842,20 @@ fn split_choice(pattern: &str) -> Option<Vec<&str>> {
 
 #[cfg(test)]
 mod tests {
-    use super::split_choice;
+    use super::{split_choice, tree_sitter_field_name};
 
     #[test]
     fn choice_scanner_matches_generic_pattern_grouping() {
         assert_eq!(split_choice("[a|b] c | d"), Some(vec!["[a", "b] c", "d"]));
+    }
+
+    #[test]
+    fn field_name_encoding_preserves_identifiers_and_encodes_paths_injectively() {
+        assert_eq!(tree_sitter_field_name("return_type"), "return_type");
+        let nested = tree_sitter_field_name("parameters.name");
+        assert_eq!(nested, "lmf_enc_706172616d65746572732e6e616d65");
+        assert_eq!(tree_sitter_field_name("parameters_name"), "parameters_name");
+        assert_eq!(tree_sitter_field_name("a-b"), "lmf_enc_612d62");
+        assert_ne!(nested, tree_sitter_field_name(&nested));
     }
 }

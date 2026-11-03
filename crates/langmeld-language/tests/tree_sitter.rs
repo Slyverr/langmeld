@@ -154,8 +154,11 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     let highlights = &artifacts["tree-sitter/queries/highlights.scm"];
     assert!(highlights.contains("\"let\" @keyword"));
     assert!(highlights.contains("\"->\" @operator"));
-    assert!(highlights.contains("\"fast\" @constant.builtin"));
-    assert!(highlights.contains("\"draft\" @constant.builtin"));
+    assert!(highlights.contains("(lm_type_0) @constant.builtin"));
+    assert!(highlights.contains("(lm_type_4) @constant.builtin"));
+    assert!(highlights.contains("(lm_type_6) @constant.builtin"));
+    assert!(!highlights.contains("\"fast\" @constant.builtin"));
+    assert!(!highlights.contains("\"draft\" @constant.builtin"));
 }
 
 #[test]

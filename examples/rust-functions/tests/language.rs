@@ -31,9 +31,8 @@ fn rust_authored_language_parses_and_lowers_function_signatures() {
     assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
     let root = &parsed.program.nodes[0];
     assert_eq!(root.construct, "module");
-    assert_eq!(root.children.len(), 2);
-    assert_eq!(root.children[0].construct, "function0");
-    assert_eq!(root.children[1].construct, "function2");
+    assert_eq!(root.children.len(), 3);
+    assert!(root.children.iter().all(|child| child.construct == "function"));
 
     let sources = vec![source];
     let programs = vec![parsed.program];
@@ -44,7 +43,6 @@ fn rust_authored_language_parses_and_lowers_function_signatures() {
         "{:#?}",
         analysis.diagnostics
     );
-
     let rust = generate_rust(&RuntimeContext {
         language: &language,
         sources: &sources,
@@ -54,7 +52,7 @@ fn rust_authored_language_parses_and_lowers_function_signatures() {
     .expect("host backend lowers signatures");
     assert_eq!(
         rust,
-        "pub fn empty() -> i32 {\n    0\n}\n\npub fn add(left: i32, right: i32) -> i32 {\n    left + right\n}\n\n"
+        "pub fn empty() -> i32 {\n    0\n}\n\npub fn identity(value: i32) -> i32 {\n    value\n}\n\npub unsafe fn add(left: i32, right: i32, extra: i32) -> i32 {\n    left + right + extra\n}\n\n"
     );
 
     let nonce = SystemTime::now()
@@ -132,7 +130,7 @@ fn write_rust_authored_tree_sitter_validation_fixture() {
         .expect("invalid fixture directory is created");
     fs::write(
         invalid,
-        "module {\n  fn invalid(value: i32) -> i32\n}\n",
+        "module {\n  fn invalid(value) -> i32\n}\n",
     )
     .expect("invalid function signature is written");
 }
