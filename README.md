@@ -11,9 +11,10 @@ definition format uses the same generic parser, rebuilds its embedded grammar
 from modular sources, and supports in-memory modules and safe relative file
 imports. Prepared grammars compile declarative patterns once and provide
 token-based block-child candidate hints. Generic analysis resolves symbols and
-references across files and reports nested value-type facts. Host analysis
-callbacks, the CLI, language facade, backends, LSP, WASM, and generated tooling
-are still being ported.
+references across files and reports nested value-type facts. Checked host
+behavior registries provide semantic callbacks, replacement symbol resolvers,
+and workspace type-analysis passes. The CLI, language facade, backends, LSP,
+WASM, and generated tooling are still being ported.
 
 ## Workspace checks
 

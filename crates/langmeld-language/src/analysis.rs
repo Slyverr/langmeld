@@ -1,7 +1,10 @@
 //! Generic semantic facts and workspace symbol resolution.
 
+mod host;
 mod symbols;
 mod types;
+
+pub use host::*;
 
 use langmeld_core::{
     ConstructSpec, Diagnostic, FieldKind, LanguageSpec, MapKeyKind, SourceFile, SourceId, Span,
@@ -12,6 +15,16 @@ use std::collections::HashMap;
 use crate::{AstNode, CapturedValue, Program, Value};
 use symbols::{AnalysisIndexes, SymbolKey, collect_workspace_symbols};
 use types::collect_program_type_facts;
+
+/// Host implementation that replaces generic workspace symbol resolution.
+pub type WorkspaceSymbolResolverHook = Box<
+    dyn for<'source> Fn(
+            &ValidatedLanguageSpec,
+            &[(&'source SourceFile, &'source Program)],
+            &mut WorkspaceAnalysis,
+        ) + Send
+        + Sync,
+>;
 
 /// Runtime category observed for a generic AST value or map key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,6 +130,8 @@ pub struct WorkspaceAnalysis {
     pub resolved_references: Vec<ResolvedReference>,
     /// Declared and observed value types for captured source fields.
     pub type_facts: Vec<TypeFact>,
+    /// Host-inferred types for custom syntax and embedded expressions.
+    pub host_type_facts: Vec<HostTypeFact>,
     /// Whether a configured analysis limit truncated or skipped work.
     pub resource_limited: bool,
 }
@@ -143,7 +158,7 @@ pub struct AnalysisLimits {
     pub max_work_items: usize,
     /// Maximum nested syntax and collection values traversed.
     pub max_nesting_depth: usize,
-    /// Maximum returned generic type facts.
+    /// Maximum returned generic and host-inferred type facts combined.
     pub max_type_facts: usize,
     /// Maximum returned resolved references.
     pub max_resolved_references: usize,
@@ -203,6 +218,17 @@ pub fn analyze_workspace_with_limits(
     files: &[(&SourceFile, &Program)],
     limits: AnalysisLimits,
 ) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks_and_limits(spec, files, &[], &[], &[], &[], limits)
+}
+
+fn analyze_workspace_with_resolver_hook_and_limits(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    configured_semantic_hooks: &[ConfiguredSemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    limits: AnalysisLimits,
+) -> WorkspaceAnalysis {
     let limits = effective_limits(limits);
     if let Some(reason) = workspace_analysis_limit_reason(files, limits) {
         return limited_analysis(reason);
@@ -223,15 +249,17 @@ pub fn analyze_workspace_with_limits(
             &mut type_facts,
             &mut diagnostics,
         );
-        collect_workspace_symbols(
-            &indexes,
-            &program.nodes,
-            &mut Vec::new(),
-            source_index,
-            &mut declarations,
-            &mut references,
-            &mut diagnostics,
-        );
+        if resolver_hooks.is_empty() {
+            collect_workspace_symbols(
+                &indexes,
+                &program.nodes,
+                &mut Vec::new(),
+                source_index,
+                &mut declarations,
+                &mut references,
+                &mut diagnostics,
+            );
+        }
     }
 
     for reference in references {
@@ -278,9 +306,194 @@ pub fn analyze_workspace_with_limits(
         diagnostics,
         resolved_references,
         type_facts,
+        host_type_facts: Vec::new(),
         resource_limited: false,
     };
+    let callback_diagnostic_start = analysis.diagnostics.len();
+
+    if !resolver_hooks.is_empty() {
+        analysis.resolved_references.clear();
+        analysis
+            .diagnostics
+            .retain(|item| item.diagnostic.code != "LM2001");
+        for hook in resolver_hooks {
+            hook(spec, files, &mut analysis);
+        }
+    }
+
+    for (source_index, (source, program)) in files.iter().enumerate() {
+        for hook in semantic_hooks {
+            let mut hook_diagnostics = Vec::new();
+            hook(program, source, &mut hook_diagnostics);
+            analysis
+                .diagnostics
+                .extend(
+                    hook_diagnostics
+                        .into_iter()
+                        .map(|diagnostic| WorkspaceDiagnostic {
+                            source_index,
+                            source_id: None,
+                            source_revision: None,
+                            diagnostic,
+                        }),
+                );
+        }
+        for hook in configured_semantic_hooks {
+            let mut hook_diagnostics = Vec::new();
+            hook(program, source, &mut hook_diagnostics);
+            analysis
+                .diagnostics
+                .extend(
+                    hook_diagnostics
+                        .into_iter()
+                        .map(|diagnostic| WorkspaceDiagnostic {
+                            source_index,
+                            source_id: None,
+                            source_revision: None,
+                            diagnostic,
+                        }),
+                );
+        }
+    }
+    if !resolver_hooks.is_empty()
+        || !semantic_hooks.is_empty()
+        || !configured_semantic_hooks.is_empty()
+    {
+        validate_host_outputs(&mut analysis, files, callback_diagnostic_start);
+    }
     enforce_analysis_output_limits(&mut analysis, limits);
+    analysis
+}
+
+/// Runs semantic checks and workspace type callbacks over generic analysis results.
+#[must_use]
+pub fn analyze_workspace_with_type_analysis(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks(spec, files, semantic_hooks, &[], &[], type_hooks)
+}
+
+/// Runs semantic and workspace type callbacks with explicit work/output bounds.
+#[must_use]
+pub fn analyze_workspace_with_type_analysis_and_limits(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+    limits: AnalysisLimits,
+) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks_and_limits(
+        spec,
+        files,
+        semantic_hooks,
+        &[],
+        &[],
+        type_hooks,
+        limits,
+    )
+}
+
+/// Runs a host symbol resolver instead of generic name resolution, then type analysis.
+#[must_use]
+pub fn analyze_workspace_with_symbol_resolver_and_type_analysis(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks(
+        spec,
+        files,
+        semantic_hooks,
+        &[],
+        resolver_hooks,
+        type_hooks,
+    )
+}
+
+/// Runs host resolution and type analysis with explicit work/output bounds.
+#[must_use]
+pub fn analyze_workspace_with_symbol_resolver_and_type_analysis_and_limits(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+    limits: AnalysisLimits,
+) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks_and_limits(
+        spec,
+        files,
+        semantic_hooks,
+        &[],
+        resolver_hooks,
+        type_hooks,
+        limits,
+    )
+}
+
+/// Runs host semantic, resolver, and type callbacks over parsed workspace files.
+#[must_use]
+pub fn analyze_workspace_with_host_callbacks(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    configured_semantic_hooks: &[ConfiguredSemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+) -> WorkspaceAnalysis {
+    analyze_workspace_with_host_callbacks_and_limits(
+        spec,
+        files,
+        semantic_hooks,
+        configured_semantic_hooks,
+        resolver_hooks,
+        type_hooks,
+        AnalysisLimits::default(),
+    )
+}
+
+/// Runs host callbacks with explicit work and output bounds.
+#[must_use]
+pub fn analyze_workspace_with_host_callbacks_and_limits(
+    spec: &ValidatedLanguageSpec,
+    files: &[(&SourceFile, &Program)],
+    semantic_hooks: &[SemanticHook],
+    configured_semantic_hooks: &[ConfiguredSemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+    limits: AnalysisLimits,
+) -> WorkspaceAnalysis {
+    let mut analysis = analyze_workspace_with_resolver_hook_and_limits(
+        spec,
+        files,
+        semantic_hooks,
+        configured_semantic_hooks,
+        resolver_hooks,
+        limits,
+    );
+    if analysis.resource_limited {
+        return analysis;
+    }
+    let callback_diagnostic_start = analysis.diagnostics.len();
+    for hook in type_hooks {
+        hook(
+            spec,
+            files,
+            &analysis.type_facts,
+            &analysis.resolved_references,
+            &mut analysis.host_type_facts,
+            &mut analysis.diagnostics,
+        );
+    }
+    if !type_hooks.is_empty() {
+        validate_host_outputs(&mut analysis, files, callback_diagnostic_start);
+    }
+    enforce_analysis_output_limits(&mut analysis, effective_limits(limits));
     analysis
 }
 
@@ -318,6 +531,73 @@ pub fn analyze_workspace_files_with_limits(
         .map(|file| (file.source, file.program))
         .collect::<Vec<_>>();
     let mut analysis = analyze_workspace_with_limits(spec, &indexed_files, limits);
+    attach_source_identity(&mut analysis, files);
+    analysis
+}
+
+/// Runs host callbacks on source-indexed files and attaches stable source identities.
+#[must_use]
+pub fn analyze_workspace_files_with_host_callbacks(
+    spec: &ValidatedLanguageSpec,
+    files: &[WorkspaceFile<'_>],
+    semantic_hooks: &[SemanticHook],
+    configured_semantic_hooks: &[ConfiguredSemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+) -> WorkspaceAnalysis {
+    analyze_workspace_files_with_host_callbacks_and_limits(
+        spec,
+        files,
+        semantic_hooks,
+        configured_semantic_hooks,
+        resolver_hooks,
+        type_hooks,
+        AnalysisLimits::default(),
+    )
+}
+
+/// Runs host callbacks on source-indexed files with explicit work/output bounds.
+#[must_use]
+pub fn analyze_workspace_files_with_host_callbacks_and_limits(
+    spec: &ValidatedLanguageSpec,
+    files: &[WorkspaceFile<'_>],
+    semantic_hooks: &[SemanticHook],
+    configured_semantic_hooks: &[ConfiguredSemanticHook],
+    resolver_hooks: &[WorkspaceSymbolResolverHook],
+    type_hooks: &[WorkspaceTypeAnalysisHook],
+    limits: AnalysisLimits,
+) -> WorkspaceAnalysis {
+    let limits = effective_limits(limits);
+    if files.len() > limits.max_files {
+        let mut analysis = limited_analysis(format!(
+            "workspace contains {} files; analysis limit is {}",
+            files.len(),
+            limits.max_files
+        ));
+        if let (Some(diagnostic), Some(file)) = (analysis.diagnostics.first_mut(), files.first()) {
+            diagnostic.source_id = Some(file.source_id);
+            diagnostic.source_revision = Some(file.revision);
+        }
+        return analysis;
+    }
+    let indexed_files = files
+        .iter()
+        .map(|file| (file.source, file.program))
+        .collect::<Vec<_>>();
+    let mut analysis = analyze_workspace_with_host_callbacks_and_limits(
+        spec,
+        &indexed_files,
+        semantic_hooks,
+        configured_semantic_hooks,
+        resolver_hooks,
+        type_hooks,
+        limits,
+    );
+    attach_source_identity(&mut analysis, files);
+    analysis
+}
+
+fn attach_source_identity(analysis: &mut WorkspaceAnalysis, files: &[WorkspaceFile<'_>]) {
     for diagnostic in &mut analysis.diagnostics {
         if let Some(file) = files.get(diagnostic.source_index) {
             diagnostic.source_id = Some(file.source_id);
@@ -340,7 +620,12 @@ pub fn analyze_workspace_files_with_limits(
             fact.source_revision = Some(file.revision);
         }
     }
-    analysis
+    for fact in &mut analysis.host_type_facts {
+        if let Some(file) = files.get(fact.source_index) {
+            fact.source_id = Some(file.source_id);
+            fact.source_revision = Some(file.revision);
+        }
+    }
 }
 
 #[derive(Default)]
@@ -491,14 +776,92 @@ fn limited_analysis(reason: String) -> WorkspaceAnalysis {
         }],
         resolved_references: Vec::new(),
         type_facts: Vec::new(),
+        host_type_facts: Vec::new(),
         resource_limited: true,
+    }
+}
+
+fn valid_span(source: &SourceFile, span: Span) -> bool {
+    span.start <= span.end
+        && span.end <= source.text.len()
+        && source.text.is_char_boundary(span.start)
+        && source.text.is_char_boundary(span.end)
+}
+
+fn validate_host_outputs(
+    analysis: &mut WorkspaceAnalysis,
+    files: &[(&SourceFile, &Program)],
+    diagnostic_start: usize,
+) {
+    let mut invalid_output = false;
+    analysis.diagnostics = analysis
+        .diagnostics
+        .drain(..)
+        .enumerate()
+        .filter_map(|(index, item)| {
+            if index < diagnostic_start {
+                return Some(item);
+            }
+            let Some((source, _)) = files.get(item.source_index) else {
+                invalid_output = true;
+                return None;
+            };
+            let valid = item
+                .diagnostic
+                .span
+                .is_none_or(|span| valid_span(source, span));
+            invalid_output |= !valid;
+            valid.then_some(item)
+        })
+        .collect();
+    analysis.resolved_references.retain(|reference| {
+        let (Some((source, _)), Some((declaration_source, _))) = (
+            files.get(reference.source_index),
+            files.get(reference.declaration_source_index),
+        ) else {
+            invalid_output = true;
+            return false;
+        };
+        let valid = valid_span(source, reference.reference_span)
+            && valid_span(declaration_source, reference.declaration_span);
+        invalid_output |= !valid;
+        valid
+    });
+    analysis.host_type_facts.retain(|fact| {
+        let Some((source, _)) = files.get(fact.source_index) else {
+            invalid_output = true;
+            return false;
+        };
+        let valid = valid_span(source, fact.span);
+        invalid_output |= !valid;
+        valid
+    });
+    if invalid_output {
+        analysis.diagnostics.push(WorkspaceDiagnostic {
+            source_index: 0,
+            source_id: None,
+            source_revision: None,
+            diagnostic: Diagnostic::error(
+                "LM2091",
+                "host analysis callback returned an invalid file index or source span",
+                Span::new(0, 0),
+            ),
+        });
     }
 }
 
 fn enforce_analysis_output_limits(analysis: &mut WorkspaceAnalysis, limits: AnalysisLimits) {
     let mut truncated = false;
-    if analysis.type_facts.len() > limits.max_type_facts {
-        analysis.type_facts.truncate(limits.max_type_facts);
+    let fact_count = analysis
+        .type_facts
+        .len()
+        .saturating_add(analysis.host_type_facts.len());
+    if fact_count > limits.max_type_facts {
+        let generic_limit = analysis.type_facts.len().min(limits.max_type_facts);
+        analysis.type_facts.truncate(generic_limit);
+        analysis
+            .host_type_facts
+            .truncate(limits.max_type_facts.saturating_sub(generic_limit));
         truncated = true;
     }
     if analysis.resolved_references.len() > limits.max_resolved_references {

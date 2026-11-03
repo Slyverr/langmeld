@@ -1,10 +1,20 @@
 use langmeld_core::{
-    ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, ScopeLookup, ScopeSpec,
+    BehaviorStage, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, ScopeLookup, ScopeSpec,
     SourceDatabase, SourceFile, Span, SymbolSpec,
 };
 use langmeld_language::{
-    AnalysisLimits, AstNode, CapturedValue, PreparedLanguage, Program, Value, WorkspaceFile,
-    analyze_workspace_files, analyze_workspace_with_limits,
+    AnalysisLimits, AstNode, BehaviorRegistrationIssue, CapturedValue,
+    ConfiguredSemanticHookRegistration, ConfiguredSemanticHookRegistry, HostTypeFact,
+    PreparedLanguage, Program, ResolvedReference, SemanticHookRegistration, SemanticHookRegistry,
+    Value, WorkspaceFile, WorkspaceSymbolResolverHook, WorkspaceSymbolResolverRegistration,
+    WorkspaceSymbolResolverRegistry, WorkspaceTypeAnalysisHook, WorkspaceTypeAnalysisRegistration,
+    WorkspaceTypeAnalysisRegistry, analyze_workspace_files,
+    analyze_workspace_files_with_host_callbacks, analyze_workspace_with_host_callbacks_and_limits,
+    analyze_workspace_with_limits,
+};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 fn language(scope_lookup: ScopeLookup) -> langmeld_core::ValidatedLanguageSpec {
@@ -255,4 +265,300 @@ fn analysis_limits_bound_input_work_and_output() {
     assert!(analysis.resource_limited);
     assert_eq!(analysis.diagnostics.len(), 1);
     assert_eq!(analysis.diagnostics[0].diagnostic.code, "LM2090");
+}
+
+#[test]
+fn host_callbacks_replace_resolution_and_preserve_indexed_facts() {
+    let spec = language(ScopeLookup::Exact);
+    let source = SourceFile::new("host.lang", "program main {\n  use absent\n}\n");
+    let program = parse(&spec, &source);
+    let mut database = SourceDatabase::default();
+    let source_id = database
+        .insert(source.name.clone(), source.text.clone())
+        .expect("source registers");
+    let revision = database.revision(source_id).expect("revision exists");
+    let files = [WorkspaceFile {
+        source_id,
+        revision,
+        source: &source,
+        program: &program,
+    }];
+    let resolver: WorkspaceSymbolResolverHook = Box::new(|_, files, analysis| {
+        let span = files[0].0.text.find("absent").expect("reference exists");
+        let declaration = files[0].0.text.find("main").expect("declaration exists");
+        analysis.resolved_references.push(ResolvedReference {
+            source_index: 0,
+            source_id: None,
+            source_revision: None,
+            reference_span: Span::new(span, span + "absent".len()),
+            declaration_source_index: 0,
+            declaration_source_id: None,
+            declaration_source_revision: None,
+            declaration_span: Span::new(declaration, declaration + "main".len()),
+            kind: "variable".to_owned(),
+            name: "absent".to_owned(),
+        });
+    });
+    let resolver_hooks = [resolver];
+    let semantic_hooks = [host_semantic_hook as langmeld_language::SemanticHook];
+    let type_hooks: [WorkspaceTypeAnalysisHook; 1] = [Box::new(
+        |_, files, generic_facts, resolved, host_facts, diagnostics| {
+            assert!(!generic_facts.is_empty());
+            assert_eq!(resolved.len(), 1);
+            host_facts.push(HostTypeFact::new(0, Span::new(0, 7), "Program"));
+            diagnostics.push(langmeld_language::WorkspaceDiagnostic {
+                source_index: 0,
+                source_id: None,
+                source_revision: None,
+                diagnostic: langmeld_core::Diagnostic::error(
+                    "HOST2000",
+                    "workspace callback ran",
+                    Span::new(0, files[0].0.text.len().min(7)),
+                ),
+            });
+        },
+    )];
+
+    let analysis = analyze_workspace_files_with_host_callbacks(
+        &spec,
+        &files,
+        &semantic_hooks,
+        &[],
+        &resolver_hooks,
+        &type_hooks,
+    );
+
+    assert!(!analysis.resource_limited);
+    assert!(
+        !analysis
+            .diagnostics
+            .iter()
+            .any(|item| item.diagnostic.code == "LM2001")
+    );
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|item| item.diagnostic.code == "HOST1000")
+    );
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|item| item.diagnostic.code == "HOST2000")
+    );
+    assert_eq!(analysis.resolved_references[0].name, "absent");
+    assert_eq!(analysis.resolved_references[0].source_id, Some(source_id));
+    assert_eq!(
+        analysis.resolved_references[0].declaration_source_id,
+        Some(source_id)
+    );
+    assert_eq!(analysis.host_type_facts[0].source_id, Some(source_id));
+    assert_eq!(analysis.host_type_facts[0].source_revision, Some(revision));
+}
+
+#[test]
+fn invalid_host_spans_are_dropped_and_reported() {
+    let spec = language(ScopeLookup::Exact);
+    let source = SourceFile::new("invalid-host.lang", "program main {}\n");
+    let program = parse(&spec, &source);
+    let hooks: [WorkspaceTypeAnalysisHook; 1] = [Box::new(|_, _, _, _, facts, diagnostics| {
+        facts.push(HostTypeFact::new(5, Span::new(0, 1), "OutOfRangeFile"));
+        facts.push(HostTypeFact::new(
+            0,
+            Span::new(0, usize::MAX),
+            "OutOfRangeSpan",
+        ));
+        diagnostics.push(langmeld_language::WorkspaceDiagnostic {
+            source_index: 0,
+            source_id: None,
+            source_revision: None,
+            diagnostic: langmeld_core::Diagnostic::error(
+                "BADSPAN",
+                "invalid diagnostic span",
+                Span::new(1, usize::MAX),
+            ),
+        });
+    })];
+
+    let analysis = analyze_workspace_with_host_callbacks_and_limits(
+        &spec,
+        &[(&source, &program)],
+        &[],
+        &[],
+        &[],
+        &hooks,
+        AnalysisLimits::default(),
+    );
+
+    assert!(analysis.host_type_facts.is_empty());
+    assert!(
+        analysis
+            .diagnostics
+            .iter()
+            .any(|item| item.diagnostic.code == "LM2091")
+    );
+    assert!(
+        !analysis
+            .diagnostics
+            .iter()
+            .any(|item| item.diagnostic.code == "BADSPAN")
+    );
+}
+
+#[test]
+fn type_callbacks_skip_limited_inputs_and_share_the_fact_output_cap() {
+    let spec = language(ScopeLookup::Exact);
+    let source = SourceFile::new("bounded-host.lang", "program main {}\n");
+    let program = parse(&spec, &source);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed_calls = Arc::clone(&calls);
+    let hooks: [WorkspaceTypeAnalysisHook; 1] = [Box::new(move |_, _, _, _, facts, _| {
+        observed_calls.fetch_add(1, Ordering::Relaxed);
+        facts.push(HostTypeFact::new(0, Span::new(0, 7), "HostTypeA"));
+        facts.push(HostTypeFact::new(0, Span::new(0, 7), "HostTypeB"));
+    })];
+
+    let limited = analyze_workspace_with_host_callbacks_and_limits(
+        &spec,
+        &[(&source, &program)],
+        &[],
+        &[],
+        &[],
+        &hooks,
+        AnalysisLimits {
+            max_work_items: 0,
+            ..AnalysisLimits::default()
+        },
+    );
+    assert!(limited.resource_limited);
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+
+    let generic =
+        analyze_workspace_with_limits(&spec, &[(&source, &program)], AnalysisLimits::default());
+    let capped = analyze_workspace_with_host_callbacks_and_limits(
+        &spec,
+        &[(&source, &program)],
+        &[],
+        &[],
+        &[],
+        &hooks,
+        AnalysisLimits {
+            max_type_facts: generic.type_facts.len() + 1,
+            ..AnalysisLimits::default()
+        },
+    );
+    assert!(capped.resource_limited);
+    assert_eq!(capped.host_type_facts.len(), 1);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn behavior_registry_reports_sorted_missing_duplicate_and_undeclared_ids() {
+    let spec = LanguageBuilder::new("BehaviorFixture")
+        .version("0.1.0")
+        .root("program")
+        .behavior("needed", BehaviorStage::SemanticAnalysis)
+        .behavior("missing", BehaviorStage::SemanticAnalysis)
+        .behavior("resolve", BehaviorStage::SymbolResolution)
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax_variant("root", "program {")
+                .block(["program"]),
+        )
+        .build()
+        .expect("behavior fixture validates");
+    let result = SemanticHookRegistry::new(
+        &spec,
+        [
+            SemanticHookRegistration::new("needed", no_op_semantic_hook),
+            SemanticHookRegistration::new("needed", no_op_semantic_hook),
+            SemanticHookRegistration::new("extra", no_op_semantic_hook),
+            SemanticHookRegistration::new("resolve", no_op_semantic_hook),
+        ],
+    );
+    let error = match result {
+        Ok(_) => panic!("incomplete registrations are rejected"),
+        Err(error) => error,
+    };
+
+    assert_eq!(
+        error.issues,
+        vec![
+            BehaviorRegistrationIssue::Duplicate("needed".to_owned()),
+            BehaviorRegistrationIssue::Missing("missing".to_owned()),
+            BehaviorRegistrationIssue::Undeclared("extra".to_owned()),
+            BehaviorRegistrationIssue::Undeclared("resolve".to_owned()),
+        ]
+    );
+}
+
+#[test]
+fn each_behavior_stage_accepts_its_matching_callback_form() {
+    let spec = LanguageBuilder::new("BehaviorFixture")
+        .version("0.1.0")
+        .root("program")
+        .behavior("check", BehaviorStage::SemanticAnalysis)
+        .behavior("resolve", BehaviorStage::SymbolResolution)
+        .behavior("infer", BehaviorStage::WorkspaceTypeAnalysis)
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax_variant("root", "program {")
+                .block(["program"]),
+        )
+        .build()
+        .expect("behavior fixture validates");
+
+    let configured = ConfiguredSemanticHookRegistry::new(
+        &spec,
+        [ConfiguredSemanticHookRegistration::new(
+            "check",
+            |_, _, _| {},
+        )],
+    );
+    let resolver = WorkspaceSymbolResolverRegistry::new(
+        &spec,
+        [WorkspaceSymbolResolverRegistration::new(
+            "resolve",
+            Box::new(|_, _, _| {}),
+        )],
+    );
+    let type_analysis = WorkspaceTypeAnalysisRegistry::new(
+        &spec,
+        [WorkspaceTypeAnalysisRegistration::new(
+            "infer",
+            Box::new(|_, _, _, _, _, _| {}),
+        )],
+    );
+
+    assert_eq!(
+        configured
+            .expect("configured semantic callback matches")
+            .hooks()
+            .len(),
+        1
+    );
+    assert_eq!(
+        resolver.expect("resolver callback matches").hooks().len(),
+        1
+    );
+    assert_eq!(
+        type_analysis.expect("type callback matches").hooks().len(),
+        1
+    );
+}
+
+fn no_op_semantic_hook(_: &Program, _: &SourceFile, _: &mut Vec<langmeld_core::Diagnostic>) {}
+
+fn host_semantic_hook(
+    _: &Program,
+    source: &SourceFile,
+    diagnostics: &mut Vec<langmeld_core::Diagnostic>,
+) {
+    let start = source.text.find("program").expect("root exists");
+    diagnostics.push(langmeld_core::Diagnostic::error(
+        "HOST1000",
+        "host semantic finding",
+        Span::new(start, start + "program".len()),
+    ));
 }
