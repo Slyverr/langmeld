@@ -51,6 +51,7 @@ pub(crate) fn parse_project_with_overlays_and_diagnostics(
                 .into_iter()
                 .map(|issue| DefinitionProjectDiagnostic {
                     source_path: None,
+                    source: None,
                     diagnostic: Diagnostic::error(
                         issue.code,
                         issue.message,
@@ -380,10 +381,13 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), ProjectDiag
     };
     state.total_bytes = state.total_bytes.saturating_add(source_text.len());
     let source = SourceFile::new(canonical_path.display().to_string(), source_text);
-    let module = parse_definition_tree(&source, state.prepared, state.limits)
-        .map_err(|diagnostics| sourced_diagnostics(&canonical_path, diagnostics))?;
-    check_conventional_section(&canonical_path, &state.root_directory, &module, &source)
-        .map_err(|diagnostics| sourced_diagnostics(&canonical_path, diagnostics))?;
+    let module =
+        parse_definition_tree(&source, state.prepared, state.limits).map_err(|diagnostics| {
+            sourced_diagnostics_with_source(&canonical_path, &source, diagnostics)
+        })?;
+    check_conventional_section(&canonical_path, &state.root_directory, &module, &source).map_err(
+        |diagnostics| sourced_diagnostics_with_source(&canonical_path, &source, diagnostics),
+    )?;
 
     state.visiting.push(canonical_path.clone());
     let result = (|| {
@@ -644,6 +648,23 @@ fn sourced_diagnostics(path: &Path, diagnostics: Vec<Diagnostic>) -> ProjectDiag
         .into_iter()
         .map(|diagnostic| DefinitionProjectDiagnostic {
             source_path: Some(path.to_path_buf()),
+            source: None,
+            diagnostic,
+        })
+        .collect()
+}
+
+fn sourced_diagnostics_with_source(
+    path: &Path,
+    source: &SourceFile,
+    diagnostics: Vec<Diagnostic>,
+) -> ProjectDiagnostics {
+    let source = std::sync::Arc::new(source.clone());
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| DefinitionProjectDiagnostic {
+            source_path: Some(path.to_path_buf()),
+            source: Some(source.clone()),
             diagnostic,
         })
         .collect()
@@ -654,6 +675,7 @@ fn unlocated_diagnostics(diagnostics: Vec<Diagnostic>) -> ProjectDiagnostics {
         .into_iter()
         .map(|diagnostic| DefinitionProjectDiagnostic {
             source_path: None,
+            source: None,
             diagnostic,
         })
         .collect()
@@ -679,6 +701,7 @@ fn limit_project_diagnostics<T>(
         diagnostics.truncate(limit.saturating_sub(1));
         diagnostics.push(DefinitionProjectDiagnostic {
             source_path: None,
+            source: None,
             diagnostic: Diagnostic::error(
                 "LMDEF102",
                 format!("definition diagnostics exceed the limit of {limit}"),

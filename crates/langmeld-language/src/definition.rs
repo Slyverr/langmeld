@@ -1,7 +1,11 @@
 //! Resource-bounded parsing APIs for readable language definitions.
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
-use std::{collections::BTreeMap, path::Path, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crate::{definition_meta::langmeld_definition_parser, definition_tree};
 
@@ -27,6 +31,8 @@ pub struct DefinitionLimits {
 pub struct DefinitionProjectDiagnostic {
     /// Canonical path of the file that produced this diagnostic, when known.
     pub source_path: Option<PathBuf>,
+    /// Source snapshot for diagnostics produced while parsing a file.
+    pub source: Option<Arc<SourceFile>>,
     /// Diagnostic code, message, severity, and source range.
     pub diagnostic: Diagnostic,
 }
@@ -201,6 +207,7 @@ pub fn parse_language_definition_project_with_overlays_and_diagnostics(
             .into_iter()
             .map(|diagnostic| DefinitionProjectDiagnostic {
                 source_path: None,
+                source: None,
                 diagnostic,
             })
             .collect::<Vec<_>>()

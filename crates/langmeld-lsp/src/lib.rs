@@ -11,12 +11,12 @@ use langmeld_core::{BehaviorStage, Diagnostic, Severity, SourceFile, Span, Valid
 use langmeld_language::{
     AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
     ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
-    FormatOptions, ParseLimits, ParseResult, PreparedLanguage, Program, ProjectSnapshot,
-    SemanticHook, SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
+    DefinitionLimits, FormatOptions, ParseLimits, ParseResult, PreparedLanguage, Program,
+    ProjectSnapshot, SemanticHook, SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
     WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
     WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
     analyze_workspace_with_host_callbacks, format_parsed_source, langmeld_definition_language,
-    load_project,
+    load_project, parse_language_definition_project_with_overlays_and_diagnostics,
 };
 use serde_json::{Value, json};
 
@@ -209,6 +209,7 @@ pub fn configure_language(
 pub struct LanguageServerConfig {
     parser: ConfiguredLanguageParser,
     project_snapshot: Option<(PathBuf, ProjectSnapshot)>,
+    definition_root: Option<PathBuf>,
     semantic_hooks: Vec<SemanticHookRegistration>,
     configured_semantic_hooks: Vec<ConfiguredSemanticHookRegistration>,
     formatting_provider: Option<Arc<FormattingProviderFn>>,
@@ -224,6 +225,7 @@ impl LanguageServerConfig {
         Self {
             parser,
             project_snapshot: None,
+            definition_root: None,
             semantic_hooks: Vec::new(),
             configured_semantic_hooks: Vec::new(),
             formatting_provider: None,
@@ -246,6 +248,11 @@ impl LanguageServerConfig {
         snapshot: ProjectSnapshot,
     ) -> Self {
         self.project_snapshot = Some((manifest_path.into(), snapshot));
+        self
+    }
+
+    fn with_definition_root(mut self, root_path: impl Into<PathBuf>) -> Self {
+        self.definition_root = Some(root_path.into());
         self
     }
 
@@ -350,6 +357,33 @@ impl LanguageServerConfig {
             WorkspaceTypeAnalysisRegistry::new(&language, self.type_analysis_hooks)
                 .map_err(|error| format!("invalid type-analysis hooks: {error}"))?
                 .into_hooks();
+        if self.project_snapshot.is_some() && self.definition_root.is_some() {
+            return Err("a language server cannot serve two project roots".to_owned());
+        }
+        let definition_project = self
+            .definition_root
+            .map(|path| {
+                let root_path = path.canonicalize().map_err(|error| {
+                    format!(
+                        "cannot resolve Langmeld definition root '{}': {error}",
+                        path.display()
+                    )
+                })?;
+                if root_path
+                    .extension()
+                    .is_none_or(|extension| extension != "lm")
+                {
+                    return Err(format!(
+                        "Langmeld definition root '{}' must have a `.lm` extension",
+                        root_path.display()
+                    ));
+                }
+                Ok(DefinitionProjectState {
+                    root_path,
+                    last_diagnostic_uris: BTreeSet::new(),
+                })
+            })
+            .transpose()?;
         let project = self
             .project_snapshot
             .map(|(manifest_path, snapshot)| {
@@ -382,6 +416,7 @@ impl LanguageServerConfig {
                 .map(|registration| registration.provider)
                 .collect(),
             project,
+            definition_project,
             client_supports_watched_file_registration: false,
             watchers_registered: false,
             watcher_refresh_pending: false,
@@ -453,9 +488,9 @@ pub fn serve<R: BufRead, W: Write>(
 
 /// Serves the built-in `.lm` definition grammar for editing language source.
 ///
-/// This mode provides the generic parser-backed LSP features for open root and
-/// module definition files. Use the CLI's project validation commands to check
-/// whole-project imports and semantic constraints.
+/// This mode provides generic parser-backed LSP features for each open `.lm`
+/// file. Use [`serve_definitions_project`] to add imports and project-level
+/// definition validation.
 ///
 /// # Errors
 /// Returns bootstrap grammar, parser configuration, framing, I/O, or
@@ -469,6 +504,35 @@ pub fn serve_definitions<R: BufRead, W: Write>(input: R, output: W) -> Result<bo
             .join("\n")
     })?;
     serve(input, output, language)
+}
+
+/// Serves the built-in `.lm` grammar with project-level definition validation.
+///
+/// Open buffers inside the root definition directory override their disk
+/// snapshots during validation. Clients may receive bounded file watchers for
+/// changes to other `.lm` modules in the same directory tree.
+///
+/// # Errors
+/// Returns root-path, bootstrap grammar, parser configuration, framing, I/O,
+/// or JSON-RPC serialization errors.
+pub fn serve_definitions_project<R: BufRead, W: Write>(
+    input: R,
+    output: W,
+    root_path: &Path,
+) -> Result<bool, String> {
+    let language = langmeld_definition_language().map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| format!("{}: {}", error.code, error.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    let parser = configure_language(language)?;
+    serve_configured(
+        input,
+        output,
+        LanguageServerConfig::new(parser).with_definition_root(root_path),
+    )
 }
 
 /// Serves a declarative project and reloads its language after watched-file
@@ -545,6 +609,7 @@ struct Server {
     type_analysis_hooks: Vec<langmeld_language::WorkspaceTypeAnalysisHook>,
     completion_providers: Vec<CompletionProvider>,
     project: Option<ProjectState>,
+    definition_project: Option<DefinitionProjectState>,
     client_supports_watched_file_registration: bool,
     watchers_registered: bool,
     watcher_refresh_pending: bool,
@@ -557,6 +622,11 @@ struct ProjectState {
     snapshot: ProjectSnapshot,
     source_documents: BTreeMap<String, ProjectDocument>,
     navigation_index_limited: bool,
+}
+
+struct DefinitionProjectState {
+    root_path: PathBuf,
+    last_diagnostic_uris: BTreeSet<String>,
 }
 
 struct ProjectDocument {
@@ -679,7 +749,9 @@ impl Server {
                     .pointer("/params/changes")
                     .and_then(Value::as_array)
                     .is_some_and(|changes| !changes.is_empty());
-                if changed && self.project.is_some() {
+                if changed && self.definition_project.is_some() {
+                    self.publish_workspace_documents()
+                } else if changed && self.project.is_some() {
                     self.reload_project()
                 } else {
                     Vec::new()
@@ -886,9 +958,42 @@ impl Server {
     fn register_project_watchers(&mut self) -> Vec<Value> {
         if !self.client_supports_watched_file_registration
             || self.watchers_registered
-            || self.project.is_none()
+            || (self.project.is_none() && self.definition_project.is_none())
         {
             return Vec::new();
+        }
+        if let Some(definition_project) = &self.definition_project {
+            let Some(root) = definition_project.root_path.parent() else {
+                return vec![log_message(
+                    2,
+                    "cannot register definition watchers: root has no parent directory".to_owned(),
+                )];
+            };
+            let Some(base_uri) = path_to_file_uri(root) else {
+                return vec![log_message(
+                    2,
+                    "cannot register definition watchers: root cannot be represented as a file URI"
+                        .to_owned(),
+                )];
+            };
+            self.watchers_registered = true;
+            return vec![json!({
+                "jsonrpc": "2.0",
+                "id": PROJECT_WATCHER_REGISTRATION_ID,
+                "method": "client/registerCapability",
+                "params": {
+                    "registrations": [{
+                        "id": PROJECT_WATCHER_REGISTRATION_ID,
+                        "method": "workspace/didChangeWatchedFiles",
+                        "registerOptions": {
+                            "watchers": [{
+                                "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" },
+                                "kind": 7
+                            }]
+                        }
+                    }]
+                }
+            })];
         }
         let Some(project) = &self.project else {
             return Vec::new();
@@ -1069,10 +1174,11 @@ impl Server {
         documents.into_iter().unzip()
     }
 
-    fn publish_workspace_documents(&self) -> Vec<Value> {
+    fn publish_workspace_documents(&mut self) -> Vec<Value> {
         let (uris, files) = self.workspace_snapshot();
         let analysis = self.analyze_files(&files);
-        uris.iter()
+        let mut notifications: Vec<_> = uris
+            .iter()
             .enumerate()
             .filter_map(|(source_index, uri)| {
                 let document = self.documents.get(uri)?;
@@ -1094,7 +1200,132 @@ impl Server {
                     }
                 }))
             })
-            .collect()
+            .collect();
+        self.append_definition_project_diagnostics(&mut notifications);
+        notifications
+    }
+
+    fn append_definition_project_diagnostics(&mut self, notifications: &mut Vec<Value>) {
+        let Some((root_path, previous_uris)) = self.definition_project.as_ref().map(|project| {
+            (
+                project.root_path.clone(),
+                project.last_diagnostic_uris.clone(),
+            )
+        }) else {
+            return;
+        };
+        let Some(root_directory) = root_path.parent() else {
+            return;
+        };
+        let Some(root_uri) = path_to_file_uri(&root_path) else {
+            return;
+        };
+        let mut overlays = BTreeMap::new();
+        for (uri, document) in &self.documents {
+            let Some(path) = file_uri_to_path(uri) else {
+                continue;
+            };
+            let Ok(canonical_path) = path.canonicalize() else {
+                continue;
+            };
+            if canonical_path.starts_with(root_directory)
+                && canonical_path
+                    .extension()
+                    .is_some_and(|extension| extension == "lm")
+            {
+                overlays.insert(path, document.source.text.clone());
+            }
+        }
+        let mut diagnostics_by_uri = BTreeMap::<String, Vec<Value>>::new();
+        let diagnostics = parse_language_definition_project_with_overlays_and_diagnostics(
+            &root_path,
+            &overlays,
+            DefinitionLimits::default(),
+        )
+        .err()
+        .unwrap_or_default();
+        for project_diagnostic in diagnostics {
+            let uri = project_diagnostic
+                .source_path
+                .as_deref()
+                .and_then(path_to_file_uri)
+                .unwrap_or_else(|| root_uri.clone());
+            if project_diagnostic.source_path.is_some()
+                && self.documents.get(&uri).is_some_and(|document| {
+                    document.parsed.diagnostics.iter().any(|diagnostic| {
+                        diagnostic.span == project_diagnostic.diagnostic.span
+                            && diagnostic.severity == project_diagnostic.diagnostic.severity
+                    })
+                })
+            {
+                continue;
+            }
+            let source = project_diagnostic
+                .source
+                .as_deref()
+                .cloned()
+                .or_else(|| {
+                    self.documents
+                        .get(&uri)
+                        .map(|document| document.source.clone())
+                })
+                .unwrap_or_else(|| SourceFile::new(uri.as_str(), ""));
+            let mut diagnostic = project_diagnostic.diagnostic;
+            if project_diagnostic.source_path.is_none() {
+                diagnostic.span = None;
+            }
+            diagnostics_by_uri
+                .entry(uri)
+                .or_default()
+                .push(lsp_diagnostic(&source, &diagnostic));
+        }
+
+        let current_uris: BTreeSet<_> = diagnostics_by_uri.keys().cloned().collect();
+        for notification in notifications.iter_mut() {
+            let Some(uri) = notification
+                .pointer("/params/uri")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+            else {
+                continue;
+            };
+            if let Some(project_diagnostics) = diagnostics_by_uri.remove(&uri)
+                && let Some(existing) = notification
+                    .pointer_mut("/params/diagnostics")
+                    .and_then(Value::as_array_mut)
+            {
+                existing.extend(project_diagnostics);
+            }
+        }
+        for (uri, project_diagnostics) in diagnostics_by_uri {
+            let version = self.documents.get(&uri).map(|document| document.version);
+            let mut params = json!({ "uri": uri, "diagnostics": project_diagnostics });
+            if let Some(version) = version {
+                params["version"] = json!(version);
+            }
+            notifications.push(json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/publishDiagnostics",
+                "params": params,
+            }));
+        }
+        for uri in previous_uris.difference(&current_uris) {
+            if notifications.iter().any(|notification| {
+                notification["method"] == "textDocument/publishDiagnostics"
+                    && notification.pointer("/params/uri").and_then(Value::as_str)
+                        == Some(uri.as_str())
+            }) {
+                continue;
+            }
+            notifications.push(json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/publishDiagnostics",
+                "params": { "uri": uri, "diagnostics": [] },
+            }));
+        }
+        if let Some(project) = &mut self.definition_project {
+            project.last_diagnostic_uris = current_uris;
+        }
     }
 
     fn analyze_files(&self, files: &[(&SourceFile, &Program)]) -> WorkspaceAnalysis {
@@ -2111,6 +2342,58 @@ fn path_to_file_uri(path: &Path) -> Option<String> {
     Some(uri)
 }
 
+fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
+    let encoded_path = uri.strip_prefix("file://")?;
+    let encoded_path = if let Some(path) = encoded_path.strip_prefix("localhost/") {
+        format!("/{path}")
+    } else if encoded_path.starts_with('/') {
+        encoded_path.to_owned()
+    } else {
+        return None;
+    };
+    if encoded_path.contains('?') || encoded_path.contains('#') {
+        return None;
+    }
+
+    let bytes = encoded_path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = *bytes.get(index + 1)?;
+            let low = *bytes.get(index + 2)?;
+            decoded.push((hex_digit(high)? << 4) | hex_digit(low)?);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    let path = String::from_utf8(decoded).ok()?;
+    #[cfg(windows)]
+    let path = {
+        let mut path = path.replace('/', "\\");
+        if path.starts_with("\\") && path.as_bytes().get(2) == Some(&b':') {
+            path.remove(0);
+        }
+        path
+    };
+    #[cfg(not(windows))]
+    if !path.starts_with('/') {
+        return None;
+    }
+    Some(PathBuf::from(path))
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 fn escape_glob_literal(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
     for character in value.chars() {
@@ -2948,6 +3231,49 @@ mod tests {
             .expect("project server configures")
     }
 
+    fn definition_project_server(root: &Path) -> Server {
+        let root_path = root.join("language/language.lm");
+        let language = langmeld_definition_language().expect("definition grammar validates");
+        let parser = configure_language(language).expect("definition parser configures");
+        LanguageServerConfig::new(parser)
+            .with_definition_root(root_path)
+            .into_server()
+            .expect("definition project server configures")
+    }
+
+    fn add_definition_import(root: &Path, version: &str) -> PathBuf {
+        let definitions = root.join("language");
+        fs::create_dir_all(definitions.join("extensions"))
+            .expect("definition extension directory is created");
+        let root_path = definitions.join("language.lm");
+        fs::write(
+            &root_path,
+            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".demo\"\n  import: \"extensions/extra.lm\"\n}\n",
+        )
+        .expect("root definition imports its extension");
+        let extension_path = definitions.join("extensions/extra.lm");
+        fs::write(&extension_path, extension_definition(version))
+            .expect("extension definition is written");
+        extension_path
+    }
+
+    fn extension_definition(version: &str) -> String {
+        format!(
+            "language ReloadDemo {{\n  version: \"{version}\"\n  root: program\n  construct note {{\n    syntax {{ default: \"note\" }}\n  }}\n}}\n"
+        )
+    }
+
+    fn change_document(uri: &str, version: i64, text: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": [{ "text": text }]
+            }
+        })
+    }
+
     #[test]
     fn project_navigation_index_discards_partial_results_when_a_source_uri_is_unavailable() {
         let root = project_directory();
@@ -2988,6 +3314,129 @@ mod tests {
             "method": "workspace/didChangeWatchedFiles",
             "params": { "changes": [{ "uri": path_to_file_uri(path).unwrap(), "type": 2 }] }
         })
+    }
+
+    #[test]
+    fn file_uri_round_trips_spaces_and_unicode_paths() {
+        let root = project_directory();
+        let path = root.join("language/constructs/café notes.lm");
+        fs::write(&path, "constructs {}\n").expect("test definition file is written");
+        let uri = path_to_file_uri(&path).expect("path converts to a file URI");
+
+        assert!(uri.contains("%20"));
+        assert_eq!(file_uri_to_path(&uri).as_deref(), Some(path.as_path()));
+        assert!(file_uri_to_path("https://example.test/file.lm").is_none());
+        assert!(file_uri_to_path("file:///tmp/bad%2Gpath.lm").is_none());
+
+        fs::remove_dir_all(root).expect("temporary project is removed");
+    }
+
+    #[test]
+    fn definition_project_diagnostics_follow_open_imported_files_and_clear_after_edits() {
+        let root = project_directory();
+        let extension_path = add_definition_import(&root, "0.1.0");
+        let extension_uri = path_to_file_uri(&extension_path).unwrap();
+        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let mut server = definition_project_server(&root);
+
+        let notifications =
+            server.handle(&open_document(&extension_uri, 1, "language ReloadDemo {"));
+        let imported_diagnostics = diagnostics_for(&notifications, &extension_uri)
+            .expect("imported module diagnostics are published");
+        assert!(!imported_diagnostics.is_empty());
+        assert!(imported_diagnostics.iter().all(|diagnostic| {
+            diagnostic.pointer("/range/start/line").is_some()
+                && diagnostic.pointer("/range/end/line").is_some()
+        }));
+
+        let valid_extension = extension_definition("0.1.0");
+        let notifications = server.handle(&change_document(&extension_uri, 2, &valid_extension));
+        assert_eq!(
+            diagnostics_for(&notifications, &extension_uri)
+                .expect("import diagnostics are refreshed")
+                .len(),
+            0
+        );
+
+        let incompatible_extension = extension_definition("0.2.0");
+        let notifications =
+            server.handle(&change_document(&extension_uri, 3, &incompatible_extension));
+        let root_diagnostics = diagnostics_for(&notifications, &root_uri)
+            .expect("unlocated cross-module errors are published at the project root");
+        assert!(root_diagnostics.iter().any(|diagnostic| {
+            diagnostic["message"].as_str().is_some_and(|message| {
+                message.contains("different language name, version, or root")
+            })
+        }));
+        assert_eq!(
+            root_diagnostics[0].pointer("/range/start"),
+            Some(&json!({ "line": 0, "character": 0 }))
+        );
+        assert_eq!(
+            root_diagnostics[0].pointer("/range/end"),
+            Some(&json!({ "line": 0, "character": 0 }))
+        );
+
+        let notifications = server.handle(&change_document(&extension_uri, 4, &valid_extension));
+        assert_eq!(
+            diagnostics_for(&notifications, &root_uri)
+                .expect("stale root diagnostics are cleared")
+                .len(),
+            0
+        );
+        fs::remove_dir_all(root).expect("temporary project is removed");
+    }
+
+    #[test]
+    fn definition_project_watches_imports_and_revalidates_closed_files() {
+        let root = project_directory();
+        let extension_path = add_definition_import(&root, "0.1.0");
+        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let mut server = definition_project_server(&root);
+        server.handle(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "capabilities": { "workspace": {
+                "didChangeWatchedFiles": { "dynamicRegistration": true }
+            }}}
+        }));
+        let registrations = server.handle(&json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        }));
+        let watchers =
+            &registrations[0]["params"]["registrations"][0]["registerOptions"]["watchers"];
+        assert!(watchers.as_array().unwrap().iter().any(|watcher| {
+            watcher["globPattern"]["pattern"] == "**/*.lm"
+                && watcher["globPattern"]["baseUri"]
+                    == path_to_file_uri(&root.join("language")).unwrap()
+        }));
+
+        fs::write(&extension_path, extension_definition("0.2.0"))
+            .expect("incompatible extension is written");
+        let notifications = server.handle(&watched_file(&extension_path));
+        assert!(
+            diagnostics_for(&notifications, &root_uri).is_some_and(|diagnostics| {
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic["message"].as_str().is_some_and(|message| {
+                        message.contains("different language name, version, or root")
+                    })
+                })
+            })
+        );
+
+        fs::write(&extension_path, extension_definition("0.1.0"))
+            .expect("compatible extension is restored");
+        let notifications = server.handle(&watched_file(&extension_path));
+        assert_eq!(
+            diagnostics_for(&notifications, &root_uri)
+                .expect("watch event clears the project diagnostic")
+                .len(),
+            0
+        );
+        fs::remove_dir_all(root).expect("temporary project is removed");
     }
 
     fn diagnostics_for<'a>(messages: &'a [Value], uri: &str) -> Option<&'a Vec<Value>> {

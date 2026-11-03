@@ -73,16 +73,18 @@ binary remains for declarative-only languages.
 To edit Langmeld definition files themselves, start
 `cargo run -p langmeld-lsp -- --definitions`; this mode uses the built-in `.lm`
 grammar for parser-backed diagnostics, completion, formatting, and semantic
-tokens across open root and module files. Use `langmeld check --project
-langmeld.json` or `langmeld generate --project-root .` to validate the combined
-definition project, including imports and language-level constraints. Editor
-integrations can use `parse_language_definition_project_with_overlays` from
-`langmeld-language` to validate unsaved text for existing project files without
-writing those buffers to disk; overlays retain the project's root and size
-limits. The companion `parse_language_definition_project_with_overlays_and_diagnostics`
-API includes the canonical source path when a diagnostic can be attributed to
-one; project-level findings have no source path and must not be assigned to an
-arbitrary file.
+tokens for open files. Add `--root language/language.lm` to validate imports,
+conventional modules, and language-level constraints as files change; open
+buffers override their disk snapshots, and supported clients receive watches
+for `.lm` files under the root definition directory. The language crate exposes
+`parse_language_definition_project_with_overlays` for editor integrations that
+need the same bounded validation without writing unsaved text to disk. Its
+`parse_language_definition_project_with_overlays_and_diagnostics` companion
+includes the canonical source path when known and a parsed source snapshot for
+source-located parser diagnostics; project-level findings have no source path
+and must not be assigned to an arbitrary file. `langmeld check --project langmeld.json`
+and `langmeld generate --project-root .` remain available for explicit project
+validation and generation.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

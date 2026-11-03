@@ -398,6 +398,76 @@ fn definitions_mode_provides_lsp_support_for_modular_lm_sources() {
     assert!(responses.iter().any(|response| response["id"] == 5));
 }
 
+#[test]
+fn definition_project_mode_uses_the_explicit_root_and_reports_imported_file_errors() {
+    let language = TempLanguage::new();
+    let root = language.0.clone();
+    fs::write(
+        &root,
+        "language Demo {\n  version: \"0.1.0\"\n  root: program\n}\n",
+    )
+    .expect("project root definition is written");
+    let constructs = root.parent().unwrap().join("constructs");
+    fs::create_dir_all(&constructs).expect("constructs directory is created");
+    let module = constructs.join("program.lm");
+    fs::write(
+        &module,
+        "constructs {\n  construct program {\n    syntax { default: \"program {\" }\n  }\n}\n",
+    )
+    .expect("construct module is written");
+    let module_uri = format!("file://{}", module.display());
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": module_uri,
+                "languageId": "langmeld-definition",
+                "version": 1,
+                "text": "constructs {"
+            }}
+        }),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .arg("--definitions")
+        .arg("--root")
+        .arg(&root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("definition project language server starts");
+    child
+        .stdin
+        .take()
+        .expect("LSP input is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("LSP process exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    assert!(responses.iter().any(|response| {
+        response["method"] == "textDocument/publishDiagnostics"
+            && response["params"]["uri"] == module_uri
+            && !response["params"]["diagnostics"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+    }));
+}
+
 fn frame(value: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(value).expect("message serializes");
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();

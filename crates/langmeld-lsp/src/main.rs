@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser};
 use langmeld_language::load_language;
-use langmeld_lsp::{serve, serve_definitions, serve_project};
+use langmeld_lsp::{serve, serve_definitions, serve_definitions_project, serve_project};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -21,6 +21,9 @@ struct LanguageInput {
     /// Serve the built-in grammar for editing Langmeld `.lm` definitions.
     #[arg(long, group = "language_input")]
     definitions: bool,
+    /// Root `.lm` definition file whose imports and modules should be validated.
+    #[arg(long, requires = "definitions")]
+    root: Option<PathBuf>,
     /// Standalone .lm or JSON language definition.
     #[arg(long, group = "language_input")]
     language: Option<PathBuf>,
@@ -34,7 +37,11 @@ fn main() -> std::process::ExitCode {
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let result = if arguments.input.definitions {
-        serve_definitions(stdin.lock(), stdout.lock())
+        if let Some(root) = arguments.input.root {
+            serve_definitions_project(stdin.lock(), stdout.lock(), &root)
+        } else {
+            serve_definitions(stdin.lock(), stdout.lock())
+        }
     } else if let Some(path) = arguments.input.language {
         match load_language(&path) {
             Ok(language) => serve(stdin.lock(), stdout.lock(), language),

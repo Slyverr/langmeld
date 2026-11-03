@@ -196,6 +196,13 @@ fn project_parser_retains_imported_file_identity_for_syntax_diagnostics() {
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].source_path.as_ref(), Some(&entry_path));
     assert!(diagnostics[0].diagnostic.span.is_some());
+    assert_eq!(
+        diagnostics[0]
+            .source
+            .as_deref()
+            .map(|source| source.text.as_str()),
+        Some("language Catalog {")
+    );
 }
 
 #[test]
