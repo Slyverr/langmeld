@@ -13,15 +13,16 @@ imports. Prepared grammars compile declarative patterns once and provide
 token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
-and workspace type-analysis passes. The CLI, language facade, backends, LSP,
-WASM, and editor tooling are still being ported. The language crate can generate
-deterministic Rust source for typed AST views and schema reconstruction. A
-generic artifact pass pipeline plans lowering dependencies and runs only the
-passes needed for requested outputs; the host owns its IR values and pass
-context. Single-program backend contracts validate descriptors, settings,
-required IR, artifacts, and source maps. Workspace backends apply the same
-checks across multiple sources and require explicit source indexes for
-ambiguous mappings.
+and workspace type-analysis passes. The project CLI, language facade, LSP, and
+WASM adapter remain to be ported. `langmeld-language` generates deterministic
+Rust source for typed AST views and schema reconstruction, plus metadata,
+reference docs, lexical-only TextMate rules, and conventional editor
+configuration. A generic artifact pass pipeline plans lowering dependencies
+and runs only the passes needed for requested outputs; the host owns its IR
+values and pass context. Single-program backend contracts validate descriptors,
+settings, required IR, artifacts, and source maps. Workspace backends apply the
+same checks across multiple sources and require explicit source indexes for
+ambiguous mappings. Tree-sitter export and source formatting remain in progress.
 
 ## Workspace checks
 

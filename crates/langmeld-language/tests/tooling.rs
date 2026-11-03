@@ -1,0 +1,131 @@
+use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder};
+use langmeld_language::{generate_rust_ast, generate_tooling};
+
+fn language() -> langmeld_core::ValidatedLanguageSpec {
+    LanguageBuilder::new("Demo / Language")
+        .version("0.2.0")
+        .root("program")
+        .source_extension(".dl")
+        .named_enum("Mode", ["fast", "safe"])
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax_variant("root", "program {")
+                .block(["binding"]),
+        )
+        .construct(
+            ConstructBuilder::new("binding")
+                .syntax_variant("binding", "let {mode} {name} => {value}")
+                .field(FieldSpec::required(
+                    "mode",
+                    FieldKind::named_enumeration("Mode", ["fast", "safe"]),
+                ))
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .field(FieldSpec::required("value", FieldKind::Number)),
+        )
+        .build()
+        .expect("tooling fixture language validates")
+}
+
+#[test]
+fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
+    let language = language();
+    let artifacts = generate_tooling(&language).expect("tooling artifacts generate");
+    assert_eq!(
+        artifacts,
+        generate_tooling(&language).expect("generation repeats")
+    );
+    assert_eq!(artifacts["rust/ast.rs"], generate_rust_ast(&language));
+
+    let expected_paths = [
+        "README.md",
+        "agent-skill/SKILL.md",
+        "agent-skill/references/capabilities.json",
+        "agent-skill/references/grammar.md",
+        "highlighting.json",
+        "language-configuration.json",
+        "metadata.json",
+        "rust/ast.rs",
+        "syntaxes/demo-language.tmLanguage.json",
+    ];
+    assert_eq!(
+        artifacts.keys().map(String::as_str).collect::<Vec<_>>(),
+        expected_paths
+    );
+    assert!(artifacts.keys().all(|path| {
+        !path.starts_with('/') && !path.split('/').any(|component| component == "..")
+    }));
+
+    let metadata: serde_json::Value =
+        serde_json::from_str(&artifacts["metadata.json"]).expect("metadata is JSON");
+    assert_eq!(metadata["name"], "Demo / Language");
+    assert_eq!(metadata["root"], "program");
+    assert_eq!(metadata["source_extensions"][0], ".dl");
+
+    let highlighting: serde_json::Value =
+        serde_json::from_str(&artifacts["highlighting.json"]).expect("highlighting is JSON");
+    assert_eq!(highlighting["lexical_only"], true);
+    assert!(
+        highlighting["keywords"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "let")
+    );
+    assert!(
+        highlighting["operators"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "=>")
+    );
+    assert!(
+        highlighting["enum_values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "fast")
+    );
+
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capability metadata is JSON");
+    assert_eq!(capabilities["highlighting"]["lexical_only"], true);
+    assert_eq!(
+        capabilities["editor_configuration_assumptions"]["line_comment"],
+        "#"
+    );
+    assert!(
+        capabilities["available_artifacts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "language_configuration")
+    );
+    assert!(
+        capabilities["not_yet_available"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "lsp")
+    );
+    assert!(
+        capabilities["not_yet_available"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "tree_sitter_export")
+    );
+    assert!(
+        capabilities["not_yet_available"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "wasm_adapter")
+    );
+    assert!(artifacts["agent-skill/SKILL.md"].contains("has no `langmeld` project CLI or LSP"));
+    assert!(artifacts["README.md"].contains("`let {mode} {name} => {value}`"));
+
+    let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
+        .expect("editor config is JSON");
+    assert_eq!(config["comments"]["lineComment"], "#");
+}
