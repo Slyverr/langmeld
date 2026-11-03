@@ -1,11 +1,13 @@
 //! Shared lexical contracts and resource limits for Langmeld language parsers.
 
+mod definition_meta;
 mod lexer;
 mod lexing;
 mod model;
 mod parser;
 mod syntax;
 
+pub use definition_meta::{langmeld_definition_language, langmeld_definition_parser};
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
 };
