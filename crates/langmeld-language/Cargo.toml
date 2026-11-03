@@ -7,6 +7,7 @@ description = "Language token contracts and parsing infrastructure for Langmeld.
 
 [dependencies]
 langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+serde.workspace = true
 serde_json.workspace = true
 
 [lints]
