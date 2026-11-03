@@ -344,6 +344,84 @@ fn project_mode_registers_language_and_manifest_watchers() {
 }
 
 #[test]
+fn project_lsp_completes_constructs_from_a_declared_language_extension() {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/declarative-interpreter/langmeld.json")
+        .canonicalize()
+        .expect("extension consumer manifest exists");
+    let project_root = manifest.parent().expect("manifest has a project root");
+    let source_uri = format!(
+        "file://{}",
+        project_root.join("examples/editor.ledger.lmprog").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": source_uri,
+                "languageId": "ledger",
+                "version": 1,
+                "text": "program {\n\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": source_uri },
+                "position": { "line": 1, "character": 0 }
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--project"])
+        .arg(&manifest)
+        .current_dir(project_root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("project language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("project server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let completion = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("completion response exists");
+    let items = completion["result"].as_array().expect("items are returned");
+    assert!(
+        items.iter().any(|item| {
+            item["label"] == "subtract"
+                && item["textEdit"]["newText"]
+                    .as_str()
+                    .is_some_and(|text| text.starts_with("subtract "))
+        }),
+        "completion includes the extension-defined subtract construct: {items:#?}"
+    );
+}
+
+#[test]
 fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
     let language = TempLanguage::new();
     let uri = format!(
