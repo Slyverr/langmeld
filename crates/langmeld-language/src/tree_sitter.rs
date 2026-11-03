@@ -58,7 +58,7 @@ pub fn generate_tree_sitter(spec: &ValidatedLanguageSpec) -> Result<GeneratedArt
         .get(language.root.as_str())
         .ok_or_else(|| format!("root construct `{}` is missing", language.root))?;
     let mut rules = vec![format!(
-        "source_file: $ => seq($.{root}, repeat($.lm_separator))"
+        "source_file: $ => seq(repeat($.lm_newline), $.{root}, repeat($.lm_separator))"
     )];
     let mut type_rules = TypeRuleBuilder::default();
     for construct in &language.constructs {

@@ -110,7 +110,7 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
 
     let grammar = &artifacts["tree-sitter/grammar.js"];
     assert!(grammar.contains("name: \"demo_language\""));
-    assert!(grammar.contains("source_file: $ => seq($.lm_construct_program"));
+    assert!(grammar.contains("source_file: $ => seq(repeat($.lm_newline), $.lm_construct_program"));
     assert!(grammar.contains(
         r#"lm_string: $ => token(seq("\"", repeat(choice(/[^"\\\r\n]/, /\\[nrt"\\]/)), "\""))"#
     ));
@@ -223,13 +223,18 @@ fn write_tree_sitter_cli_validation_fixture() {
             "program {\n  let fast multiline -> 1 tags [\"one\",\n    \"two\",] attrs {\n    first: \"a\",\n    second: \"b\";\n  } config {\n    title: \"record\"\n    note: \"line separated\"\n  } status draft owner root flags [on] labels {\n    \"one\": 1,\n    \"two\": 2\n  } history [\n    {note: \"created\"},\n    {note: \"edited\"}\n  ] metadata {}\n}\n",
         ),
     ];
+    let escaped_crlf_source = "# unicode comment λ\nprogram {\n  let fast escaped -> 1 tags [] attrs {} config {title: \"quoted \\\"word\\\" and \\\\ path\"; note: \"line\\nnext\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n"
+        .replace('\n', "\r\n");
     let parser = PreparedLanguage::new(language)
         .expect("fixture patterns compile")
         .configure()
         .expect("fixture parser configures");
     let samples_dir = output.join("samples");
     fs::create_dir_all(&samples_dir).expect("sample directory is created");
-    for (name, source) in samples {
+    for (name, source) in samples.into_iter().chain(std::iter::once((
+        "crlf-comments-escapes.demo",
+        escaped_crlf_source.as_str(),
+    ))) {
         let parsed = parser.parse(&SourceFile::new(name, source));
         assert!(
             !parsed.resource_limited,
@@ -248,6 +253,16 @@ fn write_tree_sitter_cli_validation_fixture() {
         !invalid.diagnostics.is_empty(),
         "Langmeld rejects map entries separated by a newline without a comma or semicolon"
     );
+    let invalid_string_source = "program {\n  let fast invalid -> 1 tags [] attrs {} config {title: \"unsupported \\q escape\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n";
+    let invalid_string = parser.parse(&SourceFile::new(
+        "invalid-string-escape.demo",
+        invalid_string_source,
+    ));
+    assert!(
+        !invalid_string.diagnostics.is_empty(),
+        "Langmeld rejects unsupported string escapes"
+    );
+
     let invalid_dir = output.join("invalid");
     fs::create_dir_all(&invalid_dir).expect("invalid sample directory is created");
     fs::write(
@@ -255,4 +270,9 @@ fn write_tree_sitter_cli_validation_fixture() {
         invalid_source,
     )
     .expect("invalid sample program is written");
+    fs::write(
+        invalid_dir.join("unsupported-string-escape.demo"),
+        invalid_string_source,
+    )
+    .expect("invalid string sample is written");
 }

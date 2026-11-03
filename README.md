@@ -82,11 +82,12 @@ ambiguous mappings. The optional Tree-sitter exporter emits a grammar for
 compatible declarative syntax and reports when a definition cannot be
 represented. CI is configured to compile the generated Ledger grammar and a
 grammar fixture covering enums, references, typed lists and maps, nested
-properties, and empty collections. It parses three sample programs and runs
-highlight queries with the Tree-sitter CLI. These checks validate grammar and
-query syntax, not semantic equivalence with Langmeld. The library also exposes
-a structural formatter that preserves comments and strings, normalizes CRLF to
-LF, and supports space or tab indentation for valid programs.
+properties, and empty collections. It parses four positive programs, including
+CRLF, comments, and escaped strings, rejects invalid map and string syntax, and
+runs highlight queries with the Tree-sitter CLI. These checks validate grammar
+and query syntax, not semantic equivalence with Langmeld. The library also
+exposes a structural formatter that preserves comments and strings, normalizes
+CRLF to LF, and supports space or tab indentation for valid programs.
 
 ## Compatibility
 

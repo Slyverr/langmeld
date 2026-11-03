@@ -111,10 +111,12 @@ jobs:
             bun -e 'const summary = await Bun.file("parse-summary.json").json(); if (!summary.parse_summaries?.every(({ successful }) => successful)) process.exit(1);'
             tree-sitter query --quiet --grammar-path . queries/highlights.scm "$sample"
           done
-          if tree-sitter parse --quiet --grammar-path . invalid/map-missing-separator.demo; then
-            echo "Tree-sitter accepted map entries without a comma or semicolon"
-            exit 1
-          fi
+          for sample in invalid/*.demo; do
+            if tree-sitter parse --quiet --grammar-path . "$sample"; then
+              echo "Tree-sitter accepted invalid sample: $sample"
+              exit 1
+            fi
+          done
       - name: Verify generated browser/WASM consumer
         if: matrix.full == true
         env:
