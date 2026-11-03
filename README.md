@@ -70,6 +70,11 @@ register a language's Rust callbacks; callback-dependent languages must use a
 host integration that binds those implementations.
 For a project with a Rust binary target, `langmeld host -- --help` forwards
 arguments to its `package.default-run` target (or its only binary target).
+After registering Rust backends in the generated host, run
+`langmeld host -- configure --interactive` to save backend defaults, or use
+`--backend`, `--format`, `--target`, and `--set KEY=VALUE` for scripted
+updates. These preferences are stored under `build` in `langmeld.json` and
+are consumed by the host's `build` command.
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default

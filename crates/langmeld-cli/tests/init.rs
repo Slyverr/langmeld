@@ -97,6 +97,32 @@ fn run_project_host(project: &std::path::Path, arguments: &[&str]) -> std::proce
     run_host(&project.join("langmeld.json"), project, arguments)
 }
 
+fn run_project_host_with_input(
+    project: &std::path::Path,
+    arguments: &[&str],
+    input: &str,
+) -> std::process::Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["host", "--project"])
+        .arg(project.join("langmeld.json"))
+        .arg("--")
+        .args(arguments)
+        .env("CARGO_NET_OFFLINE", "true")
+        .current_dir(project)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("langmeld host starts for piped prompts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(input.as_bytes())
+        .expect("prompt responses are written");
+    child.wait_with_output().expect("host process exits")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -179,6 +205,16 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     );
     assert!(String::from_utf8_lossy(&checked.stdout).contains("checked 1 source file"));
 
+    let manifest_path = project.join("langmeld.json");
+    let manifest_before = fs::read(&manifest_path).expect("starter manifest is readable");
+    let unregistered = run_project_host(&project, &["configure", "--backend", "missing"]);
+    assert_eq!(unregistered.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unregistered.stderr).contains("no backends are registered"));
+    assert_eq!(
+        fs::read(&manifest_path).expect("starter manifest remains readable"),
+        manifest_before
+    );
+
     let direct = run_project_host(&project, &["check", "examples/hello.eventlang.lmprog"]);
     assert!(
         direct.status.success(),
@@ -239,6 +275,12 @@ fn init_can_create_a_library_without_a_cli_target() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(!project.join("src/main.rs").exists());
+    assert!(!project.join("src/configure.rs").exists());
+    assert!(
+        !fs::read_to_string(project.join("Cargo.toml"))
+            .expect("library manifest is readable")
+            .contains("inquire")
+    );
 
     let cargo = Command::new(env!("CARGO"))
         .args(["test", "--offline", "--manifest-path"])
@@ -292,6 +334,10 @@ impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
                 id: "text".to_owned(),
                 media_type: "text/plain".to_owned(),
                 extension: "txt".to_owned(),
+            }, langmeld::language::BackendFormat {
+                id: "json".to_owned(),
+                media_type: "application/json".to_owned(),
+                extension: "json".to_owned(),
             }],
             required_ir: vec!["langmeld.workspace".to_owned()],
             supports_source_maps: true,
@@ -299,8 +345,10 @@ impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
     }
 
     fn settings(&self) -> Vec<langmeld::language::BackendSetting> {
-        vec![langmeld::language::BackendSetting::text("mode", "Mode")
-            .default_value("strict")]
+        vec![
+            langmeld::language::BackendSetting::choice("mode", "Mode", ["strict", "release"])
+                .default_value("strict"),
+        ]
     }
 
     fn compile_workspace(
@@ -308,11 +356,17 @@ impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
         _inputs: &langmeld::language::WorkspaceBackendInputs<'_>,
         options: &langmeld::language::BackendOptions,
     ) -> Result<langmeld::language::CompilationArtifact, Vec<langmeld::core::Diagnostic>> {
-        assert_eq!(options.settings.get("mode").map(String::as_str), Some("strict"));
+        let mode = options.settings.get("mode").map_or("unset", String::as_str);
+        let target = options.target.as_deref().unwrap_or("default");
+        let media_type = if options.format == "json" {
+            "application/json"
+        } else {
+            "text/plain"
+        };
         Ok(langmeld::language::CompilationArtifact {
-            format: "text".to_owned(),
-            media_type: "text/plain".to_owned(),
-            bytes: b"compiled-workspace".to_vec(),
+            format: options.format.clone(),
+            media_type: media_type.to_owned(),
+            bytes: format!("compiled-workspace mode={mode} target={target}").into_bytes(),
             source_map: if options.source_maps {
                 vec![langmeld::language::SourceMapEntry::in_source(
                     langmeld::core::Span::new(0, 3),
@@ -362,12 +416,14 @@ impl langmeld::language::ArtifactBackend for SingleTestBackend {
     fs::write(
         project.join("tests/backend_registry.rs"),
         r#"use std::collections::BTreeMap;
-use buildhost_language::{host::backend::compile_registered_backend, parser};
+use buildhost_language::{host::backend::{BackendRegistry, compile_registered_backend}, parser};
 use langmeld::core::SourceFile;
 use langmeld::language::BackendOptions;
 
 #[test]
 fn registered_backend_returns_a_validated_workspace_artifact() {
+    let registry = BackendRegistry::from_project().expect("backend registry validates");
+    assert_eq!(registry.settings("workspace-test").unwrap()[0].key, "mode");
     let source = SourceFile::new("example.buildhost", "program {\n  print \"hello\"\n}\n");
     let parsed = parser().expect("host parser initializes").parse(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
@@ -378,7 +434,10 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
         BTreeMap::new(),
         &BackendOptions::new("text"),
     ).expect("registered backend compiles the workspace");
-    assert_eq!(artifact.bytes, b"compiled-workspace");
+    assert_eq!(
+        artifact.bytes,
+        b"compiled-workspace mode=strict target=default"
+    );
     assert_eq!(artifact.media_type, "text/plain");
     let single = compile_registered_backend(
         "single-test",
@@ -431,6 +490,98 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
     )
     .expect("backend defaults are saved");
 
+    let source_configuration_before = serde_json::json!({
+        "language": manifest["language"].clone(),
+        "sources": manifest["sources"].clone(),
+        "source_roots": manifest["source_roots"].clone(),
+        "source_extensions": manifest["source_extensions"].clone(),
+    });
+    let configured = run_project_host(
+        &project,
+        &[
+            "configure",
+            "--format",
+            "text",
+            "--target",
+            "configured-target",
+            "--source-maps",
+            "--set",
+            "mode=release",
+        ],
+    );
+    assert!(
+        configured.status.success(),
+        "backend configuration failed:\n{}\n{}",
+        String::from_utf8_lossy(&configured.stdout),
+        String::from_utf8_lossy(&configured.stderr)
+    );
+    let configured_manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("configured manifest is readable"))
+            .expect("configured manifest is valid JSON");
+    assert_eq!(
+        serde_json::json!({
+            "language": configured_manifest["language"].clone(),
+            "sources": configured_manifest["sources"].clone(),
+            "source_roots": configured_manifest["source_roots"].clone(),
+            "source_extensions": configured_manifest["source_extensions"].clone(),
+        }),
+        source_configuration_before
+    );
+    assert_eq!(configured_manifest["build"]["backend"], "workspace-test");
+    assert_eq!(configured_manifest["build"]["format"], "text");
+    assert_eq!(configured_manifest["build"]["target"], "configured-target");
+    assert_eq!(configured_manifest["build"]["source_maps"], true);
+    assert_eq!(configured_manifest["build"]["settings"]["mode"], "release");
+
+    let unchanged = fs::read(&manifest_path).expect("configured manifest bytes are readable");
+    let invalid = run_project_host(&project, &["configure", "--set", "mode=fast"]);
+    assert_eq!(invalid.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("does not accept `fast`"));
+    assert_eq!(
+        fs::read(&manifest_path).expect("invalid configuration leaves manifest readable"),
+        unchanged
+    );
+
+    for arguments in [
+        vec!["configure", "--backend", "missing-backend"],
+        vec!["configure", "--format", "missing-format"],
+        vec!["configure", "--target", ""],
+        vec!["configure", "--backend", "single-test", "--source-maps"],
+        vec!["configure", "--set", "unknown=value"],
+        vec![
+            "configure",
+            "--set",
+            "mode=release",
+            "--clear-setting",
+            "mode",
+        ],
+        vec!["configure", "--set", "mode=release", "--set", "mode=strict"],
+        vec!["configure", "--clear-settings", "--set", "mode=release"],
+        vec!["configure", "--interactive", "--set", "mode=release"],
+        vec!["configure", "--clear", "--set", "mode=release"],
+    ] {
+        let invalid = run_project_host(&project, &arguments);
+        assert_eq!(invalid.status.code(), Some(2));
+        assert_eq!(
+            fs::read(&manifest_path).expect("invalid options leave manifest readable"),
+            unchanged,
+            "configuration options {arguments:?} must not change the manifest"
+        );
+    }
+
+    let interactive =
+        run_project_host_with_input(&project, &["configure", "--interactive"], "1\n1\n\n\n\n");
+    assert!(
+        interactive.status.success(),
+        "interactive backend configuration failed:\n{}\n{}",
+        String::from_utf8_lossy(&interactive.stdout),
+        String::from_utf8_lossy(&interactive.stderr)
+    );
+    let interactive_output = String::from_utf8_lossy(&interactive.stdout);
+    assert!(interactive_output.contains("2. json"));
+    assert!(interactive_output.contains("value: strict"));
+    assert!(interactive_output.contains("value: release"));
+
     let built = run_project_host(&project, &["build", "--project"]);
     assert!(
         built.status.success(),
@@ -440,7 +591,7 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
     );
     assert_eq!(
         fs::read(project.join("target/buildhost.txt")).expect("artifact is written"),
-        b"compiled-workspace"
+        b"compiled-workspace mode=release target=configured-target"
     );
     let map: serde_json::Value = serde_json::from_slice(
         &fs::read(project.join("target/buildhost.txt.map.json")).expect("source map is written"),
@@ -484,6 +635,63 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
     );
     assert_eq!(collision.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&collision.stderr).contains("collides with source"));
+
+    let cleared_fields = run_project_host(
+        &project,
+        &[
+            "configure",
+            "--clear-format",
+            "--clear-target",
+            "--clear-source-maps",
+            "--clear-setting",
+            "mode",
+        ],
+    );
+    assert!(
+        cleared_fields.status.success(),
+        "individual defaults could not be cleared:\n{}\n{}",
+        String::from_utf8_lossy(&cleared_fields.stdout),
+        String::from_utf8_lossy(&cleared_fields.stderr)
+    );
+    let partially_cleared: serde_json::Value = serde_json::from_slice(
+        &fs::read(&manifest_path).expect("partially cleared manifest is readable"),
+    )
+    .expect("partially cleared manifest is valid JSON");
+    assert_eq!(partially_cleared["build"]["backend"], "workspace-test");
+    assert!(partially_cleared["build"].get("format").is_none());
+    assert!(partially_cleared["build"].get("target").is_none());
+    assert!(partially_cleared["build"].get("source_maps").is_none());
+    assert!(partially_cleared["build"].get("settings").is_none());
+
+    let switched = run_project_host(&project, &["configure", "--backend", "single-test"]);
+    assert!(
+        switched.status.success(),
+        "backend switch failed:\n{}\n{}",
+        String::from_utf8_lossy(&switched.stdout),
+        String::from_utf8_lossy(&switched.stderr)
+    );
+    let switched_manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("switched manifest is readable"))
+            .expect("switched manifest is valid JSON");
+    assert_eq!(switched_manifest["build"]["backend"], "single-test");
+    assert!(switched_manifest["build"].get("target").is_none());
+    assert!(switched_manifest["build"].get("settings").is_none());
+
+    let cleared = run_project_host(&project, &["configure", "--clear"]);
+    assert!(cleared.status.success());
+    let cleared_manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("cleared manifest is readable"))
+            .expect("cleared manifest is valid JSON");
+    assert!(cleared_manifest.get("build").is_none());
+    assert_eq!(
+        serde_json::json!({
+            "language": cleared_manifest["language"].clone(),
+            "sources": cleared_manifest["sources"].clone(),
+            "source_roots": cleared_manifest["source_roots"].clone(),
+            "source_extensions": cleared_manifest["source_extensions"].clone(),
+        }),
+        source_configuration_before
+    );
 }
 
 #[test]

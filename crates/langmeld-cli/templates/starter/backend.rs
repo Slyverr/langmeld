@@ -10,8 +10,9 @@ use langmeld::{
     core::SourceFile,
     language::{
         ArtifactBackend, BackendDescriptor, BackendError, BackendInputs, BackendOptions,
-        CompilationArtifact, Program, WorkspaceArtifactBackend, WorkspaceBackendInputs,
-        compile_with_backend, compile_workspace_with_backend, validate_backend_descriptor,
+        BackendSetting, CompilationArtifact, Program, WorkspaceArtifactBackend,
+        WorkspaceBackendInputs, compile_with_backend, compile_workspace_with_backend,
+        validate_backend_descriptor, validate_backend_settings,
     },
 };
 
@@ -25,6 +26,7 @@ pub enum RegisteredBackend {
 
 struct BackendEntry {
     descriptor: BackendDescriptor,
+    settings: Vec<BackendSetting>,
     backend: RegisteredBackend,
 }
 
@@ -41,6 +43,9 @@ impl BackendRegistry {
         for backend in backends {
             let descriptor = backend.descriptor();
             validate_backend_descriptor(&descriptor).map_err(BackendDispatchError::Backend)?;
+            let settings = backend.settings();
+            validate_backend_settings(&descriptor.id, &settings, &BTreeMap::new())
+                .map_err(BackendDispatchError::Backend)?;
             if !ids.insert(descriptor.id.clone()) {
                 return Err(BackendDispatchError::Registry(format!(
                     "backend ID `{}` is registered more than once",
@@ -49,6 +54,7 @@ impl BackendRegistry {
             }
             entries.push(BackendEntry {
                 descriptor,
+                settings,
                 backend,
             });
         }
@@ -65,6 +71,12 @@ impl BackendRegistry {
         self.entries.iter().map(|entry| &entry.descriptor)
     }
 
+    /// Returns the setting schema declared by one registered backend.
+    pub fn settings(&self, backend_id: &str) -> Result<&[BackendSetting], BackendDispatchError> {
+        self.entry(backend_id)
+            .map(|entry| entry.settings.as_slice())
+    }
+
     /// Compiles a parsed workspace through one registered backend.
     pub fn compile(
         &self,
@@ -73,23 +85,28 @@ impl BackendRegistry {
         artifacts: BTreeMap<String, Vec<u8>>,
         options: &BackendOptions,
     ) -> Result<CompilationArtifact, BackendDispatchError> {
-        let Some(entry) = self
+        let entry = self.entry(backend_id)?;
+        compile_entry(entry, backend_id, files, artifacts, options)
+    }
+
+    fn entry(&self, backend_id: &str) -> Result<&BackendEntry, BackendDispatchError> {
+        if let Some(entry) = self
             .entries
             .iter()
             .find(|entry| entry.descriptor.id == backend_id)
-        else {
-            let mut available: Vec<_> = self
-                .entries
-                .iter()
-                .map(|entry| entry.descriptor.id.as_str())
-                .collect();
-            available.sort_unstable();
-            return Err(BackendDispatchError::Registry(format!(
-                "backend `{backend_id}` is not registered; available backends: {}",
-                available.join(", ")
-            )));
-        };
-        compile_entry(entry, backend_id, files, artifacts, options)
+        {
+            return Ok(entry);
+        }
+        let mut available: Vec<_> = self
+            .entries
+            .iter()
+            .map(|entry| entry.descriptor.id.as_str())
+            .collect();
+        available.sort_unstable();
+        Err(BackendDispatchError::Registry(format!(
+            "backend `{backend_id}` is not registered; available backends: {}",
+            available.join(", ")
+        )))
     }
 }
 
@@ -127,6 +144,15 @@ impl RegisteredBackend {
         match self {
             Self::Single(backend) => backend.descriptor(),
             Self::Workspace(backend) => backend.descriptor(),
+        }
+    }
+
+    /// Returns the settings supported by this backend implementation.
+    #[must_use]
+    pub fn settings(&self) -> Vec<BackendSetting> {
+        match self {
+            Self::Single(backend) => backend.settings(),
+            Self::Workspace(backend) => backend.settings(),
         }
     }
 }

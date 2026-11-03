@@ -15,9 +15,11 @@ use langmeld::{
     },
 };
 
+mod configure;
+
 #[derive(Debug, Parser)]
 #[command(
-    about = "Check, build, or run this language project.",
+    about = "Check, build, configure, or run this language project.",
     subcommand_required = true
 )]
 struct Cli {
@@ -31,6 +33,8 @@ enum Command {
     Check(InputArgs),
     /// Compile source files with a backend registered by this project.
     Build(BuildArgs),
+    /// Configure defaults for a registered backend in langmeld.json.
+    Configure(configure::ConfigureArgs),
     /// Execute source files through the language runtime in src/lib.rs.
     Run(InputArgs),
 }
@@ -86,6 +90,7 @@ fn main() -> std::process::ExitCode {
         Command::Check(input) => process(input, true),
         Command::Run(input) => process(input, false),
         Command::Build(args) => build(args),
+        Command::Configure(args) => configure::configure(args).map_err(|error| (2, error)),
     };
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,

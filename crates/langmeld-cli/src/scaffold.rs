@@ -109,7 +109,7 @@ fn starter_files(
     let cli_dependency = if options.library_only {
         String::new()
     } else {
-        "clap = { version = \"4.6.7\", features = [\"derive\"] }\nserde_json = \"1\"\n".to_owned()
+        "clap = { version = \"4.6.7\", features = [\"derive\"] }\ninquire = \"0.9.4\"\nserde_json = \"1\"\n".to_owned()
     };
     let mut add = |path: &str, template: &str| {
         files.insert(
@@ -138,6 +138,10 @@ fn starter_files(
     );
     if !options.library_only {
         add("src/main.rs", include_str!("../templates/starter/main.rs"));
+        add(
+            "src/configure.rs",
+            include_str!("../templates/starter/configure.rs"),
+        );
     }
     add(
         "examples/hello.rs",

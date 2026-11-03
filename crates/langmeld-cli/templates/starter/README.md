@@ -16,7 +16,7 @@ cargo run --bin @SLUG@-host -- build --project
 `src/lib.rs` loads the modular `.lm` definition and prepares the generic parser.
 Use it as the starting point for host-specific lexing, parsing, analysis, or
 output. Add new constructs in their own files under `language/constructs/`.
-The generated `@SLUG@-host` CLI supports `check`, `build`, and `run`. Project
+The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
 commands use `langmeld.json`; source paths can also be passed directly.
 `run` calls `run_sources` in `src/lib.rs`, where this starter reports that
 runtime behavior still needs to be implemented.
@@ -24,6 +24,10 @@ Register a backend in `src/host/backend.rs` before using `build`. Project
 backend defaults live in the `build` object in `langmeld.json`; command-line
 options override those defaults for one build. The starter has no registered
 backend, so a fresh project reports that one must be registered.
+After registering one or more backends, use `configure --interactive` to save
+backend defaults. Scripted updates can use `--backend`, `--format`, `--target`,
+`--source-maps`, and repeatable `--set KEY=VALUE`; `--clear` removes only the
+backend defaults from `langmeld.json`.
 In interactive setup, choose whether to include the CLI, or pass
 `langmeld init --library-only` to create a Rust library without it.
 
