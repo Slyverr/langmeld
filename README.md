@@ -24,11 +24,15 @@ modules in `src/host/`, and `langmeld generate --install-host` safely refreshes
 them while preserving marked callback implementations. `langmeld init` also
 writes a strict `langmeld.json` project manifest,
 and the language API can load explicit or discovered program sources from it.
-Interactive setup can include a Clap-based language CLI with `check` and `run`
-commands, or omit it with `--library-only`. The generated `run` command calls
-the host's `run_sources` hook; language authors implement its runtime behavior.
-Interactive project configuration is available; backend build commands are
-pending.
+Interactive setup can include a Clap-based language CLI with `check`, `build`,
+and `run` commands, or omit it with `--library-only`. The generated `build`
+command dispatches to host-registered single-file or workspace backends, uses
+project defaults from `langmeld.json`, and writes validated artifacts and
+optional source-map sidecars under `target/`. Authors implement and register
+their own backends in `src/host/backend.rs`; custom IR still needs a
+host-authored lowering pipeline. The generated `run` command calls the host's
+`run_sources` hook; language authors implement its runtime behavior.
+Interactive project and backend configuration is available.
 LSP and WASM adapters are also pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,

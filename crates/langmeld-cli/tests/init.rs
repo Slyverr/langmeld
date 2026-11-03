@@ -294,7 +294,7 @@ impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
                 extension: "txt".to_owned(),
             }],
             required_ir: vec!["langmeld.workspace".to_owned()],
-            supports_source_maps: false,
+            supports_source_maps: true,
         }
     }
 
@@ -313,7 +313,15 @@ impl langmeld::language::WorkspaceArtifactBackend for TestBackend {
             format: "text".to_owned(),
             media_type: "text/plain".to_owned(),
             bytes: b"compiled-workspace".to_vec(),
-            source_map: Vec::new(),
+            source_map: if options.source_maps {
+                vec![langmeld::language::SourceMapEntry::in_source(
+                    langmeld::core::Span::new(0, 3),
+                    langmeld::core::Span::new(0, 3),
+                    0,
+                )]
+            } else {
+                Vec::new()
+            },
         })
     }
 }
@@ -408,6 +416,74 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
         String::from_utf8_lossy(&check.stdout),
         String::from_utf8_lossy(&check.stderr)
     );
+
+    let manifest_path = project.join("langmeld.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("project manifest is readable"))
+            .expect("project manifest is valid JSON");
+    manifest["build"] = serde_json::json!({
+        "backend": "workspace-test",
+        "source_maps": true
+    });
+    fs::write(
+        &manifest_path,
+        format!("{}\n", serde_json::to_string_pretty(&manifest).unwrap()),
+    )
+    .expect("backend defaults are saved");
+
+    let built = run_project_host(&project, &["build", "--project"]);
+    assert!(
+        built.status.success(),
+        "generated build failed:\n{}\n{}",
+        String::from_utf8_lossy(&built.stdout),
+        String::from_utf8_lossy(&built.stderr)
+    );
+    assert_eq!(
+        fs::read(project.join("target/buildhost.txt")).expect("artifact is written"),
+        b"compiled-workspace"
+    );
+    let map: serde_json::Value = serde_json::from_slice(
+        &fs::read(project.join("target/buildhost.txt.map.json")).expect("source map is written"),
+    )
+    .expect("source map is valid JSON");
+    assert_eq!(map["version"], 1);
+    assert_eq!(map["mappings"][0]["source_index"], 0);
+
+    let direct = run_project_host(
+        &project,
+        &[
+            "build",
+            "examples/hello.buildhost.lmprog",
+            "--backend",
+            "single-test",
+            "--format",
+            "text",
+            "--output",
+            "target/single.txt",
+        ],
+    );
+    assert!(
+        direct.status.success(),
+        "direct-source build failed:\n{}\n{}",
+        String::from_utf8_lossy(&direct.stdout),
+        String::from_utf8_lossy(&direct.stderr)
+    );
+    assert_eq!(
+        fs::read(project.join("target/single.txt")).expect("direct artifact is written"),
+        b"compiled-single"
+    );
+
+    let collision = run_project_host(
+        &project,
+        &[
+            "build",
+            "--project",
+            "--output",
+            "examples/hello.buildhost.lmprog",
+        ],
+    );
+    assert_eq!(collision.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&collision.stderr).contains("collides with source"));
 }
 
 #[test]

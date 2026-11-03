@@ -23,6 +23,76 @@ pub enum RegisteredBackend {
     Workspace(Box<dyn WorkspaceArtifactBackend>),
 }
 
+struct BackendEntry {
+    descriptor: BackendDescriptor,
+    backend: RegisteredBackend,
+}
+
+/// The validated backend set available to this language project's host.
+pub struct BackendRegistry {
+    entries: Vec<BackendEntry>,
+}
+
+impl BackendRegistry {
+    /// Validates and stores one backend registration set.
+    pub fn new(backends: Vec<RegisteredBackend>) -> Result<Self, BackendDispatchError> {
+        let mut entries = Vec::with_capacity(backends.len());
+        let mut ids = BTreeSet::new();
+        for backend in backends {
+            let descriptor = backend.descriptor();
+            validate_backend_descriptor(&descriptor).map_err(BackendDispatchError::Backend)?;
+            if !ids.insert(descriptor.id.clone()) {
+                return Err(BackendDispatchError::Registry(format!(
+                    "backend ID `{}` is registered more than once",
+                    descriptor.id
+                )));
+            }
+            entries.push(BackendEntry {
+                descriptor,
+                backend,
+            });
+        }
+        Ok(Self { entries })
+    }
+
+    /// Builds a registry from this project's `registered_backends` function.
+    pub fn from_project() -> Result<Self, BackendDispatchError> {
+        Self::new(registered_backends())
+    }
+
+    /// Returns the validated descriptors in registration order.
+    pub fn descriptors(&self) -> impl Iterator<Item = &BackendDescriptor> {
+        self.entries.iter().map(|entry| &entry.descriptor)
+    }
+
+    /// Compiles a parsed workspace through one registered backend.
+    pub fn compile(
+        &self,
+        backend_id: &str,
+        files: &[(&SourceFile, &Program)],
+        artifacts: BTreeMap<String, Vec<u8>>,
+        options: &BackendOptions,
+    ) -> Result<CompilationArtifact, BackendDispatchError> {
+        let Some(entry) = self
+            .entries
+            .iter()
+            .find(|entry| entry.descriptor.id == backend_id)
+        else {
+            let mut available: Vec<_> = self
+                .entries
+                .iter()
+                .map(|entry| entry.descriptor.id.as_str())
+                .collect();
+            available.sort_unstable();
+            return Err(BackendDispatchError::Registry(format!(
+                "backend `{backend_id}` is not registered; available backends: {}",
+                available.join(", ")
+            )));
+        };
+        compile_entry(entry, backend_id, files, artifacts, options)
+    }
+}
+
 /// A project backend selection failure or a validated backend compilation error.
 #[derive(Debug)]
 pub enum BackendDispatchError {
@@ -80,39 +150,21 @@ pub fn compile_registered_backend(
     artifacts: BTreeMap<String, Vec<u8>>,
     options: &BackendOptions,
 ) -> Result<CompilationArtifact, BackendDispatchError> {
-    let backends = registered_backends();
-    if backends.is_empty() {
-        return Err(BackendDispatchError::Registry(
-            "no backends are registered; add one to src/host/backend.rs before building".to_owned(),
-        ));
-    }
+    BackendRegistry::from_project()?.compile(backend_id, files, artifacts, options)
+}
 
-    let mut ids = BTreeSet::new();
-    for backend in &backends {
-        let descriptor = backend.descriptor();
-        validate_backend_descriptor(&descriptor).map_err(BackendDispatchError::Backend)?;
-        if !ids.insert(descriptor.id.clone()) {
-            return Err(BackendDispatchError::Registry(format!(
-                "backend ID `{}` is registered more than once",
-                descriptor.id
-            )));
-        }
-    }
-    let backend = backends
-        .iter()
-        .find(|backend| backend.descriptor().id == backend_id)
-        .ok_or_else(|| {
-            BackendDispatchError::Registry(format!(
-                "backend `{backend_id}` is not registered; available backends: {}",
-                ids.into_iter().collect::<Vec<_>>().join(", ")
-            ))
-        })?;
-
-    let result = match backend {
+fn compile_entry(
+    entry: &BackendEntry,
+    backend_id: &str,
+    files: &[(&SourceFile, &Program)],
+    artifacts: BTreeMap<String, Vec<u8>>,
+    options: &BackendOptions,
+) -> Result<CompilationArtifact, BackendDispatchError> {
+    match &entry.backend {
         RegisteredBackend::Single(backend) => {
             if files.len() != 1 {
                 return Err(BackendDispatchError::Registry(format!(
-                    "backend `{backend_id}` accepts one source file; received {}",
+                    "backend `{backend_id}` accepts one source file, received {}",
                     files.len()
                 )));
             }
@@ -122,6 +174,7 @@ pub fn compile_registered_backend(
                 inputs = inputs.with_artifact(id, bytes);
             }
             compile_with_backend(backend.as_ref(), &inputs, options)
+                .map_err(BackendDispatchError::Backend)
         }
         RegisteredBackend::Workspace(backend) => {
             let mut inputs = WorkspaceBackendInputs::new(files);
@@ -129,7 +182,7 @@ pub fn compile_registered_backend(
                 inputs = inputs.with_artifact(id, bytes);
             }
             compile_workspace_with_backend(backend.as_ref(), &inputs, options)
+                .map_err(BackendDispatchError::Backend)
         }
-    };
-    result.map_err(BackendDispatchError::Backend)
+    }
 }

@@ -109,7 +109,7 @@ fn starter_files(
     let cli_dependency = if options.library_only {
         String::new()
     } else {
-        "clap = { version = \"4.6.7\", features = [\"derive\"] }\n".to_owned()
+        "clap = { version = \"4.6.7\", features = [\"derive\"] }\nserde_json = \"1\"\n".to_owned()
     };
     let mut add = |path: &str, template: &str| {
         files.insert(
