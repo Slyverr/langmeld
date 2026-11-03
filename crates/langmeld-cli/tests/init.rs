@@ -100,6 +100,13 @@ fn run_format(
     command.output().expect("langmeld format starts")
 }
 
+fn run_language_tools(arguments: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(arguments)
+        .output()
+        .expect("langmeld language tool starts")
+}
+
 fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(arguments)
@@ -521,6 +528,92 @@ fn format_command_prints_by_default_writes_only_when_requested_and_preserves_inv
     let rejected = run_format(&language, &source, true);
     assert_eq!(rejected.status.code(), Some(1));
     assert_eq!(fs::read_to_string(&source).unwrap(), invalid);
+}
+
+#[test]
+fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("inspection-project");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().expect("project path is UTF-8"),
+        "--name",
+        "InspectLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    let language = project.join("language/language.lm");
+    let manifest = project.join("langmeld.json");
+
+    let inspected = run_language_tools(&["inspect", "--language", language.to_str().unwrap()]);
+    assert!(
+        inspected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspected.stderr)
+    );
+    let value: serde_json::Value =
+        serde_json::from_slice(&inspected.stdout).expect("inspection is JSON");
+    assert_eq!(value["name"], "InspectLanguage");
+    assert_eq!(value["construct_count"], 2);
+    assert_eq!(
+        value["current_capabilities"]["lsp_implemented"],
+        serde_json::Value::Bool(false)
+    );
+    assert!(
+        value["definition_sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path.as_str().unwrap().ends_with("constructs/program.lm"))
+    );
+
+    let project_inspection = run_language_tools(&[
+        "language",
+        "inspect",
+        "--project",
+        manifest.to_str().unwrap(),
+    ]);
+    assert!(project_inspection.status.success());
+    let project_value: serde_json::Value =
+        serde_json::from_slice(&project_inspection.stdout).expect("project inspection is JSON");
+    assert_eq!(project_value["name"], "InspectLanguage");
+
+    let listed = run_language_tools(&["constructs", "--language", language.to_str().unwrap()]);
+    assert!(listed.status.success());
+    let constructs: serde_json::Value =
+        serde_json::from_slice(&listed.stdout).expect("construct list is JSON");
+    assert_eq!(constructs.as_array().unwrap().len(), 2);
+    let alias_list = run_language_tools(&[
+        "language",
+        "constructs",
+        "--language",
+        language.to_str().unwrap(),
+    ]);
+    assert_eq!(alias_list.stdout, listed.stdout);
+
+    let described = run_language_tools(&[
+        "describe",
+        "--language",
+        language.to_str().unwrap(),
+        "--construct",
+        "statement",
+    ]);
+    assert!(described.status.success());
+    let construct: serde_json::Value =
+        serde_json::from_slice(&described.stdout).expect("construct description is JSON");
+    assert_eq!(construct["id"], "statement");
+    let missing = run_language_tools(&[
+        "describe",
+        "--language",
+        language.to_str().unwrap(),
+        "--construct",
+        "unknown",
+    ]);
+    assert_eq!(missing.status.code(), Some(2));
 }
 
 #[test]

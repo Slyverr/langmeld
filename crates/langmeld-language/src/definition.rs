@@ -133,7 +133,14 @@ pub(crate) fn parse_language_definition_project_spec_with_sources(
     )
 }
 
-pub(crate) fn language_definition_source_paths(
+/// Returns canonical paths for a language definition and its imported modules.
+///
+/// JSON definitions return the canonical JSON file path; readable Langmeld
+/// projects return roots and imports in parser resolution order.
+///
+/// # Errors
+/// Returns file access, import, or definition parsing errors.
+pub fn language_definition_source_paths(
     root_path: &Path,
     limits: DefinitionLimits,
 ) -> Result<Vec<std::path::PathBuf>, String> {

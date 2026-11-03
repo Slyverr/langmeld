@@ -6,6 +6,7 @@ mod format;
 mod generate;
 mod host;
 mod init;
+mod language_tools;
 mod scaffold;
 
 use clap::Parser;
@@ -53,6 +54,58 @@ fn main() -> std::process::ExitCode {
             Err((code, message)) => {
                 eprintln!("langmeld: {message}");
                 std::process::ExitCode::from(code)
+            }
+        },
+        cli::Commands::Inspect(arguments) => match language_tools::inspect(arguments) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err((code, message)) => {
+                eprintln!("langmeld: {message}");
+                std::process::ExitCode::from(code)
+            }
+        },
+        cli::Commands::Constructs(arguments) => {
+            match language_tools::constructs(&arguments.language) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err((code, message)) => {
+                    eprintln!("langmeld: {message}");
+                    std::process::ExitCode::from(code)
+                }
+            }
+        }
+        cli::Commands::Describe(arguments) => {
+            match language_tools::describe(&arguments.language, &arguments.construct) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err((code, message)) => {
+                    eprintln!("langmeld: {message}");
+                    std::process::ExitCode::from(code)
+                }
+            }
+        }
+        cli::Commands::Language(arguments) => match arguments.action {
+            cli::LanguageAction::Inspect(arguments) => match language_tools::inspect(arguments) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err((code, message)) => {
+                    eprintln!("langmeld: {message}");
+                    std::process::ExitCode::from(code)
+                }
+            },
+            cli::LanguageAction::Constructs(arguments) => {
+                match language_tools::constructs(&arguments.language) {
+                    Ok(()) => std::process::ExitCode::SUCCESS,
+                    Err((code, message)) => {
+                        eprintln!("langmeld: {message}");
+                        std::process::ExitCode::from(code)
+                    }
+                }
+            }
+            cli::LanguageAction::Describe(arguments) => {
+                match language_tools::describe(&arguments.language, &arguments.construct) {
+                    Ok(()) => std::process::ExitCode::SUCCESS,
+                    Err((code, message)) => {
+                        eprintln!("langmeld: {message}");
+                        std::process::ExitCode::from(code)
+                    }
+                }
             }
         },
         cli::Commands::Check(arguments) => match check::check_workspace(arguments) {

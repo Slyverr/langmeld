@@ -27,9 +27,9 @@ pub use backend::{
     validate_backend_settings,
 };
 pub use definition::{
-    DefinitionLimits, parse_definition, parse_definition_with_limits,
-    parse_language_definition_modules, parse_language_definition_modules_with_limits,
-    parse_language_definition_modules_with_meta,
+    DefinitionLimits, language_definition_source_paths, parse_definition,
+    parse_definition_with_limits, parse_language_definition_modules,
+    parse_language_definition_modules_with_limits, parse_language_definition_modules_with_meta,
     parse_language_definition_modules_with_meta_and_limits, parse_language_definition_project,
     parse_language_definition_project_with_limits, parse_language_definition_project_with_meta,
     parse_language_definition_project_with_meta_and_limits, parse_language_definition_with_meta,
@@ -54,7 +54,8 @@ pub use project::{
     LockedExtensionDependency, ManifestExtension, ProjectBuildConfig, ProjectLockfile,
     ProjectManifest, ProjectSnapshot, compose_extensions, load_language, load_project,
     load_project_manifest, load_project_sources, load_project_with_manifest, load_source_files,
-    write_project_extensions, write_project_lockfile, write_project_manifest,
+    project_definition_source_paths, write_project_extensions, write_project_lockfile,
+    write_project_manifest,
 };
 pub use rust_codegen::generate_rust_ast;
 pub use syntax::{

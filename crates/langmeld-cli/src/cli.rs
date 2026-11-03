@@ -27,6 +27,14 @@ pub(crate) enum Commands {
     Extension(ExtensionArgs),
     /// Format one source file using a language definition.
     Format(FormatArgs),
+    /// Inspect a language definition or project.
+    Inspect(InspectionArgs),
+    /// List constructs declared by a language.
+    Constructs(LanguageArgs),
+    /// Describe one construct declared by a language.
+    Describe(DescribeArgs),
+    /// Language-oriented aliases for inspection commands.
+    Language(LanguageCommand),
     /// Parse source files and run generic workspace analysis.
     #[command(alias = "validate")]
     Check(ValidationArgs),
@@ -167,6 +175,50 @@ pub(crate) struct FormatArgs {
     pub(crate) write: bool,
 }
 
+#[derive(Clone, Debug, Args)]
+#[command(group(clap::ArgGroup::new("language_input").required(true).multiple(false)))]
+pub(crate) struct InspectionArgs {
+    /// Language definition to inspect.
+    #[arg(long, group = "language_input")]
+    pub(crate) language: Option<PathBuf>,
+    /// Project manifest to inspect.
+    #[arg(long, group = "language_input")]
+    pub(crate) project: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct LanguageArgs {
+    /// Language definition.
+    #[arg(long)]
+    pub(crate) language: PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct DescribeArgs {
+    /// Language definition.
+    #[arg(long)]
+    pub(crate) language: PathBuf,
+    /// Construct identifier.
+    #[arg(long)]
+    pub(crate) construct: String,
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum LanguageAction {
+    /// Inspect a language definition or project.
+    Inspect(InspectionArgs),
+    /// List declared constructs.
+    Constructs(LanguageArgs),
+    /// Describe a construct.
+    Describe(DescribeArgs),
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct LanguageCommand {
+    #[command(subcommand)]
+    pub(crate) action: LanguageAction,
+}
+
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub(crate) enum OutputFormat {
@@ -288,6 +340,14 @@ mod tests {
         assert!(command.render_long_help().to_string().contains("configure"));
         assert!(command.render_long_help().to_string().contains("lock"));
         assert!(command.render_long_help().to_string().contains("format"));
+        assert!(command.render_long_help().to_string().contains("inspect"));
+        assert!(
+            command
+                .render_long_help()
+                .to_string()
+                .contains("constructs")
+        );
+        assert!(command.render_long_help().to_string().contains("language"));
         assert!(command.render_long_help().to_string().contains("check"));
         assert!(command.render_long_help().to_string().contains("generate"));
         let init = command

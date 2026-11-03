@@ -10,6 +10,8 @@ use std::{
 use langmeld_core::{LanguageSpec, SourceFile, ValidatedLanguageSpec};
 use serde::{Deserialize, Serialize};
 
+use crate::DefinitionLimits;
+
 mod extensions;
 mod lock;
 pub use extensions::{
@@ -229,6 +231,48 @@ pub fn load_project_with_manifest(
         language,
         sources,
     })
+}
+
+fn project_definition_paths(
+    root: &Path,
+    manifest: &ProjectManifest,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut roots = vec![root.join(&manifest.language)];
+    roots.extend(
+        extensions::extension_order(&manifest.extensions, base_language)?
+            .into_iter()
+            .map(|index| root.join(manifest.extensions[index].path())),
+    );
+    for definition_root in roots {
+        for path in crate::definition::language_definition_source_paths(
+            &definition_root,
+            DefinitionLimits::default(),
+        )? {
+            if seen.insert(path.clone()) {
+                paths.push(path);
+            }
+        }
+    }
+    Ok(paths)
+}
+
+/// Returns canonical project definition files in base and extension resolution order.
+///
+/// This function is separate from project loading so ordinary loads do not
+/// parse imported definitions a second time merely to expose provenance.
+///
+/// # Errors
+/// Returns file access, import, ordering, or definition parsing errors.
+pub fn project_definition_source_paths(
+    manifest_path: &Path,
+    project: &ProjectSnapshot,
+) -> Result<Vec<PathBuf>, String> {
+    let root = project_root(manifest_path)?;
+    let base_language = load_language(&root.join(&project.manifest.language))?;
+    project_definition_paths(&root, &project.manifest, &base_language)
 }
 
 /// Loads explicit and discovered source files from a proposed manifest.
