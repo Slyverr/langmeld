@@ -167,6 +167,21 @@ impl std::error::Error for ConversionError {}
     output
 }
 
+/// Generates Rust source that reconstructs and validates a canonical language specification.
+///
+/// The returned module uses the public `langmeld` facade and is suitable for an
+/// initialized Rust host to own and edit as its base language model.
+#[must_use]
+pub fn generate_rust_language_spec(language: &ValidatedLanguageSpec) -> String {
+    let mut output = String::from(
+        "// Initial Rust representation of the canonical Langmeld language model.\n\
+         // Edit this model directly; Langmeld does not overwrite authored host source.\n\
+         use langmeld::core as langmeld_core;\n\n",
+    );
+    write_language_spec(&mut output, language.spec());
+    output
+}
+
 fn write_enum_types(output: &mut String, registry: &TypeRegistry) {
     for definition in &registry.enum_definitions {
         let _ = writeln!(

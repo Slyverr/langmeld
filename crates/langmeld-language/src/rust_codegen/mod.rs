@@ -1,7 +1,7 @@
 mod emit;
 mod types;
 
-pub use emit::generate_rust_ast;
+pub use emit::{generate_rust_ast, generate_rust_language_spec};
 
 use std::collections::BTreeSet;
 

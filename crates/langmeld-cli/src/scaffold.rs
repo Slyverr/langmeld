@@ -5,9 +5,12 @@ use std::{
 };
 
 use langmeld_core::{SourceFile, ValidatedLanguageSpec};
-use langmeld_language::{ProjectManifest, generate_tooling, parse_language_definition_modules};
+use langmeld_language::{
+    ProjectManifest, generate_rust_language_spec, generate_tooling,
+    parse_language_definition_modules,
+};
 
-use crate::generate::host::generate_host_scaffold;
+use crate::{cli::AuthoringMode, generate::host::generate_host_scaffold};
 
 const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.lm");
 const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.lm");
@@ -20,6 +23,7 @@ pub(crate) struct ProjectOptions {
     pub(crate) agent_skill: bool,
     pub(crate) langmeld_path: Option<PathBuf>,
     pub(crate) library_only: bool,
+    pub(crate) authoring: AuthoringMode,
 }
 
 pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
@@ -33,7 +37,7 @@ pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
     let constructs = CONSTRUCTS.to_owned();
     let language = validate_starter_definition(&root, &constructs)?;
     let dependency = local_dependency(&options)?;
-    let mut files = starter_files(&options, &slug, &dependency, &root, &constructs)?;
+    let mut files = starter_files(&options, &slug, &dependency, &root, &constructs, &language)?;
     let mut generated = generate_tooling(&language)
         .map_err(|error| format!("cannot generate starter tooling: {error}"))?;
     let host_scaffold = generate_host_scaffold(&language);
@@ -94,6 +98,7 @@ fn starter_files(
     dependency: &str,
     root: &str,
     constructs: &str,
+    language: &ValidatedLanguageSpec,
 ) -> Result<BTreeMap<PathBuf, String>, String> {
     let mut files = BTreeMap::new();
     let extension = format!("{slug}.lmprog");
@@ -131,7 +136,13 @@ fn starter_files(
     );
     add(".gitignore", include_str!("../templates/starter/gitignore"));
     add("README.md", include_str!("../templates/starter/README.md"));
-    add("src/lib.rs", include_str!("../templates/starter/lib.rs"));
+    let library_template = match options.authoring {
+        AuthoringMode::Declarative => include_str!("../templates/starter/lib.rs").to_owned(),
+        AuthoringMode::Rust | AuthoringMode::Combined => {
+            include_str!("../templates/starter/lib-rust.rs").to_owned()
+        }
+    };
+    add("src/lib.rs", &library_template);
     add(
         "src/host/backend.rs",
         include_str!("../templates/starter/backend.rs"),
@@ -151,19 +162,54 @@ fn starter_files(
         "tests/language.rs",
         include_str!("../templates/starter/language_test.rs"),
     );
-    let mut manifest = ProjectManifest::new("language/language.lm");
+    if matches!(
+        options.authoring,
+        AuthoringMode::Rust | AuthoringMode::Combined
+    ) {
+        files.insert(
+            PathBuf::from("src/language/mod.rs"),
+            include_str!("../templates/starter/language-mod.rs").to_owned(),
+        );
+        files.insert(
+            PathBuf::from("src/language/spec.rs"),
+            generate_rust_language_spec(language),
+        );
+    }
+    let mut manifest = match options.authoring {
+        AuthoringMode::Declarative => ProjectManifest::new("language/language.lm"),
+        AuthoringMode::Rust | AuthoringMode::Combined => ProjectManifest::new_rust_host(),
+    };
     manifest.source_roots.push(PathBuf::from("examples"));
+    if options.authoring == AuthoringMode::Combined {
+        manifest
+            .extensions
+            .push(langmeld_language::ManifestExtension::Path(PathBuf::from(
+                "language/extensions/starter.lm",
+            )));
+        files.insert(
+            PathBuf::from("language/extensions/starter.lm"),
+            extension_definition(&options.name),
+        );
+    }
     files.insert(PathBuf::from("langmeld.json"), manifest.to_json()?);
-    files.insert(PathBuf::from("language/language.lm"), root.to_owned());
-    files.insert(
-        PathBuf::from("language/constructs/program.lm"),
-        constructs.to_owned(),
-    );
+    if options.authoring == AuthoringMode::Declarative {
+        files.insert(PathBuf::from("language/language.lm"), root.to_owned());
+        files.insert(
+            PathBuf::from("language/constructs/program.lm"),
+            constructs.to_owned(),
+        );
+    }
     files.insert(
         PathBuf::from(format!("examples/hello.{extension}")),
         format!("program {{\n  print \"Hello from {}!\"\n}}\n", options.name),
     );
     Ok(files)
+}
+
+fn extension_definition(name: &str) -> String {
+    format!(
+        "language {name} {{\n  version: \"0.1.0\"\n  root: program\n  construct note {{\n    syntax {{ default: \"note {{text}}\" }}\n    fields {{ text: text required }}\n  }}\n}}\n",
+    )
 }
 
 fn local_dependency(options: &ProjectOptions) -> Result<String, String> {

@@ -11,7 +11,7 @@ use langmeld::{
     core::{Severity, SourceFile},
     language::{
         BackendDescriptor, BackendOptions, CompilationArtifact, Program, ProjectBuildConfig,
-        ProjectSnapshot, load_project, load_source_files,
+        ProjectSnapshot, load_source_files,
     },
 };
 
@@ -112,7 +112,7 @@ fn process(input: InputArgs, check_only: bool) -> Result<(), (u8, String)> {
 
 fn prepare(input: InputArgs) -> Result<Prepared, (u8, String)> {
     let (project, language, sources) = if input.project {
-        let project = load_project(Path::new("langmeld.json")).map_err(|error| (2, error))?;
+        let project = @CRATE@::load_project().map_err(|error| (2, error))?;
         (Some(project.clone()), project.language, project.sources)
     } else {
         let language = @CRATE@::load_language().map_err(|errors| {

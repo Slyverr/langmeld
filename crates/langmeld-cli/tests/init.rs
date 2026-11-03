@@ -296,6 +296,66 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
 }
 
 #[test]
+fn init_supports_rust_and_combined_authoring_projects() {
+    let workspace = TempWorkspace::new();
+    for (mode, slug, has_extension) in [
+        ("rust", "RustModel", false),
+        ("combined", "CombinedModel", true),
+    ] {
+        let project = workspace.project(slug);
+        let initialized = run_init(&[
+            "--no-interactive",
+            "--no-agents",
+            "--authoring",
+            mode,
+            "--path",
+            project.to_str().unwrap(),
+            "--name",
+            slug,
+        ]);
+        assert!(
+            initialized.status.success(),
+            "{mode} init failed:\n{}\n{}",
+            String::from_utf8_lossy(&initialized.stdout),
+            String::from_utf8_lossy(&initialized.stderr)
+        );
+        assert!(project.join("src/language/spec.rs").is_file());
+        assert!(!project.join("language/language.lm").exists());
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &fs::read(project.join("langmeld.json")).expect("project manifest exists"),
+        )
+        .expect("project manifest is valid JSON");
+        assert_eq!(manifest["schema_version"], 2);
+        assert_eq!(manifest["language_source"]["kind"], "rust_host");
+        if has_extension {
+            assert!(project.join("language/extensions/starter.lm").is_file());
+            assert_eq!(manifest["extensions"].as_array().unwrap().len(), 1);
+        } else {
+            assert!(manifest["extensions"].as_array().is_none());
+        }
+
+        let cargo = Command::new(env!("CARGO"))
+            .args(["test", "--offline", "--manifest-path"])
+            .arg(project.join("Cargo.toml"))
+            .output()
+            .expect("generated Rust-authored project tests start");
+        assert!(
+            cargo.status.success(),
+            "generated {mode} project tests failed:\n{}\n{}",
+            String::from_utf8_lossy(&cargo.stdout),
+            String::from_utf8_lossy(&cargo.stderr)
+        );
+        let checked = run_project_host(&project, &["check", "--project"]);
+        assert!(
+            checked.status.success(),
+            "generated {mode} host could not load its project:\n{}\n{}",
+            String::from_utf8_lossy(&checked.stdout),
+            String::from_utf8_lossy(&checked.stderr)
+        );
+    }
+}
+
+#[test]
 fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
     let workspace = TempWorkspace::new();
     let project = workspace.project("locked-language");
@@ -1433,7 +1493,7 @@ fn interactive_cancel_does_not_create_files() {
         .stdin
         .take()
         .expect("stdin is piped")
-        .write_all(b"y\nn\n")
+        .write_all(b"y\ndeclarative\nn\n")
         .expect("cancel answer is written");
     let output = child.wait_with_output().expect("interactive process exits");
     assert!(
@@ -1456,7 +1516,7 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("langmeld interactive process starts");
-    let input = format!("{}\nPromptedLang\nn\ny\n", project.display());
+    let input = format!("{}\nPromptedLang\nn\ndeclarative\ny\n", project.display());
     child
         .stdin
         .take()
@@ -1474,6 +1534,7 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
     assert!(transcript.contains("Project directory"));
     assert!(transcript.contains("Language name"));
     assert!(transcript.contains("Include a command-line host?"));
+    assert!(transcript.contains("Authoring mode"));
     assert!(transcript.contains("PROJECT PREVIEW"));
     assert!(!project.join("src/main.rs").exists());
 }

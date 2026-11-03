@@ -1,8 +1,9 @@
 # @NAME@
 
-A small Rust language project using Langmeld. The language model is split into
-`language/language.lm` and `language/constructs/`; Rust host code lives in
-`src/`, and runnable source examples live in `examples/`.
+A Rust language project using Langmeld. `langmeld init` lets you choose a
+declarative model in `language/`, a Rust model in `src/language/`, or a Rust
+base model with local `.lm` extensions. Rust host code lives in `src/`, and
+runnable source examples live in `examples/`.
 
 ## Try it
 
@@ -13,9 +14,9 @@ cargo run --bin @SLUG@-host -- check --project
 cargo run --bin @SLUG@-host -- build --project
 ```
 
-`src/lib.rs` loads the modular `.lm` definition and prepares the generic parser.
-Use it as the starting point for host-specific lexing, parsing, analysis, or
-output. Add new constructs in their own files under `language/constructs/`.
+`src/lib.rs` loads and validates the selected language model and prepares the
+generic parser. Use it as the starting point for host-specific lexing, parsing,
+analysis, or output. Keep `.lm` definitions modular under `language/`.
 The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
 commands use `langmeld.json`; source paths can also be passed directly.
 `run` calls `run_sources` in `src/lib.rs`, where this starter reports that

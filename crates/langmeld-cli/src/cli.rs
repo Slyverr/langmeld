@@ -285,6 +285,21 @@ pub(crate) struct InitArgs {
     /// Create a library-only package without the command-line host.
     #[arg(long)]
     pub(crate) library_only: bool,
+    /// Select the language-definition authoring frontend.
+    #[arg(long, value_enum)]
+    pub(crate) authoring: Option<AuthoringMode>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub(crate) enum AuthoringMode {
+    /// Author the language model in modular `.lm` files.
+    #[default]
+    Declarative,
+    /// Author the canonical language model in Rust.
+    Rust,
+    /// Author a Rust base model and extend it with local `.lm` files.
+    Combined,
 }
 
 #[derive(Debug, Args)]

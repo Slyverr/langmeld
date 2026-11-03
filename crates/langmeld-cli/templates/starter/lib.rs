@@ -2,16 +2,21 @@
 
 use langmeld::core::{Diagnostic, SourceFile, ValidatedLanguageSpec};
 use langmeld::language::{
-    ConfiguredLanguageParser, ParseResult, Program, WorkspaceAnalysis,
+    ConfiguredLanguageParser, ParseResult, Program, ProjectSnapshot, WorkspaceAnalysis,
     analyze_workspace_with_host_callbacks,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod host;
 
 /// Loads the modular language definition from `language/`.
 pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     langmeld::language::parse_language_definition_project(&language_definition_path())
+}
+
+/// Loads the declarative project definition and configured program sources.
+pub fn load_project() -> Result<ProjectSnapshot, String> {
+    langmeld::language::load_project(Path::new("langmeld.json"))
 }
 
 /// Prepares the declarative parser for the language.

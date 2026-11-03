@@ -4,10 +4,10 @@ use std::{
 };
 
 use console::style;
-use inquire::{Confirm, Text};
+use inquire::{Confirm, Select, Text};
 
 use crate::{
-    cli::InitArgs,
+    cli::{AuthoringMode, InitArgs},
     scaffold::{ProjectOptions, create_project, valid_language_name},
 };
 
@@ -39,6 +39,11 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
 
     let library_only = arguments.library_only
         || (interactive && !prompt_confirm("Include a command-line host?", true)?);
+    let authoring = match arguments.authoring {
+        Some(authoring) => authoring,
+        None if interactive => prompt_authoring_mode()?,
+        None => AuthoringMode::default(),
+    };
 
     let agents = if arguments.no_agents {
         false
@@ -64,6 +69,7 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
         agent_skill,
         langmeld_path: arguments.langmeld_path,
         library_only,
+        authoring,
     };
     print_preview(&options);
     if interactive && !prompt_confirm("Create this project?", true)? {
@@ -79,7 +85,7 @@ fn print_heading() {
         "\n  {}  {}\n  {}\n",
         style("◈").cyan().bold(),
         style("LANGMELD").bold(),
-        style("Build a language project with a Rust host and modular .lm definitions.").dim()
+        style("Build a language project with Rust and modular .lm definitions.").dim()
     );
 }
 
@@ -95,17 +101,35 @@ fn print_preview(options: &ProjectOptions) {
         style("Location").dim(),
         style(options.path.display()).cyan()
     );
+    println!(
+        "  {}  {}",
+        style("Authoring").dim(),
+        match options.authoring {
+            AuthoringMode::Declarative => "Rust host + declarative .lm definitions",
+            AuthoringMode::Rust => "Rust-authored language model",
+            AuthoringMode::Combined => "Rust base model + local .lm extensions",
+        }
+    );
     println!("  {}", style("Structure").dim());
     let mut entries = vec![
         "Cargo.toml",
-        "language/language.lm",
-        "language/constructs/program.lm",
         "src/lib.rs",
         "src/host/",
         "examples/hello.<extension>",
         "tests/language.rs",
         ".langmeld/generated/",
     ];
+    match options.authoring {
+        AuthoringMode::Declarative => {
+            entries.insert(1, "language/language.lm");
+            entries.insert(2, "language/constructs/program.lm");
+        }
+        AuthoringMode::Rust => entries.insert(1, "src/language/spec.rs"),
+        AuthoringMode::Combined => {
+            entries.insert(1, "src/language/spec.rs");
+            entries.insert(2, "language/extensions/starter.lm");
+        }
+    }
     if !options.library_only {
         entries.insert(4, "src/main.rs (language CLI)");
     }
@@ -127,6 +151,39 @@ fn print_preview(options: &ProjectOptions) {
         "  {}",
         style("The Rust host and language definition are ready to edit.").dim()
     );
+}
+
+fn prompt_authoring_mode() -> Result<AuthoringMode, String> {
+    if !io::stdin().is_terminal() {
+        return match prompt_text(
+            "Authoring mode (declarative, rust, combined)",
+            "declarative",
+        )?
+        .to_ascii_lowercase()
+        .as_str()
+        {
+            "declarative" => Ok(AuthoringMode::Declarative),
+            "rust" => Ok(AuthoringMode::Rust),
+            "combined" => Ok(AuthoringMode::Combined),
+            _ => Err("choose declarative, rust, or combined".to_owned()),
+        };
+    }
+    let choices = [
+        "Declarative .lm files (recommended for most languages)",
+        "Rust API (maximum host control)",
+        "Combined: Rust base model with local .lm extensions",
+    ];
+    let choice = Select::new(
+        "How do you want to author the language model?",
+        choices.to_vec(),
+    )
+    .prompt()
+    .map_err(|error| format!("language authoring prompt failed: {error}"))?;
+    Ok(match choice {
+        value if value == choices[1] => AuthoringMode::Rust,
+        value if value == choices[2] => AuthoringMode::Combined,
+        _ => AuthoringMode::Declarative,
+    })
 }
 
 pub(crate) fn prompt_text(message: &str, default: &str) -> Result<String, String> {

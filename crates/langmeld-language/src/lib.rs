@@ -60,7 +60,7 @@ pub use project::{
     project_definition_source_paths, write_project_extensions, write_project_lockfile,
     write_project_manifest,
 };
-pub use rust_codegen::generate_rust_ast;
+pub use rust_codegen::{generate_rust_ast, generate_rust_language_spec};
 pub use syntax::{
     CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,
     SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,
