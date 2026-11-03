@@ -1,0 +1,87 @@
+use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, MapKeyKind};
+
+#[test]
+fn language_spec_round_trips_nested_types_and_flattened_field_kinds() {
+    let spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 1,
+        "name": "Canvas DSL",
+        "version": "0.1.0",
+        "root": "scene",
+        "constructs": [{
+            "id": "scene",
+            "syntax": ["scene {name}"],
+            "fields": [{ "name": "name", "kind": "identifier" }, {
+                "name": "properties",
+                "kind": "map",
+                "key": "text",
+                "value": { "kind": "list", "item": { "kind": "number" } }
+            }]
+        }]
+    }))
+    .expect("valid language spec deserializes");
+
+    let properties = &spec.constructs[0].fields[1];
+    assert_eq!(properties.name, "properties");
+    assert!(matches!(
+        properties.kind,
+        FieldKind::Map {
+            key: MapKeyKind::Text,
+            ..
+        }
+    ));
+    assert!(spec.constructs[0].fields[0].required);
+
+    let serialized = serde_json::to_value(&spec).expect("language spec serializes");
+    assert_eq!(
+        serialized["constructs"][0]["fields"][0]["kind"],
+        "identifier"
+    );
+    assert_eq!(serialized["constructs"][0]["fields"][1]["key"], "text");
+    assert_eq!(
+        serde_json::from_value::<LanguageSpec>(serialized).expect("round trip deserializes"),
+        spec
+    );
+}
+
+#[test]
+fn optional_schema_collections_default_and_are_omitted_when_empty() {
+    let spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 1,
+        "name": "Tiny",
+        "version": "0.1.0",
+        "root": "program",
+        "constructs": [{ "id": "program", "syntax": ["program"] }]
+    }))
+    .expect("omitted optional collections deserialize");
+
+    assert!(spec.categories.is_empty());
+    assert!(spec.rules.is_empty());
+    assert!(spec.enums.is_empty());
+    assert!(spec.types.is_empty());
+    assert!(spec.behaviors.is_empty());
+
+    let serialized = serde_json::to_value(&spec).expect("language spec serializes");
+    for key in ["categories", "rules", "enums", "types", "behaviors"] {
+        assert!(serialized.get(key).is_none(), "{key} should be omitted");
+    }
+}
+
+#[test]
+fn closed_schema_rejects_unknown_language_and_constraint_properties() {
+    let invalid_language = serde_json::json!({
+        "schema_version": 1,
+        "name": "Tiny",
+        "version": "0.1.0",
+        "root": "program",
+        "extra": true,
+        "constructs": []
+    });
+    assert!(serde_json::from_value::<LanguageSpec>(invalid_language).is_err());
+
+    let invalid_constraints = serde_json::json!({
+        "name": "value",
+        "kind": "number",
+        "constraints": { "surprise": true }
+    });
+    assert!(serde_json::from_value::<FieldSpec>(invalid_constraints).is_err());
+}
