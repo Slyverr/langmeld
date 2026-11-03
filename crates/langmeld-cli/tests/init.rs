@@ -77,6 +77,21 @@ fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Out
         .expect("langmeld check starts")
 }
 
+fn run_host(
+    manifest: &std::path::Path,
+    current_dir: &std::path::Path,
+    arguments: &[&str],
+) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["host", "--project"])
+        .arg(manifest)
+        .arg("--")
+        .args(arguments)
+        .current_dir(current_dir)
+        .output()
+        .expect("langmeld host starts")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -293,6 +308,91 @@ fn check_and_validate_report_workspace_diagnostics_with_stable_exit_codes() {
         String::from_utf8_lossy(&direct.stderr)
     );
     assert!(String::from_utf8_lossy(&direct.stdout).contains("no issues found"));
+}
+
+#[test]
+fn host_trampoline_selects_default_binary_forwards_arguments_and_exit_status() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("host-trampoline");
+    fs::create_dir_all(project.join("src/bin")).expect("binary source directory is created");
+    fs::create_dir_all(project.join("nested")).expect("nested working directory is created");
+    fs::write(
+        project.join("Cargo.toml"),
+        r#"[package]
+name = "host-trampoline"
+version = "0.1.0"
+edition = "2024"
+default-run = "runner"
+
+[[bin]]
+name = "runner"
+path = "src/main.rs"
+
+[[bin]]
+name = "other"
+path = "src/bin/other.rs"
+"#,
+    )
+    .expect("Cargo manifest is written");
+    fs::write(
+        project.join("src/main.rs"),
+        r#"fn main() {
+    let arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if arguments.first().is_some_and(|argument| argument == "exit-7") {
+        std::process::exit(7);
+    }
+    println!("runner:{}", arguments.join("|"));
+}
+"#,
+    )
+    .expect("default host binary is written");
+    fs::write(
+        project.join("src/bin/other.rs"),
+        "fn main() { println!(\"wrong binary\"); }\n",
+    )
+    .expect("secondary host binary is written");
+    fs::write(
+        project.join("langmeld.json"),
+        r#"{"schema_version":1,"language":"language.lm","sources":["source.calc"]}"#,
+    )
+    .expect("project manifest is written");
+
+    let forwarded = run_host(
+        std::path::Path::new("../langmeld.json"),
+        &project.join("nested"),
+        &["--flag", "two words"],
+    );
+    assert!(
+        forwarded.status.success(),
+        "host trampoline failed:\n{}\n{}",
+        String::from_utf8_lossy(&forwarded.stdout),
+        String::from_utf8_lossy(&forwarded.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&forwarded.stdout),
+        "runner:--flag|two words\n"
+    );
+
+    let exit = run_host(std::path::Path::new("langmeld.json"), &project, &["exit-7"]);
+    assert_eq!(exit.status.code(), Some(7));
+}
+
+#[test]
+fn host_trampoline_reports_projects_without_a_cli_target() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("no-host-cli");
+    fs::create_dir_all(project.join("src")).expect("library source directory is created");
+    fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"no-host-cli\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("library Cargo manifest is written");
+    fs::write(project.join("src/lib.rs"), "pub fn value() {}\n")
+        .expect("library source is written");
+    fs::write(project.join("langmeld.json"), "{}\n").expect("manifest is written");
+    let missing = run_host(std::path::Path::new("langmeld.json"), &project, &[]);
+    assert_eq!(missing.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("no Rust CLI target"));
 }
 
 #[test]

@@ -59,6 +59,8 @@ Use `langmeld check --project langmeld.json` (or its `validate` alias) to parse
 the configured sources and run generic workspace analysis. This command cannot
 register a language's Rust callbacks; callback-dependent languages must use a
 host integration that binds those implementations.
+For a project with a Rust binary target, `langmeld host -- --help` forwards
+arguments to its `package.default-run` target (or its only binary target).
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default

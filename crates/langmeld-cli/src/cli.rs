@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 use clap::{Args, Parser, Subcommand};
 
@@ -24,6 +24,8 @@ pub(crate) enum Commands {
     /// Parse source files and run generic workspace analysis.
     #[command(alias = "validate")]
     Check(ValidationArgs),
+    /// Run the initialized project's Rust host CLI.
+    Host(HostArgs),
     /// Rebuild generated language and editor tooling.
     Generate(GenerateArgs),
 }
@@ -85,6 +87,16 @@ pub(crate) struct ValidationArgs {
     /// Diagnostic output format.
     #[arg(long, value_enum, default_value = "text")]
     pub(crate) format: OutputFormat,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct HostArgs {
+    /// Project manifest beside the Rust host's Cargo.toml.
+    #[arg(long, default_value = "langmeld.json")]
+    pub(crate) project: PathBuf,
+    /// Arguments forwarded to the project's CLI; place them after `--`.
+    #[arg(last = true, allow_hyphen_values = true)]
+    pub(crate) arguments: Vec<OsString>,
 }
 
 #[derive(Debug, Args)]

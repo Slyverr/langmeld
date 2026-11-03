@@ -2,6 +2,7 @@ mod check;
 mod cli;
 mod configure;
 mod generate;
+mod host;
 mod init;
 mod scaffold;
 
@@ -31,6 +32,7 @@ fn main() -> std::process::ExitCode {
                 std::process::ExitCode::from(code)
             }
         },
+        cli::Commands::Host(arguments) => host::run_host(&arguments),
         cli::Commands::Generate(arguments) => match generate::generate(arguments) {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(message) => {
