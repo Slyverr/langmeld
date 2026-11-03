@@ -1,0 +1,17 @@
+[package]
+name = "langmeld"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Public Rust facade for the Langmeld language framework."
+
+[features]
+default = []
+
+[dependencies]
+langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+langmeld-expression = { version = "0.1.0", path = "../langmeld-expression" }
+langmeld-language = { version = "0.1.0", path = "../langmeld-language" }
+
+[lints]
+workspace = true

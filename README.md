@@ -1,8 +1,9 @@
 # Langmeld
 
 Langmeld is an early-stage Rust language framework. The workspace currently
-contains `langmeld-core` for source snapshots, stable source identities, byte
-spans, structured diagnostics, and validated language definitions, plus
+contains the `langmeld` facade and `langmeld-core` for source snapshots, stable
+source identities, byte spans, structured diagnostics, and validated language
+definitions, plus
 `langmeld-expression` for configurable expression parsing and host-defined type
 and runtime rules, and `langmeld-language` for source-spanned tokens, the
 built-in lexer, custom lexer contracts, and a generic parser that builds typed
@@ -28,6 +29,11 @@ represented. Its grammar has not been checked with the Tree-sitter CLI in this
 environment. The library also exposes a structural formatter that preserves
 comments and strings, normalizes CRLF to LF, and supports space or tab
 indentation for valid programs.
+
+The `langmeld` facade crate exposes the core schema, expression APIs, and
+language tooling under `langmeld::{core, expression, language}`. Its default
+feature set is empty; it does not advertise optional packages that are still
+planned.
 
 ## Workspace checks
 
