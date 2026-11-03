@@ -74,10 +74,13 @@ settings, required IR, artifacts, and source maps. Workspace backends apply the
 same checks across multiple sources and require explicit source indexes for
 ambiguous mappings. The optional Tree-sitter exporter emits a grammar for
 compatible declarative syntax and reports when a definition cannot be
-represented. Its grammar has not been checked with the Tree-sitter CLI in this
-environment. The library also exposes a structural formatter that preserves
-comments and strings, normalizes CRLF to LF, and supports space or tab
-indentation for valid programs.
+represented. CI is configured to compile the generated Ledger grammar and a
+representative grammar with enums, lists, maps, and nested properties using the
+Tree-sitter CLI; it runs highlight queries for both and parses the complex
+fixture. These checks validate grammar and query syntax, not semantic
+equivalence with Langmeld. The library also exposes a structural formatter
+that preserves comments and strings, normalizes CRLF to LF, and supports space
+or tab indentation for valid programs.
 
 ## Compatibility
 

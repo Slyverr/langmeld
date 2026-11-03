@@ -1,5 +1,6 @@
 use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind};
 use langmeld_language::generate_tree_sitter;
+use std::{env, fs, path::Path};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
     LanguageBuilder::new("Demo / Language")
@@ -66,7 +67,7 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     }));
 
     let grammar = &artifacts["tree-sitter/grammar.js"];
-    assert!(grammar.contains("name: \"demo-language\""));
+    assert!(grammar.contains("name: \"demo_language\""));
     assert!(grammar.contains("source_file: $ => seq($.lm_construct_program"));
     assert!(grammar.contains(
         r#"lm_string: $ => token(seq("\"", repeat(choice(/[^"\\\r\n]/, /\\[nrt"\\]/)), "\""))"#
@@ -74,19 +75,33 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(grammar.contains("field(\"name\", $.lm_identifier)"));
     assert!(grammar.contains("field(\"value\", $.lm_number)"));
     assert!(grammar.contains("field(\"attrs\", $.lm_type_"));
-    assert!(grammar.contains("optional(seq($.lm_construct_binding"));
+    assert!(grammar.contains(
+        "choice(repeat($.lm_separator), seq(repeat($.lm_separator), $.lm_construct_binding"
+    ));
     assert!(grammar.contains("repeat(seq(repeat($.lm_separator), $.lm_construct_binding))"));
-    assert!(grammar.contains("optional(seq(field(\"note\""));
-    assert!(grammar.contains("repeat(seq(\",\", repeat($.lm_newline)"));
+    assert!(grammar.contains("choice(repeat($.lm_newline), seq(repeat($.lm_newline), $.lm_string"));
+    assert!(grammar.contains("field(\"note\", seq(\"note\", \":\", $.lm_string))"));
+    assert!(
+        grammar.contains("field(\"key\", $.lm_identifier), \":\", field(\"value\", $.lm_string)")
+    );
     assert!(!grammar.contains("choice(\",\", $.lm_newline)"));
-    assert!(!grammar.contains("repeat1(choice(\",\", \";\", $.lm_newline)), field(\"key\""));
     assert!(artifacts["tree-sitter/README.md"].contains("conventional `#` line comments"));
     assert!(artifacts["tree-sitter/README.md"].contains("Langmeld validation"));
+    assert!(
+        artifacts["tree-sitter/README.md"].contains("langmeld generate --project-root <project>")
+    );
+    assert!(
+        artifacts["tree-sitter/README.md"].contains("langmeld::language::generate_tree_sitter")
+    );
+    assert!(
+        artifacts["tree-sitter/README.md"]
+            .contains("copy this directory to a standalone grammar location")
+    );
 
     let metadata: serde_json::Value =
         serde_json::from_str(&artifacts["tree-sitter/tree-sitter.json"])
             .expect("Tree-sitter metadata is JSON");
-    assert_eq!(metadata["grammars"][0]["name"], "demo-language");
+    assert_eq!(metadata["grammars"][0]["name"], "demo_language");
     let package: serde_json::Value = serde_json::from_str(&artifacts["tree-sitter/package.json"])
         .expect("package metadata is JSON");
     assert_eq!(package["name"], "tree-sitter-demo-language");
@@ -119,4 +134,37 @@ fn unsupported_custom_parsers_fail_without_returning_partial_artifacts() {
     let error = generate_tree_sitter(&language).expect_err("custom parser is not representable");
     assert!(error.contains("custom parser `host-custom`"));
     assert!(error.contains("construct `custom`"));
+}
+
+#[test]
+#[ignore = "emits a complex grammar fixture for the pinned Tree-sitter CLI check"]
+fn write_tree_sitter_cli_validation_fixture() {
+    let output = env::var_os("LANGMELD_TREE_SITTER_FIXTURE_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("LANGMELD_TREE_SITTER_FIXTURE_DIR must name a temporary output directory");
+    fs::create_dir_all(&output).expect("fixture output directory is created");
+
+    for (path, contents) in generate_tree_sitter(&language()).expect("fixture exports") {
+        let relative = path
+            .strip_prefix("tree-sitter/")
+            .expect("generated artifact is under tree-sitter/");
+        let relative = Path::new(relative);
+        assert!(
+            relative
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_))),
+            "generated path must remain relative: {}",
+            relative.display()
+        );
+        let destination = output.join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).expect("artifact parent directory is created");
+        }
+        fs::write(destination, contents).expect("generated artifact is written");
+    }
+    fs::write(
+        output.join("sample.demo"),
+        "program {\n  let fast demo -> 42 tags [\"one\", \"two\"] attrs {count: \"2\"} config {note: \"sample\"}\n}\n",
+    )
+    .expect("sample program is written");
 }
