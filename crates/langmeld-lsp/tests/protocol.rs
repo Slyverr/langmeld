@@ -105,6 +105,22 @@ fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
                 }
             }
         }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": uri, "version": 2 },
+                "contentChanges": [{ "text": "program {\nprint \"hello\"\n}\n" }]
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": uri, "version": 1 },
+                "contentChanges": [{ "text": "obsolete" }]
+            }
+        }),
         json!({ "jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": null }),
         json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
     ];
@@ -134,11 +150,11 @@ fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
         String::from_utf8_lossy(&output.stderr)
     );
     let responses = read_frames(&output.stdout);
-    assert_eq!(responses.len(), 3);
+    assert_eq!(responses.len(), 4);
     assert_eq!(responses[0]["id"], 1);
     assert_eq!(
         responses[0]["result"]["capabilities"]["textDocumentSync"]["change"],
-        0
+        2
     );
     assert_eq!(responses[1]["method"], "textDocument/publishDiagnostics");
     assert!(
@@ -148,5 +164,15 @@ fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
             .is_empty()
     );
     assert_eq!(responses[1]["params"]["version"], 1);
-    assert_eq!(responses[2]["id"], 2);
+    assert_eq!(responses[2]["method"], "textDocument/publishDiagnostics");
+    assert_eq!(responses[2]["params"]["version"], 2);
+    assert!(
+        responses[2]["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "updated diagnostics: {}",
+        responses[2]["params"]["diagnostics"]
+    );
+    assert_eq!(responses[3]["id"], 2);
 }

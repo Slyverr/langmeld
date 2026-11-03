@@ -1,7 +1,7 @@
 //! A small LSP transport and diagnostic server for declarative Langmeld languages.
 
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     io::{self, BufRead, Read, Write},
 };
 
@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES: usize = 8 * 1024 * 1024;
 
 /// Creates a generic parser for a language that does not require host callbacks.
 ///
@@ -33,7 +34,7 @@ pub fn configure_language(
         .map_err(|error| error.to_string())
 }
 
-/// Serves initialize, shutdown, textDocument/didOpen, and diagnostics messages.
+/// Serves document synchronization and diagnostics messages.
 ///
 /// Returns true when the client sent shutdown before exit.
 ///
@@ -48,7 +49,7 @@ pub fn serve<R: BufRead, W: Write>(
     let mut server = Server {
         language,
         parser,
-        documents: HashSet::new(),
+        documents: HashMap::new(),
         shutdown: false,
     };
 
@@ -82,8 +83,13 @@ pub fn serve<R: BufRead, W: Write>(
 struct Server {
     language: ValidatedLanguageSpec,
     parser: ConfiguredLanguageParser,
-    documents: HashSet<String>,
+    documents: HashMap<String, OpenDocument>,
     shutdown: bool,
+}
+
+struct OpenDocument {
+    version: i64,
+    source: SourceFile,
 }
 
 impl Server {
@@ -105,6 +111,13 @@ impl Server {
             "textDocument/didOpen" => {
                 if let Some(notification) = message.get("params") {
                     self.open_document(notification)
+                } else {
+                    Vec::new()
+                }
+            }
+            "textDocument/didChange" => {
+                if let Some(notification) = message.get("params") {
+                    self.change_document(notification)
                 } else {
                     Vec::new()
                 }
@@ -141,27 +154,80 @@ impl Server {
         let Some(document) = params.get("textDocument") else {
             return Vec::new();
         };
-        let (Some(uri), Some(text)) = (
+        let (Some(uri), Some(version), Some(text)) = (
             document.get("uri").and_then(Value::as_str),
+            document.get("version").and_then(Value::as_i64),
             document.get("text").and_then(Value::as_str),
         ) else {
             return Vec::new();
         };
-        let version = document.get("version").and_then(Value::as_i64).unwrap_or(0);
+        if self
+            .documents
+            .get(uri)
+            .is_some_and(|open| version <= open.version)
+        {
+            return Vec::new();
+        }
+        if text.len() > MAX_DOCUMENT_BYTES {
+            return Vec::new();
+        }
         let source = SourceFile::new(uri, text);
-        let parsed = self.parser.parse(&source);
+        self.documents.insert(
+            uri.to_owned(),
+            OpenDocument {
+                version,
+                source: source.clone(),
+            },
+        );
+        self.publish_document(&source, version)
+    }
+
+    fn change_document(&mut self, params: &Value) -> Vec<Value> {
+        let (Some(uri), Some(version), Some(changes)) = (
+            params.pointer("/textDocument/uri").and_then(Value::as_str),
+            params
+                .pointer("/textDocument/version")
+                .and_then(Value::as_i64),
+            params.get("contentChanges").and_then(Value::as_array),
+        ) else {
+            return Vec::new();
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        if version <= document.version || changes.is_empty() {
+            return Vec::new();
+        }
+        let Some(text) = apply_content_changes(&document.source.text, changes) else {
+            return Vec::new();
+        };
+        if text.len() > MAX_DOCUMENT_BYTES {
+            return Vec::new();
+        }
+        let source = SourceFile::new(uri, text);
+        self.documents.insert(
+            uri.to_owned(),
+            OpenDocument {
+                version,
+                source: source.clone(),
+            },
+        );
+        self.publish_document(&source, version)
+    }
+
+    fn publish_document(&self, source: &SourceFile, version: i64) -> Vec<Value> {
+        let parsed = self.parser.parse(source);
         let mut diagnostics = parsed.diagnostics.clone();
-        for item in analyze_workspace(&self.language, &[(&source, &parsed.program)]) {
+        for item in analyze_workspace(&self.language, &[(source, &parsed.program)]) {
             diagnostics.push(item.diagnostic);
         }
-        self.documents.insert(uri.to_owned());
         vec![json!({
             "jsonrpc": "2.0",
             "method": "textDocument/publishDiagnostics",
             "params": {
-                "uri": uri,
+                "uri": source.name.as_str(),
                 "version": version,
-                "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(&source, item)).collect::<Vec<_>>()
+                "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(source, item)).collect::<Vec<_>>()
             }
         })]
     }
@@ -173,7 +239,7 @@ fn initialize_response(id: Value) -> Value {
         "id": id,
         "result": {
             "capabilities": {
-                "textDocumentSync": { "openClose": true, "change": 0 }
+                "textDocumentSync": { "openClose": true, "change": 2 }
             },
             "serverInfo": {
                 "name": "langmeld-lsp",
@@ -200,6 +266,81 @@ fn lsp_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) -> Value {
         "source": "langmeld",
         "message": diagnostic.message,
     })
+}
+
+fn apply_content_changes(current: &str, changes: &[Value]) -> Option<String> {
+    let mut text = current.to_owned();
+    for change in changes {
+        let replacement = change.get("text")?.as_str()?;
+        let Some(range) = change.get("range").filter(|range| !range.is_null()) else {
+            if replacement.len() > MAX_DOCUMENT_BYTES {
+                return None;
+            }
+            text.clear();
+            text.push_str(replacement);
+            continue;
+        };
+        let start_line = u32::try_from(range.pointer("/start/line")?.as_u64()?).ok()?;
+        let start_character = u32::try_from(range.pointer("/start/character")?.as_u64()?).ok()?;
+        let end_line = u32::try_from(range.pointer("/end/line")?.as_u64()?).ok()?;
+        let end_character = u32::try_from(range.pointer("/end/character")?.as_u64()?).ok()?;
+        let start = offset_at_position(&text, start_line, start_character)?;
+        let end = offset_at_position(&text, end_line, end_character)?;
+        if start > end {
+            return None;
+        }
+        let result_len = text
+            .len()
+            .checked_sub(end - start)?
+            .checked_add(replacement.len())?;
+        if result_len > MAX_DOCUMENT_BYTES {
+            return None;
+        }
+        if let Some(length) = change.get("rangeLength").filter(|length| !length.is_null()) {
+            let length = usize::try_from(length.as_u64()?).ok()?;
+            if length != text[start..end].encode_utf16().count() {
+                return None;
+            }
+        }
+        text.replace_range(start..end, replacement);
+        if text.len() > MAX_DOCUMENT_BYTES {
+            return None;
+        }
+    }
+    Some(text)
+}
+
+fn offset_at_position(source: &str, target_line: u32, target_character: u32) -> Option<usize> {
+    let mut line_start = 0;
+    for line in 0..=target_line {
+        if line == target_line {
+            let line_end = source[line_start..]
+                .find('\n')
+                .map_or(source.len(), |offset| line_start + offset);
+            let content_end = if line_end > line_start && source.as_bytes()[line_end - 1] == b'\r' {
+                line_end - 1
+            } else {
+                line_end
+            };
+            let content = &source[line_start..content_end];
+            let mut character = 0_u32;
+            for (offset, value) in content.char_indices() {
+                if character == target_character {
+                    return Some(line_start + offset);
+                }
+                let units = u32::try_from(value.len_utf16()).ok()?;
+                let next = character.checked_add(units)?;
+                if target_character < next {
+                    return None;
+                }
+                character = next;
+            }
+            return (character == target_character).then_some(content_end);
+        }
+        let newline = source[line_start..].find('\n')?;
+        line_start = line_start.checked_add(newline + 1)?;
+    }
+    None
 }
 
 fn lsp_position(text: &str, offset: usize) -> Value {
@@ -305,6 +446,63 @@ mod tests {
             lsp_position("😀x\nπ", 7),
             json!({ "line": 1, "character": 0 })
         );
+    }
+
+    #[test]
+    fn content_changes_apply_utf16_ranges_sequentially() {
+        let updated = apply_content_changes(
+            "a😀b\r\nnext",
+            &[json!({
+                "range": {
+                    "start": { "line": 0, "character": 1 },
+                    "end": { "line": 0, "character": 3 }
+                },
+                "rangeLength": 2,
+                "text": "x"
+            })],
+        );
+        assert_eq!(updated.as_deref(), Some("axb\r\nnext"));
+    }
+
+    #[test]
+    fn content_changes_reject_invalid_ranges_without_partial_output() {
+        let invalid = apply_content_changes(
+            "a😀b",
+            &[json!({
+                "range": {
+                    "start": { "line": 0, "character": 2 },
+                    "end": { "line": 0, "character": 3 }
+                },
+                "text": "x"
+            })],
+        );
+        assert_eq!(invalid, None);
+
+        let invalid_length = apply_content_changes(
+            "abc",
+            &[json!({
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 0, "character": 2 }
+                },
+                "rangeLength": 1,
+                "text": "x"
+            })],
+        );
+        assert_eq!(invalid_length, None);
+    }
+
+    #[test]
+    fn content_changes_replace_full_document_and_enforce_size_limit() {
+        let updated = apply_content_changes("old", &[json!({ "text": "new" })]);
+        assert_eq!(updated.as_deref(), Some("new"));
+        let too_large = "x".repeat(MAX_DOCUMENT_BYTES + 1);
+        assert_eq!(
+            apply_content_changes("old", &[json!({ "text": too_large })]),
+            None
+        );
+        assert_eq!(offset_at_position("a\n", 1, 0), Some(2));
+        assert_eq!(offset_at_position("a", 1, 0), None);
     }
 
     #[test]
