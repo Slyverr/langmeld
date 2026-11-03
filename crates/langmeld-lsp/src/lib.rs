@@ -11,8 +11,8 @@ use langmeld_core::{BehaviorStage, Diagnostic, Severity, SourceFile, Span, Valid
 use langmeld_language::{
     AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
     ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
-    FormatOptions, ParseResult, PreparedLanguage, Program, ProjectSnapshot, SemanticHook,
-    SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
+    FormatOptions, ParseLimits, ParseResult, PreparedLanguage, Program, ProjectSnapshot,
+    SemanticHook, SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
     WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
     WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
     analyze_workspace_with_host_callbacks, format_parsed_source, load_project,
@@ -34,7 +34,11 @@ const MAX_DOCUMENT_SYMBOLS: usize = 10_000;
 const MAX_FORMAT_TAB_SIZE: usize = 32;
 const MAX_RENAME_NAME_BYTES: usize = 1024;
 const MAX_RENAME_EDITS: usize = 100_000;
+const MAX_PROJECT_NAVIGATION_AST_NODES: usize = 1_000_000;
+const MAX_PROJECT_NAVIGATION_SYNTAX_TOKENS: usize = 2_000_000;
+const MAX_PROJECT_NAVIGATION_PATTERN_STEPS: usize = 20_000_000;
 const PROJECT_WATCHER_REGISTRATION_ID: &str = "langmeld-project-watchers";
+const PROJECT_WATCHER_REFRESH_ID: &str = "langmeld-project-watchers-refresh";
 
 /// LSP completion item kind supported by the host completion API.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -353,9 +357,13 @@ impl LanguageServerConfig {
                         "project snapshot language does not match the configured parser".to_owned(),
                     );
                 }
+                let (documents, navigation_index_limited) =
+                    index_project_sources(&self.parser, &snapshot);
                 Ok(ProjectState {
                     manifest_path,
                     snapshot,
+                    source_documents: documents,
+                    navigation_index_limited,
                 })
             })
             .transpose()?;
@@ -375,6 +383,7 @@ impl LanguageServerConfig {
             project,
             client_supports_watched_file_registration: false,
             watchers_registered: false,
+            watcher_refresh_pending: false,
             documents: HashMap::new(),
             shutdown: false,
         })
@@ -517,6 +526,7 @@ struct Server {
     project: Option<ProjectState>,
     client_supports_watched_file_registration: bool,
     watchers_registered: bool,
+    watcher_refresh_pending: bool,
     documents: HashMap<String, OpenDocument>,
     shutdown: bool,
 }
@@ -524,6 +534,13 @@ struct Server {
 struct ProjectState {
     manifest_path: PathBuf,
     snapshot: ProjectSnapshot,
+    source_documents: BTreeMap<String, ProjectDocument>,
+    navigation_index_limited: bool,
+}
+
+struct ProjectDocument {
+    source_index: usize,
+    parsed: ParseResult,
 }
 
 struct OpenDocument {
@@ -547,6 +564,21 @@ struct NavigationRequest<'a> {
 impl Server {
     fn handle(&mut self, message: &Value) -> Vec<Value> {
         let Some(method) = message.get("method").and_then(Value::as_str) else {
+            if message.get("id").and_then(Value::as_str) == Some(PROJECT_WATCHER_REFRESH_ID) {
+                self.watcher_refresh_pending = false;
+                if let Some(error) = message.get("error") {
+                    let detail = error
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("client rejected the watched-file refresh");
+                    return vec![log_message(
+                        2,
+                        format!("project file watchers could not be refreshed: {detail}"),
+                    )];
+                }
+                self.watchers_registered = false;
+                return self.register_project_watchers();
+            }
             if message.get("id").and_then(Value::as_str) == Some(PROJECT_WATCHER_REGISTRATION_ID)
                 && message.get("error").is_some()
             {
@@ -583,7 +615,23 @@ impl Server {
                     })
                     .collect()
             }
-            "initialized" => self.register_project_watchers(),
+            "initialized" => {
+                let mut notifications = self.register_project_watchers();
+                if self
+                    .project
+                    .as_ref()
+                    .is_some_and(|project| project.navigation_index_limited)
+                {
+                    notifications.insert(
+                        0,
+                        log_message(
+                            2,
+                            "project navigation index exceeded its safety bounds; cross-file navigation is disabled for this project snapshot".to_owned(),
+                        ),
+                    );
+                }
+                notifications
+            }
             "shutdown" => {
                 self.shutdown = true;
                 id.map(|id| json!({ "jsonrpc": "2.0", "id": id, "result": null }))
@@ -848,6 +896,27 @@ impl Server {
             .and_then(|name| name.to_str())
             .map(escape_glob_literal)
             .unwrap_or_else(|| "langmeld.json".to_owned());
+        let mut source_patterns = BTreeSet::new();
+        for source_root in &project.snapshot.manifest.source_roots {
+            let root = source_root.to_string_lossy().replace('\\', "/");
+            source_patterns.insert(format!("{}/**", escape_glob_literal(&root)));
+        }
+        for source in &project.snapshot.manifest.sources {
+            let source = source.to_string_lossy().replace('\\', "/");
+            source_patterns.insert(escape_glob_literal(&source));
+        }
+        let mut watchers = vec![
+            json!({ "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" }, "kind": 7 }),
+            json!({ "globPattern": { "baseUri": base_uri, "pattern": "**/*.json" }, "kind": 7 }),
+            json!({ "globPattern": { "baseUri": base_uri, "pattern": manifest_name }, "kind": 7 }),
+            json!({ "globPattern": { "baseUri": base_uri, "pattern": "langmeld.lock" }, "kind": 7 }),
+        ];
+        watchers.extend(source_patterns.into_iter().map(|pattern| {
+            json!({
+                "globPattern": { "baseUri": base_uri, "pattern": pattern },
+                "kind": 7
+            })
+        }));
         self.watchers_registered = true;
         vec![json!({
             "jsonrpc": "2.0",
@@ -858,13 +927,29 @@ impl Server {
                     "id": PROJECT_WATCHER_REGISTRATION_ID,
                     "method": "workspace/didChangeWatchedFiles",
                     "registerOptions": {
-                        "watchers": [
-                            { "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" }, "kind": 7 },
-                            { "globPattern": { "baseUri": base_uri, "pattern": "**/*.json" }, "kind": 7 },
-                            { "globPattern": { "baseUri": base_uri, "pattern": manifest_name }, "kind": 7 },
-                            { "globPattern": { "baseUri": base_uri, "pattern": "langmeld.lock" }, "kind": 7 }
-                        ]
+                                "watchers": watchers
                     }
+                }]
+            }
+        })]
+    }
+
+    fn refresh_project_watchers(&mut self) -> Vec<Value> {
+        if !self.client_supports_watched_file_registration
+            || !self.watchers_registered
+            || self.watcher_refresh_pending
+        {
+            return Vec::new();
+        }
+        self.watcher_refresh_pending = true;
+        vec![json!({
+            "jsonrpc": "2.0",
+            "id": PROJECT_WATCHER_REFRESH_ID,
+            "method": "client/unregisterCapability",
+            "params": {
+                "unregisterations": [{
+                    "id": PROJECT_WATCHER_REGISTRATION_ID,
+                    "method": "workspace/didChangeWatchedFiles"
                 }]
             }
         })]
@@ -887,45 +972,80 @@ impl Server {
                 )];
             }
         };
-        if let Some(project) = &mut self.project
-            && project.snapshot.language.spec() == snapshot.language.spec()
-        {
-            project.snapshot = snapshot;
-            return Vec::new();
-        }
-        let parser = match configure_language(snapshot.language.clone()) {
-            Ok(parser) => parser,
-            Err(error) => {
-                return vec![log_message(
-                    2,
-                    format!("project reload failed; keeping the last valid language: {error}"),
-                )];
+        let watcher_configuration_changed = self.project.as_ref().is_some_and(|project| {
+            project.snapshot.manifest.sources != snapshot.manifest.sources
+                || project.snapshot.manifest.source_roots != snapshot.manifest.source_roots
+        });
+        let language_changed = self
+            .project
+            .as_ref()
+            .is_some_and(|project| project.snapshot.language.spec() != snapshot.language.spec());
+        let parser = if language_changed {
+            match configure_language(snapshot.language.clone()) {
+                Ok(parser) => Some(parser),
+                Err(error) => {
+                    return vec![log_message(
+                        2,
+                        format!("project reload failed; keeping the last valid language: {error}"),
+                    )];
+                }
             }
+        } else {
+            None
         };
+        let parser_ref = parser.as_ref().unwrap_or(&self.parser);
+        let (source_documents, navigation_index_limited) =
+            index_project_sources(parser_ref, &snapshot);
 
         self.language = snapshot.language.clone();
-        self.parser = parser;
+        if let Some(parser) = parser {
+            self.parser = parser;
+        }
         if let Some(project) = &mut self.project {
             project.snapshot = snapshot;
+            project.source_documents = source_documents;
+            project.navigation_index_limited = navigation_index_limited;
         }
-        for document in self.documents.values_mut() {
-            document.parsed = self.parser.parse(&document.source);
+        if language_changed {
+            for document in self.documents.values_mut() {
+                document.parsed = self.parser.parse(&document.source);
+            }
         }
-        self.publish_workspace_documents()
+        let mut notifications = self.publish_workspace_documents();
+        if navigation_index_limited {
+            notifications.insert(
+                0,
+                log_message(
+                    2,
+                    "project navigation index exceeded its safety bounds; cross-file navigation is disabled for this project snapshot".to_owned(),
+                ),
+            );
+        }
+        if watcher_configuration_changed {
+            notifications.extend(self.refresh_project_watchers());
+        }
+        notifications
     }
 
     fn workspace_snapshot(&self) -> (Vec<String>, Vec<(&SourceFile, &langmeld_language::Program)>) {
-        let mut uris: Vec<_> = self.documents.keys().cloned().collect();
-        uris.sort();
-        let files = uris
-            .iter()
-            .filter_map(|uri| {
-                self.documents
-                    .get(uri)
-                    .map(|document| (&document.source, &document.parsed.program))
-            })
-            .collect();
-        (uris, files)
+        let mut documents = Vec::new();
+        if let Some(project) = &self.project {
+            for (uri, indexed) in &project.source_documents {
+                if self.documents.contains_key(uri) {
+                    continue;
+                }
+                if let Some(source) = project.snapshot.sources.get(indexed.source_index) {
+                    documents.push((uri.clone(), (source, &indexed.parsed.program)));
+                }
+            }
+        }
+        documents.extend(
+            self.documents
+                .iter()
+                .map(|(uri, document)| (uri.clone(), (&document.source, &document.parsed.program))),
+        );
+        documents.sort_by(|left, right| left.0.cmp(&right.0));
+        documents.into_iter().unzip()
     }
 
     fn publish_workspace_documents(&self) -> Vec<Value> {
@@ -1753,6 +1873,13 @@ impl Server {
     }
 
     fn navigation_request(&self, params: &Value) -> Option<NavigationRequest<'_>> {
+        if self
+            .project
+            .as_ref()
+            .is_some_and(|project| project.navigation_index_limited)
+        {
+            return None;
+        }
         let uri = params.pointer("/textDocument/uri")?.as_str()?;
         let document = self.documents.get(uri)?;
         let line = u32::try_from(params.pointer("/position/line")?.as_u64()?).ok()?;
@@ -1883,6 +2010,60 @@ fn log_message(kind: u8, message: String) -> Value {
         "jsonrpc": "2.0",
         "method": "window/logMessage",
         "params": { "type": kind, "message": message }
+    })
+}
+
+fn index_project_sources(
+    parser: &ConfiguredLanguageParser,
+    snapshot: &ProjectSnapshot,
+) -> (BTreeMap<String, ProjectDocument>, bool) {
+    let mut documents = BTreeMap::new();
+    let mut node_count = 0_usize;
+    let mut token_count = 0_usize;
+    let default_limits = ParseLimits::default();
+    let pattern_steps_per_file = (MAX_PROJECT_NAVIGATION_PATTERN_STEPS
+        / snapshot.sources.len().max(1))
+    .min(default_limits.max_pattern_steps);
+    for (source_index, source) in snapshot.sources.iter().enumerate() {
+        let Some(uri) = path_to_file_uri(Path::new(&source.name)) else {
+            return (BTreeMap::new(), true);
+        };
+        let remaining_tokens = MAX_PROJECT_NAVIGATION_SYNTAX_TOKENS.saturating_sub(token_count);
+        if remaining_tokens == 0 {
+            return (BTreeMap::new(), true);
+        }
+        let parsed = parser.parse_with_limits(
+            source,
+            ParseLimits {
+                max_tokens: default_limits.max_tokens.min(remaining_tokens),
+                max_pattern_steps: pattern_steps_per_file,
+                ..default_limits
+            },
+        );
+        node_count = node_count.saturating_add(ast_node_count(&parsed.program.nodes));
+        token_count = token_count.saturating_add(parsed.syntax_tokens.len());
+        if parsed.resource_limited
+            || node_count > MAX_PROJECT_NAVIGATION_AST_NODES
+            || token_count > MAX_PROJECT_NAVIGATION_SYNTAX_TOKENS
+        {
+            return (BTreeMap::new(), true);
+        }
+        documents.insert(
+            uri,
+            ProjectDocument {
+                source_index,
+                parsed,
+            },
+        );
+    }
+    (documents, false)
+}
+
+fn ast_node_count(nodes: &[AstNode]) -> usize {
+    nodes.iter().fold(0_usize, |count, node| {
+        count
+            .saturating_add(1)
+            .saturating_add(ast_node_count(&node.children))
     })
 }
 
@@ -2746,6 +2927,27 @@ mod tests {
             .expect("project server configures")
     }
 
+    #[test]
+    fn project_navigation_index_discards_partial_results_when_a_source_uri_is_unavailable() {
+        let root = project_directory();
+        fs::write(
+            root.join("src/second.demo"),
+            "program {\nprint \"second source\"\n}\n",
+        )
+        .expect("second project source is written");
+        let manifest = root.join("langmeld.json");
+        let mut snapshot = load_project(&manifest).expect("project snapshot loads");
+        assert_eq!(snapshot.sources.len(), 2);
+        snapshot.sources[1].name = root.join("src/removed.demo").display().to_string();
+        let parser = configure_language(snapshot.language.clone()).expect("parser configures");
+
+        let (documents, limited) = index_project_sources(&parser, &snapshot);
+
+        assert!(documents.is_empty());
+        assert!(limited);
+        fs::remove_dir_all(root).expect("temporary project is removed");
+    }
+
     fn open_document(uri: &str, version: i64, text: &str) -> Value {
         json!({
             "jsonrpc": "2.0",
@@ -2819,6 +3021,13 @@ mod tests {
                 .iter()
                 .any(|watcher| { watcher["globPattern"]["pattern"] == "langmeld.json" })
         );
+        assert!(
+            watchers
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "src/**" })
+        );
         assert_eq!(
             watchers[0]["globPattern"]["baseUri"],
             path_to_file_uri(&root).unwrap()
@@ -2849,6 +3058,66 @@ mod tests {
             "program {\nsay \"new syntax\"\n}\n",
         ));
         assert_eq!(diagnostics_for(&new_open, new_uri).unwrap().len(), 0);
+
+        let project_source = root.join("src/main.demo");
+        fs::write(&project_source, "program {\nsay \"updated source\"\n}\n")
+            .expect("project source edit is written");
+        server.handle(&watched_file(&project_source));
+        assert_eq!(
+            server.project.as_ref().unwrap().snapshot.sources[0].text,
+            "program {\nsay \"updated source\"\n}\n"
+        );
+        let project_source_uri = path_to_file_uri(&project_source).unwrap();
+        assert!(
+            server
+                .project
+                .as_ref()
+                .unwrap()
+                .source_documents
+                .get(&project_source_uri)
+                .unwrap()
+                .parsed
+                .diagnostics
+                .is_empty()
+        );
+
+        fs::create_dir_all(root.join("programs")).expect("replacement source root is created");
+        fs::write(
+            root.join("programs/next.demo"),
+            "program {\nsay \"new root\"\n}\n",
+        )
+        .expect("replacement source is written");
+        fs::write(
+            root.join("langmeld.json"),
+            r#"{"schema_version":1,"language":"language/language.lm","source_roots":["programs"]}"#,
+        )
+        .expect("updated project roots are written");
+        let root_change = server.handle(&watched_file(&root.join("langmeld.json")));
+        assert!(root_change.iter().any(|notification| {
+            notification["method"] == "client/unregisterCapability"
+                && notification["id"] == PROJECT_WATCHER_REFRESH_ID
+        }));
+        let registration = server.handle(&json!({
+            "jsonrpc": "2.0",
+            "id": PROJECT_WATCHER_REFRESH_ID,
+            "result": null
+        }));
+        let watchers =
+            &registration[0]["params"]["registrations"][0]["registerOptions"]["watchers"];
+        assert!(
+            watchers
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "programs/**" })
+        );
+        assert!(
+            !watchers
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "src/**" })
+        );
 
         fs::write(&construct_path, "constructs {\n").expect("invalid edit is written");
         let failed = server.handle(&watched_file(&construct_path));

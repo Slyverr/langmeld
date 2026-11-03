@@ -60,8 +60,13 @@ returning an edit. Embedded Rust hosts can also register bounded, typed
 completion providers. In project mode, clients that support dynamic watched-file
 registration receive watches for language definitions, the manifest, and the
 definition lock; valid changes reload the language and reparse open documents.
-Navigation does not yet discover unopened project files. The browser language
-adapter is described below; the LSP server itself does not run in WebAssembly.
+Project-mode definition, references, and rename include configured source files
+that are not open in the editor. Open buffers override their disk snapshots;
+source-root and explicit-file changes refresh the index for clients that support
+dynamic watched-file registration. The index has aggregate parser and AST
+bounds and disables cross-file navigation if it cannot be built completely.
+The browser language adapter is described below; the LSP server itself does not
+run in WebAssembly.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.

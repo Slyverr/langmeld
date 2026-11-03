@@ -1474,6 +1474,154 @@ fn child_process_resolves_definitions_and_references_across_open_documents() {
 }
 
 #[test]
+fn project_navigation_includes_closed_files_and_returns_rename_edits_for_them() {
+    let language = TempLanguage::new();
+    language.write_symbol_language();
+    let manifest = language.as_project();
+    let root = manifest.parent().expect("project root exists");
+    fs::write(
+        &manifest,
+        r#"{"schema_version":1,"language":"language.lm","source_roots":["src"],"source_extensions":["demo"]}"#,
+    )
+    .expect("project source extension is configured");
+    let declaration_path = root.join("src/declaration.demo");
+    let reference_path = root.join("src/reference.demo");
+    fs::write(&declaration_path, "program main {\n  fn entry -> unit\n}\n")
+        .expect("closed declaration source is written");
+    fs::write(&reference_path, "program main {\n  use entry\n}\n")
+        .expect("reference source is written");
+    let declaration_uri = format!("file://{}", declaration_path.display());
+    let reference_uri = format!("file://{}", reference_path.display());
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": reference_uri,
+                "languageId": "symbols",
+                "version": 1,
+                "text": "program main {\n  use entry\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 7 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 7 },
+                "context": { "includeDeclaration": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 7 },
+                "newName": "start"
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": declaration_uri,
+                "languageId": "symbols",
+                "version": 1,
+                "text": "program main {\n  fn unsaved -> unit\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 7 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": { "textDocument": { "uri": declaration_uri } }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 7 }
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 5, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--project"])
+        .arg(&manifest)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("project language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("project server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let by_id = |id| {
+        responses
+            .iter()
+            .find(|response| response["id"] == id)
+            .expect("request response exists")
+    };
+    assert_eq!(by_id(2)["result"][0]["uri"], declaration_uri);
+    let references = by_id(3)["result"].as_array().expect("references returned");
+    assert!(references.iter().any(|location| {
+        location["uri"] == declaration_uri && location["range"]["start"]["line"] == 1
+    }));
+    assert!(
+        references
+            .iter()
+            .any(|location| location["uri"] == reference_uri)
+    );
+    let changes = by_id(4)["result"]["changes"]
+        .as_object()
+        .expect("rename returns workspace changes");
+    assert!(changes.contains_key(&declaration_uri));
+    assert!(changes.contains_key(&reference_uri));
+    assert_eq!(by_id(6)["result"], json!([]));
+    assert_eq!(by_id(7)["result"][0]["uri"], declaration_uri);
+}
+
+#[test]
 fn child_process_renames_resolved_symbols_with_safe_utf16_workspace_edits() {
     let language = TempLanguage::new();
     language.write_rename_language();
