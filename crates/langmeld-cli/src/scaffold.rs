@@ -127,7 +127,8 @@ fn starter_files(
                 .replace("@EXT@", &extension)
                 .replace("@CLI_TARGET@", &cli_target)
                 .replace("@CLI_DEPENDENCY@", &cli_dependency)
-                .replace("@LANGMELD_DEPENDENCY@", dependency),
+                .replace("@LANGMELD_DEPENDENCY@", dependency)
+                .replace("@BUILD_DEPENDENCY@", dependency),
         );
     };
     add(
@@ -136,6 +137,13 @@ fn starter_files(
     );
     add(".gitignore", include_str!("../templates/starter/gitignore"));
     add("README.md", include_str!("../templates/starter/README.md"));
+    let build_template = match options.authoring {
+        AuthoringMode::Declarative => include_str!("../templates/starter/build-declarative.rs"),
+        AuthoringMode::Rust | AuthoringMode::Combined => {
+            include_str!("../templates/starter/build-rust.rs")
+        }
+    };
+    add("build.rs", build_template);
     let library_template = match options.authoring {
         AuthoringMode::Declarative => include_str!("../templates/starter/lib.rs").to_owned(),
         AuthoringMode::Rust | AuthoringMode::Combined => {
@@ -162,14 +170,22 @@ fn starter_files(
         "tests/language.rs",
         include_str!("../templates/starter/language_test.rs"),
     );
+    let language_module = match options.authoring {
+        AuthoringMode::Declarative => {
+            include_str!("../templates/starter/language-mod-declarative.rs")
+        }
+        AuthoringMode::Rust | AuthoringMode::Combined => {
+            include_str!("../templates/starter/language-mod.rs")
+        }
+    };
+    files.insert(
+        PathBuf::from("src/language/mod.rs"),
+        language_module.to_owned(),
+    );
     if matches!(
         options.authoring,
         AuthoringMode::Rust | AuthoringMode::Combined
     ) {
-        files.insert(
-            PathBuf::from("src/language/mod.rs"),
-            include_str!("../templates/starter/language-mod.rs").to_owned(),
-        );
         files.insert(
             PathBuf::from("src/language/spec.rs"),
             generate_rust_language_spec(language),

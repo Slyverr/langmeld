@@ -5,17 +5,29 @@ use langmeld::language::{
     ConfiguredLanguageParser, ParseResult, Program, ProjectSnapshot, WorkspaceAnalysis,
     analyze_workspace_with_host_callbacks,
 };
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub mod host;
+mod language;
 
-/// Loads the modular language definition from `language/`.
+/// Loads the language model compiled by this crate's build script.
 pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    langmeld::language::parse_language_definition_project(&language_definition_path())
+    language::load_language()
 }
 
-/// Loads the declarative project definition and configured program sources.
+/// Loads the current project definitions dynamically from disk.
+pub fn load_language_runtime() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    language::load_language_runtime()
+}
+
+/// Loads the compiled language model and configured program sources.
 pub fn load_project() -> Result<ProjectSnapshot, String> {
+    let language = load_language().map_err(format_language_errors)?;
+    langmeld::language::load_project_with_compiled_language(Path::new("langmeld.json"), &language)
+}
+
+/// Loads the current project definitions and sources dynamically from disk.
+pub fn load_project_runtime() -> Result<ProjectSnapshot, String> {
     langmeld::language::load_project(Path::new("langmeld.json"))
 }
 
@@ -77,6 +89,10 @@ pub fn run_sources(_sources: &[SourceFile]) -> Result<(), String> {
     Err("runtime behavior is not implemented yet; add it in src/lib.rs".to_owned())
 }
 
-fn language_definition_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("language/language.lm")
+fn format_language_errors(errors: Vec<Diagnostic>) -> String {
+    errors
+        .into_iter()
+        .map(|error| format!("{}: {}", error.code, error.message))
+        .collect::<Vec<_>>()
+        .join("\n")
 }

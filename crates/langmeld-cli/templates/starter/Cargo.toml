@@ -8,3 +8,6 @@ description = "A Rust language host built with Langmeld."
 
 [dependencies]
 @CLI_DEPENDENCY@langmeld = { @LANGMELD_DEPENDENCY@ }
+
+[build-dependencies]
+langmeld = { @BUILD_DEPENDENCY@ }

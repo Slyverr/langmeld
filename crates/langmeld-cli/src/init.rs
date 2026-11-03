@@ -113,6 +113,7 @@ fn print_preview(options: &ProjectOptions) {
     println!("  {}", style("Structure").dim());
     let mut entries = vec![
         "Cargo.toml",
+        "build.rs",
         "src/lib.rs",
         "src/host/",
         "examples/hello.<extension>",

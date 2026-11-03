@@ -10,16 +10,26 @@ use std::path::Path;
 pub mod host;
 mod language;
 
-/// Loads and validates the Rust-authored base language model.
+/// Loads the effective language model compiled by this crate's build script.
 pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     language::load_language()
 }
 
-/// Loads the project using this host's base model and declared `.lm` extensions.
+/// Loads the Rust base model and declarative extensions dynamically from disk.
+pub fn load_language_runtime() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    language::load_language_runtime()
+}
+
+/// Loads configured sources using the effective language model compiled at build time.
 pub fn load_project() -> Result<ProjectSnapshot, String> {
-    let language = load_language()
-        .map_err(|errors| format_language_errors(errors))?;
-    langmeld::language::load_project_with_base_language(Path::new("langmeld.json"), &language)
+    let language = load_language().map_err(format_language_errors)?;
+    langmeld::language::load_project_with_compiled_language(Path::new("langmeld.json"), &language)
+}
+
+/// Loads the Rust base model and declared `.lm` extensions dynamically from disk.
+pub fn load_project_runtime() -> Result<ProjectSnapshot, String> {
+    let language = load_language_runtime().map_err(format_language_errors)?;
+    langmeld::language::load_project_with_compiled_language(Path::new("langmeld.json"), &language)
 }
 
 /// Prepares the declarative parser for the base language model.

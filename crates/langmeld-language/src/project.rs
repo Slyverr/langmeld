@@ -102,6 +102,53 @@ pub fn load_language(path: &Path) -> Result<ValidatedLanguageSpec, String> {
     })
 }
 
+/// Loads and validates a project's effective language without discovering program sources.
+///
+/// This is useful to build scripts that compile language models without requiring
+/// source roots such as `examples/` to exist during the build.
+pub fn load_project_language(manifest_path: &Path) -> Result<ValidatedLanguageSpec, String> {
+    let manifest = load_project_manifest(manifest_path)?;
+    let Some(language_path) = manifest.declarative_language_path() else {
+        return Err(rust_host_model_required());
+    };
+    let root = project_root(manifest_path)?;
+    let base_language = load_language(&root.join(language_path))?;
+    let language =
+        extensions::resolve_project_language(&root, &manifest.extensions, &base_language)?;
+    lock::verify_project_lockfile(manifest_path, &root, &manifest, &language)?;
+    Ok(language)
+}
+
+/// Composes a Rust-host base model with its declared `.lm` extensions without loading sources.
+pub fn load_project_language_with_base_language(
+    manifest_path: &Path,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<ValidatedLanguageSpec, String> {
+    let manifest = load_project_manifest(manifest_path)?;
+    load_project_language_with_manifest_and_base_language(manifest_path, &manifest, base_language)
+}
+
+/// Composes a proposed Rust-host manifest with its supplied base model without loading sources.
+pub fn load_project_language_with_manifest_and_base_language(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<ValidatedLanguageSpec, String> {
+    manifest.to_json()?;
+    if !matches!(
+        &manifest.language_source,
+        ProjectLanguageSource::RustHost {}
+    ) {
+        return Err(
+            "cannot inject a Rust-host language model for a declarative project manifest"
+                .to_owned(),
+        );
+    }
+    lock::reject_rust_host_lockfile(manifest_path)?;
+    let root = project_root(manifest_path)?;
+    extensions::resolve_project_language(&root, &manifest.extensions, base_language)
+}
+
 /// Loads explicit source files using the same bounds and file checks as projects.
 pub fn load_source_files(paths: &[PathBuf]) -> Result<Vec<SourceFile>, String> {
     load_project_sources_from_paths(paths.to_vec())
@@ -186,6 +233,25 @@ pub fn load_project_with_manifest_and_base_language(
     load_project_snapshot(manifest_path, manifest, base_language)
 }
 
+/// Loads project sources using an effective model compiled by the project host.
+///
+/// The model must already include every manifest extension. Declarative
+/// manifests verify their integrity lock against current definition inputs;
+/// Rust-host manifests reject declarative lockfiles.
+pub fn load_project_with_compiled_language(
+    manifest_path: &Path,
+    effective_language: &ValidatedLanguageSpec,
+) -> Result<ProjectSnapshot, String> {
+    let manifest = load_project_manifest(manifest_path)?;
+    let root = project_root(manifest_path)?;
+    if matches!(manifest.language_source, ProjectLanguageSource::RustHost {}) {
+        lock::reject_rust_host_lockfile(manifest_path)?;
+    } else {
+        lock::verify_project_lockfile(manifest_path, &root, &manifest, effective_language)?;
+    }
+    load_project_snapshot_with_language(manifest_path, &manifest, effective_language)
+}
+
 fn load_project_snapshot(
     manifest_path: &Path,
     manifest: &ProjectManifest,
@@ -194,11 +260,19 @@ fn load_project_snapshot(
     let root = project_root(manifest_path)?;
     let language =
         extensions::resolve_project_language(&root, &manifest.extensions, base_language)?;
+    load_project_snapshot_with_language(manifest_path, manifest, &language)
+}
+
+fn load_project_snapshot_with_language(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    language: &ValidatedLanguageSpec,
+) -> Result<ProjectSnapshot, String> {
     let paths = project_source_paths(manifest_path, manifest, &language.spec().source_extensions)?;
     let sources = load_project_sources_from_paths(paths)?;
     Ok(ProjectSnapshot {
         manifest: manifest.clone(),
-        language,
+        language: language.clone(),
         sources,
     })
 }
@@ -208,12 +282,12 @@ fn project_definition_paths(
     manifest: &ProjectManifest,
     base_language: &ValidatedLanguageSpec,
 ) -> Result<Vec<PathBuf>, String> {
-    let Some(language_path) = manifest.declarative_language_path() else {
-        return Err("Rust-host projects have no declarative definition paths".to_owned());
-    };
     let mut paths = Vec::new();
     let mut seen = BTreeSet::new();
-    let mut roots = vec![root.join(language_path)];
+    let mut roots = manifest
+        .declarative_language_path()
+        .map(|path| vec![root.join(path)])
+        .unwrap_or_default();
     roots.extend(
         extensions::extension_order(&manifest.extensions, base_language)?
             .into_iter()
@@ -230,6 +304,21 @@ fn project_definition_paths(
         }
     }
     Ok(paths)
+}
+
+/// Returns the definition and import files used by a manifest in resolution order.
+///
+/// For Rust-host manifests, `base_language` must be the validated host model and
+/// only extension paths are returned. For declarative manifests, the manifest's
+/// base definition is returned before its extensions.
+pub fn project_definition_source_paths_for_manifest(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<Vec<PathBuf>, String> {
+    manifest.to_json()?;
+    let root = project_root(manifest_path)?;
+    project_definition_paths(&root, manifest, base_language)
 }
 
 /// Returns canonical project definition files in base and extension resolution order.

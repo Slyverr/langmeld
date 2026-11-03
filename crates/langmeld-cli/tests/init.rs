@@ -207,6 +207,62 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&cargo.stderr)
     );
 
+    let definition_path = project.join("language/language.lm");
+    let definition = fs::read_to_string(&definition_path).expect("language definition reads");
+    fs::write(
+        &definition_path,
+        definition.replace("version: \"0.1.0\"", "version: \"0.1.1\""),
+    )
+    .expect("language definition changes");
+    let rebuilt = Command::new(env!("CARGO"))
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .output()
+        .expect("generated project rebuild starts after definition change");
+    assert!(
+        rebuilt.status.success(),
+        "generated project did not rebuild its changed definition:\n{}\n{}",
+        String::from_utf8_lossy(&rebuilt.stdout),
+        String::from_utf8_lossy(&rebuilt.stderr)
+    );
+
+    let locked = run_lock(&project);
+    assert!(
+        locked.status.success(),
+        "generated project lock failed:\n{}\n{}",
+        String::from_utf8_lossy(&locked.stdout),
+        String::from_utf8_lossy(&locked.stderr)
+    );
+    fs::write(project.join("langmeld.lock"), "not a valid lockfile\n")
+        .expect("lockfile is corrupted");
+    let rejected_lock = Command::new(env!("CARGO"))
+        .args(["check", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .output()
+        .expect("generated project rebuild checks the lockfile");
+    assert!(
+        !rejected_lock.status.success(),
+        "Cargo skipped build-time validation after a lock-only edit"
+    );
+    let refreshed_lock = run_lock(&project);
+    assert!(
+        refreshed_lock.status.success(),
+        "generated project lock refresh failed:\n{}\n{}",
+        String::from_utf8_lossy(&refreshed_lock.stdout),
+        String::from_utf8_lossy(&refreshed_lock.stderr)
+    );
+    let refreshed_build = Command::new(env!("CARGO"))
+        .args(["check", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .output()
+        .expect("generated project rebuild follows a lock refresh");
+    assert!(
+        refreshed_build.status.success(),
+        "generated project did not accept its refreshed lock:\n{}\n{}",
+        String::from_utf8_lossy(&refreshed_build.stdout),
+        String::from_utf8_lossy(&refreshed_build.stderr)
+    );
+
     let clippy = Command::new(env!("CARGO"))
         .args(["clippy", "--all-targets", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
@@ -351,6 +407,53 @@ fn init_supports_rust_and_combined_authoring_projects() {
             "generated {mode} host could not load its project:\n{}\n{}",
             String::from_utf8_lossy(&checked.stdout),
             String::from_utf8_lossy(&checked.stderr)
+        );
+        if has_extension {
+            let extension_path = project.join("language/extensions/starter.lm");
+            let mut extension =
+                fs::read_to_string(&extension_path).expect("combined authoring extension reads");
+            let insertion = extension
+                .rfind("\n}")
+                .expect("extension has a closing brace");
+            extension.insert_str(
+                insertion,
+                "\n  construct hint {\n    syntax { default: \"hint {text}\" }\n    fields { text: text required }\n  }",
+            );
+            fs::write(&extension_path, extension).expect("extension changes");
+        } else {
+            let model_path = project.join("src/language/spec.rs");
+            let model = fs::read_to_string(&model_path).expect("Rust language model reads");
+            fs::write(
+                &model_path,
+                model.replace(
+                    "version: \"0.1.0\".to_owned()",
+                    "version: \"0.1.1\".to_owned()",
+                ),
+            )
+            .expect("Rust language model version changes");
+        }
+        let rebuilt = Command::new(env!("CARGO"))
+            .args(["test", "--offline", "--manifest-path"])
+            .arg(project.join("Cargo.toml"))
+            .output()
+            .expect("generated project rebuild starts after language input change");
+        assert!(
+            rebuilt.status.success(),
+            "generated {mode} project did not rebuild its changed language model:\n{}\n{}",
+            String::from_utf8_lossy(&rebuilt.stdout),
+            String::from_utf8_lossy(&rebuilt.stderr)
+        );
+        let clippy = Command::new(env!("CARGO"))
+            .args(["clippy", "--all-targets", "--offline", "--manifest-path"])
+            .arg(project.join("Cargo.toml"))
+            .args(["--", "-D", "warnings"])
+            .output()
+            .expect("generated authoring project Clippy starts");
+        assert!(
+            clippy.status.success(),
+            "generated {mode} project Clippy failed:\n{}\n{}",
+            String::from_utf8_lossy(&clippy.stdout),
+            String::from_utf8_lossy(&clippy.stderr)
         );
     }
 }

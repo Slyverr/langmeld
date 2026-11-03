@@ -14,9 +14,11 @@ cargo run --bin @SLUG@-host -- check --project
 cargo run --bin @SLUG@-host -- build --project
 ```
 
-`src/lib.rs` loads and validates the selected language model and prepares the
-generic parser. Use it as the starting point for host-specific lexing, parsing,
-analysis, or output. Keep `.lm` definitions modular under `language/`.
+`src/lib.rs` uses the model compiled by `build.rs` by default and exposes
+`load_language_runtime` and `load_project_runtime` for explicit runtime loading.
+The generic parser is prepared from the selected model. Use the host as the
+starting point for custom lexing, parsing, analysis, or output. Keep `.lm`
+definitions modular under `language/`.
 The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
 commands use `langmeld.json`; source paths can also be passed directly.
 `run` calls `run_sources` in `src/lib.rs`, where this starter reports that

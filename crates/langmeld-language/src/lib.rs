@@ -54,11 +54,13 @@ pub use project::{
     ExtensionDependency, ExtensionPackage, LockedDefinition, LockedExtension,
     LockedExtensionDependency, ManifestExtension, ProjectBuildConfig, ProjectLanguageSource,
     ProjectLockfile, ProjectManifest, ProjectSnapshot, compose_extensions, load_language,
-    load_project, load_project_manifest, load_project_sources,
-    load_project_sources_with_base_language, load_project_with_base_language,
-    load_project_with_manifest, load_project_with_manifest_and_base_language, load_source_files,
-    project_definition_source_paths, write_project_extensions, write_project_lockfile,
-    write_project_manifest,
+    load_project, load_project_language, load_project_language_with_base_language,
+    load_project_language_with_manifest_and_base_language, load_project_manifest,
+    load_project_sources, load_project_sources_with_base_language, load_project_with_base_language,
+    load_project_with_compiled_language, load_project_with_manifest,
+    load_project_with_manifest_and_base_language, load_source_files,
+    project_definition_source_paths, project_definition_source_paths_for_manifest,
+    write_project_extensions, write_project_lockfile, write_project_manifest,
 };
 pub use rust_codegen::{generate_rust_ast, generate_rust_language_spec};
 pub use syntax::{

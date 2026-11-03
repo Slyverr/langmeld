@@ -1,9 +1,10 @@
 use langmeld_core::{ConstructBuilder, LanguageBuilder};
 use langmeld_language::{
     ManifestExtension, ProjectBuildConfig, ProjectLanguageSource, ProjectManifest, load_language,
-    load_project, load_project_manifest, load_project_sources, load_project_with_base_language,
+    load_project, load_project_language, load_project_manifest, load_project_sources,
+    load_project_with_base_language, load_project_with_compiled_language,
     load_project_with_manifest, load_project_with_manifest_and_base_language, load_source_files,
-    write_project_lockfile, write_project_manifest,
+    project_definition_source_paths_for_manifest, write_project_lockfile, write_project_manifest,
 };
 use std::{
     collections::BTreeMap,
@@ -200,6 +201,34 @@ fn version_two_manifest_source_modes_are_strict_and_round_trip() {
             "expected error containing {expected:?} for {contents}"
         );
     }
+}
+
+#[test]
+fn project_language_can_compile_without_discovering_program_sources() {
+    let project = TempProject::new();
+    project.write_language();
+    let mut manifest = ProjectManifest::new_declarative("language/language.lm");
+    let manifest_path = project.manifest(&manifest.to_json().expect("manifest serializes"));
+
+    let language = load_project_language(&manifest_path)
+        .expect("effective language loads without a configured source root");
+    assert_eq!(language.spec().name, "Sample");
+    assert_eq!(
+        project_definition_source_paths_for_manifest(&manifest_path, &manifest, &language)
+            .expect("definition paths are available"),
+        [
+            project.0.join("language/constructs/program.lm"),
+            project.0.join("language/language.lm")
+        ]
+    );
+
+    project.write("examples/main.calc", "program { print \"hello\" }\n");
+    manifest.source_roots.push(PathBuf::from("examples"));
+    write_project_manifest(&manifest_path, &manifest).expect("manifest gets a source root");
+    let snapshot = load_project_with_compiled_language(&manifest_path, &language)
+        .expect("compiled effective model loads project sources");
+    assert_eq!(snapshot.language.spec(), language.spec());
+    assert_eq!(snapshot.sources.len(), 1);
 }
 
 #[test]

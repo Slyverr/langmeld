@@ -1,10 +1,17 @@
 use langmeld::core::SourceFile;
-use @CRATE@::{load_language, parse_source};
+use @CRATE@::{
+    load_language, load_language_runtime, load_project, load_project_runtime, parse_source,
+};
 
 #[test]
 fn starter_definition_and_example_parse() {
-    let language = load_language().expect("modular definition validates");
+    let language = load_language().expect("compiled language model loads");
     assert_eq!(language.spec().name, "@NAME@");
+    let runtime_language = load_language_runtime().expect("runtime language model loads");
+    assert_eq!(language.spec(), runtime_language.spec());
+    let compiled_project = load_project().expect("compiled project model loads");
+    let runtime_project = load_project_runtime().expect("runtime project model loads");
+    assert_eq!(compiled_project.language.spec(), runtime_project.language.spec());
 
     let source = SourceFile::new(
         "hello.@EXT@",
