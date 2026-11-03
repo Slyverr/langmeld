@@ -1,0 +1,12 @@
+[package]
+name = "langmeld-expression"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Configurable expression parsing, type rules, and host-defined evaluation for Langmeld."
+
+[dependencies]
+langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+
+[lints]
+workspace = true
