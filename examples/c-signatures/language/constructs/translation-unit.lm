@@ -1,0 +1,29 @@
+constructs {
+  construct translation_unit {
+    syntax {
+      default: "int"
+    }
+    custom_parser: c_translation_unit
+    block: [prototype0, prototype2]
+  }
+
+  construct prototype0 {
+    syntax {
+      signature: "void {name}\\(void\\);"
+    }
+    fields {
+      name: identifier required
+    }
+  }
+
+  construct prototype2 {
+    syntax {
+      signature: "int {name}\\(int {left}, int {right}\\);"
+    }
+    fields {
+      name: identifier required
+      left: identifier required
+      right: identifier required
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "language": "language/language.lm",
+  "source_roots": [
+    "examples"
+  ]
+}

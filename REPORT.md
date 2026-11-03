@@ -36,8 +36,9 @@ line, and language-server support.
   workflow to create Rust, declarative, or combined language-authoring projects.
   Generated files are kept under `.langmeld/`.
 - **Consumer examples:** Independent consumers cover declarative interpretation
-  and extension composition, Rust API parsing and code generation, and combined
-  Rust-base plus `.lm` extension authoring with host-owned Markdown rendering.
+  and extension composition, Rust API parsing and code generation, combined
+  Rust-base plus `.lm` extension authoring with host-owned Markdown rendering,
+  and C prototype parsing through a host callback.
 
 ## Design boundaries
 
@@ -73,11 +74,10 @@ language inside WebAssembly requires a compatible host and runtime build.
 - Manifest extensions feed generated metadata and editor grammars. A fresh LSP
   server start after adding an extension includes its child-construct
   completion; automatic extension watching and hot reload remain pending.
-- Broader source-language consumers, language-server features, continuous
+- More source-language consumers, language-server features, continuous
   integration across supported platforms, and measured performance baselines
   would improve confidence and usability. The current examples cover
-  declarative, Rust API, and combined authoring, but do not yet demonstrate a
-  structurally different source-language parser.
+  declarative, Rust API, combined authoring, and a custom C prototype parser.
 
 ## Verification
 
@@ -105,6 +105,9 @@ The workspace checks completed on 2026-11-03:
   extension constructs, then render their shared AST to Markdown. Its project
   CLI passes `check --project` and `run --project`, and strict Clippy and
   formatting checks pass.
+- The C signature consumer passes integration tests, strict Clippy, formatting,
+  and project CLI `check --project` / `run --project`. Tests cover unsupported
+  type diagnostics and compile generated Rust FFI declarations with `rustc`.
 
 The generated Tree-sitter grammar has not been validated with the Tree-sitter
 CLI. Run that check before relying on generated grammars in an editor.

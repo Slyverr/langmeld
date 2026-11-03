@@ -137,6 +137,10 @@ and lowers them to compilable Rust from a library-only project.
 [`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
 base model, a modular `.lm` extension, and a Rust host that renders Markdown.
 
+[`examples/c-signatures`](examples/c-signatures) declares a focused C prototype
+model in `.lm`, parses source through a host-registered Rust parser, and emits
+Rust FFI declarations.
+
 ## Workspace checks
 
 ```sh

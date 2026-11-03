@@ -1,0 +1,5 @@
+language CSignatures {
+  version: "0.1.0"
+  root: translation_unit
+  source_extension: ".c"
+}
