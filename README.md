@@ -25,7 +25,9 @@ same checks across multiple sources and require explicit source indexes for
 ambiguous mappings. The optional Tree-sitter exporter emits a grammar for
 compatible declarative syntax and reports when a definition cannot be
 represented. Its grammar has not been checked with the Tree-sitter CLI in this
-environment. Source formatting remains in progress.
+environment. The library also exposes a structural formatter that preserves
+comments and strings, normalizes CRLF to LF, and supports space or tab
+indentation for valid programs.
 
 ## Workspace checks
 

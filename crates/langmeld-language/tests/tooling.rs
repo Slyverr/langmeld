@@ -95,6 +95,13 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
             .expect("capability metadata is JSON");
     assert_eq!(capabilities["highlighting"]["lexical_only"], true);
+    assert!(
+        capabilities["available_language_apis"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "source_formatter")
+    );
     assert_eq!(
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "#"

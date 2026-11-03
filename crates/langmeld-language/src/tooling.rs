@@ -92,9 +92,10 @@ pub fn generate_tooling(
                 "typed_rust_ast", "metadata", "reference_document", "language_configuration",
                 "textmate_lexical_highlighting", "agent_skill"
             ],
+            "available_language_apis": ["source_formatter"],
             "optional_artifacts": { "tree_sitter": tree_sitter_support },
             "not_yet_available": [
-                "source_formatter", "lsp", "project_cli", "wasm_adapter", "generic_execution"
+                "lsp", "project_cli", "wasm_adapter", "generic_execution"
             ],
             "parser_support": ["declarative_patterns", "registered_custom_construct_callbacks"],
             "editor_configuration_assumptions": {

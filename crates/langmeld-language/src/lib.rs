@@ -6,6 +6,7 @@ mod definition;
 mod definition_import;
 mod definition_meta;
 mod definition_tree;
+mod formatting;
 mod lexer;
 mod lexing;
 mod model;
@@ -34,6 +35,7 @@ pub use definition::{
     parse_language_definition_with_meta_and_limits,
 };
 pub use definition_meta::{langmeld_definition_language, langmeld_definition_parser};
+pub use formatting::{FormatOptions, format_parsed_source, format_source};
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
 };
