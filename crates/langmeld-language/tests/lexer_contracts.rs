@@ -1,0 +1,78 @@
+use langmeld_core::SourceFile;
+use langmeld_language::{LanguageTokenKind, ParseLimits, lex_source};
+
+#[test]
+fn built_in_lexer_preserves_utf8_crlf_comment_and_string_spans() {
+    let source = SourceFile::new("scene.lm", "node α -> \"hello\\nworld\" # keep\r\n");
+    let lexed = lex_source(&source);
+
+    assert_eq!(
+        lexed
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect::<Vec<_>>(),
+        [
+            LanguageTokenKind::Identifier("node".into()),
+            LanguageTokenKind::Identifier("α".into()),
+            LanguageTokenKind::Arrow,
+            LanguageTokenKind::Text("hello\nworld".into()),
+            LanguageTokenKind::Comment,
+            LanguageTokenKind::Newline,
+        ]
+    );
+    assert_eq!(
+        &source.text[lexed.tokens[1].span.start..lexed.tokens[1].span.end],
+        "α"
+    );
+    let newline = lexed.tokens.last().expect("newline token");
+    assert_eq!(&source.text[newline.span.start..newline.span.end], "\r\n");
+    assert!(lexed.diagnostics.is_empty());
+}
+
+#[test]
+fn malformed_lexemes_return_spanned_diagnostics_and_unknown_tokens() {
+    let source = SourceFile::new("broken.lm", "\"unfinished\n\"bad\\q\" §");
+    let lexed = lex_source(&source);
+
+    assert!(
+        lexed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM1101")
+    );
+    assert!(
+        lexed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM1102")
+    );
+    assert!(
+        lexed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM1100")
+    );
+    assert!(
+        lexed
+            .tokens
+            .iter()
+            .any(|token| token.kind == LanguageTokenKind::Unknown('§'))
+    );
+    for diagnostic in &lexed.diagnostics {
+        let span = diagnostic.span.expect("lexer diagnostic has a span");
+        assert!(source.text.is_char_boundary(span.start));
+        assert!(source.text.is_char_boundary(span.end));
+        assert!(span.start <= span.end);
+    }
+}
+
+#[test]
+fn parser_limits_have_bounded_defaults() {
+    let limits = ParseLimits::default();
+
+    assert_eq!(limits.max_source_bytes, 4 * 1024 * 1024);
+    assert_eq!(limits.max_tokens, 250_000);
+    assert_eq!(limits.max_ast_nodes, 250_000);
+    assert_eq!(limits.max_nesting_depth, 128);
+}

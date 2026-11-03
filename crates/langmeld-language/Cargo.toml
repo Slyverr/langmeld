@@ -1,0 +1,12 @@
+[package]
+name = "langmeld-language"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Language token contracts and parsing infrastructure for Langmeld."
+
+[dependencies]
+langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+
+[lints]
+workspace = true

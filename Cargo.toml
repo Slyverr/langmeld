@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/langmeld-core", "crates/langmeld-expression"]
+members = [
+    "crates/langmeld-core",
+    "crates/langmeld-expression",
+    "crates/langmeld-language",
+]
 resolver = "3"
 
 [workspace.package]

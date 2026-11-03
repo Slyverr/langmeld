@@ -4,8 +4,9 @@ Langmeld is an early-stage Rust language framework. The workspace currently
 contains `langmeld-core` for source snapshots, stable source identities, byte
 spans, structured diagnostics, and validated language definitions, plus
 `langmeld-expression` for configurable expression parsing and host-defined type
-and runtime rules. The CLI and full language-processing crates have not been
-added yet.
+and runtime rules, and `langmeld-language` for source-spanned tokens, the
+built-in lexer, custom lexer contracts, and parser resource limits. Prepared
+grammars, AST parsing, CLI, and full language tooling are still being ported.
 
 ## Workspace checks
 
