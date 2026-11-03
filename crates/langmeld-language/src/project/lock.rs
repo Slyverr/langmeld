@@ -96,10 +96,13 @@ struct LockfileVersion {
 /// lockfile read/write failures.
 pub fn write_project_lockfile(manifest_path: &Path) -> Result<PathBuf, String> {
     let manifest = super::load_project_manifest(manifest_path)?;
+    let Some(language_path) = manifest.declarative_language_path() else {
+        return Err("Rust-host projects do not have declarative language locks".to_owned());
+    };
     let lock_path = lockfile_path(manifest_path);
     ensure_lockfile_destination(&lock_path)?;
     let project_root = project_root(manifest_path)?;
-    let base_path = project_root.join(&manifest.language);
+    let base_path = project_root.join(language_path);
     let base_language = load_language(&base_path)?;
     let language = super::extensions::resolve_project_language(
         &project_root,
@@ -217,10 +220,13 @@ fn expected_lockfile(
     manifest: &ProjectManifest,
     language: &ValidatedLanguageSpec,
 ) -> Result<ProjectLockfile, String> {
-    let base_language = load_language(&project_root.join(&manifest.language))?;
+    let Some(language_path) = manifest.declarative_language_path() else {
+        return Err("Rust-host projects do not have declarative language locks".to_owned());
+    };
+    let base_language = load_language(&project_root.join(language_path))?;
     let order = extension_order(&manifest.extensions, &base_language)?;
     let mut roots: Vec<&Path> = Vec::with_capacity(1 + order.len());
-    roots.push(&manifest.language);
+    roots.push(language_path);
     roots.extend(order.iter().map(|index| manifest.extensions[*index].path()));
 
     let mut definitions = Vec::new();
@@ -272,7 +278,7 @@ fn expected_lockfile(
 
     let resolution_inputs = ResolutionInputs {
         schema_version: manifest.schema_version,
-        language: &manifest.language,
+        language: language_path,
         extensions: &manifest.extensions,
     };
     let resolution_bytes = serde_json::to_vec(&resolution_inputs)
@@ -332,6 +338,21 @@ fn lockfile_path(manifest_path: &Path) -> PathBuf {
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."))
         .join(LOCKFILE_NAME)
+}
+
+pub(super) fn reject_rust_host_lockfile(manifest_path: &Path) -> Result<(), String> {
+    let path = lockfile_path(manifest_path);
+    match fs::symlink_metadata(&path) {
+        Ok(_) => Err(format!(
+            "Rust-host projects do not use declarative language lockfiles; remove stale '{}'",
+            path.display()
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "cannot inspect project lockfile '{}': {error}",
+            path.display()
+        )),
+    }
 }
 
 fn ensure_lockfile_destination(path: &Path) -> Result<(), String> {

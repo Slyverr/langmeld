@@ -1,19 +1,19 @@
 //! Project configuration and bounded discovery of language source files.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Component, Path, PathBuf},
 };
 
 use langmeld_core::{LanguageSpec, SourceFile, ValidatedLanguageSpec};
-use serde::{Deserialize, Serialize};
 
 use crate::DefinitionLimits;
 
 mod extensions;
 mod lock;
+mod manifest;
 pub use extensions::{
     ExtensionDependency, ExtensionPackage, ManifestExtension, compose_extensions,
 };
@@ -21,6 +21,7 @@ pub use lock::{
     LockedDefinition, LockedExtension, LockedExtensionDependency, ProjectLockfile,
     write_project_extensions, write_project_lockfile,
 };
+pub use manifest::{ProjectBuildConfig, ProjectLanguageSource, ProjectManifest};
 
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
@@ -29,110 +30,15 @@ const MAX_SOURCE_FILES: usize = 2_048;
 const MAX_DIRECTORY_ENTRIES: usize = 100_000;
 const MAX_PROJECT_EXTENSIONS: usize = 128;
 
-/// Project-level paths and source discovery settings stored in `langmeld.json`.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectManifest {
-    /// Version of the project-manifest format.
-    pub schema_version: u32,
-    /// Main language definition, relative to this manifest.
-    pub language: PathBuf,
-    /// Explicit program source files, relative to this manifest.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sources: Vec<PathBuf>,
-    /// Directories recursively scanned for program source files.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub source_roots: Vec<PathBuf>,
-    /// Source suffixes used when scanning roots; empty inherits the language definition.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub source_extensions: Vec<String>,
-    /// Ordered local declarative extensions composed onto the base language.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub extensions: Vec<ManifestExtension>,
-    /// Optional backend defaults used by the project's Rust host.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub build: Option<ProjectBuildConfig>,
-}
-
-/// Backend preferences persisted in a project manifest.
-///
-/// The backend implementation remains registered by the project's Rust host;
-/// this data only records that host's selected defaults.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectBuildConfig {
-    /// Stable ID of a backend registered by the project host.
-    pub backend: String,
-    /// Default output format, or `None` when the backend has a single format.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
-    /// Backend-specific target, such as an architecture or preview profile.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub target: Option<String>,
-    /// Whether to request generated-to-source mappings.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_maps: Option<bool>,
-    /// Backend-owned setting values keyed by their declared setting IDs.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub settings: BTreeMap<String, String>,
-}
-
-impl ProjectBuildConfig {
-    /// Creates backend preferences for one host-registered backend.
-    #[must_use]
-    pub fn new(backend: impl Into<String>) -> Self {
-        Self {
-            backend: backend.into(),
-            ..Self::default()
-        }
-    }
-}
-
 /// A validated project view shared by CLI commands and editor integrations.
 #[derive(Clone, Debug)]
 pub struct ProjectSnapshot {
     /// Manifest settings used to load this snapshot.
     pub manifest: ProjectManifest,
-    /// Fully parsed and validated language definition.
+    /// Effective validated language model after declared extensions are composed.
     pub language: ValidatedLanguageSpec,
     /// Explicit and discovered source files in stable project order.
     pub sources: Vec<SourceFile>,
-}
-
-impl ProjectManifest {
-    /// Creates a starter project manifest.
-    #[must_use]
-    pub fn new(language: impl Into<PathBuf>) -> Self {
-        Self {
-            schema_version: 1,
-            language: language.into(),
-            sources: Vec::new(),
-            source_roots: Vec::new(),
-            source_extensions: Vec::new(),
-            extensions: Vec::new(),
-            build: None,
-        }
-    }
-
-    /// Serializes this manifest as stable, human-readable JSON with a final newline.
-    pub fn to_json(&self) -> Result<String, String> {
-        if self.schema_version != 1 {
-            return Err(format!(
-                "unsupported project manifest schema version {}; expected 1",
-                self.schema_version
-            ));
-        }
-        validate_manifest_paths(self)?;
-        let mut json = serde_json::to_string_pretty(self)
-            .map_err(|error| format!("cannot serialize project manifest: {error}"))?;
-        json.push('\n');
-        if json.len() > MAX_MANIFEST_BYTES {
-            return Err(format!(
-                "project manifest exceeds the {MAX_MANIFEST_BYTES}-byte limit"
-            ));
-        }
-        Ok(json)
-    }
 }
 
 /// Loads a strict, versioned project manifest from disk.
@@ -156,9 +62,9 @@ pub fn load_project_manifest(path: &Path) -> Result<ProjectManifest, String> {
             path.display()
         )
     })?;
-    if manifest.schema_version != 1 {
+    if !matches!(manifest.schema_version, 1 | 2) {
         return Err(format!(
-            "unsupported project manifest schema version {}; expected 1",
+            "unsupported project manifest schema version {}; expected 1 or 2",
             manifest.schema_version
         ));
     }
@@ -204,6 +110,12 @@ pub fn load_source_files(paths: &[PathBuf]) -> Result<Vec<SourceFile>, String> {
 /// Loads, resolves, and validates a project from its manifest on disk.
 pub fn load_project(manifest_path: &Path) -> Result<ProjectSnapshot, String> {
     let manifest = load_project_manifest(manifest_path)?;
+    if matches!(
+        &manifest.language_source,
+        ProjectLanguageSource::RustHost {}
+    ) {
+        return Err(rust_host_model_required());
+    }
     let project = load_project_with_manifest(manifest_path, &manifest)?;
     let root = project_root(manifest_path)?;
     lock::verify_project_lockfile(manifest_path, &root, &manifest, &project.language)?;
@@ -220,10 +132,68 @@ pub fn load_project_with_manifest(
 ) -> Result<ProjectSnapshot, String> {
     manifest.to_json()?;
     let root = project_root(manifest_path)?;
-    let definition_path = root.join(&manifest.language);
+    let Some(definition_path) = manifest.declarative_language_path() else {
+        return Err(rust_host_model_required());
+    };
+    let definition_path = root.join(definition_path);
     let base_language = load_language(&definition_path)?;
+    load_project_snapshot(manifest_path, manifest, &base_language)
+}
+
+/// Builds a project snapshot using the base language model registered by its Rust host.
+///
+/// The supplied model must be the base model before manifest extensions are
+/// composed. Existing declarative definition locks do not apply to Rust-host
+/// models; an existing lock file is rejected instead of being silently trusted.
+/// The manifest is loaded using the normal bounded, symlink-aware loader.
+///
+/// # Errors
+/// Returns an error if the manifest is not in Rust-host mode, extensions are
+/// invalid, source discovery fails, or a declarative lock file is present.
+pub fn load_project_with_base_language(
+    manifest_path: &Path,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<ProjectSnapshot, String> {
+    let manifest = load_project_manifest(manifest_path)?;
+    load_project_with_manifest_and_base_language(manifest_path, &manifest, base_language)
+}
+
+/// Validates a proposed Rust-host project manifest using its registered base model.
+///
+/// The supplied model must be the base model before manifest extensions are
+/// composed. Use [`load_project_with_base_language`] to load the on-disk
+/// manifest through the bounded file loader.
+///
+/// # Errors
+/// Returns an error if the manifest is not in Rust-host mode, extensions are
+/// invalid, source discovery fails, or a declarative lock file is present.
+pub fn load_project_with_manifest_and_base_language(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<ProjectSnapshot, String> {
+    manifest.to_json()?;
+    if !matches!(
+        &manifest.language_source,
+        ProjectLanguageSource::RustHost {}
+    ) {
+        return Err(
+            "cannot inject a Rust-host language model for a declarative project manifest"
+                .to_owned(),
+        );
+    }
+    lock::reject_rust_host_lockfile(manifest_path)?;
+    load_project_snapshot(manifest_path, manifest, base_language)
+}
+
+fn load_project_snapshot(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<ProjectSnapshot, String> {
+    let root = project_root(manifest_path)?;
     let language =
-        extensions::resolve_project_language(&root, &manifest.extensions, &base_language)?;
+        extensions::resolve_project_language(&root, &manifest.extensions, base_language)?;
     let paths = project_source_paths(manifest_path, manifest, &language.spec().source_extensions)?;
     let sources = load_project_sources_from_paths(paths)?;
     Ok(ProjectSnapshot {
@@ -238,9 +208,12 @@ fn project_definition_paths(
     manifest: &ProjectManifest,
     base_language: &ValidatedLanguageSpec,
 ) -> Result<Vec<PathBuf>, String> {
+    let Some(language_path) = manifest.declarative_language_path() else {
+        return Err("Rust-host projects have no declarative definition paths".to_owned());
+    };
     let mut paths = Vec::new();
     let mut seen = BTreeSet::new();
-    let mut roots = vec![root.join(&manifest.language)];
+    let mut roots = vec![root.join(language_path)];
     roots.extend(
         extensions::extension_order(&manifest.extensions, base_language)?
             .into_iter()
@@ -271,7 +244,12 @@ pub fn project_definition_source_paths(
     project: &ProjectSnapshot,
 ) -> Result<Vec<PathBuf>, String> {
     let root = project_root(manifest_path)?;
-    let base_language = load_language(&root.join(&project.manifest.language))?;
+    let Some(language_path) = project.manifest.declarative_language_path() else {
+        return Err(
+            "Rust-host projects do not have declarative definition source paths".to_owned(),
+        );
+    };
+    let base_language = load_language(&root.join(language_path))?;
     project_definition_paths(&root, &project.manifest, &base_language)
 }
 
@@ -285,6 +263,17 @@ pub fn load_project_sources(
     manifest: &ProjectManifest,
 ) -> Result<Vec<SourceFile>, String> {
     load_project_with_manifest(manifest_path, manifest).map(|project| project.sources)
+}
+
+/// Loads project sources using a Rust host's base language model.
+///
+/// The base model is extended by the manifest before its source extensions are
+/// used for discovery.
+pub fn load_project_sources_with_base_language(
+    manifest_path: &Path,
+    base_language: &ValidatedLanguageSpec,
+) -> Result<Vec<SourceFile>, String> {
+    load_project_with_base_language(manifest_path, base_language).map(|project| project.sources)
 }
 
 /// Atomically writes a validated project manifest next to the project's files.
@@ -416,7 +405,25 @@ fn load_project_sources_from_paths(paths: Vec<PathBuf>) -> Result<Vec<SourceFile
 }
 
 fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
-    validate_relative_path(&manifest.language, "language")?;
+    match (&manifest.schema_version, &manifest.language_source) {
+        (1, ProjectLanguageSource::Declarative { path }) => {
+            validate_relative_path(path, "language")?;
+        }
+        (2, ProjectLanguageSource::Declarative { path }) => {
+            validate_relative_path(path, "language")?;
+        }
+        (2, ProjectLanguageSource::RustHost {}) => {}
+        (1, ProjectLanguageSource::RustHost {}) => {
+            return Err(
+                "Rust-host language sources require project manifest schema version 2".to_owned(),
+            );
+        }
+        (version, _) => {
+            return Err(format!(
+                "unsupported project manifest schema version {version}; expected 1 or 2"
+            ));
+        }
+    }
     for path in &manifest.sources {
         validate_relative_path(path, "source")?;
     }
@@ -471,6 +478,10 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn rust_host_model_required() -> String {
+    "project manifest uses a Rust-host language source; load it from the host with `load_project_with_base_language` instead of asking the generic loader to execute project code".to_owned()
 }
 
 fn project_root(manifest_path: &Path) -> Result<PathBuf, String> {

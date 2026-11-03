@@ -101,6 +101,28 @@ impl Drop for TempLanguage {
     }
 }
 
+#[test]
+fn standalone_server_explains_that_rust_host_projects_need_host_injection() {
+    let language = TempLanguage::new();
+    let project_root = language.0.parent().expect("language has project root");
+    let manifest = project_root.join("langmeld.json");
+    fs::write(
+        &manifest,
+        r#"{"schema_version":2,"language_source":{"kind":"rust_host"}}"#,
+    )
+    .expect("Rust-host manifest is written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .arg("--project")
+        .arg(&manifest)
+        .stdin(Stdio::null())
+        .output()
+        .expect("LSP server starts");
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("load_project_with_base_language"));
+}
+
 fn frame(value: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(value).expect("message serializes");
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();

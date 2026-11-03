@@ -293,7 +293,9 @@ fn lockfile_pins_standalone_json_language_definitions() {
     );
     project.write("source.calc", "program {\n}\n");
     let mut manifest = starter_manifest();
-    manifest.language = PathBuf::from("language.json");
+    manifest.language_source = langmeld_language::ProjectLanguageSource::Declarative {
+        path: PathBuf::from("language.json"),
+    };
     let manifest_path = project.write_project(&manifest);
 
     write_project_lockfile(&manifest_path).expect("JSON language lock writes");
@@ -307,4 +309,17 @@ fn lockfile_pins_standalone_json_language_definitions() {
     );
     let error = load_project(&manifest_path).expect_err("changed JSON bytes stale the lock");
     assert!(error.contains("stale"));
+}
+
+#[test]
+fn version_two_declarative_manifest_keeps_definition_lock_behavior() {
+    let project = TempProject::new();
+    project.write("language.lm", BASE);
+    project.write("source.calc", "catalog demo {}\n");
+    let mut manifest = ProjectManifest::new_declarative("language.lm");
+    manifest.sources.push(PathBuf::from("source.calc"));
+    let manifest_path = project.write_project(&manifest);
+
+    write_project_lockfile(&manifest_path).expect("v2 declarative lock writes");
+    load_project(&manifest_path).expect("v2 declarative manifest and lock load");
 }

@@ -342,6 +342,98 @@ fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
 }
 
 #[test]
+fn definition_only_commands_explain_rust_host_mode_without_loading_host_code() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("rust-host-language");
+    fs::create_dir_all(&project).expect("project directory is created");
+    fs::write(
+        project.join("langmeld.json"),
+        r#"{
+  "schema_version": 2,
+  "language_source": { "kind": "rust_host" },
+  "sources": ["main.calc"]
+}
+"#,
+    )
+    .expect("Rust-host manifest is written");
+    fs::write(project.join("main.calc"), "program {}\n").expect("source is written");
+
+    let check = run_check(&project, &["check", "--project", "langmeld.json"]);
+    assert!(!check.status.success());
+    assert!(String::from_utf8_lossy(&check.stderr).contains("load_project_with_base_language"));
+
+    let configure = run_configure(&project, &["--source", "main.calc"]);
+    assert!(!configure.status.success());
+    assert!(String::from_utf8_lossy(&configure.stderr).contains("Rust-host language source"));
+
+    let lock = run_lock(&project);
+    assert!(!lock.status.success());
+    assert!(
+        String::from_utf8_lossy(&lock.stderr).contains("do not have declarative language locks")
+    );
+
+    let inspect = run_language_tools(&[
+        "inspect",
+        "--project",
+        project
+            .join("langmeld.json")
+            .to_str()
+            .expect("manifest path is UTF-8"),
+    ]);
+    assert!(!inspect.status.success());
+    assert!(String::from_utf8_lossy(&inspect.stderr).contains("load_project_with_base_language"));
+
+    let generate = run_generate(&project, false);
+    assert!(!generate.status.success());
+    assert!(String::from_utf8_lossy(&generate.stderr).contains("cannot load Rust-host models"));
+
+    let extension = run_extension(&project, &["add", "--path-only", "extensions/local.lm"]);
+    assert!(!extension.status.success());
+    assert!(String::from_utf8_lossy(&extension.stderr).contains("load_project_with_base_language"));
+}
+
+#[test]
+fn generate_uses_the_v2_declarative_language_path() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("custom-definition-path");
+    fs::create_dir_all(project.join("definitions")).expect("definition directory is created");
+    fs::write(
+        project.join("langmeld.json"),
+        r#"{
+  "schema_version": 2,
+  "language_source": { "kind": "declarative", "path": "definitions/main.lm" }
+}
+"#,
+    )
+    .expect("v2 manifest is written");
+    fs::write(
+        project.join("definitions/main.lm"),
+        r#"language CustomPath {
+  version: "0.1.0"
+  root: program
+  construct program {
+    syntax { default: "program {" }
+    block: [statement]
+  }
+  construct statement {
+    syntax { default: "print {message}" }
+    fields { message: text required }
+  }
+}
+"#,
+    )
+    .expect("custom declarative language is written");
+
+    let generated = run_generate(&project, false);
+    assert!(
+        generated.status.success(),
+        "generation failed:\n{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    assert!(project.join(".langmeld/generated/metadata.json").is_file());
+}
+
+#[test]
 fn extension_commands_manage_local_paths_and_versioned_packages() {
     let workspace = TempWorkspace::new();
     let project = workspace.project("extension-project");

@@ -11,9 +11,9 @@ use super::{pascal_case, rust_keyword_safe, snake_case, unique};
 /// Generates deterministic Rust source for typed views of a language AST.
 ///
 /// The generated module embeds the canonical language definition and includes
-/// conversions from [`langmeld_language::AstNode`] and
-/// [`langmeld_language::Program`]. Consumers compile the output in a crate that
-/// depends on both `langmeld-core` and `langmeld-language`.
+/// conversions from [`crate::AstNode`] and [`crate::Program`]. Consumers compile
+/// the output in a crate that depends on both `langmeld-core` and
+/// `langmeld-language`.
 #[must_use]
 pub fn generate_rust_ast(language: &ValidatedLanguageSpec) -> String {
     let spec = language.spec();

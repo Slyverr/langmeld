@@ -4,7 +4,10 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use langmeld_language::{generate_tooling, parse_language_definition_project};
+use langmeld_language::{
+    ProjectLanguageSource, generate_tooling, load_project_manifest,
+    parse_language_definition_project,
+};
 
 use crate::cli::GenerateArgs;
 
@@ -14,7 +17,30 @@ type Files = BTreeMap<PathBuf, String>;
 
 pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
     let root = arguments.project_root;
-    let definition = root.join("language/language.lm");
+    let manifest_path = root.join("langmeld.json");
+    let definition = match fs::symlink_metadata(&manifest_path) {
+        Ok(_) => {
+            let manifest = load_project_manifest(&manifest_path)?;
+            match manifest.language_source {
+                ProjectLanguageSource::Declarative { path } => root.join(path),
+                ProjectLanguageSource::RustHost {} => {
+                    return Err(
+                        "`langmeld generate` cannot load Rust-host models; use the compiled host to generate tooling"
+                            .to_owned(),
+                    );
+                }
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            root.join("language/language.lm")
+        }
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect project manifest '{}': {error}",
+                manifest_path.display()
+            ));
+        }
+    };
     let language = parse_language_definition_project(&definition)
         .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?;
     let host_artifacts = host::generate_host_scaffold(&language);

@@ -1,6 +1,9 @@
+use langmeld_core::{ConstructBuilder, LanguageBuilder};
 use langmeld_language::{
-    ProjectBuildConfig, ProjectManifest, load_language, load_project, load_project_manifest,
-    load_project_sources, load_project_with_manifest, load_source_files, write_project_manifest,
+    ManifestExtension, ProjectBuildConfig, ProjectLanguageSource, ProjectManifest, load_language,
+    load_project, load_project_manifest, load_project_sources, load_project_with_base_language,
+    load_project_with_manifest, load_project_with_manifest_and_base_language, load_source_files,
+    write_project_lockfile, write_project_manifest,
 };
 use std::{
     collections::BTreeMap,
@@ -98,9 +101,241 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
             .contains("unknown field")
     );
 
-    manifest.language = PathBuf::from("../outside.lm");
-    manifest.language = PathBuf::from("../shared/language.lm");
+    manifest.language_source = ProjectLanguageSource::Declarative {
+        path: PathBuf::from("/outside.lm"),
+    };
+    assert!(manifest.to_json().is_err());
+    manifest.language_source = ProjectLanguageSource::Declarative {
+        path: PathBuf::from("../shared/language.lm"),
+    };
     assert!(manifest.to_json().is_ok());
+}
+
+#[test]
+fn version_one_manifest_reads_and_writes_in_its_legacy_shape() {
+    let project = TempProject::new();
+    project.write_language();
+    project.write("examples/main.calc", "print \"hello\"\n");
+    let manifest_path = project.manifest(
+        r#"{"schema_version":1,"language":"language/language.lm","sources":["examples/main.calc"]}"#,
+    );
+    let manifest = load_project_manifest(&manifest_path).expect("v1 manifest loads");
+    assert_eq!(manifest.schema_version, 1);
+    assert_eq!(
+        manifest.language_source,
+        ProjectLanguageSource::Declarative {
+            path: PathBuf::from("language/language.lm")
+        }
+    );
+    write_project_manifest(&manifest_path, &manifest).expect("v1 manifest rewrites");
+    let rewritten: serde_json::Value = serde_json::from_slice(
+        &fs::read(&manifest_path).expect("rewritten manifest bytes are readable"),
+    )
+    .expect("rewritten manifest is JSON");
+    assert_eq!(rewritten["schema_version"], 1);
+    assert_eq!(rewritten["language"], "language/language.lm");
+    assert!(rewritten.get("language_source").is_none());
+    assert!(load_project(&manifest_path).is_ok());
+}
+
+#[test]
+fn version_two_manifest_source_modes_are_strict_and_round_trip() {
+    let project = TempProject::new();
+    let declarative_manifest = ProjectManifest::new_declarative("language/main.lm");
+    let declarative_json = declarative_manifest
+        .to_json()
+        .expect("v2 declarative manifest serializes");
+    let declarative_path = project.manifest(&declarative_json);
+    assert_eq!(
+        load_project_manifest(&declarative_path).expect("v2 declarative manifest loads"),
+        declarative_manifest
+    );
+
+    let rust_manifest = ProjectManifest::new_rust_host();
+    let rust_json = rust_manifest
+        .to_json()
+        .expect("Rust-host manifest serializes");
+    let rust_value: serde_json::Value =
+        serde_json::from_str(&rust_json).expect("Rust-host manifest is JSON");
+    assert_eq!(rust_value["language_source"]["kind"], "rust_host");
+    assert!(rust_value.get("language").is_none());
+    let rust_path = project.manifest(&rust_json);
+    assert_eq!(
+        load_project_manifest(&rust_path).expect("Rust-host manifest loads"),
+        rust_manifest
+    );
+
+    for (contents, expected) in [
+        (r#"{"schema_version":1}"#, "missing field `language`"),
+        (
+            r#"{"schema_version":2,"language":"legacy.lm"}"#,
+            "unknown field `language`",
+        ),
+        (
+            r#"{"schema_version":2,"sources":["main.calc"]}"#,
+            "language_source",
+        ),
+        (
+            r#"{"schema_version":2,"language_source":{"kind":"declarative"}}"#,
+            "missing field `path`",
+        ),
+        (
+            r#"{"schema_version":2,"language_source":{"kind":"unknown"}}"#,
+            "unknown variant",
+        ),
+        (
+            r#"{"schema_version":2,"language_source":{"kind":"declarative","path":"/outside.lm"}}"#,
+            "relative path",
+        ),
+        (
+            r#"{"schema_version":2,"language_source":{"kind":"rust_host","path":"fake.lm"}}"#,
+            "unknown field",
+        ),
+    ] {
+        let invalid = project.manifest(contents);
+        assert!(
+            load_project_manifest(&invalid)
+                .expect_err("invalid v2 manifest is rejected")
+                .contains(expected),
+            "expected error containing {expected:?} for {contents}"
+        );
+    }
+}
+
+#[test]
+fn rust_host_snapshot_uses_injected_base_model_and_rejects_generic_definition_operations() {
+    let project = TempProject::new();
+    project.write("examples/b.calc", "b");
+    project.write("examples/a.calc", "a");
+    let mut manifest = ProjectManifest::new_rust_host();
+    manifest.source_roots.push(PathBuf::from("examples"));
+    let manifest_path =
+        project.manifest(&manifest.to_json().expect("Rust-host manifest serializes"));
+    let base_language = LanguageBuilder::new("HostLanguage")
+        .version("0.1.0")
+        .root("program")
+        .source_extension(".calc")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(std::iter::empty::<&str>()),
+        )
+        .build()
+        .expect("host language model validates");
+
+    assert!(
+        load_project(&manifest_path)
+            .expect_err("generic loading must not execute or discover host code")
+            .contains("load_project_with_base_language")
+    );
+    let snapshot = load_project_with_base_language(&manifest_path, &base_language)
+        .expect("host can inject its compiled base model");
+    assert_eq!(snapshot.sources.len(), 2);
+    assert!(snapshot.sources[0].name.ends_with("examples/a.calc"));
+    assert!(snapshot.sources[1].name.ends_with("examples/b.calc"));
+    assert!(
+        write_project_lockfile(&manifest_path)
+            .expect_err("Rust-host mode has no definition lock")
+            .contains("do not have declarative language locks")
+    );
+}
+
+#[test]
+fn rust_host_snapshot_composes_extensions_once_before_source_discovery() {
+    let project = TempProject::new();
+    project.write(
+        "extensions/local.lm",
+        r#"language HostLanguage {
+  version: "0.1.0"
+  root: program
+  construct local {
+    syntax { default: "local {name}" }
+    implements: Item
+    fields { name: identifier required }
+  }
+}
+"#,
+    );
+    project.write("sources/main.calc", "program { local demo }\n");
+    let mut manifest = ProjectManifest::new_rust_host();
+    manifest.source_roots.push(PathBuf::from("sources"));
+    manifest
+        .extensions
+        .push(ManifestExtension::Path(PathBuf::from(
+            "extensions/local.lm",
+        )));
+    let manifest_path =
+        project.manifest(&manifest.to_json().expect("Rust-host manifest serializes"));
+    let base_language = LanguageBuilder::new("HostLanguage")
+        .version("0.1.0")
+        .root("program")
+        .source_extension(".calc")
+        .category("Item")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(std::iter::empty::<&str>()),
+        )
+        .build()
+        .expect("host language model validates");
+
+    let snapshot = load_project_with_base_language(&manifest_path, &base_language)
+        .expect("host model and one local extension resolve");
+    assert_eq!(snapshot.language.spec().source_extensions, [".calc"]);
+    assert_eq!(
+        snapshot
+            .language
+            .spec()
+            .constructs
+            .iter()
+            .filter(|construct| construct.id == "local")
+            .count(),
+        1
+    );
+    assert_eq!(snapshot.sources.len(), 1);
+}
+
+#[test]
+fn rust_host_snapshot_rejects_mode_mismatch_and_stale_declarative_lock() {
+    let project = TempProject::new();
+    project.write("source.calc", "source");
+    let declarative_manifest = ProjectManifest::new("language.lm");
+    let manifest_path = project.manifest(
+        &declarative_manifest
+            .to_json()
+            .expect("declarative manifest serializes"),
+    );
+    let base_language = LanguageBuilder::new("HostLanguage")
+        .version("0.1.0")
+        .root("program")
+        .source_extension(".calc")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(std::iter::empty::<&str>()),
+        )
+        .build()
+        .expect("host language model validates");
+    assert!(
+        load_project_with_manifest_and_base_language(
+            &manifest_path,
+            &declarative_manifest,
+            &base_language,
+        )
+        .expect_err("host injection into a declarative project is rejected")
+        .contains("cannot inject")
+    );
+
+    let mut rust_manifest = ProjectManifest::new_rust_host();
+    rust_manifest.sources.push(PathBuf::from("source.calc"));
+    write_project_manifest(&manifest_path, &rust_manifest)
+        .expect("manifest switches to Rust-host mode");
+    project.write("langmeld.lock", "stale declarative lock");
+    assert!(
+        load_project_with_base_language(&manifest_path, &base_language)
+            .expect_err("Rust-host projects reject a stale definition lock")
+            .contains("remove stale")
+    );
 }
 
 #[test]
@@ -172,8 +407,10 @@ fn source_loading_inherits_extensions_and_orders_discovered_paths() {
     assert_eq!(snapshot.language.spec().source_extensions, [".calc"]);
     assert_eq!(snapshot.sources.len(), 2);
     assert_eq!(
-        snapshot.manifest.language,
-        PathBuf::from("language/language.lm")
+        snapshot.manifest.language_source,
+        ProjectLanguageSource::Declarative {
+            path: PathBuf::from("language/language.lm")
+        }
     );
 }
 
