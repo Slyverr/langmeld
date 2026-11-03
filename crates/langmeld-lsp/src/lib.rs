@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_COMPLETION_ITEMS: usize = 200;
 
 /// Creates a generic parser for a language that does not require host callbacks.
 ///
@@ -99,7 +100,10 @@ impl Server {
         };
         let id = message.get("id").cloned();
         match method {
-            "initialize" => id.into_iter().map(initialize_response).collect(),
+            "initialize" => id
+                .into_iter()
+                .map(|id| initialize_response(id, self.supports_completion()))
+                .collect(),
             "initialized" => Vec::new(),
             "shutdown" => {
                 self.shutdown = true;
@@ -122,6 +126,17 @@ impl Server {
                     Vec::new()
                 }
             }
+            "textDocument/completion" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.completion_items(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
             "textDocument/didClose" => {
                 if let Some(uri) = message
                     .pointer("/params/textDocument/uri")
@@ -231,22 +246,94 @@ impl Server {
             }
         })]
     }
+
+    fn supports_completion(&self) -> bool {
+        self.parser.language().keywords().next().is_some()
+    }
+
+    fn completion_items(&self, params: &Value) -> Vec<Value> {
+        let (Some(uri), Some(line), Some(character)) = (
+            params.pointer("/textDocument/uri").and_then(Value::as_str),
+            params.pointer("/position/line").and_then(Value::as_u64),
+            params
+                .pointer("/position/character")
+                .and_then(Value::as_u64),
+        ) else {
+            return Vec::new();
+        };
+        let (Ok(line), Ok(character)) = (u32::try_from(line), u32::try_from(character)) else {
+            return Vec::new();
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        let Some(offset) = offset_at_position(&document.source.text, line, character) else {
+            return Vec::new();
+        };
+        keyword_completion_items(
+            &document.source.text,
+            offset,
+            self.parser.language().keywords(),
+        )
+    }
 }
 
-fn initialize_response(id: Value) -> Value {
+fn initialize_response(id: Value, supports_completion: bool) -> Value {
+    let mut capabilities = json!({
+        "textDocumentSync": { "openClose": true, "change": 2 }
+    });
+    if supports_completion {
+        capabilities["completionProvider"] = json!({ "resolveProvider": false });
+    }
     json!({
         "jsonrpc": "2.0",
         "id": id,
         "result": {
-            "capabilities": {
-                "textDocumentSync": { "openClose": true, "change": 2 }
-            },
+            "capabilities": capabilities,
             "serverInfo": {
                 "name": "langmeld-lsp",
                 "version": env!("CARGO_PKG_VERSION")
             }
         }
     })
+}
+
+fn keyword_completion_items<'a>(
+    text: &str,
+    offset: usize,
+    keywords: impl Iterator<Item = &'a str>,
+) -> Vec<Value> {
+    if offset > text.len() || !text.is_char_boundary(offset) {
+        return Vec::new();
+    }
+    let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let line_prefix = &text[line_start..offset];
+    let word_start = line_prefix
+        .char_indices()
+        .rev()
+        .find(|(_, value)| !value.is_alphanumeric() && *value != '_' && *value != '-')
+        .map_or(line_start, |(index, value)| {
+            line_start + index + value.len_utf8()
+        });
+    let prefix = &text[word_start..offset];
+    keywords
+        .filter(|keyword| keyword.starts_with(prefix))
+        .take(MAX_COMPLETION_ITEMS)
+        .map(|keyword| {
+            json!({
+                "label": keyword,
+                "kind": 14,
+                "filterText": keyword,
+                "textEdit": {
+                    "range": {
+                        "start": lsp_position(text, word_start),
+                        "end": lsp_position(text, offset),
+                    },
+                    "newText": keyword,
+                }
+            })
+        })
+        .collect()
 }
 
 fn lsp_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) -> Value {
@@ -503,6 +590,35 @@ mod tests {
         );
         assert_eq!(offset_at_position("a\n", 1, 0), Some(2));
         assert_eq!(offset_at_position("a", 1, 0), None);
+    }
+
+    #[test]
+    fn keyword_completion_filters_prefix_and_uses_utf16_edit_ranges() {
+        let text = "😀 λ";
+        let items =
+            keyword_completion_items(text, text.len(), ["if", "λambda", "return"].into_iter());
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["label"], "λambda");
+        assert_eq!(
+            items[0]["textEdit"]["range"]["start"],
+            json!({ "line": 0, "character": 3 })
+        );
+        assert_eq!(
+            items[0]["textEdit"]["range"]["end"],
+            json!({ "line": 0, "character": 4 })
+        );
+    }
+
+    #[test]
+    fn keyword_completion_is_empty_without_keywords_and_initialization_is_gated() {
+        let items = keyword_completion_items("", 0, std::iter::empty());
+        assert!(items.is_empty());
+        let response = initialize_response(json!(1), false);
+        assert!(
+            response["result"]["capabilities"]
+                .get("completionProvider")
+                .is_none()
+        );
     }
 
     #[test]

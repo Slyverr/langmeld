@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 
 use langmeld_core::ValidatedLanguageSpec;
 use langmeld_language::{
-    generate_tree_sitter, language_definition_source_paths, load_language, load_project,
-    project_definition_source_paths,
+    PreparedLanguage, generate_tree_sitter, language_definition_source_paths, load_language,
+    load_project, project_definition_source_paths,
 };
 use serde_json::{Value, json};
 
@@ -72,6 +72,9 @@ pub(crate) fn describe(language_path: &Path, id: &str) -> Result<(), (u8, String
 
 fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>) -> Value {
     let spec = language.spec();
+    let lsp_literal_keyword_completion = PreparedLanguage::new(language.clone())
+        .map(|prepared| prepared.keywords().next().is_some())
+        .unwrap_or(false);
     let tree_sitter = match generate_tree_sitter(language) {
         Ok(_) => json!({ "supported": true }),
         Err(reason) => json!({ "supported": false, "reason": reason }),
@@ -88,7 +91,9 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
         "current_capabilities": {
             "language_tool_commands": ["check", "format", "inspect", "constructs", "describe"],
             "lsp_open_document_diagnostics": true,
-            "lsp_incremental_edits": false,
+            "lsp_ranged_document_changes": true,
+            "lsp_literal_keyword_completion": lsp_literal_keyword_completion,
+            "lsp_contextual_completion": false,
             "lsp_navigation": false,
             "wasm_implemented": false,
         },

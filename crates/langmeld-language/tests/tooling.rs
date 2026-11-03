@@ -114,11 +114,21 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .any(|item| item == "language_configuration")
     );
     assert!(
+        capabilities["editor_support"]["lsp_ranged_document_changes"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        capabilities["editor_support"]["lsp_literal_keyword_completion"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
         capabilities["not_yet_available"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|item| item == "lsp")
+            .any(|item| item == "lsp_navigation")
     );
     assert!(
         capabilities["optional_artifacts"]["tree_sitter"]["available"]
@@ -132,7 +142,7 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .iter()
             .any(|item| item == "wasm_adapter")
     );
-    assert!(artifacts["agent-skill/SKILL.md"].contains("has no `langmeld` project CLI or LSP"));
+    assert!(artifacts["agent-skill/SKILL.md"].contains("literal-keyword suggestions"));
     assert!(artifacts["README.md"].contains("`let {mode} {name} => {value}`"));
 
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
@@ -179,5 +189,33 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
             .as_str()
             .unwrap()
             .contains("custom parser `host-custom`")
+    );
+}
+
+#[test]
+fn keyword_completion_capability_is_false_without_literal_keywords() {
+    let language = LanguageBuilder::new("BareCapture")
+        .version("0.1.0")
+        .root("name")
+        .construct(
+            ConstructBuilder::new("name")
+                .syntax("{value} {")
+                .block(["child"])
+                .field(FieldSpec::required("value", FieldKind::Identifier)),
+        )
+        .construct(
+            ConstructBuilder::new("child")
+                .syntax("{value}")
+                .field(FieldSpec::required("value", FieldKind::Identifier)),
+        )
+        .build()
+        .expect("capture-only language validates");
+    let artifacts = generate_tooling(&language).expect("tooling artifacts generate");
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capabilities are JSON");
+    assert_eq!(
+        capabilities["editor_support"]["lsp_literal_keyword_completion"],
+        false
     );
 }
