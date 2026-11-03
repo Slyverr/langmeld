@@ -25,6 +25,18 @@ fn main() -> std::process::ExitCode {
                 std::process::ExitCode::from(2)
             }
         },
+        cli::Commands::Lock(arguments) => {
+            match langmeld_language::write_project_lockfile(&arguments.project) {
+                Ok(path) => {
+                    println!("updated {}", path.display());
+                    std::process::ExitCode::SUCCESS
+                }
+                Err(message) => {
+                    eprintln!("langmeld: {message}");
+                    std::process::ExitCode::from(2)
+                }
+            }
+        }
         cli::Commands::Check(arguments) => match check::check_workspace(arguments) {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err((code, message)) => {

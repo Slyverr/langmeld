@@ -122,19 +122,50 @@ pub fn parse_language_definition_project_with_limits(
     crate::definition_import::parse_project(root_path, prepared_definition_parser()?, limits)
 }
 
-/// Parses a language definition project into a canonical model without requiring
-/// the declarations to form a complete language on their own.
-///
-/// This is intended for data-only extension definitions. Callers must compose
-/// the returned model with a base language and validate the effective result.
-///
-/// # Errors
-/// Returns parser, conversion, or import-resolution diagnostics.
-pub(crate) fn parse_language_definition_project_spec_with_limits(
+pub(crate) fn parse_language_definition_project_spec_with_sources(
     root_path: &Path,
     limits: DefinitionLimits,
-) -> Result<langmeld_core::LanguageSpec, Vec<Diagnostic>> {
-    crate::definition_import::parse_project_spec(root_path, prepared_definition_parser()?, limits)
+) -> Result<(langmeld_core::LanguageSpec, Vec<std::path::PathBuf>, usize), Vec<Diagnostic>> {
+    crate::definition_import::parse_project_spec_with_sources(
+        root_path,
+        prepared_definition_parser()?,
+        limits,
+    )
+}
+
+pub(crate) fn language_definition_source_paths(
+    root_path: &Path,
+    limits: DefinitionLimits,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    if root_path
+        .extension()
+        .is_some_and(|extension| extension == "json")
+    {
+        return std::fs::canonicalize(root_path)
+            .map(|path| vec![path])
+            .map_err(|error| {
+                format!(
+                    "cannot resolve language definition '{}': {error}",
+                    root_path.display()
+                )
+            });
+    }
+    let prepared = prepared_definition_parser().map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    crate::definition_import::project_source_paths(root_path, prepared, limits).map_err(
+        |diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        },
+    )
 }
 
 /// Loads a file-based `.lm` project with a caller-supplied meta-language.

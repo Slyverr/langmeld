@@ -69,6 +69,14 @@ fn run_configure(project: &std::path::Path, arguments: &[&str]) -> std::process:
         .expect("langmeld configure starts")
 }
 
+fn run_lock(project: &std::path::Path) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["lock", "--project"])
+        .arg(project.join("langmeld.json"))
+        .output()
+        .expect("langmeld lock starts")
+}
+
 fn run_check(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(arguments)
@@ -255,6 +263,52 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let failed = run_project_host(&project, &["run", "--project"]);
     assert_eq!(failed.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&failed.stderr).contains("interpreter rejected input"));
+}
+
+#[test]
+fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("locked-language");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().expect("project path is UTF-8"),
+        "--name",
+        "LockedLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "project initialization failed:\n{}\n{}",
+        String::from_utf8_lossy(&initialized.stdout),
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+
+    let locked = run_lock(&project);
+    assert!(
+        locked.status.success(),
+        "lock generation failed:\n{}\n{}",
+        String::from_utf8_lossy(&locked.stdout),
+        String::from_utf8_lossy(&locked.stderr)
+    );
+    assert!(project.join("langmeld.lock").is_file());
+    let checked = run_check(&project, &["check", "--project", "langmeld.json"]);
+    assert!(checked.status.success(), "matching lock should load");
+
+    let main_definition = project.join("language/language.lm");
+    let mut contents = fs::read_to_string(&main_definition).expect("language definition reads");
+    contents.push_str("\n# lock input changed\n");
+    fs::write(&main_definition, contents).expect("language definition changes");
+    let stale = run_check(&project, &["check", "--project", "langmeld.json"]);
+    assert!(!stale.status.success());
+    assert!(String::from_utf8_lossy(&stale.stderr).contains("project lockfile"));
+
+    let refreshed = run_lock(&project);
+    assert!(
+        refreshed.status.success(),
+        "stale lock refresh should succeed"
+    );
+    let checked = run_check(&project, &["check", "--project", "langmeld.json"]);
+    assert!(checked.status.success(), "refreshed lock should load");
 }
 
 #[test]

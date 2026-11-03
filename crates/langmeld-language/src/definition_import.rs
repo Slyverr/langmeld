@@ -33,12 +33,36 @@ pub(crate) fn parse_project(
     limit_diagnostics(result, limits.max_diagnostics, source_len)
 }
 
-pub(crate) fn parse_project_spec(
+pub(crate) fn project_source_paths(
     path: &Path,
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
-) -> Result<langmeld_core::LanguageSpec, Vec<Diagnostic>> {
-    parse_project_spec_and_length(path, prepared, limits).map(|(spec, _)| spec)
+) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    let project = load_project(path, prepared, limits)?;
+    Ok(project.paths)
+}
+
+pub(crate) fn parse_project_spec_with_sources(
+    path: &Path,
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+) -> Result<(langmeld_core::LanguageSpec, Vec<PathBuf>, usize), Vec<Diagnostic>> {
+    let project = load_project(path, prepared, limits)?;
+    let source_len = project
+        .modules
+        .last()
+        .map_or(0, |(_, source)| source.text.len());
+    let spec = limit_diagnostics(
+        convert_language_module_specs(
+            project
+                .modules
+                .iter()
+                .map(|(module, source)| (module, source)),
+        ),
+        limits.max_diagnostics,
+        source_len,
+    )?;
+    Ok((spec, project.paths, project.total_bytes))
 }
 
 fn parse_project_spec_and_length(
@@ -66,6 +90,8 @@ fn parse_project_spec_and_length(
 
 struct LoadedProject {
     modules: Vec<(AstNode, SourceFile)>,
+    paths: Vec<PathBuf>,
+    total_bytes: usize,
 }
 
 struct LoadState<'a> {
@@ -77,6 +103,7 @@ struct LoadState<'a> {
     visiting: Vec<PathBuf>,
     loaded: BTreeSet<PathBuf>,
     modules: Vec<(AstNode, SourceFile)>,
+    paths: Vec<PathBuf>,
 }
 
 fn load_project(
@@ -122,10 +149,13 @@ fn load_project(
         visiting: Vec::new(),
         loaded: BTreeSet::new(),
         modules: Vec::new(),
+        paths: Vec::new(),
     };
     load_module(&root_path, &mut state)?;
     Ok(LoadedProject {
         modules: state.modules,
+        paths: state.paths,
+        total_bytes: state.total_bytes,
     })
 }
 
@@ -220,6 +250,7 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), Vec<Diagnos
         }
         state.loaded.insert(canonical_path.clone());
         state.modules.push((module, source));
+        state.paths.push(canonical_path.clone());
         Ok(())
     })();
     state.visiting.pop();

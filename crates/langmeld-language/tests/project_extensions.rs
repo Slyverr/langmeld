@@ -208,3 +208,16 @@ fn project_accepts_an_unversioned_local_definition_path() {
         .expect("local extension paths compose");
     assert!(loaded.language.construct("local").is_some());
 }
+
+#[test]
+fn project_rejects_extension_lists_above_the_resource_limit() {
+    let mut manifest = ProjectManifest::new("language.lm");
+    manifest.extensions = (0..129)
+        .map(|index| ManifestExtension::Path(PathBuf::from(format!("extensions/{index}.lm"))))
+        .collect();
+
+    let error = manifest
+        .to_json()
+        .expect_err("oversized extension lists are rejected before loading files");
+    assert!(error.contains("project extension count exceeds 128"));
+}

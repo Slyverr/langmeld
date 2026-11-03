@@ -11,8 +11,13 @@ use langmeld_core::{LanguageSpec, SourceFile, ValidatedLanguageSpec};
 use serde::{Deserialize, Serialize};
 
 mod extensions;
+mod lock;
 pub use extensions::{
     ExtensionDependency, ExtensionPackage, ManifestExtension, compose_extensions,
+};
+pub use lock::{
+    LockedDefinition, LockedExtension, LockedExtensionDependency, ProjectLockfile,
+    write_project_lockfile,
 };
 
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
@@ -20,6 +25,7 @@ const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_TOTAL_SOURCE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SOURCE_FILES: usize = 2_048;
 const MAX_DIRECTORY_ENTRIES: usize = 100_000;
+const MAX_PROJECT_EXTENSIONS: usize = 128;
 
 /// Project-level paths and source discovery settings stored in `langmeld.json`.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -196,7 +202,10 @@ pub fn load_source_files(paths: &[PathBuf]) -> Result<Vec<SourceFile>, String> {
 /// Loads, resolves, and validates a project from its manifest on disk.
 pub fn load_project(manifest_path: &Path) -> Result<ProjectSnapshot, String> {
     let manifest = load_project_manifest(manifest_path)?;
-    load_project_with_manifest(manifest_path, &manifest)
+    let project = load_project_with_manifest(manifest_path, &manifest)?;
+    let root = project_root(manifest_path)?;
+    lock::verify_project_lockfile(manifest_path, &root, &manifest, &project.language)?;
+    Ok(project)
 }
 
 /// Loads a proposed project configuration without requiring it to be written first.
@@ -256,7 +265,7 @@ pub fn write_project_manifest(
             ));
         }
     }
-    write_atomically(manifest_path, contents.as_bytes())
+    write_atomically(manifest_path, contents.as_bytes(), "project manifest")
 }
 
 fn project_source_paths(
@@ -369,6 +378,11 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
     }
     for path in &manifest.source_roots {
         validate_relative_path(path, "source root")?;
+    }
+    if manifest.extensions.len() > MAX_PROJECT_EXTENSIONS {
+        return Err(format!(
+            "project extension count exceeds {MAX_PROJECT_EXTENSIONS}"
+        ));
     }
     for extension in &manifest.extensions {
         validate_relative_path(extension.path(), "extension")?;
@@ -531,17 +545,14 @@ pub(super) fn read_bounded(path: &Path, limit: usize, role: &str) -> Result<Vec<
     Ok(bytes)
 }
 
-fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
+pub(super) fn write_atomically(path: &Path, contents: &[u8], role: &str) -> Result<(), String> {
     let parent = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let file_name = path.file_name().ok_or_else(|| {
-        format!(
-            "project manifest path '{}' has no file name",
-            path.display()
-        )
-    })?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("{role} path '{}' has no file name", path.display()))?;
     for attempt in 0..32_u8 {
         let temporary_path = parent.join(format!(
             ".{}.{}.{}.tmp",
@@ -558,7 +569,7 @@ fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
                 return Err(format!(
-                    "cannot create temporary manifest '{}': {error}",
+                    "cannot create temporary {role} '{}': {error}",
                     temporary_path.display()
                 ));
             }
@@ -568,7 +579,7 @@ fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
             .and_then(|()| file.sync_all())
             .map_err(|error| {
                 format!(
-                    "cannot write temporary manifest '{}': {error}",
+                    "cannot write temporary {role} '{}': {error}",
                     temporary_path.display()
                 )
             });
@@ -580,14 +591,14 @@ fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
         if let Err(error) = fs::rename(&temporary_path, path) {
             let _ = fs::remove_file(&temporary_path);
             return Err(format!(
-                "cannot replace project manifest '{}': {error}",
+                "cannot replace {role} '{}': {error}",
                 path.display()
             ));
         }
         return Ok(());
     }
     Err(format!(
-        "cannot create a unique temporary manifest beside '{}'",
+        "cannot create a unique temporary {role} beside '{}'",
         path.display()
     ))
 }

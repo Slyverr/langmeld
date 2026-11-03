@@ -21,6 +21,8 @@ pub(crate) enum Commands {
     Init(InitArgs),
     /// Update project source discovery settings.
     Configure(ConfigureArgs),
+    /// Refresh the integrity lock for local language definitions.
+    Lock(LockArgs),
     /// Parse source files and run generic workspace analysis.
     #[command(alias = "validate")]
     Check(ValidationArgs),
@@ -63,6 +65,13 @@ pub(crate) struct ConfigureArgs {
     /// Inherit source extensions from the language definition.
     #[arg(long, conflicts_with = "source_extensions")]
     pub(crate) inherit_source_extensions: bool,
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct LockArgs {
+    /// Project manifest whose language definitions should be pinned.
+    #[arg(long, default_value = "langmeld.json")]
+    pub(crate) project: PathBuf,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -184,6 +193,7 @@ mod tests {
         let mut command = Cli::command();
         assert!(command.render_long_help().to_string().contains("init"));
         assert!(command.render_long_help().to_string().contains("configure"));
+        assert!(command.render_long_help().to_string().contains("lock"));
         assert!(command.render_long_help().to_string().contains("check"));
         assert!(command.render_long_help().to_string().contains("generate"));
         let init = command
@@ -219,6 +229,16 @@ mod tests {
             .expect("generate command is registered");
         let help = generate.clone().render_long_help().to_string();
         assert!(help.contains("--install-host"));
+    }
+
+    #[test]
+    fn clap_parses_lock_project_option() {
+        let cli = Cli::try_parse_from(["langmeld", "lock", "--project", "workspace.json"])
+            .expect("lock command options parse");
+        let Commands::Lock(arguments) = cli.command else {
+            panic!("lock command parsed as another subcommand");
+        };
+        assert_eq!(arguments.project, PathBuf::from("workspace.json"));
     }
 
     #[test]

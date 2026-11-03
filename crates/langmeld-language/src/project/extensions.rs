@@ -10,9 +10,11 @@ use langmeld_core::{LanguageSpec, SpecError, ValidatedLanguageSpec};
 use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
-use crate::{DefinitionLimits, definition::parse_language_definition_project_spec_with_limits};
+use crate::{DefinitionLimits, definition::parse_language_definition_project_spec_with_sources};
 
 use super::read_bounded;
+
+const MAX_COMPOSED_EXTENSION_BYTES: usize = 60 * 1024 * 1024;
 
 /// One local extension definition or versioned package entry.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -68,12 +70,15 @@ pub(super) fn resolve_project_language(
     if extensions.is_empty() {
         return Ok(base.clone());
     }
+    let mut total_extension_bytes = 0_usize;
     let order = extension_order(extensions, base)?;
     let mut definitions = Vec::with_capacity(extensions.len());
     for index in order {
         let extension = &extensions[index];
         let path = project_root.join(extension.path());
-        let mut definition = load_extension_definition(&path)?;
+        let remaining_bytes = MAX_COMPOSED_EXTENSION_BYTES.saturating_sub(total_extension_bytes);
+        let (mut definition, bytes) = load_extension_definition(&path, remaining_bytes)?;
+        total_extension_bytes = total_extension_bytes.saturating_add(bytes);
         if matches!(extension, ManifestExtension::Package(_)) {
             definition.version = base.spec().version.clone();
         }
@@ -89,7 +94,10 @@ pub(super) fn resolve_project_language(
     })
 }
 
-fn load_extension_definition(path: &Path) -> Result<LanguageSpec, String> {
+fn load_extension_definition(
+    path: &Path,
+    byte_limit: usize,
+) -> Result<(LanguageSpec, usize), String> {
     let metadata = fs::symlink_metadata(path).map_err(|error| {
         format!(
             "cannot inspect extension definition '{}': {error}",
@@ -106,22 +114,34 @@ fn load_extension_definition(path: &Path) -> Result<LanguageSpec, String> {
         .extension()
         .is_some_and(|extension| extension == "json")
     {
-        let bytes = read_bounded(path, 4 * 1024 * 1024, "extension definition")?;
-        serde_json::from_slice(&bytes).map_err(|error| {
+        let bytes = read_bounded(
+            path,
+            byte_limit.min(4 * 1024 * 1024),
+            "extension definition",
+        )?;
+        let spec = serde_json::from_slice(&bytes).map_err(|error| {
             format!(
                 "cannot parse extension definition '{}': {error}",
                 path.display()
             )
-        })
+        })?;
+        Ok((spec, bytes.len()))
     } else {
-        parse_language_definition_project_spec_with_limits(path, DefinitionLimits::default())
-            .map_err(|diagnostics| {
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
+        parse_language_definition_project_spec_with_sources(
+            path,
+            DefinitionLimits {
+                max_source_bytes: byte_limit,
+                ..DefinitionLimits::default()
+            },
+        )
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .map(|(spec, _, bytes)| (spec, bytes))
     }
 }
 
@@ -194,7 +214,7 @@ pub fn compose_extensions(
     effective.validate()
 }
 
-fn extension_order(
+pub(super) fn extension_order(
     extensions: &[ManifestExtension],
     base: &ValidatedLanguageSpec,
 ) -> Result<Vec<usize>, String> {
