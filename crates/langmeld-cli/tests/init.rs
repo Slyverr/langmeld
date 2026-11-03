@@ -575,6 +575,14 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
         value["current_capabilities"]["lsp_document_symbols"],
         serde_json::Value::Bool(true)
     );
+    assert_eq!(
+        value["current_capabilities"]["lsp_navigation"],
+        serde_json::Value::Bool(false)
+    );
+    assert_eq!(
+        value["current_capabilities"]["lsp_navigation_open_documents_only"],
+        serde_json::Value::Bool(false)
+    );
     assert!(
         value["definition_sources"]
             .as_array()

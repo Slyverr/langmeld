@@ -39,8 +39,9 @@ open-document diagnostics over LSP. Start it with
 `cargo run -p langmeld-lsp -- --language language/language.lm` (or
 `--project langmeld.json`). It supports versioned full/ranged document edits,
 diagnostics, global literal-keyword completion, and parsed-construct document
-symbols. Context-aware completion, navigation, project watchers, and WASM
-adapters are still pending.
+symbols. Definition and references work across currently open documents when
+the language declares symbol metadata. Context-aware completion, unopened
+project-file navigation, project watchers, and WASM adapters are still pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

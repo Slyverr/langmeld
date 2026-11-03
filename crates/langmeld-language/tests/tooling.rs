@@ -1,4 +1,4 @@
-use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder};
+use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, SymbolSpec};
 use langmeld_language::{generate_rust_ast, generate_tooling};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
@@ -20,6 +20,7 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
                     FieldKind::named_enumeration("Mode", ["fast", "safe"]),
                 ))
                 .field(FieldSpec::required("name", FieldKind::Identifier))
+                .symbol(SymbolSpec::new("binding", "name"))
                 .field(FieldSpec::required("value", FieldKind::Number)),
         )
         .build()
@@ -129,11 +130,21 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .unwrap()
     );
     assert!(
+        capabilities["editor_support"]["lsp_navigation"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        capabilities["editor_support"]["lsp_navigation_open_documents_only"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
         capabilities["not_yet_available"]
             .as_array()
             .unwrap()
             .iter()
-            .any(|item| item == "lsp_navigation")
+            .any(|item| item == "unopened_project_file_navigation")
     );
     assert!(
         capabilities["optional_artifacts"]["tree_sitter"]["available"]
@@ -149,7 +160,8 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     );
     let skill = &artifacts["agent-skill/SKILL.md"];
     assert!(skill.contains("literal-keyword suggestions"));
-    assert!(skill.contains("document symbols from parsed constructs"));
+    assert!(skill.contains("document symbols"));
+    assert!(skill.contains("generic definition/references"));
     assert!(artifacts["README.md"].contains("`let {mode} {name} => {value}`"));
 
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])

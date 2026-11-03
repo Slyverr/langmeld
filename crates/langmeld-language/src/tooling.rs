@@ -18,6 +18,21 @@ pub fn generate_tooling(
     language: &ValidatedLanguageSpec,
 ) -> Result<GeneratedArtifacts, serde_json::Error> {
     let spec = language.spec();
+    let lsp_navigation = spec
+        .constructs
+        .iter()
+        .any(|construct| construct.symbol.is_some());
+    let mut unavailable_editor_support = vec![
+        "contextual_lsp_completion",
+        "lsp_project_reload",
+        "wasm_adapter",
+        "generic_execution",
+    ];
+    unavailable_editor_support.push(if lsp_navigation {
+        "unopened_project_file_navigation"
+    } else {
+        "lsp_navigation"
+    });
     let (tree_sitter_support, tree_sitter_artifacts) = match generate_tree_sitter(language) {
         Ok(artifacts) => (serde_json::json!({ "available": true }), Some(artifacts)),
         Err(reason) => (
@@ -104,13 +119,11 @@ pub fn generate_tooling(
                 "lsp_literal_keyword_completion": prepared.keywords().next().is_some(),
                 "lsp_document_symbols": true,
                 "lsp_contextual_completion": false,
-                "lsp_navigation": false,
+                "lsp_navigation": lsp_navigation,
+                "lsp_navigation_open_documents_only": lsp_navigation,
                 "lsp_project_reload": false
             },
-            "not_yet_available": [
-                "contextual_lsp_completion", "lsp_navigation", "lsp_project_reload",
-                "wasm_adapter", "generic_execution"
-            ],
+            "not_yet_available": unavailable_editor_support,
             "parser_support": ["declarative_patterns", "registered_custom_construct_callbacks"],
             "editor_configuration_assumptions": {
                 "line_comment": "#",
@@ -152,7 +165,7 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
         )
     };
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, and document symbols from parsed constructs for supported declarative languages; context-aware completion and callback-dependent servers require additional host integration.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP currently offers global literal-keyword completion and document symbols from parsed constructs; it does not infer field values, host semantics, or navigation.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, document symbols, and generic definition/references for declared symbols across open documents; callback-dependent language behavior and unopened project files require additional host integration.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, document symbols, and generic definition/references across open documents; it does not infer host semantics or load unopened project source files.\n",
         code_span(&version)
     )
 }

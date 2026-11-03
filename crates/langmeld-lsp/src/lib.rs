@@ -7,9 +7,12 @@ use std::{
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use langmeld_language::{
-    AstNode, ConfiguredLanguageParser, ParseResult, PreparedLanguage, analyze_workspace,
+    AstNode, ConfiguredLanguageParser, ParseResult, PreparedLanguage, Program, WorkspaceAnalysis,
+    analyze_workspace_with_resolutions,
 };
 use serde_json::{Value, json};
+
+mod navigation;
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
@@ -97,6 +100,14 @@ struct OpenDocument {
     parsed: ParseResult,
 }
 
+struct NavigationRequest<'a> {
+    uris: Vec<String>,
+    files: Vec<(&'a SourceFile, &'a Program)>,
+    source_index: usize,
+    occurrence: navigation::SymbolOccurrence,
+    analysis: WorkspaceAnalysis,
+}
+
 impl Server {
     fn handle(&mut self, message: &Value) -> Vec<Value> {
         let Some(method) = message.get("method").and_then(Value::as_str) else {
@@ -106,7 +117,9 @@ impl Server {
         match method {
             "initialize" => id
                 .into_iter()
-                .map(|id| initialize_response(id, self.supports_completion()))
+                .map(|id| {
+                    initialize_response(id, self.supports_completion(), self.supports_navigation())
+                })
                 .collect(),
             "initialized" => Vec::new(),
             "shutdown" => {
@@ -152,17 +165,41 @@ impl Server {
                 })
                 .into_iter()
                 .collect(),
+            "textDocument/definition" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.definition_result(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/references" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.reference_results(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
             "textDocument/didClose" => {
                 if let Some(uri) = message
                     .pointer("/params/textDocument/uri")
                     .and_then(Value::as_str)
                 {
                     self.documents.remove(uri);
-                    vec![json!({
+                    let mut notifications = vec![json!({
                         "jsonrpc": "2.0",
                         "method": "textDocument/publishDiagnostics",
                         "params": { "uri": uri, "diagnostics": [] }
-                    })]
+                    })];
+                    notifications.extend(self.publish_workspace_documents());
+                    notifications
                 } else {
                     Vec::new()
                 }
@@ -211,9 +248,7 @@ impl Server {
                 parsed,
             },
         );
-        self.documents
-            .get(uri)
-            .map_or_else(Vec::new, |document| self.publish_document(document))
+        self.publish_workspace_documents()
     }
 
     fn change_document(&mut self, params: &Value) -> Vec<Value> {
@@ -248,32 +283,61 @@ impl Server {
                 parsed,
             },
         );
-        self.documents
-            .get(uri)
-            .map_or_else(Vec::new, |document| self.publish_document(document))
+        self.publish_workspace_documents()
     }
 
-    fn publish_document(&self, document: &OpenDocument) -> Vec<Value> {
-        let mut diagnostics = document.parsed.diagnostics.clone();
-        for item in analyze_workspace(
-            &self.language,
-            &[(&document.source, &document.parsed.program)],
-        ) {
-            diagnostics.push(item.diagnostic);
-        }
-        vec![json!({
-            "jsonrpc": "2.0",
-            "method": "textDocument/publishDiagnostics",
-            "params": {
-                "uri": document.source.name.as_str(),
-                "version": document.version,
-                "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(&document.source, item)).collect::<Vec<_>>()
-            }
-        })]
+    fn workspace_snapshot(&self) -> (Vec<String>, Vec<(&SourceFile, &langmeld_language::Program)>) {
+        let mut uris: Vec<_> = self.documents.keys().cloned().collect();
+        uris.sort();
+        let files = uris
+            .iter()
+            .filter_map(|uri| {
+                self.documents
+                    .get(uri)
+                    .map(|document| (&document.source, &document.parsed.program))
+            })
+            .collect();
+        (uris, files)
+    }
+
+    fn publish_workspace_documents(&self) -> Vec<Value> {
+        let (uris, files) = self.workspace_snapshot();
+        let analysis = analyze_workspace_with_resolutions(&self.language, &files);
+        uris.iter()
+            .enumerate()
+            .filter_map(|(source_index, uri)| {
+                let document = self.documents.get(uri)?;
+                let mut diagnostics = document.parsed.diagnostics.clone();
+                diagnostics.extend(
+                    analysis
+                        .diagnostics
+                        .iter()
+                        .filter(|item| item.source_index == source_index)
+                        .map(|item| item.diagnostic.clone()),
+                );
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/publishDiagnostics",
+                    "params": {
+                        "uri": document.source.name.as_str(),
+                        "version": document.version,
+                        "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(&document.source, item)).collect::<Vec<_>>()
+                    }
+                }))
+            })
+            .collect()
     }
 
     fn supports_completion(&self) -> bool {
         self.parser.language().keywords().next().is_some()
+    }
+
+    fn supports_navigation(&self) -> bool {
+        self.language
+            .spec()
+            .constructs
+            .iter()
+            .any(|construct| construct.symbol.is_some())
     }
 
     fn completion_items(&self, params: &Value) -> Vec<Value> {
@@ -317,15 +381,115 @@ impl Server {
             &mut remaining,
         )
     }
+
+    fn definition_result(&self, params: &Value) -> Vec<Value> {
+        let Some(request) = self.navigation_request(params) else {
+            return Vec::new();
+        };
+        if request.analysis.resource_limited {
+            return Vec::new();
+        }
+        let Some((target_index, span)) = navigation::resolved_target(
+            request.occurrence,
+            request.source_index,
+            &request.analysis,
+        ) else {
+            return Vec::new();
+        };
+        let (Some(uri), Some((source, _))) = (
+            request.uris.get(target_index),
+            request.files.get(target_index),
+        ) else {
+            return Vec::new();
+        };
+        vec![json!({ "uri": uri, "range": lsp_range(&source.text, span) })]
+    }
+
+    fn reference_results(&self, params: &Value) -> Vec<Value> {
+        let Some(request) = self.navigation_request(params) else {
+            return Vec::new();
+        };
+        if request.analysis.resource_limited {
+            return Vec::new();
+        }
+        let Some((target_index, target_span)) = navigation::resolved_target(
+            request.occurrence,
+            request.source_index,
+            &request.analysis,
+        ) else {
+            return Vec::new();
+        };
+        let include_declaration = params
+            .pointer("/context/includeDeclaration")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let mut locations = Vec::new();
+        if include_declaration
+            && let (Some(uri), Some((source, _))) = (
+                request.uris.get(target_index),
+                request.files.get(target_index),
+            )
+        {
+            locations.push(json!({
+                "uri": uri,
+                "range": lsp_range(&source.text, target_span)
+            }));
+        }
+        for reference in request
+            .analysis
+            .resolved_references
+            .iter()
+            .filter(|reference| {
+                reference.declaration_source_index == target_index
+                    && reference.declaration_span == target_span
+            })
+        {
+            let (Some(uri), Some((source, _))) = (
+                request.uris.get(reference.source_index),
+                request.files.get(reference.source_index),
+            ) else {
+                continue;
+            };
+            locations.push(json!({
+                "uri": uri,
+                "range": lsp_range(&source.text, reference.reference_span)
+            }));
+        }
+        locations
+    }
+
+    fn navigation_request(&self, params: &Value) -> Option<NavigationRequest<'_>> {
+        let uri = params.pointer("/textDocument/uri")?.as_str()?;
+        let document = self.documents.get(uri)?;
+        let line = u32::try_from(params.pointer("/position/line")?.as_u64()?).ok()?;
+        let character = u32::try_from(params.pointer("/position/character")?.as_u64()?).ok()?;
+        let offset = offset_at_position(&document.source.text, line, character)?;
+        let occurrence =
+            navigation::occurrence_at(&self.language, &document.parsed.program, offset)?;
+        let (uris, files) = self.workspace_snapshot();
+        let source_index = uris.iter().position(|candidate| candidate == uri)?;
+        let analysis = analyze_workspace_with_resolutions(&self.language, &files);
+        Some(NavigationRequest {
+            uris,
+            files,
+            source_index,
+            occurrence,
+            analysis,
+        })
+    }
 }
 
-fn initialize_response(id: Value, supports_completion: bool) -> Value {
+fn initialize_response(id: Value, supports_completion: bool, supports_navigation: bool) -> Value {
     let mut capabilities = json!({
         "textDocumentSync": { "openClose": true, "change": 2 },
         "documentSymbolProvider": true
     });
     if supports_completion {
         capabilities["completionProvider"] = json!({ "resolveProvider": false });
+    }
+    if supports_navigation {
+        capabilities["definitionProvider"] = json!(true);
+        capabilities["referencesProvider"] = json!(true);
     }
     json!({
         "jsonrpc": "2.0",
@@ -695,10 +859,20 @@ mod tests {
     fn keyword_completion_is_empty_without_keywords_and_initialization_is_gated() {
         let items = keyword_completion_items("", 0, std::iter::empty());
         assert!(items.is_empty());
-        let response = initialize_response(json!(1), false);
+        let response = initialize_response(json!(1), false, false);
         assert!(
             response["result"]["capabilities"]
                 .get("completionProvider")
+                .is_none()
+        );
+        assert!(
+            response["result"]["capabilities"]
+                .get("definitionProvider")
+                .is_none()
+        );
+        assert!(
+            response["result"]["capabilities"]
+                .get("referencesProvider")
                 .is_none()
         );
     }

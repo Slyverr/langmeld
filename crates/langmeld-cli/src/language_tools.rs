@@ -75,6 +75,10 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
     let lsp_literal_keyword_completion = PreparedLanguage::new(language.clone())
         .map(|prepared| prepared.keywords().next().is_some())
         .unwrap_or(false);
+    let lsp_navigation = spec
+        .constructs
+        .iter()
+        .any(|construct| construct.symbol.is_some());
     let tree_sitter = match generate_tree_sitter(language) {
         Ok(_) => json!({ "supported": true }),
         Err(reason) => json!({ "supported": false, "reason": reason }),
@@ -95,7 +99,8 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
             "lsp_literal_keyword_completion": lsp_literal_keyword_completion,
             "lsp_document_symbols": true,
             "lsp_contextual_completion": false,
-            "lsp_navigation": false,
+            "lsp_navigation": lsp_navigation,
+            "lsp_navigation_open_documents_only": lsp_navigation,
             "wasm_implemented": false,
         },
         "host_implementation_required_for": [

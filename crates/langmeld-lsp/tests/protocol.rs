@@ -47,7 +47,7 @@ impl TempLanguage {
   construct program {
     syntax { default: "program {namespace} {" }
     fields { namespace: identifier required }
-    block: [function]
+    block: [function, usage]
   }
   construct function {
     syntax { default: "fn {name} -> {result}" }
@@ -61,6 +61,10 @@ impl TempLanguage {
       scope: program
       scope_name: namespace
     }
+  }
+  construct usage {
+    syntax { default: "use {target}" }
+    fields { target: ref<function> required }
   }
 }
 "#,
@@ -247,7 +251,7 @@ fn child_process_publishes_nested_document_symbols_with_utf16_ranges() {
                     "uri": uri,
                     "languageId": "symbols",
                     "version": 1,
-                    "text": "program main {\n  fn 𐐀 -> unit\n}\n"
+                    "text": "program main {\n  fn 𐐀 -> unit\n  use 𐐀\n}\n"
                 }
             }
         }),
@@ -307,4 +311,158 @@ fn child_process_publishes_nested_document_symbols_with_utf16_ranges() {
         json!({ "line": 1, "character": 7 })
     );
     assert_eq!(responses[3]["id"], 3);
+}
+
+#[test]
+fn child_process_resolves_definitions_and_references_across_open_documents() {
+    let language = TempLanguage::new();
+    language.write_symbol_language();
+    let declaration_uri = format!(
+        "file://{}",
+        language.0.with_file_name("declaration.demo").display()
+    );
+    let reference_uri = format!(
+        "file://{}",
+        language.0.with_file_name("reference.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": declaration_uri,
+                "languageId": "symbols",
+                "version": 1,
+                "text": "program main {\n  fn 𐐀 -> unit\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": reference_uri,
+                "languageId": "symbols",
+                "version": 1,
+                "text": "program main {\n  use 𐐀\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 6 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": { "uri": declaration_uri },
+                "position": { "line": 1, "character": 5 },
+                "context": { "includeDeclaration": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": reference_uri, "version": 2 },
+                "contentChanges": [{ "text": "program main {\n  use missing\n}\n" }]
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/definition",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 6 }
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 5, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let by_id = |id| {
+        responses
+            .iter()
+            .find(|response| response["id"] == id)
+            .expect("request response exists")
+    };
+    assert_eq!(
+        by_id(1)["result"]["capabilities"]["definitionProvider"],
+        true
+    );
+    assert_eq!(
+        by_id(1)["result"]["capabilities"]["referencesProvider"],
+        true
+    );
+    let definition = &by_id(2)["result"][0];
+    assert_eq!(definition["uri"], declaration_uri);
+    assert_eq!(
+        definition["range"]["start"],
+        json!({ "line": 1, "character": 5 })
+    );
+    assert_eq!(
+        definition["range"]["end"],
+        json!({ "line": 1, "character": 7 })
+    );
+    let references = by_id(3)["result"]
+        .as_array()
+        .expect("references are an array");
+    assert_eq!(references.len(), 2);
+    assert_eq!(references[0]["uri"], declaration_uri);
+    assert_eq!(references[1]["uri"], reference_uri);
+    assert_eq!(
+        references[1]["range"]["start"],
+        json!({ "line": 1, "character": 6 })
+    );
+    assert!(responses.iter().any(|response| {
+        response["method"] == "textDocument/publishDiagnostics"
+            && response["params"]["uri"] == reference_uri
+            && response["params"]["version"] == 1
+            && response["params"]["diagnostics"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+    }));
+    assert!(responses.iter().any(|response| {
+        response["method"] == "textDocument/publishDiagnostics"
+            && response["params"]["uri"] == reference_uri
+            && response["params"]["version"] == 2
+            && response["params"]["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| diagnostics.iter().any(|item| item["code"] == "LM2001"))
+    }));
+    assert_eq!(by_id(4)["result"], json!([]));
+    assert_eq!(by_id(5)["result"], Value::Null);
 }
