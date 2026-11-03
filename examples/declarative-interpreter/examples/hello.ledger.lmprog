@@ -1,0 +1,6 @@
+program {
+  set first to 19
+  set second to 23
+  add first and second as total
+  print total
+}

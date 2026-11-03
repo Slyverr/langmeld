@@ -1,0 +1,46 @@
+constructs {
+  construct program {
+    syntax {
+      default: "program {"
+    }
+    block: [set, add, print]
+  }
+
+  construct set {
+    syntax {
+      default: "set {name} to {value}"
+    }
+    fields {
+      name: identifier required
+      value: number required
+    }
+    symbol {
+      kind: variable
+      name: name
+    }
+  }
+
+  construct add {
+    syntax {
+      default: "add {left} and {right} as {name}"
+    }
+    fields {
+      left: ref<variable> required
+      right: ref<variable> required
+      name: identifier required
+    }
+    symbol {
+      kind: variable
+      name: name
+    }
+  }
+
+  construct print {
+    syntax {
+      default: "print {target}"
+    }
+    fields {
+      target: ref<variable> required
+    }
+  }
+}

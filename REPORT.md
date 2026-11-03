@@ -35,6 +35,9 @@ line, and language-server support.
 - **Project scaffolding:** Use the interactive or scripted `langmeld init`
   workflow to create Rust, declarative, or combined language-authoring projects.
   Generated files are kept under `.langmeld/`.
+- **Consumer example:** The standalone declarative-interpreter example shows a
+  modular `.lm` grammar, workspace reference resolution, and host-owned AST
+  evaluation in a generated CLI project.
 
 ## Design boundaries
 
@@ -67,9 +70,11 @@ language inside WebAssembly requires a compatible host and runtime build.
 - The language server's generic navigation and rename depend on generic symbol
   resolution. Host-specific resolvers need an explicit safe edit contract before
   rename can support them.
-- Stronger independent consumer examples, broader language-server features,
-  continuous integration across supported platforms, and measured performance
-  baselines would improve confidence and usability.
+- Broader consumer examples, language-server features, continuous integration
+  across supported platforms, and measured performance baselines would improve
+  confidence and usability. The current example covers one declarative
+  interpreted language; Rust API-only, combined authoring, and structurally
+  different source-language consumers remain to be added.
 
 ## Verification
 
@@ -81,6 +86,9 @@ The workspace checks completed on 2026-11-03:
 - `cargo clippy --workspace --all-targets --offline --locked -- -D warnings`
   passed.
 - Both rename protocol cases passed after the final scope-path change.
+- The independent example passed `cargo test --offline --locked` and strict
+  Clippy. Its generated CLI `check --project` succeeded, and `run --project`
+  printed `total = 42`.
 
 The generated Tree-sitter grammar has not been validated with the Tree-sitter
 CLI. Run that check before relying on generated grammars in an editor.

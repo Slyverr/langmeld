@@ -31,8 +31,10 @@ command dispatches to host-registered single-file or workspace backends, uses
 project defaults from `langmeld.json`, and writes validated artifacts and
 optional source-map sidecars under `target/`. Authors implement and register
 their own backends in `src/host/backend.rs`; custom IR still needs a
-host-authored lowering pipeline. The generated `run` command calls the host's
-`run_sources` hook; language authors implement its runtime behavior.
+host-authored lowering pipeline. The generated `run` command passes a
+`RuntimeContext` with the validated language, source snapshots, parsed
+programs, and workspace analysis to the host's `run_sources` hook; language
+authors implement runtime behavior.
 Interactive project and backend configuration is available.
 The standalone `langmeld-lsp` crate provides initialize/shutdown and
 open-document diagnostics over LSP. Start it with
@@ -118,6 +120,14 @@ The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default
 feature set is empty; it does not advertise optional packages that are still
 planned.
+
+## Examples
+
+[`examples/declarative-interpreter`](examples/declarative-interpreter) is an
+independent consumer project. Its modular `.lm` definition declares a small
+arithmetic language, Langmeld resolves its variable references, and a Rust
+host interprets the parsed programs. Run its tests and CLI from the example
+directory; the example README has the commands and expected output.
 
 ## Workspace checks
 
