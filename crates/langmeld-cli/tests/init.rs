@@ -1909,6 +1909,72 @@ fn generated_host_binds_declared_callbacks_and_parses_source() {
     );
 }
 
+#[test]
+fn generation_preserves_project_owned_docs_examples_and_agent_guidance() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("owned-files");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "OwnedFiles",
+        "--agents",
+        "--agent-skill",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "project initialization failed:\n{}\n{}",
+        String::from_utf8_lossy(&initialized.stdout),
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+
+    let authored_files = [
+        (
+            "README.md",
+            "# My language project\nKeep this documentation.\n",
+        ),
+        ("AGENTS.md", "# Local agent rules\nKeep this guidance.\n"),
+        (
+            ".agents/skills/langmeld/SKILL.md",
+            "# Local Langmeld notes\nKeep this skill.\n",
+        ),
+        (
+            "examples/hello.rs",
+            "fn main() { println!(\"authored\"); }\n",
+        ),
+        (
+            "examples/hello.ownedfiles.lmprog",
+            "program { print \"authored example\" }\n",
+        ),
+    ];
+    for (relative, contents) in authored_files {
+        fs::write(project.join(relative), contents).expect("authored project file is written");
+    }
+
+    let generated = run_generate(&project, false);
+    assert!(
+        generated.status.success(),
+        "tooling generation failed:\n{}\n{}",
+        String::from_utf8_lossy(&generated.stdout),
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let installed = run_generate_install(&project);
+    assert!(
+        installed.status.success(),
+        "host installation failed:\n{}\n{}",
+        String::from_utf8_lossy(&installed.stdout),
+        String::from_utf8_lossy(&installed.stderr)
+    );
+    for (relative, contents) in authored_files {
+        assert_eq!(
+            fs::read_to_string(project.join(relative)).expect("authored file remains readable"),
+            contents,
+            "generation changed project-owned file {relative}"
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn generate_install_host_refuses_symlink_before_project_writes() {
