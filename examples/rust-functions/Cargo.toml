@@ -1,0 +1,15 @@
+[package]
+name = "functions-language"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A Rust language host built with Langmeld."
+
+
+[dependencies]
+langmeld = { version = "0.1.0", path = "../../crates/langmeld", default-features = false }
+
+[build-dependencies]
+langmeld = { version = "0.1.0", path = "../../crates/langmeld", default-features = false }
+
+[workspace]

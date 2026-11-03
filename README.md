@@ -129,6 +129,10 @@ arithmetic language, Langmeld resolves its variable references, and a Rust
 host interprets the parsed programs. Run its tests and CLI from the example
 directory; the example README has the commands and expected output.
 
+[`examples/rust-functions`](examples/rust-functions) authors a language model
+with the Rust API, parses zero-argument and parameterized function signatures,
+and lowers them to compilable Rust from a library-only project.
+
 ## Workspace checks
 
 ```sh

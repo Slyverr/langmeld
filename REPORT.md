@@ -35,9 +35,10 @@ line, and language-server support.
 - **Project scaffolding:** Use the interactive or scripted `langmeld init`
   workflow to create Rust, declarative, or combined language-authoring projects.
   Generated files are kept under `.langmeld/`.
-- **Consumer example:** The standalone declarative-interpreter example shows a
+- **Consumer examples:** The standalone declarative interpreter exercises a
   modular `.lm` grammar, workspace reference resolution, and host-owned AST
-  evaluation in a generated CLI project.
+  evaluation. A library-only Rust API consumer parses function declarations
+  and lowers them to compilable Rust source.
 
 ## Design boundaries
 
@@ -73,8 +74,8 @@ language inside WebAssembly requires a compatible host and runtime build.
 - Broader consumer examples, language-server features, continuous integration
   across supported platforms, and measured performance baselines would improve
   confidence and usability. The current example covers one declarative
-  interpreted language; Rust API-only, combined authoring, and structurally
-  different source-language consumers remain to be added.
+  interpreted language and one Rust API language; combined authoring and
+  structurally different source-language consumers remain to be added.
 
 ## Verification
 
@@ -89,6 +90,9 @@ The workspace checks completed on 2026-11-03:
 - The independent example passed `cargo test --offline --locked` and strict
   Clippy. Its generated CLI `check --project` succeeded, and `run --project`
   printed `total = 42`.
+- The Rust API consumer passed `cargo test --offline --locked`, strict Clippy,
+  formatting, and its `hello` example. Its test compiled the generated Rust
+  output with `rustc`.
 
 The generated Tree-sitter grammar has not been validated with the Tree-sitter
 CLI. Run that check before relying on generated grammars in an editor.
