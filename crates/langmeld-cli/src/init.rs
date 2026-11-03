@@ -37,6 +37,9 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
         return Err("language name must start with an ASCII letter and contain only ASCII letters or digits".to_owned());
     }
 
+    let library_only = arguments.library_only
+        || (interactive && !prompt_confirm("Include a command-line host?", true)?);
+
     let agents = if arguments.no_agents {
         false
     } else if arguments.agents || !interactive {
@@ -60,6 +63,7 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
         agents,
         agent_skill,
         langmeld_path: arguments.langmeld_path,
+        library_only,
     };
     print_preview(&options);
     if interactive && !prompt_confirm("Create this project?", true)? {
@@ -101,6 +105,9 @@ fn print_preview(options: &ProjectOptions) {
         "tests/language.rs",
         ".langmeld/generated/",
     ];
+    if !options.library_only {
+        entries.insert(4, "src/main.rs (language CLI)");
+    }
     if options.agents {
         entries.push("AGENTS.md");
     }

@@ -24,6 +24,15 @@ pub fn parse_source(source: &SourceFile) -> Result<ParseResult, Vec<Diagnostic>>
     Ok(parser()?.parse(source))
 }
 
+/// Runs validated source files using this language's runtime implementation.
+///
+/// Replace the starter error with the interpreter or execution pipeline for
+/// this language. Langmeld provides parsing and analysis; runtime semantics
+/// belong to the project host.
+pub fn run_sources(_sources: &[SourceFile]) -> Result<(), String> {
+    Err("runtime behavior is not implemented yet; add it in src/lib.rs".to_owned())
+}
+
 fn language_definition_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("language/language.lm")
 }

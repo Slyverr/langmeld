@@ -92,6 +92,10 @@ fn run_host(
         .expect("langmeld host starts")
 }
 
+fn run_project_host(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
+    run_host(&project.join("langmeld.json"), project, arguments)
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -112,6 +116,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     assert!(!project.join(".agents/skills/langmeld/SKILL.md").exists());
     assert!(project.join("language/language.lm").is_file());
     assert!(project.join("language/constructs/program.lm").is_file());
+    assert!(project.join("src/main.rs").is_file());
     let manifest = fs::read_to_string(project.join("langmeld.json"))
         .expect("init writes the project manifest");
     assert!(manifest.contains("\"language\": \"language/language.lm\""));
@@ -136,6 +141,19 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&cargo.stderr)
     );
 
+    let clippy = Command::new(env!("CARGO"))
+        .args(["clippy", "--all-targets", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .args(["--", "-D", "warnings"])
+        .output()
+        .expect("generated project clippy starts");
+    assert!(
+        clippy.status.success(),
+        "generated project clippy failed:\n{}\n{}",
+        String::from_utf8_lossy(&clippy.stdout),
+        String::from_utf8_lossy(&clippy.stderr)
+    );
+
     let example = Command::new(env!("CARGO"))
         .args(["run", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
@@ -149,6 +167,65 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&example.stderr)
     );
     assert!(String::from_utf8_lossy(&example.stdout).contains("Parsed 1 top-level construct"));
+
+    let checked = run_project_host(&project, &["check", "--project"]);
+    assert!(
+        checked.status.success(),
+        "generated CLI check failed:\n{}\n{}",
+        String::from_utf8_lossy(&checked.stdout),
+        String::from_utf8_lossy(&checked.stderr)
+    );
+    assert!(String::from_utf8_lossy(&checked.stdout).contains("checked 1 source file"));
+
+    let direct = run_project_host(&project, &["check", "examples/hello.eventlang.lmprog"]);
+    assert!(
+        direct.status.success(),
+        "generated CLI direct check failed:\n{}\n{}",
+        String::from_utf8_lossy(&direct.stdout),
+        String::from_utf8_lossy(&direct.stderr)
+    );
+
+    let run = run_project_host(&project, &["run", "--project"]);
+    assert_eq!(run.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&run.stderr).contains("runtime behavior is not implemented yet")
+    );
+}
+
+#[test]
+fn init_can_create_a_library_without_a_cli_target() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("library-only");
+    let output = run_init(&[
+        "--no-interactive",
+        "--library-only",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "LibraryOnly",
+    ]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!project.join("src/main.rs").exists());
+
+    let cargo = Command::new(env!("CARGO"))
+        .args(["test", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .output()
+        .expect("library project cargo test starts");
+    assert!(
+        cargo.status.success(),
+        "library project tests failed:\n{}\n{}",
+        String::from_utf8_lossy(&cargo.stdout),
+        String::from_utf8_lossy(&cargo.stderr)
+    );
+
+    let host = run_project_host(&project, &[]);
+    assert_eq!(host.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&host.stderr).contains("no Rust CLI target"));
 }
 
 #[test]
@@ -419,7 +496,7 @@ fn interactive_cancel_does_not_create_files() {
         .stdin
         .take()
         .expect("stdin is piped")
-        .write_all(b"n\n")
+        .write_all(b"y\nn\n")
         .expect("cancel answer is written");
     let output = child.wait_with_output().expect("interactive process exits");
     assert!(
@@ -442,7 +519,7 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("langmeld interactive process starts");
-    let input = format!("{}\nPromptedLang\ny\n", project.display());
+    let input = format!("{}\nPromptedLang\nn\ny\n", project.display());
     child
         .stdin
         .take()
@@ -459,7 +536,9 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
     let transcript = String::from_utf8_lossy(&output.stdout);
     assert!(transcript.contains("Project directory"));
     assert!(transcript.contains("Language name"));
+    assert!(transcript.contains("Include a command-line host?"));
     assert!(transcript.contains("PROJECT PREVIEW"));
+    assert!(!project.join("src/main.rs").exists());
 }
 
 #[test]

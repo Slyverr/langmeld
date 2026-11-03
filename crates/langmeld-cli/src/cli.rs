@@ -128,6 +128,9 @@ pub(crate) struct InitArgs {
     /// Use a local Langmeld checkout for generated project dependencies.
     #[arg(long)]
     pub(crate) langmeld_path: Option<PathBuf>,
+    /// Create a library-only package without the command-line host.
+    #[arg(long)]
+    pub(crate) library_only: bool,
 }
 
 #[derive(Debug, Args)]

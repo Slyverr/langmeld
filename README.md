@@ -14,16 +14,21 @@ imports. Prepared grammars compile declarative patterns once and provide
 token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
-and workspace type-analysis passes. The Clap-based CLI provides `langmeld init`
-for Rust hosts with modular `.lm` definitions and `langmeld generate` for
-rebuildable language tooling. Generation includes Rust parser, lexer, and
+and workspace type-analysis passes. The Clap-based CLI provides `init`,
+`configure`, `check`, `host`, and `generate` commands for Rust hosts with
+modular `.lm` definitions. Generation rebuilds language tooling and includes
+Rust parser, lexer, and
 analysis callback scaffolds under `.langmeld/generated/host/`; callback bodies
 are declaration-driven and compile in a generated Rust project. The
 `langmeld generate --install-host` option safely wires these modules into
 `src/host/` and preserves marked callback implementations while refreshing
 them. `langmeld init` also writes a strict `langmeld.json` project manifest,
 and the language API can load explicit or discovered program sources from it.
-Interactive project configuration and host run/build commands are pending.
+Interactive setup can include a Clap-based language CLI with `check` and `run`
+commands, or omit it with `--library-only`. The generated `run` command calls
+the host's `run_sources` hook; language authors implement its runtime behavior.
+Interactive project configuration is available; backend build commands are
+pending.
 LSP and WASM adapters are also pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,

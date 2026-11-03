@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A Rust language host built with Langmeld."
+@CLI_TARGET@
 
 [dependencies]
-langmeld = { @LANGMELD_DEPENDENCY@ }
+@CLI_DEPENDENCY@langmeld = { @LANGMELD_DEPENDENCY@ }

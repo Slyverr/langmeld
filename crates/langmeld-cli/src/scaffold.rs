@@ -19,6 +19,7 @@ pub(crate) struct ProjectOptions {
     pub(crate) agents: bool,
     pub(crate) agent_skill: bool,
     pub(crate) langmeld_path: Option<PathBuf>,
+    pub(crate) library_only: bool,
 }
 
 pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
@@ -94,6 +95,18 @@ fn starter_files(
     let extension = format!("{slug}.lmprog");
     let package = format!("{slug}-language");
     let crate_name = format!("{slug}_language");
+    let cli_target = if options.library_only {
+        String::new()
+    } else {
+        format!(
+            "default-run = \"{slug}-host\"\n\n[[bin]]\nname = \"{slug}-host\"\npath = \"src/main.rs\"\n"
+        )
+    };
+    let cli_dependency = if options.library_only {
+        String::new()
+    } else {
+        "clap = { version = \"4.6.7\", features = [\"derive\"] }\n".to_owned()
+    };
     let mut add = |path: &str, template: &str| {
         files.insert(
             PathBuf::from(path),
@@ -103,6 +116,8 @@ fn starter_files(
                 .replace("@PACKAGE@", &package)
                 .replace("@CRATE@", &crate_name)
                 .replace("@EXT@", &extension)
+                .replace("@CLI_TARGET@", &cli_target)
+                .replace("@CLI_DEPENDENCY@", &cli_dependency)
                 .replace("@LANGMELD_DEPENDENCY@", dependency),
         );
     };
@@ -113,6 +128,9 @@ fn starter_files(
     add(".gitignore", include_str!("../templates/starter/gitignore"));
     add("README.md", include_str!("../templates/starter/README.md"));
     add("src/lib.rs", include_str!("../templates/starter/lib.rs"));
+    if !options.library_only {
+        add("src/main.rs", include_str!("../templates/starter/main.rs"));
+    }
     add(
         "examples/hello.rs",
         include_str!("../templates/starter/hello.rs"),
