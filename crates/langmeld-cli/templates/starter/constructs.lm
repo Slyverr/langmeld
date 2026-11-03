@@ -1,0 +1,17 @@
+constructs {
+  construct program {
+    syntax {
+      default: "program {"
+    }
+    block: [statement]
+  }
+
+  construct statement {
+    syntax {
+      default: "print {message}"
+    }
+    fields {
+      message: text required
+    }
+  }
+}

@@ -14,9 +14,10 @@ imports. Prepared grammars compile declarative patterns once and provide
 token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
-and workspace type-analysis passes. The CLI currently exposes Clap-based
-`langmeld init` options; interactive project creation and the remaining
-commands are pending. LSP and WASM adapters are also pending.
+and workspace type-analysis passes. The Clap-based `langmeld init` command
+creates a Rust host with modular `.lm` definitions, optional project agent
+guidance, and ignored generated tooling; the remaining CLI commands are
+pending. LSP and WASM adapters are also pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor
@@ -31,6 +32,17 @@ represented. Its grammar has not been checked with the Tree-sitter CLI in this
 environment. The library also exposes a structural formatter that preserves
 comments and strings, normalizes CRLF to LF, and supports space or tab
 indentation for valid programs.
+
+## Bootstrap a language project
+
+Run `cargo run -p langmeld-cli -- init` in a terminal for interactive setup.
+For automation, pass the project details and disable prompts:
+
+```sh
+cargo run -p langmeld-cli -- init --path ./my-language --name MyLanguage --no-interactive
+```
+
+The generated project's `README.md` describes its structure and commands.
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default

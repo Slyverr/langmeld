@@ -1,0 +1,336 @@
+use std::{
+    collections::BTreeMap,
+    env, fs,
+    path::{Component, Path, PathBuf},
+};
+
+use langmeld_core::{SourceFile, ValidatedLanguageSpec};
+use langmeld_language::{generate_tooling, parse_language_definition_modules};
+
+const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.lm");
+const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.lm");
+
+#[derive(Debug)]
+pub(crate) struct ProjectOptions {
+    pub(crate) name: String,
+    pub(crate) path: PathBuf,
+    pub(crate) agents: bool,
+    pub(crate) agent_skill: bool,
+    pub(crate) langmeld_path: Option<PathBuf>,
+}
+
+pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
+    if !valid_language_name(&options.name) {
+        return Err("language name must start with an ASCII letter and contain only ASCII letters or digits".to_owned());
+    }
+    let slug = options.name.to_ascii_lowercase();
+    let root = ROOT_DEFINITION
+        .replace("@NAME@", &options.name)
+        .replace("@SLUG@", &slug);
+    let constructs = CONSTRUCTS.to_owned();
+    let language = validate_starter_definition(&root, &constructs)?;
+    let dependency = local_dependency(&options)?;
+    let mut files = starter_files(&options, &slug, &dependency, &root, &constructs);
+    let generated = generate_tooling(&language)
+        .map_err(|error| format!("cannot generate starter tooling: {error}"))?;
+    for (relative, contents) in generated {
+        let relative = PathBuf::from(".langmeld/generated").join(relative);
+        ensure_safe_relative_path(&relative)?;
+        files.insert(relative, contents);
+    }
+    if options.agents {
+        files.insert(
+            PathBuf::from("AGENTS.md"),
+            include_str!("../templates/starter/AGENTS.md").to_owned(),
+        );
+    }
+    if options.agent_skill {
+        files.insert(
+            PathBuf::from(".agents/skills/langmeld/SKILL.md"),
+            include_str!("../templates/starter/langmeld-skill.md").to_owned(),
+        );
+    }
+    let output = absolute_path(&options.path)?;
+    write_project(&output, &files)?;
+    println!(
+        "\n{}  {} is ready at {}\n\n  Next: cd {} && cargo test\n",
+        console::style("✓").green().bold(),
+        console::style(&options.name).bold(),
+        console::style(&output.display()).cyan(),
+        output.display()
+    );
+    Ok(())
+}
+
+fn validate_starter_definition(
+    root: &str,
+    constructs: &str,
+) -> Result<ValidatedLanguageSpec, String> {
+    let root = SourceFile::new("language/language.lm", root);
+    let modules = [SourceFile::new(
+        "language/constructs/program.lm",
+        constructs,
+    )];
+    parse_language_definition_modules(&root, &modules).map_err(|diagnostics| {
+        diagnostics
+            .iter()
+            .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
+}
+
+fn starter_files(
+    options: &ProjectOptions,
+    slug: &str,
+    dependency: &str,
+    root: &str,
+    constructs: &str,
+) -> BTreeMap<PathBuf, String> {
+    let mut files = BTreeMap::new();
+    let extension = format!("{slug}.lmprog");
+    let package = format!("{slug}-language");
+    let crate_name = format!("{slug}_language");
+    let mut add = |path: &str, template: &str| {
+        files.insert(
+            PathBuf::from(path),
+            template
+                .replace("@NAME@", &options.name)
+                .replace("@SLUG@", slug)
+                .replace("@PACKAGE@", &package)
+                .replace("@CRATE@", &crate_name)
+                .replace("@EXT@", &extension)
+                .replace("@LANGMELD_DEPENDENCY@", dependency),
+        );
+    };
+    add(
+        "Cargo.toml",
+        include_str!("../templates/starter/Cargo.toml"),
+    );
+    add(".gitignore", include_str!("../templates/starter/gitignore"));
+    add("README.md", include_str!("../templates/starter/README.md"));
+    add("src/lib.rs", include_str!("../templates/starter/lib.rs"));
+    add(
+        "examples/hello.rs",
+        include_str!("../templates/starter/hello.rs"),
+    );
+    add(
+        "tests/language.rs",
+        include_str!("../templates/starter/language_test.rs"),
+    );
+    files.insert(PathBuf::from("language/language.lm"), root.to_owned());
+    files.insert(
+        PathBuf::from("language/constructs/program.lm"),
+        constructs.to_owned(),
+    );
+    files.insert(
+        PathBuf::from(format!("examples/hello.{extension}")),
+        format!("program {{\n  print \"Hello from {}!\"\n}}\n", options.name),
+    );
+    files
+}
+
+fn local_dependency(options: &ProjectOptions) -> Result<String, String> {
+    let default_checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let checkout = options
+        .langmeld_path
+        .as_deref()
+        .or_else(|| is_langmeld_checkout(&default_checkout).then_some(default_checkout.as_path()));
+    let Some(checkout) = checkout else {
+        return Ok(format!(
+            "version = \"{}\", default-features = false",
+            env!("CARGO_PKG_VERSION")
+        ));
+    };
+    let checkout = checkout.canonicalize().map_err(|error| {
+        format!(
+            "cannot resolve Langmeld checkout '{}': {error}",
+            checkout.display()
+        )
+    })?;
+    let manifest = checkout.join("crates/langmeld/Cargo.toml");
+    if !manifest.is_file() {
+        return Err(format!(
+            "'{}' is not a Langmeld checkout (missing crates/langmeld/Cargo.toml)",
+            checkout.display()
+        ));
+    }
+    let project = absolute_path(&options.path)?;
+    let facade_path = checkout.join("crates/langmeld");
+    let relative =
+        relative_path(&project, &facade_path).unwrap_or_else(|| facade_path.to_path_buf());
+    let path = serde_json::to_string(&relative.to_string_lossy())
+        .map_err(|error| format!("cannot encode Langmeld path: {error}"))?;
+    Ok(format!(
+        "version = \"{}\", path = {path}, default-features = false",
+        env!("CARGO_PKG_VERSION")
+    ))
+}
+
+fn is_langmeld_checkout(path: &Path) -> bool {
+    path.join("crates/langmeld/Cargo.toml").is_file()
+        && path.join("crates/langmeld-core/Cargo.toml").is_file()
+        && path.join("crates/langmeld-language/Cargo.toml").is_file()
+        && path.join("crates/langmeld-expression/Cargo.toml").is_file()
+}
+
+fn absolute_path(path: &Path) -> Result<PathBuf, String> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()
+            .map_err(|error| format!("cannot read current directory: {error}"))?
+            .join(path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir if normalized.file_name().is_some() => {
+                normalized.pop();
+            }
+            Component::ParentDir => {}
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+    if normalized.file_name().is_none() {
+        return Err("project path must name a directory".to_owned());
+    }
+    Ok(normalized)
+}
+
+fn relative_path(from: &Path, to: &Path) -> Option<PathBuf> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let common = from
+        .iter()
+        .zip(&to)
+        .take_while(|(left, right)| left == right)
+        .count();
+    if common == 0 {
+        return None;
+    }
+    let mut path = PathBuf::new();
+    for component in &from[common..] {
+        if !matches!(component, Component::Normal(_)) {
+            return None;
+        }
+        path.push("..");
+    }
+    for component in &to[common..] {
+        path.push(component.as_os_str());
+    }
+    Some(path)
+}
+
+fn ensure_safe_relative_path(path: &Path) -> Result<(), String> {
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!(
+            "unsafe generated project path `{}`",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn write_project(output: &Path, files: &BTreeMap<PathBuf, String>) -> Result<(), String> {
+    if let Ok(metadata) = fs::symlink_metadata(output) {
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(format!(
+                "project path '{}' is not a plain directory",
+                output.display()
+            ));
+        }
+        if fs::read_dir(output)
+            .map_err(|error| format!("cannot inspect '{}': {error}", output.display()))?
+            .next()
+            .is_some()
+        {
+            return Err(format!(
+                "refusing to create a project in non-empty directory '{}'",
+                output.display()
+            ));
+        }
+    }
+    for path in files.keys() {
+        ensure_safe_relative_path(path)?;
+    }
+    let parent = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(|error| {
+        format!(
+            "cannot create project parent '{}': {error}",
+            parent.display()
+        )
+    })?;
+    let stage = parent.join(format!(".langmeld-init-{}", std::process::id()));
+    fs::create_dir(&stage).map_err(|error| {
+        format!(
+            "cannot create staging directory '{}': {error}",
+            stage.display()
+        )
+    })?;
+    let mut guard = StagingDirectory {
+        path: stage.clone(),
+        committed: false,
+    };
+    for (relative, contents) in files {
+        let path = stage.join(relative);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("cannot create '{}': {error}", parent.display()))?;
+        }
+        fs::write(&path, contents)
+            .map_err(|error| format!("cannot write '{}': {error}", path.display()))?;
+    }
+    let target_existed = output.exists();
+    if target_existed {
+        fs::remove_dir(output).map_err(|error| {
+            format!(
+                "cannot replace empty directory '{}': {error}",
+                output.display()
+            )
+        })?;
+    }
+    if let Err(error) = fs::rename(&stage, output) {
+        if target_existed {
+            let _ = fs::create_dir(output);
+        }
+        return Err(format!(
+            "cannot install project at '{}': {error}",
+            output.display()
+        ));
+    }
+    guard.committed = true;
+    Ok(())
+}
+
+struct StagingDirectory {
+    path: PathBuf,
+    committed: bool,
+}
+
+impl Drop for StagingDirectory {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
+
+pub(crate) fn valid_language_name(name: &str) -> bool {
+    let mut characters = name.chars();
+    characters
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic())
+        && characters.all(|character| character.is_ascii_alphanumeric())
+}
