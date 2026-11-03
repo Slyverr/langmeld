@@ -4,7 +4,7 @@ use std::{
 };
 
 use console::style;
-use inquire::{Confirm, Select, Text};
+use inquire::{Confirm, InquireError, Select, Text};
 
 use crate::{
     cli::{AuthoringMode, InitArgs},
@@ -12,6 +12,17 @@ use crate::{
 };
 
 pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
+    match initialize_inner(arguments) {
+        Ok(()) => Ok(()),
+        Err(InitError::Cancelled) => {
+            println!("Project creation cancelled; no files were written.");
+            Ok(())
+        }
+        Err(InitError::Failed(message)) => Err(message),
+    }
+}
+
+fn initialize_inner(arguments: InitArgs) -> Result<(), InitError> {
     let terminal = io::stdin().is_terminal() && io::stdout().is_terminal();
     let interactive = arguments.interactive || (!arguments.no_interactive && terminal);
     if terminal && interactive {
@@ -21,7 +32,7 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
     let path = if let Some(path) = arguments.path {
         path
     } else if interactive {
-        PathBuf::from(prompt_text("Project directory", ".")?)
+        PathBuf::from(prompt_text_cancellable("Project directory", ".")?)
     } else {
         PathBuf::from(".")
     };
@@ -29,12 +40,15 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
     let name = if let Some(name) = arguments.name {
         name
     } else if interactive {
-        prompt_text("Language name", &default_name)?
+        prompt_text_cancellable("Language name", &default_name)?
     } else {
         default_name
     };
     if !valid_language_name(&name) {
-        return Err("language name must start with an ASCII letter and contain only ASCII letters or digits".to_owned());
+        return Err(InitError::Failed(
+            "language name must start with an ASCII letter and contain only ASCII letters or digits"
+                .to_owned(),
+        ));
     }
 
     let library_only = arguments.library_only
@@ -76,11 +90,29 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
     };
     print_preview(&options);
     if interactive && !prompt_confirm("Create this project?", true)? {
-        println!("Project creation cancelled; no files were written.");
-        return Ok(());
+        return Err(InitError::Cancelled);
     }
 
-    create_project(options)
+    create_project(options).map_err(InitError::Failed)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum InitError {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<String> for InitError {
+    fn from(message: String) -> Self {
+        Self::Failed(message)
+    }
+}
+
+fn prompt_error(message: &str, error: InquireError) -> InitError {
+    match error {
+        InquireError::OperationInterrupted => InitError::Cancelled,
+        error => InitError::Failed(format!("{message} prompt failed: {error}")),
+    }
 }
 
 fn print_heading() {
@@ -166,7 +198,7 @@ fn print_preview(options: &ProjectOptions) {
     }
 }
 
-fn prompt_authoring_mode() -> Result<AuthoringMode, String> {
+fn prompt_authoring_mode() -> Result<AuthoringMode, InitError> {
     if !io::stdin().is_terminal() {
         return match prompt_text(
             "Authoring mode (declarative, rust, combined)",
@@ -178,7 +210,9 @@ fn prompt_authoring_mode() -> Result<AuthoringMode, String> {
             "declarative" => Ok(AuthoringMode::Declarative),
             "rust" => Ok(AuthoringMode::Rust),
             "combined" => Ok(AuthoringMode::Combined),
-            _ => Err("choose declarative, rust, or combined".to_owned()),
+            _ => Err(InitError::Failed(
+                "choose declarative, rust, or combined".to_owned(),
+            )),
         };
     }
     let choices = [
@@ -191,7 +225,7 @@ fn prompt_authoring_mode() -> Result<AuthoringMode, String> {
         choices.to_vec(),
     )
     .prompt()
-    .map_err(|error| format!("language authoring prompt failed: {error}"))?;
+    .map_err(|error| prompt_error("language authoring", error))?;
     Ok(match choice {
         value if value == choices[1] => AuthoringMode::Rust,
         value if value == choices[2] => AuthoringMode::Combined,
@@ -216,12 +250,22 @@ pub(crate) fn prompt_text(message: &str, default: &str) -> Result<String, String
     Ok(if input.is_empty() { default } else { input }.to_owned())
 }
 
-fn prompt_confirm(message: &str, default: bool) -> Result<bool, String> {
+fn prompt_text_cancellable(message: &str, default: &str) -> Result<String, InitError> {
+    if io::stdin().is_terminal() {
+        return Text::new(message)
+            .with_default(default)
+            .prompt()
+            .map_err(|error| prompt_error(message, error));
+    }
+    prompt_text(message, default).map_err(InitError::Failed)
+}
+
+fn prompt_confirm(message: &str, default: bool) -> Result<bool, InitError> {
     if io::stdin().is_terminal() {
         return Confirm::new(message)
             .with_default(default)
             .prompt()
-            .map_err(|error| format!("{message} prompt failed: {error}"));
+            .map_err(|error| prompt_error(message, error));
     }
     let choice = if default { "Y/n" } else { "y/N" };
     print!("{message} [{choice}]: ");
@@ -234,7 +278,7 @@ fn prompt_confirm(message: &str, default: bool) -> Result<bool, String> {
         "y" | "yes" => Ok(true),
         "n" | "no" => Ok(false),
         "" => Ok(default),
-        _ => Err("answer with y or n".to_owned()),
+        _ => Err(InitError::Failed("answer with y or n".to_owned())),
     }
 }
 
@@ -264,4 +308,19 @@ fn infer_language_name(path: &Path) -> Result<String, String> {
         return Err("cannot infer a language name from the project directory".to_owned());
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use inquire::InquireError;
+
+    use super::{InitError, prompt_error};
+
+    #[test]
+    fn interrupted_prompt_is_reported_as_cancellation() {
+        assert_eq!(
+            prompt_error("Project directory", InquireError::OperationInterrupted),
+            InitError::Cancelled
+        );
+    }
 }
