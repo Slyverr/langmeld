@@ -1,15 +1,18 @@
 #![deny(missing_docs)]
 
-//! Shared source contracts and diagnostics for Langmeld language tools.
+//! Shared language models, source contracts, and diagnostics for Langmeld.
 
+mod builder;
 mod diagnostic;
 mod source;
 mod spec;
+mod validation;
 
+pub use builder::{ConstructBuilder, LanguageBuilder, NamedEnum, NamedRecord, SyntaxPattern};
 pub use diagnostic::{Diagnostic, Severity};
 pub use source::{SourceDatabase, SourceDatabaseError, SourceFile, SourceId, Span};
 pub use spec::{
     BehaviorSpec, BehaviorStage, BlockSpec, CategorySpec, ConstructSpec, EnumSpec,
     FieldConstraints, FieldKind, FieldSpec, LanguageSpec, MapKeyKind, ScopeLookup, ScopeSpec,
-    SymbolSpec, SyntaxRuleSpec, TypeSpec,
+    SpecError, SymbolSpec, SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
 };

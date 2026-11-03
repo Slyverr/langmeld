@@ -302,3 +302,33 @@ impl ScopeLookup {
         matches!(lookup, Self::Exact)
     }
 }
+
+/// A language definition that passed structural validation.
+#[derive(Clone, Debug)]
+pub struct ValidatedLanguageSpec(pub(super) LanguageSpec);
+
+impl ValidatedLanguageSpec {
+    /// Returns the immutable canonical definition.
+    #[must_use]
+    pub const fn spec(&self) -> &LanguageSpec {
+        &self.0
+    }
+
+    /// Finds a construct by its stable identifier.
+    #[must_use]
+    pub fn construct(&self, id: &str) -> Option<&ConstructSpec> {
+        self.0
+            .constructs
+            .iter()
+            .find(|construct| construct.id == id)
+    }
+}
+
+/// A problem found while validating a language definition.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SpecError {
+    /// Stable validation code.
+    pub code: &'static str,
+    /// Explanation of the invalid declaration.
+    pub message: String,
+}
