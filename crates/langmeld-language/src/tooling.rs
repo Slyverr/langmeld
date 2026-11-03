@@ -22,12 +22,22 @@ pub fn generate_tooling(
         .constructs
         .iter()
         .any(|construct| construct.symbol.is_some());
-    let mut unavailable_editor_support = vec![
-        "contextual_lsp_completion",
-        "lsp_project_reload",
-        "wasm_adapter",
-        "generic_execution",
-    ];
+    let lsp_contextual_completion = spec
+        .constructs
+        .iter()
+        .flat_map(|construct| &construct.fields)
+        .any(|field| kind_has_enum(&field.kind));
+    let mut unavailable_editor_support =
+        vec!["lsp_project_reload", "wasm_adapter", "generic_execution"];
+    if !lsp_contextual_completion
+        && !spec
+            .constructs
+            .iter()
+            .flat_map(|construct| &construct.fields)
+            .any(|field| kind_has_reference(&field.kind))
+    {
+        unavailable_editor_support.push("contextual_lsp_completion");
+    }
     unavailable_editor_support.push(if lsp_navigation {
         "unopened_project_file_navigation"
     } else {
@@ -107,7 +117,9 @@ pub fn generate_tooling(
                 "typed_rust_ast", "metadata", "reference_document", "language_configuration",
                 "textmate_lexical_highlighting", "agent_skill"
             ],
-            "available_language_apis": ["source_formatter", "embedded_language_server"],
+            "available_language_apis": [
+                "source_formatter", "embedded_language_server", "embedded_completion_providers"
+            ],
             "optional_artifacts": { "tree_sitter": tree_sitter_support },
             "available_cli_commands": [
                 "init", "check", "validate", "format", "inspect", "constructs",
@@ -122,7 +134,9 @@ pub fn generate_tooling(
                     !construct.fields.is_empty() || construct.symbol.is_some()
                 }),
                 "lsp_semantic_tokens": true,
-                "lsp_contextual_completion": false,
+                "lsp_contextual_completion": lsp_contextual_completion
+                    || spec.constructs.iter().flat_map(|construct| &construct.fields)
+                        .any(|field| kind_has_reference(&field.kind)),
                 "lsp_navigation": lsp_navigation,
                 "lsp_navigation_open_documents_only": lsp_navigation,
                 "lsp_project_reload": false
@@ -169,7 +183,7 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
         )
     };
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, document symbols, schema-based hover, semantic tokens, and generic definition/references for declared symbols across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser and analysis callbacks; the standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, document symbols, schema-based hover, and generic definition/references across open documents; it does not load unopened project source files or infer host-specific semantics.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, schema-based enum and in-scope reference suggestions, document symbols, schema-based hover, semantic tokens, and generic definition/references for declared symbols across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser, analysis, and typed completion callbacks; the standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, captured-value enum/reference suggestions, document symbols, schema-based hover, and generic definition/references across open documents; it does not load unopened project source files or infer host-specific semantics. Missing-field and child-construct snippet completion remain unsupported.\n",
         code_span(&version)
     )
 }
@@ -252,6 +266,37 @@ fn collect_kind_values(kind: &FieldKind, output: &mut BTreeSet<String>) {
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Reference { .. } => {}
+    }
+}
+
+fn kind_has_enum(kind: &FieldKind) -> bool {
+    match kind {
+        FieldKind::Enum { .. } | FieldKind::NamedEnum { .. } => true,
+        FieldKind::Properties { fields, .. } => {
+            fields.iter().any(|field| kind_has_enum(&field.kind))
+        }
+        FieldKind::List { item } => kind_has_enum(item),
+        FieldKind::Map { value, .. } => kind_has_enum(value),
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Reference { .. } => false,
+    }
+}
+
+fn kind_has_reference(kind: &FieldKind) -> bool {
+    match kind {
+        FieldKind::Reference { .. } => true,
+        FieldKind::Properties { fields, .. } => {
+            fields.iter().any(|field| kind_has_reference(&field.kind))
+        }
+        FieldKind::List { item } => kind_has_reference(item),
+        FieldKind::Map { value, .. } => kind_has_reference(value),
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Enum { .. }
+        | FieldKind::NamedEnum { .. } => false,
     }
 }
 

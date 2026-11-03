@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use langmeld_core::ValidatedLanguageSpec;
+use langmeld_core::{FieldKind, ValidatedLanguageSpec};
 use langmeld_language::{
     PreparedLanguage, generate_tree_sitter, language_definition_source_paths, load_language,
     load_project, project_definition_source_paths,
@@ -79,6 +79,11 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
         .constructs
         .iter()
         .any(|construct| construct.symbol.is_some());
+    let lsp_contextual_completion = spec
+        .constructs
+        .iter()
+        .flat_map(|construct| &construct.fields)
+        .any(|field| language_kind_has_enum(&field.kind));
     let tree_sitter = match generate_tree_sitter(language) {
         Ok(_) => json!({ "supported": true }),
         Err(reason) => json!({ "supported": false, "reason": reason }),
@@ -102,7 +107,9 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
                 !construct.fields.is_empty() || construct.symbol.is_some()
             }),
             "lsp_semantic_tokens": true,
-            "lsp_contextual_completion": false,
+            "lsp_contextual_completion": lsp_contextual_completion
+                || spec.constructs.iter().flat_map(|construct| &construct.fields)
+                    .any(|field| language_kind_has_reference(&field.kind)),
             "lsp_navigation": lsp_navigation,
             "lsp_navigation_open_documents_only": lsp_navigation,
             "wasm_implemented": false,
@@ -142,4 +149,35 @@ fn print_json(value: &Value, role: &str) -> Result<(), (u8, String)> {
         .map_err(|error| (2, format!("cannot serialize {role}: {error}")))?;
     println!("{output}");
     Ok(())
+}
+
+fn language_kind_has_enum(kind: &FieldKind) -> bool {
+    match kind {
+        FieldKind::Enum { .. } | FieldKind::NamedEnum { .. } => true,
+        FieldKind::Properties { fields, .. } => fields
+            .iter()
+            .any(|field| language_kind_has_enum(&field.kind)),
+        FieldKind::List { item } => language_kind_has_enum(item),
+        FieldKind::Map { value, .. } => language_kind_has_enum(value),
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Reference { .. } => false,
+    }
+}
+
+fn language_kind_has_reference(kind: &FieldKind) -> bool {
+    match kind {
+        FieldKind::Reference { .. } => true,
+        FieldKind::Properties { fields, .. } => fields
+            .iter()
+            .any(|field| language_kind_has_reference(&field.kind)),
+        FieldKind::List { item } => language_kind_has_reference(item),
+        FieldKind::Map { value, .. } => language_kind_has_reference(value),
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Enum { .. }
+        | FieldKind::NamedEnum { .. } => false,
+    }
 }
