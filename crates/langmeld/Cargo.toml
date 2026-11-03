@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Public Rust facade for the Langmeld language framework."
+documentation = "https://docs.rs/langmeld"
 
 [features]
 default = []

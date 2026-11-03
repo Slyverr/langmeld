@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Language token contracts and parsing infrastructure for Langmeld."
+documentation = "https://docs.rs/langmeld-language"
 
 [dependencies]
 langmeld-core = { version = "0.1.0", path = "../langmeld-core" }

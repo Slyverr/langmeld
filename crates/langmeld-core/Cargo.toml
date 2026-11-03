@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Source identities, spans, and structured diagnostics for Langmeld."
+documentation = "https://docs.rs/langmeld-core"
 
 [dependencies]
 serde.workspace = true

@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "A JSON-RPC language-server foundation for Langmeld languages."
+documentation = "https://docs.rs/langmeld-lsp"
 
 [[bin]]
 name = "langmeld-lsp"
