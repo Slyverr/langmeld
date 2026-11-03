@@ -18,9 +18,11 @@ and workspace type-analysis passes. The Clap-based CLI provides `langmeld init`
 for Rust hosts with modular `.lm` definitions and `langmeld generate` for
 rebuildable language tooling. Generation includes Rust parser, lexer, and
 analysis callback scaffolds under `.langmeld/generated/host/`; callback bodies
-are declaration-driven and compile in a generated Rust project. Safe host
-installation and merging, backend templates, and broader project commands are
-pending. LSP and WASM adapters are also pending.
+are declaration-driven and compile in a generated Rust project. The
+`langmeld generate --install-host` option safely wires these modules into
+`src/host/` and preserves marked callback implementations while refreshing
+them. Backend templates and broader project commands are pending. LSP and
+WASM adapters are also pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

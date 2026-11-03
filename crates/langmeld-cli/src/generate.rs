@@ -17,13 +17,18 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
     let definition = root.join("language/language.lm");
     let language = parse_language_definition_project(&definition)
         .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?;
+    let host_artifacts = host::generate_host_scaffold(&language);
+    let install_plan = arguments
+        .install_host
+        .then(|| host::prepare_host_install(&host_artifacts, &root))
+        .transpose()?;
     let mut files = generate_tooling(&language)
         .map_err(|error| format!("cannot generate language tooling: {error}"))?
         .into_iter()
         .map(|(path, contents)| (PathBuf::from(path), contents))
         .collect::<Files>();
     files.extend(
-        host::generate_host_scaffold(&language)
+        host_artifacts
             .into_iter()
             .map(|(path, contents)| (PathBuf::from(path), contents)),
     );
@@ -42,19 +47,24 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
     }
 
     let actual = read_generated(&state)?;
-    if actual == files {
+    if actual == files && install_plan.is_none() {
         println!(
             "generated tooling is already up to date ({})",
             state.display()
         );
         return Ok(());
     }
-    replace_generated(&root, &files)?;
-    println!(
-        "generated {} tooling files in {}",
-        files.len(),
-        state.display()
-    );
+    if actual != files {
+        replace_generated(&root, &files)?;
+        println!(
+            "generated {} tooling files in {}",
+            files.len(),
+            state.display()
+        );
+    }
+    if let Some(plan) = install_plan {
+        host::apply_host_install(plan)?;
+    }
     Ok(())
 }
 

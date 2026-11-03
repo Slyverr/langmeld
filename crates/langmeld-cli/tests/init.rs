@@ -52,6 +52,14 @@ fn run_generate(project: &std::path::Path, check: bool) -> std::process::Output 
     command.output().expect("langmeld generate starts")
 }
 
+fn run_generate_install(project: &std::path::Path) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["generate", "--install-host", "--project-root"])
+        .arg(project)
+        .output()
+        .expect("langmeld host installation starts")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -265,7 +273,7 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
     let constructs_path = project.join("language/constructs/program.lm");
     let constructs = fs::read_to_string(&constructs_path).expect("starter constructs are written");
     fs::write(
-        constructs_path,
+        &constructs_path,
         constructs.replace(
             "  construct statement {\n",
             "  construct statement {\n    custom_parser: statement_parser\n",
@@ -296,11 +304,75 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
         "host scaffolds are part of deterministic check output"
     );
 
-    copy_generated_tree(&host_generated, &project.join("src/host"));
+    let installed = run_generate_install(&project);
+    assert!(
+        installed.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&installed.stdout),
+        String::from_utf8_lossy(&installed.stderr)
+    );
     let library_path = project.join("src/lib.rs");
-    let mut library = fs::read_to_string(&library_path).expect("starter library is written");
-    library.push_str("\npub mod host;\n");
-    fs::write(library_path, library).expect("generated host modules are exposed to the crate");
+    let library = fs::read_to_string(&library_path).expect("host module is wired");
+    assert_eq!(library.matches("pub mod host;").count(), 1);
+    assert!(project.join("src/host/runtime.rs").is_file());
+
+    let parser_path = project.join("src/host/parser.rs");
+    let parser = fs::read_to_string(&parser_path).expect("custom parser is installed");
+    fs::write(
+        &parser_path,
+        parser.replace(
+            "    Ok(None)\n",
+            "    // User-owned parser behavior.\n    Ok(None)\n",
+        ),
+    )
+    .expect("user callback body is edited");
+    let analysis_path = project.join("src/host/analysis.rs");
+    let analysis = fs::read_to_string(&analysis_path).expect("analysis callbacks are installed");
+    fs::write(
+        &analysis_path,
+        analysis.replace(
+            "// Add semantic checks here.",
+            "// User-owned semantic behavior.",
+        ),
+    )
+    .expect("user analysis callback body is edited");
+
+    let definition = fs::read_to_string(&definition_path).expect("definition remains readable");
+    fs::write(
+        &definition_path,
+        definition.replace(
+            "  behavior semantic_policy: semantic_analysis\n",
+            "  behavior semantic_policy: semantic_analysis\n  behavior late_policy: semantic_analysis\n",
+        ),
+    )
+    .expect("a new behavior callback is declared");
+    let refreshed = run_generate_install(&project);
+    assert!(
+        refreshed.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&refreshed.stdout),
+        String::from_utf8_lossy(&refreshed.stderr)
+    );
+    let parser = fs::read_to_string(&parser_path).expect("parser callback survives refresh");
+    assert!(parser.contains("User-owned parser behavior."));
+    let analysis = fs::read_to_string(&analysis_path).expect("analysis callbacks survive refresh");
+    assert!(analysis.contains("User-owned semantic behavior."));
+    assert!(analysis.contains("host_semantic_callback_late_policy"));
+    assert_eq!(
+        fs::read_to_string(&library_path)
+            .expect("library remains wired")
+            .matches("pub mod host;")
+            .count(),
+        1
+    );
+
+    let idempotent = run_generate_install(&project);
+    assert!(
+        idempotent.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&idempotent.stdout),
+        String::from_utf8_lossy(&idempotent.stderr)
+    );
     let tests = project.join("tests");
     fs::create_dir_all(&tests).expect("generated consumer tests directory is created");
     fs::write(
@@ -316,7 +388,7 @@ fn generated_host_binds_declared_callbacks_and_parses_source() {
     let parsed = parser.parse(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     assert_eq!(parsed.program.nodes.len(), 1);
-    assert_eq!(host::analysis::semantic_behavior_hooks(&spec).unwrap().len(), 1);
+    assert_eq!(host::analysis::semantic_behavior_hooks(&spec).unwrap().len(), 2);
     assert_eq!(host::analysis::resolver_behavior_hooks(&spec).unwrap().len(), 1);
     assert_eq!(host::analysis::workspace_behavior_hooks(&spec).unwrap().len(), 1);
 }
@@ -340,22 +412,73 @@ fn generated_host_binds_declared_callbacks_and_parses_source() {
         String::from_utf8_lossy(&check.stdout),
         String::from_utf8_lossy(&check.stderr)
     );
+
+    let installed_parser = fs::read(&parser_path).expect("installed parser remains readable");
+    let generated_parser_path = host_generated.join("parser.rs");
+    let generated_parser =
+        fs::read(&generated_parser_path).expect("generated parser remains readable");
+    let constructs =
+        fs::read_to_string(&constructs_path).expect("construct module remains readable");
+    fs::write(
+        &constructs_path,
+        constructs.replace("    custom_parser: statement_parser\n", ""),
+    )
+    .expect("removed callback is reflected in the language definition");
+    let rejected = run_generate_install(&project);
+    assert!(!rejected.status.success());
+    assert!(
+        String::from_utf8_lossy(&rejected.stderr).contains("were removed"),
+        "{}",
+        String::from_utf8_lossy(&rejected.stderr)
+    );
+    assert_eq!(
+        fs::read(&parser_path).expect("installed parser is preserved"),
+        installed_parser
+    );
+    assert_eq!(
+        fs::read(&generated_parser_path).expect("generated output is preserved"),
+        generated_parser
+    );
 }
 
-fn copy_generated_tree(source: &std::path::Path, destination: &std::path::Path) {
-    fs::create_dir_all(destination).expect("generated consumer directory is created");
-    for entry in fs::read_dir(source).expect("generated host tree is readable") {
-        let entry = entry.expect("generated host entry is readable");
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        if entry
-            .file_type()
-            .expect("generated entry type is readable")
-            .is_dir()
-        {
-            copy_generated_tree(&source_path, &destination_path);
-        } else {
-            fs::copy(&source_path, &destination_path).expect("generated host file is copied");
-        }
-    }
+#[cfg(unix)]
+#[test]
+fn generate_install_host_refuses_symlink_before_project_writes() {
+    use std::os::unix::fs::symlink;
+
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("symlink-host");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "SymlinkHost",
+        "--no-agent-skill",
+    ]);
+    assert!(initialized.status.success());
+
+    let outside_host = temporary.project("outside-host");
+    fs::create_dir(&outside_host).expect("external target directory is created");
+    fs::write(outside_host.join("keep.txt"), "keep").expect("external marker is written");
+    symlink(&outside_host, project.join("src/host")).expect("host path symlink is created");
+    let library_before = fs::read(project.join("src/lib.rs")).expect("library is readable");
+    let tooling_before = fs::read(project.join(".langmeld/generated/host/README.md"))
+        .expect("host artifact is readable");
+
+    let rejected = run_generate_install(&project);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("refusing links"));
+    assert_eq!(
+        fs::read(project.join("src/lib.rs")).unwrap(),
+        library_before
+    );
+    assert_eq!(
+        fs::read(project.join(".langmeld/generated/host/README.md")).unwrap(),
+        tooling_before
+    );
+    assert_eq!(
+        fs::read_to_string(outside_host.join("keep.txt")).unwrap(),
+        "keep"
+    );
 }

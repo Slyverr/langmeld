@@ -53,35 +53,29 @@ pub(crate) fn generate_host_scaffold(
         .filter_map(|construct| construct.custom_parser.as_deref())
         .collect::<std::collections::BTreeSet<_>>();
     let parser_names = callback_names(parsers.iter().copied());
-    if !parsers.is_empty() {
-        let mut registry = String::from(
-            "/// Callbacks required by constructs using `custom_parser`.\npub fn custom_parser_callbacks() -> Vec<langmeld::language::CustomConstructParser> {\n    vec![\n",
+    let mut registry = String::from(
+        "/// Callbacks required by constructs using `custom_parser`.\npub fn custom_parser_callbacks() -> Vec<langmeld::language::CustomConstructParser> {\n    vec![\n",
+    );
+    for id in &parsers {
+        let _ = writeln!(
+            registry,
+            "        langmeld::language::CustomConstructParser::new({id:?}, host_parser_{}),",
+            parser_names[*id]
         );
-        for id in &parsers {
-            let _ = writeln!(
-                registry,
-                "        langmeld::language::CustomConstructParser::new({id:?}, host_parser_{}),",
-                parser_names[*id]
-            );
-        }
-        registry.push_str("    ]\n}\n");
-        parser_source.push_str(&marked_host_block("registry:parser", &registry));
-        for id in &parsers {
-            let mut callback = String::new();
-            let _ = writeln!(
-                callback,
-                "/// TODO: Parse the `{id}` construct and return source-spanned generic fields.\n/// Return `Ok(None)` only when this input is not the `{id}` construct. Once its\n/// syntax is recognized, return a diagnostic for malformed input.\n/// Attach a host-owned AST with `.with_host_data(...)` when Rust needs richer data.\nfn host_parser_{}(\n    _source: &langmeld::core::SourceFile,\n    _start: usize,\n) -> Result<Option<langmeld::language::CustomConstructMatch>, langmeld::core::Diagnostic> {{\n    Ok(None)\n}}\n",
-                parser_names[*id]
-            );
-            parser_source.push_str(&marked_host_block(
-                &format!("callback:parser:{id}"),
-                &callback,
-            ));
-        }
-    } else {
+    }
+    registry.push_str("    ]\n}\n");
+    parser_source.push_str(&marked_host_block("registry:parser", &registry));
+    for id in &parsers {
+        let mut callback = String::new();
+        let body_key = format!("body:parser:{id}");
+        let _ = writeln!(
+            callback,
+            "/// TODO: Parse the `{id}` construct and return source-spanned generic fields.\n/// Return `Ok(None)` only when this input is not the `{id}` construct. Once its\n/// syntax is recognized, return a diagnostic for malformed input.\n/// Attach a host-owned AST with `.with_host_data(...)` when Rust needs richer data.\nfn host_parser_{}(\n    _source: &langmeld::core::SourceFile,\n    _start: usize,\n) -> Result<Option<langmeld::language::CustomConstructMatch>, langmeld::core::Diagnostic> {{\n    // <langmeld:{body_key}>\n    Ok(None)\n    // </langmeld:{body_key}>\n}}\n",
+            parser_names[*id],
+        );
         parser_source.push_str(&marked_host_block(
-            "registry:parser",
-            "/// No custom construct parsers are required by this language.\npub fn custom_parser_callbacks() -> Vec<langmeld::language::CustomConstructParser> {\n    Vec::new()\n}",
+            &format!("callback:parser:{id}"),
+            &callback,
         ));
     }
 
@@ -148,10 +142,11 @@ pub(crate) fn generate_host_scaffold(
         if stage == BehaviorStage::SemanticAnalysis {
             for id in &ids {
                 let mut callback = String::new();
+                let body_key = format!("body:semantic:{id}");
                 let _ = writeln!(
                     callback,
-                    "/// TODO: Implement the `{id}` per-file semantic behavior.\nfn host_semantic_{}(\n    _program: &langmeld::language::Program,\n    _source: &langmeld::core::SourceFile,\n    _diagnostics: &mut Vec<langmeld::core::Diagnostic>,\n) {{}}\n",
-                    names[*id]
+                    "/// TODO: Implement the `{id}` per-file semantic behavior.\nfn host_semantic_{}(\n    _program: &langmeld::language::Program,\n    _source: &langmeld::core::SourceFile,\n    _diagnostics: &mut Vec<langmeld::core::Diagnostic>,\n) {{\n    // <langmeld:{body_key}>\n    // Add semantic checks here.\n    // </langmeld:{body_key}>\n}}\n",
+                    names[*id],
                 );
                 analysis_source.push_str(&marked_host_block(
                     &format!("callback:semantic:{id}"),
@@ -161,10 +156,11 @@ pub(crate) fn generate_host_scaffold(
         } else if stage == BehaviorStage::WorkspaceTypeAnalysis {
             for id in &ids {
                 let mut callback = String::new();
+                let body_key = format!("body:workspace:{id}");
                 let _ = writeln!(
                     callback,
-                    "/// TODO: Implement the `{id}` workspace-wide analysis behavior.\nfn host_workspace_{}(\n    _spec: &langmeld::core::ValidatedLanguageSpec,\n    _files: &[(&langmeld::core::SourceFile, &langmeld::language::Program)],\n    _facts: &[langmeld::language::TypeFact],\n    _references: &[langmeld::language::ResolvedReference],\n    _host_facts: &mut Vec<langmeld::language::HostTypeFact>,\n    _diagnostics: &mut Vec<langmeld::language::WorkspaceDiagnostic>,\n) {{}}\n",
-                    names[*id]
+                    "/// TODO: Implement the `{id}` workspace-wide analysis behavior.\nfn host_workspace_{}(\n    _spec: &langmeld::core::ValidatedLanguageSpec,\n    _files: &[(&langmeld::core::SourceFile, &langmeld::language::Program)],\n    _facts: &[langmeld::language::TypeFact],\n    _references: &[langmeld::language::ResolvedReference],\n    _host_facts: &mut Vec<langmeld::language::HostTypeFact>,\n    _diagnostics: &mut Vec<langmeld::language::WorkspaceDiagnostic>,\n) {{\n    // <langmeld:{body_key}>\n    // Add workspace type analysis here.\n    // </langmeld:{body_key}>\n}}\n",
+                    names[*id],
                 );
                 analysis_source.push_str(&marked_host_block(
                     &format!("callback:workspace:{id}"),
@@ -174,10 +170,11 @@ pub(crate) fn generate_host_scaffold(
         } else {
             for id in &ids {
                 let mut callback = String::new();
+                let body_key = format!("body:resolver:{id}");
                 let _ = writeln!(
                     callback,
-                    "/// TODO: Implement the `{id}` workspace symbol-resolution behavior.\nfn host_resolver_{}(\n    _spec: &langmeld::core::ValidatedLanguageSpec,\n    _files: &[(&langmeld::core::SourceFile, &langmeld::language::Program)],\n    _analysis: &mut langmeld::language::WorkspaceAnalysis,\n) {{}}\n",
-                    names[*id]
+                    "/// TODO: Implement the `{id}` workspace symbol-resolution behavior.\nfn host_resolver_{}(\n    _spec: &langmeld::core::ValidatedLanguageSpec,\n    _files: &[(&langmeld::core::SourceFile, &langmeld::language::Program)],\n    _analysis: &mut langmeld::language::WorkspaceAnalysis,\n) {{\n    // <langmeld:{body_key}>\n    // Add symbol resolution here.\n    // </langmeld:{body_key}>\n}}\n",
+                    names[*id],
                 );
                 analysis_source.push_str(&marked_host_block(
                     &format!("callback:resolver:{id}"),
@@ -198,7 +195,7 @@ pub(crate) fn generate_host_scaffold(
 
     let lexer_source = marked_host_block(
         "callback:lexer:custom_lexer",
-        "/// Extend Langmeld's lexer with `langmeld::language::lex_source(source)`, or return `None` to use it unchanged.\n/// Custom tokens must have ordered, non-overlapping UTF-8 byte spans. Omit the EOF sentinel.\npub fn custom_lexer() -> Option<langmeld::language::CustomLexer> {\n    None\n}",
+        "/// Extend Langmeld's lexer with `langmeld::language::lex_source(source)`, or return `None` to use it unchanged.\n/// Custom tokens must have ordered, non-overlapping UTF-8 byte spans. Omit the EOF sentinel.\npub fn custom_lexer() -> Option<langmeld::language::CustomLexer> {\n    // <langmeld:body:lexer:custom_lexer>\n    None\n    // </langmeld:body:lexer:custom_lexer>\n}",
     );
 
     std::collections::BTreeMap::from([

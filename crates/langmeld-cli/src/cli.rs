@@ -60,8 +60,11 @@ pub(crate) struct GenerateArgs {
     #[arg(long, default_value = ".")]
     pub(crate) project_root: PathBuf,
     /// Verify generated files without writing them.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "install_host")]
     pub(crate) check: bool,
+    /// Install or safely refresh generated Rust host modules under src/host.
+    #[arg(long)]
+    pub(crate) install_host: bool,
 }
 
 #[cfg(test)]
@@ -110,5 +113,18 @@ mod tests {
         assert!(help.contains("--interactive"));
         assert!(help.contains("--no-interactive"));
         assert!(help.contains("--agent-skill"));
+        let generate = command
+            .get_subcommands()
+            .find(|subcommand| subcommand.get_name() == "generate")
+            .expect("generate command is registered");
+        let help = generate.clone().render_long_help().to_string();
+        assert!(help.contains("--install-host"));
+    }
+
+    #[test]
+    fn generate_rejects_check_with_host_install() {
+        assert!(
+            Cli::try_parse_from(["langmeld", "generate", "--check", "--install-host"]).is_err()
+        );
     }
 }
