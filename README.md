@@ -157,8 +157,6 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 - [AGENTS.md](AGENTS.md) gives coding agents the repository-specific rules and
   links to the project-local Rust skills under `.agents/skills/`.
 
-See [REPORT.md](REPORT.md) for the current implementation snapshot and findings.
-
 ## License
 
 Licensed under either of these terms, at your option:
