@@ -3,7 +3,8 @@ use langmeld_core::{
 };
 use langmeld_language::{
     DefinitionLimits, langmeld_definition_language, parse_definition, parse_definition_with_limits,
-    parse_language_definition_with_meta,
+    parse_language_definition_modules, parse_language_definition_modules_with_limits,
+    parse_language_definition_modules_with_meta, parse_language_definition_with_meta,
 };
 
 const DEFINITION: &str = r#"language Demo {
@@ -107,6 +108,28 @@ fn supplied_meta_language_uses_the_same_parser_and_conversion_path() {
 }
 
 #[test]
+fn in_memory_modules_compose_without_filesystem_access() {
+    let root = SourceFile::new(
+        "language/language.lm",
+        "language MemoryLanguage {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".mem\"\n}\n",
+    );
+    let modules = [SourceFile::new(
+        "language/constructs/program.lm",
+        "constructs {\n  construct program {\n    syntax {\n      default: \"program {\"\n    }\n    block: []\n  }\n}\n",
+    )];
+
+    let built_in = parse_language_definition_modules(&root, &modules)
+        .expect("built-in grammar composes supplied sources in memory");
+    let meta = langmeld_definition_language().expect("bootstrap grammar validates");
+    let supplied = parse_language_definition_modules_with_meta(&root, &modules, &meta)
+        .expect("caller-supplied grammar composes the same sources");
+
+    assert_eq!(built_in.spec(), supplied.spec());
+    assert_eq!(built_in.spec().name, "MemoryLanguage");
+    assert!(built_in.construct("program").is_some());
+}
+
+#[test]
 fn definition_limits_and_import_boundary_return_diagnostics() {
     let too_large = SourceFile::new("large.lm", DEFINITION);
     let diagnostics = parse_definition_with_limits(
@@ -117,6 +140,22 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
         },
     )
     .expect_err("source limit is checked before parsing");
+    assert_eq!(diagnostics[0].code, "LMDEF100");
+
+    let root = SourceFile::new(
+        "language.lm",
+        "language MemoryLanguage { version: \"0.1.0\" root: program }",
+    );
+    let module = SourceFile::new("constructs/program.lm", "constructs { } ");
+    let diagnostics = parse_language_definition_modules_with_limits(
+        &root,
+        &[module],
+        DefinitionLimits {
+            max_source_bytes: root.text.len(),
+            ..DefinitionLimits::default()
+        },
+    )
+    .expect_err("the aggregate module size is bounded");
     assert_eq!(diagnostics[0].code, "LMDEF100");
 
     let diagnostics = parse_definition_with_limits(
@@ -137,6 +176,20 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
             .all(|diagnostic| diagnostic.span.is_some())
     );
     assert!(diagnostics[0].message.contains("broken.lm"));
+
+    let malformed = SourceFile::new(
+        "noisy.lm",
+        "language Broken {\n  invalid one\n  invalid two\n  invalid three\n}\n",
+    );
+    let diagnostics = parse_definition_with_limits(
+        &malformed,
+        DefinitionLimits {
+            max_diagnostics: 1,
+            ..DefinitionLimits::default()
+        },
+    )
+    .expect_err("malformed source is rejected under the diagnostic limit");
+    assert!(diagnostics.len() <= 1, "{diagnostics:?}");
 
     let imported = SourceFile::new(
         "imports.lm",

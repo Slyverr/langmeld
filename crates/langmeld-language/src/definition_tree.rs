@@ -41,14 +41,28 @@ pub(crate) fn parse_language_definition_with_meta_and_limits(
     parse_language_definition_with_prepared_and_limits(source, &prepared, limits)
 }
 
+pub(crate) fn parse_language_definition_modules_with_meta_and_limits(
+    root: &SourceFile,
+    modules: &[SourceFile],
+    meta_language: &ValidatedLanguageSpec,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let prepared = PreparedLanguage::new(meta_language.clone())
+        .map_err(|error| vec![Diagnostic::spec_error("LM1080", error.to_string())])?;
+    parse_language_definition_modules_with_prepared(root, modules, &prepared, limits)
+}
+
 pub(crate) fn parse_language_definition_with_prepared_and_limits(
     source: &SourceFile,
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    let root = parse_definition_tree(source, prepared, limits)?;
-    reject_imports(&root, source)?;
-    conversion::convert_language(&root, source)
+    let result = (|| {
+        let root = parse_definition_tree(source, prepared, limits)?;
+        reject_imports(&root, source)?;
+        conversion::convert_language(&root, source)
+    })();
+    limit_diagnostics(result, limits.max_diagnostics, source.text.len())
 }
 
 pub(crate) fn parse_language_definition_modules_with_prepared(
@@ -57,17 +71,31 @@ pub(crate) fn parse_language_definition_modules_with_prepared(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    let mut parsed_modules = Vec::with_capacity(modules.len() + 1);
-    for module in modules {
-        let ast = parse_definition_tree(module, prepared, limits)?;
-        reject_imports(&ast, module)?;
-        parsed_modules.push((ast, module));
-    }
-    let root = parse_definition_tree(root_source, prepared, limits)?;
-    reject_imports(&root, root_source)?;
-    parsed_modules.push((root, root_source));
+    let result = (|| {
+        let mut parsed_modules = Vec::with_capacity(modules.len() + 1);
+        let mut total_bytes = 0usize;
+        for source in modules.iter().chain(std::iter::once(root_source)) {
+            total_bytes = total_bytes.saturating_add(source.text.len());
+            if total_bytes > limits.max_source_bytes {
+                return Err(vec![Diagnostic::error(
+                    "LMDEF100",
+                    format!(
+                        "definition project is {total_bytes} bytes; parsing limit is {} bytes",
+                        limits.max_source_bytes
+                    ),
+                    Span::new(0, source.text.len()),
+                )]);
+            }
+            let ast = parse_definition_tree(source, prepared, limits)?;
+            reject_imports(&ast, source)?;
+            parsed_modules.push((ast, source));
+        }
 
-    conversion::convert_language_modules(parsed_modules.iter().map(|(ast, source)| (ast, *source)))
+        conversion::convert_language_modules(
+            parsed_modules.iter().map(|(ast, source)| (ast, *source)),
+        )
+    })();
+    limit_diagnostics(result, limits.max_diagnostics, root_source.text.len())
 }
 
 fn reject_imports(node: &AstNode, source: &SourceFile) -> Result<(), Vec<Diagnostic>> {
@@ -86,6 +114,26 @@ fn reject_imports(node: &AstNode, source: &SourceFile) -> Result<(), Vec<Diagnos
         )]);
     }
     Ok(())
+}
+
+fn limit_diagnostics<T>(
+    result: Result<T, Vec<Diagnostic>>,
+    max_diagnostics: usize,
+    source_len: usize,
+) -> Result<T, Vec<Diagnostic>> {
+    let Err(mut diagnostics) = result else {
+        return result;
+    };
+    let limit = max_diagnostics.max(1);
+    if diagnostics.len() > limit {
+        diagnostics.truncate(limit.saturating_sub(1));
+        diagnostics.push(Diagnostic::error(
+            "LMDEF102",
+            format!("definition diagnostics exceed the limit of {limit}"),
+            Span::new(0, source_len),
+        ));
+    }
+    Err(diagnostics)
 }
 
 fn parse_limits(limits: DefinitionLimits) -> ParseLimits {
