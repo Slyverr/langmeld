@@ -1072,6 +1072,91 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
 }
 
 #[test]
+fn versioned_extension_can_be_shared_from_a_sibling_directory() {
+    let workspace = TempWorkspace::new();
+    let project = workspace.project("language-project");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().expect("project path is UTF-8"),
+        "--name",
+        "SharedExtensionLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+
+    let extension_directory = workspace.0.join("shared-extension");
+    fs::create_dir_all(&extension_directory).expect("shared extension directory is created");
+    fs::write(
+        extension_directory.join("shared.lm"),
+        r#"language SharedExtensionLanguage {
+  version: "0.1.0"
+  root: program
+  construct shared_note {
+    syntax { default: "shared_note {name}" }
+    fields { name: identifier required }
+  }
+}
+"#,
+    )
+    .expect("shared extension definition is written");
+
+    let added = run_extension(
+        &project,
+        &[
+            "add",
+            "--id",
+            "community.shared-note",
+            "--version",
+            "1.2.0",
+            "--path",
+            "../shared-extension/shared.lm",
+            "--language-version",
+            "^0.1",
+        ],
+    );
+    assert!(
+        added.status.success(),
+        "adding shared extension failed:\n{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
+
+    let checked = run_check(&project, &["check", "--project", "langmeld.json"]);
+    assert!(
+        checked.status.success(),
+        "language project check failed:\n{}",
+        String::from_utf8_lossy(&checked.stderr)
+    );
+
+    let generated = run_generate(&project, false);
+    assert!(
+        generated.status.success(),
+        "generation with shared extension failed:\n{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(project.join(".langmeld/generated/metadata.json"))
+            .expect("generated metadata is readable"),
+    )
+    .expect("generated metadata is valid JSON");
+    assert!(
+        metadata["constructs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|construct| construct["id"] == "shared_note"),
+        "shared extension construct is absent from metadata: {metadata}"
+    );
+    let lock =
+        fs::read_to_string(project.join("langmeld.lock")).expect("extension lockfile is readable");
+    assert!(lock.contains("../shared-extension/shared.lm"));
+    assert!(run_generate(&project, true).status.success());
+}
+
+#[test]
 fn format_command_prints_by_default_writes_only_when_requested_and_preserves_invalid_input() {
     let workspace = TempWorkspace::new();
     let project = workspace.project("format-project");

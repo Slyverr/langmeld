@@ -150,6 +150,22 @@ example, add an unversioned path with `langmeld extension add --path-only
 language/extensions/ui.lm`, or a local package with `--id`, `--version`,
 `--path`, and `--language-version`. Package dependencies use repeated
 `--depends ID@VERSION-REQUIREMENT` options. Nothing is downloaded or executed.
+To use an extension shared by another author, keep its definition in the
+project checkout or a sibling directory and set `--path` relative to
+`langmeld.json`, for example:
+
+```sh
+langmeld extension add \
+  --id community.ui \
+  --version 1.0.0 \
+  --path ../ui-extension/language/ui.lm \
+  --language-version '^0.1.0'
+```
+
+Langmeld composes the extension's declarations into the effective language
+used by checking and generated tooling. The extension does not supply
+executable Rust behavior; custom parser, analysis, runtime, or backend
+callbacks remain part of the language host's trusted build.
 `langmeld format --language language/language.lm --source examples/demo.lang`
 prints the formatted source. Add `--write` to update the file; invalid source
 is reported without writing.
