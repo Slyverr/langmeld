@@ -1,0 +1,8 @@
+[package]
+name = "langmeld-clean"
+version = "0.1.0"
+edition = "2024"
+description = "Early-stage Rust project for Langmeld"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
