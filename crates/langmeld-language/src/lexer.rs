@@ -45,6 +45,10 @@ impl LanguageToken {
 }
 
 /// The lexical output returned by a custom lexer.
+///
+/// Whitespace may be omitted except where it separates statements. For
+/// line-sensitive grammars, emit [`LanguageTokenKind::Newline`] tokens so the
+/// generic parser can distinguish adjacent statements.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LexedSource {
     /// Significant tokens in source order. Whitespace may be omitted; Langmeld reconstructs it.
@@ -86,6 +90,10 @@ pub fn lex_source(source: &SourceFile) -> LexedSource {
 }
 
 /// Host lexer callback. It sees the untouched source and returns source-spanned tokens.
+///
+/// Preserve newline tokens whenever line breaks separate statements in the
+/// configured grammar. The generic parser uses them for statement boundaries
+/// and error recovery.
 pub type CustomLexerFn = dyn Fn(&SourceFile) -> LexedSource + Send + Sync;
 
 /// Replaces Langmeld's built-in lexer for one configured language parser.

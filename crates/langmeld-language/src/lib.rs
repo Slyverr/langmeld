@@ -10,11 +10,17 @@ pub use lexer::{
 };
 pub use model::{
     AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, CustomConstructParserFn,
-    HostData, MapEntry, Program, Value, ValueType,
+    HostData, MapEntry, ParseResult, Program, Value, ValueType,
 };
-pub use parser::{PatternCompileError, PreparedLanguage};
+pub use parser::{
+    ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
+    PatternCompileError, PreparedLanguage,
+};
 
-/// Maximum nested construct bodies accepted by default by the generic parser.
+/// Maximum nested construct bodies traversed by the recursive generic parser.
+///
+/// [`ParseLimits::max_nesting_depth`] can lower this bound for a parse. Values
+/// above this ceiling are clamped to keep parser and callback-AST recursion safe.
 pub const MAX_NESTING_DEPTH: usize = 128;
 
 /// Work and input bounds used when parsing untrusted source text.
@@ -26,7 +32,7 @@ pub struct ParseLimits {
     pub max_tokens: usize,
     /// Maximum AST nodes, including nodes returned by custom parser callbacks.
     pub max_ast_nodes: usize,
-    /// Maximum nested construct blocks.
+    /// Requested maximum nested construct blocks, capped by [`MAX_NESTING_DEPTH`].
     pub max_nesting_depth: usize,
     /// Maximum recursive pattern matching and backtracking steps per parse.
     pub max_pattern_steps: usize,

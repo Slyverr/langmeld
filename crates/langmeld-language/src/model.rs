@@ -29,6 +29,19 @@ pub struct Program {
     pub nodes: Vec<AstNode>,
 }
 
+/// Best-effort result of parsing one source snapshot.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParseResult {
+    /// Generic syntax tree nodes recovered from the source.
+    pub program: Program,
+    /// Lexical and syntactic diagnostics, including recoverable errors.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Source ranges recognized by host-provided construct parsers.
+    pub custom_parser_spans: Vec<Span>,
+    /// Whether a source, token, AST, nesting, or matcher-work limit stopped parsing.
+    pub resource_limited: bool,
+}
+
 /// A generic syntax node produced from one declared construct.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AstNode {

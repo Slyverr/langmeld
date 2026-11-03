@@ -49,7 +49,7 @@ impl PatternMatch {
             });
             let Some(property_specs) = property_specs else {
                 return Err(Diagnostic::error(
-                    "LM1230",
+                    "LM1236",
                     format!("dotted captures for `{root}` require a list of property records"),
                     captures[0].1.span,
                 ));
@@ -59,7 +59,7 @@ impl PatternMatch {
                 .map(|(property, capture)| {
                     let Value::List(values) = capture.value else {
                         return Err(Diagnostic::error(
-                            "LM1230",
+                            "LM1236",
                             format!("repeated property `{root}.{property}` did not produce a list"),
                             capture.span,
                         ));
@@ -70,7 +70,7 @@ impl PatternMatch {
             let length = columns.first().map_or(0, |(_, values)| values.len());
             if let Some((_, values)) = columns.iter().find(|(_, values)| values.len() != length) {
                 return Err(Diagnostic::error(
-                    "LM1230",
+                    "LM1236",
                     format!("repeated properties for `{root}` must have equal item counts"),
                     values.first().map_or(Span::default(), |value| value.span),
                 ));
@@ -93,7 +93,7 @@ impl PatternMatch {
                     if let Some(default) = &property.default {
                         let value = default_value(&property.kind, default).ok_or_else(|| {
                             Diagnostic::error(
-                                "LM1230",
+                                "LM1236",
                                 format!("default for `{}` cannot be materialized", property.name),
                                 Span::new(end, end),
                             )
@@ -122,23 +122,23 @@ impl PatternMatch {
     }
 }
 
-pub(super) struct PatternMatcher<'a> {
-    source: &'a SourceFile,
-    tokens: &'a [LanguageToken],
-    remaining_steps: usize,
+pub(super) struct PatternMatcher<'source, 'tokens, 'budget> {
+    source: &'source SourceFile,
+    tokens: &'tokens [LanguageToken],
+    remaining_steps: &'budget mut usize,
     best_error: Option<Diagnostic>,
 }
 
-impl<'a> PatternMatcher<'a> {
+impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
     pub(super) fn new(
-        source: &'a SourceFile,
-        tokens: &'a [LanguageToken],
-        max_steps: usize,
+        source: &'source SourceFile,
+        tokens: &'tokens [LanguageToken],
+        remaining_steps: &'budget mut usize,
     ) -> Self {
         Self {
             source,
             tokens,
-            remaining_steps: max_steps,
+            remaining_steps,
             best_error: None,
         }
     }
@@ -795,7 +795,7 @@ impl<'a> PatternMatcher<'a> {
         }
     }
     fn step(&mut self, position: usize) -> Result<(), Diagnostic> {
-        if self.remaining_steps == 0 {
+        if *self.remaining_steps == 0 {
             let offset = self.offset_at(position);
             return Err(Diagnostic::error(
                 "LM1304",
@@ -803,7 +803,7 @@ impl<'a> PatternMatcher<'a> {
                 Span::new(offset, offset),
             ));
         }
-        self.remaining_steps -= 1;
+        *self.remaining_steps -= 1;
         Ok(())
     }
 }
@@ -842,7 +842,7 @@ fn token_display(kind: &TokenKind) -> String {
         TokenKind::End => "end of file".to_owned(),
     }
 }
-fn token_matches(expected: &TokenKind, actual: &TokenKind) -> bool {
+pub(super) fn token_matches(expected: &TokenKind, actual: &TokenKind) -> bool {
     match (expected, actual) {
         (TokenKind::Identifier(a), TokenKind::Identifier(b))
         | (TokenKind::Number(a), TokenKind::Number(b))
@@ -856,7 +856,7 @@ fn token_matches(expected: &TokenKind, actual: &TokenKind) -> bool {
         _ => false,
     }
 }
-fn default_value(kind: &FieldKind, text: &str) -> Option<Value> {
+pub(super) fn default_value(kind: &FieldKind, text: &str) -> Option<Value> {
     Some(match kind {
         FieldKind::Identifier => Value::Identifier(text.to_owned()),
         FieldKind::Number => Value::Number(text.parse::<f64>().ok().filter(|v| v.is_finite())?),
@@ -903,7 +903,8 @@ mod tests {
     #[test]
     fn choice_uses_following_pattern_before_accepting_an_alternative() {
         let (source, tokens) = lex("b;");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 100);
+        let mut budget = 100;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let choice = PatternPart::Choice(vec![
             parts([ident("first"), literal(';')]),
             parts([ident("second")]),
@@ -921,7 +922,8 @@ mod tests {
     #[test]
     fn optional_inclusion_can_backtrack_to_the_skip_path() {
         let (source, tokens) = lex(";");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 100);
+        let mut budget = 100;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let syntax = parts([PatternPart::Optional(parts([literal(',')])), literal(';')]);
         let result = matcher
             .match_pattern(&syntax, 0)
@@ -933,7 +935,8 @@ mod tests {
     #[test]
     fn repetition_backtracks_and_accepts_a_trailing_separator() {
         let (source, tokens) = lex("a,b,;");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 1_000);
+        let mut budget = 1_000;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let repeat = PatternPart::ZeroOrMore {
             parts: parts([ident("item")]),
             capture_fields: BTreeSet::from(["item".to_owned()]),
@@ -955,7 +958,8 @@ mod tests {
     #[test]
     fn nested_repetitions_preserve_nested_lists() {
         let (source, tokens) = lex("a,b;c,d");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 1_000);
+        let mut budget = 1_000;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let inner = PatternPart::OneOrMore {
             parts: parts([ident("item")]),
             capture_fields: BTreeSet::from(["item".to_owned()]),
@@ -983,7 +987,8 @@ mod tests {
     #[test]
     fn typed_lists_maps_and_property_defaults_are_captured() {
         let (source, tokens) = lex("[1, 2,] {a: 3; b: 4} { name: demo }");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 2_000);
+        let mut budget = 2_000;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let fields = vec![FieldSpec::with_default(
             "name",
             FieldKind::Identifier,
@@ -1043,7 +1048,8 @@ mod tests {
             .expect("record definition is valid");
         let construct = &spec.spec().constructs[1];
         let (source, tokens) = lex("a b");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 100);
+        let mut budget = 100;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let repeated = PatternPart::OneOrMore {
             parts: parts([ident("items.name")]),
             capture_fields: BTreeSet::from(["items.name".to_owned()]),
@@ -1071,7 +1077,8 @@ mod tests {
     #[test]
     fn pattern_work_is_bounded() {
         let (source, tokens) = lex("a");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 0);
+        let mut budget = 0;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let error = matcher
             .match_pattern(&parts([ident("name")]), 0)
             .expect_err("zero budget is rejected");
@@ -1081,7 +1088,8 @@ mod tests {
     #[test]
     fn invalid_enum_values_report_the_declared_type_diagnostic() {
         let (source, tokens) = lex("42");
-        let mut matcher = PatternMatcher::new(&source, &tokens, 100);
+        let mut budget = 100;
+        let mut matcher = PatternMatcher::new(&source, &tokens, &mut budget);
         let kind = FieldKind::Enum {
             values: vec!["fast".to_owned(), "safe".to_owned()],
         };

@@ -122,7 +122,7 @@ pub(super) fn lex(source: &SourceFile, max_tokens: usize) -> (Vec<Token>, Vec<Di
                 span: Span::new(start, end),
             });
             if let Some(span) = newline_span {
-                if tokens.len() >= max_tokens - 1 {
+                if tokens.len() >= max_tokens.saturating_sub(1) {
                     diagnostics.push(Diagnostic::error(
                         "LM1301",
                         format!("token count exceeds the limit of {max_tokens}"),

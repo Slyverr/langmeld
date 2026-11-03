@@ -1,9 +1,13 @@
 //! Prepared-pattern compiler and shared parser internals.
 
 mod candidates;
-#[allow(dead_code)]
+mod engine;
+mod input;
 mod matching;
 mod pattern;
 mod prepared;
 
-pub use prepared::{PatternCompileError, PreparedLanguage};
+pub use prepared::{
+    ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
+    PatternCompileError, PreparedLanguage,
+};

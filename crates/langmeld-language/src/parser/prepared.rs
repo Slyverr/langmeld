@@ -7,13 +7,13 @@ use std::{
     sync::Arc,
 };
 
-use langmeld_core::{ConstructSpec, FieldKind, ValidatedLanguageSpec};
+use langmeld_core::{ConstructSpec, FieldKind, SourceFile, ValidatedLanguageSpec};
 
 use super::{
     candidates::BlockCandidateIndex,
     pattern::{self, PatternPart},
 };
-use crate::LanguageTokenKind;
+use crate::{CustomConstructParser, CustomLexer, LanguageTokenKind, ParseLimits, ParseResult};
 
 #[derive(Clone, Debug)]
 pub(super) struct CompiledPattern {
@@ -166,6 +166,55 @@ impl PreparedLanguage {
         })
     }
 
+    /// Binds and validates the host parser callbacks declared by this language.
+    ///
+    /// Declarative-only languages pass an empty iterator. Missing, duplicate,
+    /// and undeclared callback IDs are rejected before source parsing starts.
+    pub fn with_custom_parsers(
+        self,
+        parsers: impl IntoIterator<Item = CustomConstructParser>,
+    ) -> Result<ConfiguredLanguageParser, ParserRegistrationError> {
+        let mut registered = BTreeMap::new();
+        let mut issues = Vec::new();
+        for parser in parsers {
+            let id = parser.id.clone();
+            if registered.insert(id.clone(), parser).is_some() {
+                issues.push(ParserRegistrationIssue::Duplicate(id));
+            }
+        }
+        let declared = self
+            .spec
+            .spec()
+            .constructs
+            .iter()
+            .filter_map(|construct| construct.custom_parser.as_deref())
+            .collect::<BTreeSet<_>>();
+        for id in &declared {
+            if !registered.contains_key(*id) {
+                issues.push(ParserRegistrationIssue::Missing((*id).to_owned()));
+            }
+        }
+        for id in registered.keys() {
+            if !declared.contains(id.as_str()) {
+                issues.push(ParserRegistrationIssue::Unused(id.clone()));
+            }
+        }
+        if !issues.is_empty() {
+            issues.sort();
+            return Err(ParserRegistrationError { issues });
+        }
+        Ok(ConfiguredLanguageParser {
+            language: self,
+            parsers: registered.into_values().collect(),
+            lexer: None,
+        })
+    }
+
+    /// Creates a parser configuration when the language declares no custom parsers.
+    pub fn configure(self) -> Result<ConfiguredLanguageParser, ParserRegistrationError> {
+        self.with_custom_parsers(std::iter::empty())
+    }
+
     /// Returns the validated language definition used by this prepared parser.
     #[must_use]
     pub const fn spec(&self) -> &ValidatedLanguageSpec {
@@ -223,6 +272,92 @@ impl PreparedLanguage {
         self.block_candidates
             .get(construct_id)
             .map(|index| index.candidates(token).collect())
+    }
+}
+
+/// A problem found while binding host parser callbacks to a language definition.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParserRegistrationIssue {
+    /// The same callback ID was registered more than once.
+    Duplicate(String),
+    /// The language declares a callback ID that the host did not register.
+    Missing(String),
+    /// The host registered a callback ID that the language does not declare.
+    Unused(String),
+}
+
+impl fmt::Display for ParserRegistrationIssue {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Duplicate(id) => write!(
+                formatter,
+                "custom parser `{id}` is registered more than once"
+            ),
+            Self::Missing(id) => write!(
+                formatter,
+                "language requires custom parser `{id}` but the host did not register it"
+            ),
+            Self::Unused(id) => write!(
+                formatter,
+                "host registered custom parser `{id}` but the language does not declare it"
+            ),
+        }
+    }
+}
+
+/// Registration issues found before parsing source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParserRegistrationError {
+    /// Sorted problems for deterministic startup diagnostics.
+    pub issues: Vec<ParserRegistrationIssue>,
+}
+
+impl fmt::Display for ParserRegistrationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, issue) in self.issues.iter().enumerate() {
+            if index > 0 {
+                formatter.write_str("; ")?;
+            }
+            issue.fmt(formatter)?;
+        }
+        Ok(())
+    }
+}
+
+impl Error for ParserRegistrationError {}
+
+/// Prepared declarative syntax with a checked host callback registry.
+#[derive(Clone, Debug)]
+pub struct ConfiguredLanguageParser {
+    pub(super) language: PreparedLanguage,
+    pub(super) parsers: Vec<CustomConstructParser>,
+    pub(super) lexer: Option<CustomLexer>,
+}
+
+impl ConfiguredLanguageParser {
+    /// Returns the prepared language associated with this parser.
+    #[must_use]
+    pub const fn language(&self) -> &PreparedLanguage {
+        &self.language
+    }
+
+    /// Parses source with default input and work limits.
+    #[must_use]
+    pub fn parse(&self, source: &SourceFile) -> ParseResult {
+        self.parse_with_limits(source, ParseLimits::default())
+    }
+
+    /// Parses source with caller-selected input, nesting, node, and matcher bounds.
+    #[must_use]
+    pub fn parse_with_limits(&self, source: &SourceFile, limits: ParseLimits) -> ParseResult {
+        super::input::parse_configured(self, source, limits)
+    }
+
+    /// Replaces built-in tokenization with a validated host lexer.
+    #[must_use]
+    pub fn with_custom_lexer(mut self, lexer: CustomLexer) -> Self {
+        self.lexer = Some(lexer);
+        self
     }
 }
 
