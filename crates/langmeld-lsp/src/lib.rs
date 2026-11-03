@@ -17,6 +17,7 @@ use langmeld_language::{
 use serde_json::{Value, json};
 
 mod navigation;
+mod semantic_tokens;
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
@@ -289,7 +290,12 @@ impl Server {
             "initialize" => id
                 .into_iter()
                 .map(|id| {
-                    initialize_response(id, self.supports_completion(), self.supports_navigation())
+                    initialize_response(
+                        id,
+                        self.supports_completion(),
+                        self.supports_navigation(),
+                        self.supports_hover(),
+                    )
                 })
                 .collect(),
             "initialized" => Vec::new(),
@@ -354,6 +360,28 @@ impl Server {
                         "jsonrpc": "2.0",
                         "id": id,
                         "result": self.reference_results(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/hover" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.hover_result(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/semanticTokens/full" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.semantic_tokens(params)
                     })
                 })
                 .into_iter()
@@ -522,6 +550,127 @@ impl Server {
             .any(|construct| construct.symbol.is_some())
     }
 
+    fn supports_hover(&self) -> bool {
+        self.language
+            .spec()
+            .constructs
+            .iter()
+            .any(|construct| !construct.fields.is_empty() || construct.symbol.is_some())
+    }
+
+    fn semantic_tokens(&self, params: &Value) -> Value {
+        let Some(uri) = params.pointer("/textDocument/uri").and_then(Value::as_str) else {
+            return json!({ "data": [] });
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return json!({ "data": [] });
+        };
+        let classifications = langmeld_language::classify_parse_result_prepared(
+            self.parser.language(),
+            &document.source,
+            &document.parsed,
+        );
+        json!({
+            "data": semantic_tokens::encode(&document.source.text, &classifications)
+        })
+    }
+
+    fn hover_result(&self, params: &Value) -> Value {
+        let Some(uri) = params.pointer("/textDocument/uri").and_then(Value::as_str) else {
+            return Value::Null;
+        };
+        let Some(line) = params.pointer("/position/line").and_then(Value::as_u64) else {
+            return Value::Null;
+        };
+        let Some(character) = params
+            .pointer("/position/character")
+            .and_then(Value::as_u64)
+        else {
+            return Value::Null;
+        };
+        let (Ok(line), Ok(character)) = (u32::try_from(line), u32::try_from(character)) else {
+            return Value::Null;
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Value::Null;
+        };
+        let Some(offset) = offset_at_position(&document.source.text, line, character) else {
+            return Value::Null;
+        };
+        if let Some(occurrence) =
+            navigation::occurrence_at(&self.language, &document.parsed.program, offset)
+        {
+            let symbol_kind = declaration_symbol_kind(
+                &self.language,
+                &document.parsed.program.nodes,
+                occurrence.span,
+            );
+            let (uris, files) = self.workspace_snapshot();
+            let Some(source_index) = uris.iter().position(|open_uri| open_uri == uri) else {
+                return Value::Null;
+            };
+            let analysis = self.analyze_files(&files);
+            let resolved = analysis.resolved_references.iter().find(|reference| {
+                reference.source_index == source_index
+                    && reference.reference_span == occurrence.span
+            });
+            let name = document
+                .source
+                .text
+                .get(occurrence.span.start..occurrence.span.end)
+                .unwrap_or_default();
+            if let Some(resolved) = resolved {
+                return hover_markdown(format!(
+                    "`{} {}`\n\nResolved to `{}`.",
+                    resolved.kind, name, resolved.name
+                ));
+            }
+            if let Some(kind) = symbol_kind {
+                return hover_markdown(format!("`{} {}`\n\nDeclared symbol.", kind, name));
+            }
+            if !occurrence.is_declaration {
+                return hover_markdown(format!("`{name}`\n\nUnresolved reference."));
+            }
+        }
+        let files = [(&document.source, &document.parsed.program)];
+        let analysis = self.analyze_files(&files);
+        let Some(fact) = analysis
+            .type_facts
+            .iter()
+            .filter(|fact| {
+                fact.source_index == 0 && fact.span.start <= offset && offset < fact.span.end
+            })
+            .min_by_key(|fact| fact.span.end - fact.span.start)
+        else {
+            return Value::Null;
+        };
+        let path = fact
+            .path
+            .iter()
+            .map(|segment| match segment {
+                langmeld_language::TypePathSegment::Field(name) => name.clone(),
+                langmeld_language::TypePathSegment::ListItem(index)
+                | langmeld_language::TypePathSegment::MapItem(index) => format!("[{index}]"),
+                langmeld_language::TypePathSegment::MapKey(key) => format!("key `{key}`"),
+                langmeld_language::TypePathSegment::MapValue(key) => format!("value `{key}`"),
+            })
+            .collect::<Vec<_>>()
+            .join(" → ");
+        let spelling = document
+            .source
+            .text
+            .get(fact.span.start..fact.span.end)
+            .unwrap_or_default();
+        hover_markdown(format!(
+            "`{}.{}`\n\nDeclared: `{}`  \nParsed as: `{}`  \nValue: `{}`",
+            fact.construct,
+            path,
+            describe_field_kind(&fact.expected),
+            describe_value_type(fact.actual),
+            spelling
+        ))
+    }
+
     fn completion_items(&self, params: &Value) -> Vec<Value> {
         let (Some(uri), Some(line), Some(character)) = (
             params.pointer("/textDocument/uri").and_then(Value::as_str),
@@ -661,7 +810,12 @@ impl Server {
     }
 }
 
-fn initialize_response(id: Value, supports_completion: bool, supports_navigation: bool) -> Value {
+fn initialize_response(
+    id: Value,
+    supports_completion: bool,
+    supports_navigation: bool,
+    supports_hover: bool,
+) -> Value {
     let mut capabilities = json!({
         "textDocumentSync": { "openClose": true, "change": 2 },
         "documentSymbolProvider": true
@@ -673,6 +827,16 @@ fn initialize_response(id: Value, supports_completion: bool, supports_navigation
         capabilities["definitionProvider"] = json!(true);
         capabilities["referencesProvider"] = json!(true);
     }
+    if supports_hover {
+        capabilities["hoverProvider"] = json!(true);
+    }
+    capabilities["semanticTokensProvider"] = json!({
+        "legend": {
+            "tokenTypes": semantic_tokens::TOKEN_TYPES,
+            "tokenModifiers": semantic_tokens::TOKEN_MODIFIERS
+        },
+        "full": true
+    });
     json!({
         "jsonrpc": "2.0",
         "id": id,
@@ -684,6 +848,57 @@ fn initialize_response(id: Value, supports_completion: bool, supports_navigation
             }
         }
     })
+}
+
+fn hover_markdown(value: String) -> Value {
+    json!({
+        "contents": { "kind": "markdown", "value": value }
+    })
+}
+
+fn describe_field_kind(kind: &langmeld_core::FieldKind) -> String {
+    use langmeld_core::FieldKind;
+    match kind {
+        FieldKind::Identifier => "identifier".to_owned(),
+        FieldKind::Number => "number".to_owned(),
+        FieldKind::Text => "text".to_owned(),
+        FieldKind::Enum { values } => format!("enum {{{}}}", values.join(", ")),
+        FieldKind::NamedEnum { name, .. } => format!("enum {name}"),
+        FieldKind::Reference { target } => format!("reference to {target}"),
+        FieldKind::Properties { name, fields } => name.clone().unwrap_or_else(|| {
+            format!(
+                "record {{{}}}",
+                fields
+                    .iter()
+                    .map(|field| format!("{}: {}", field.name, describe_field_kind(&field.kind)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        }),
+        FieldKind::List { item } => format!("list of {}", describe_field_kind(item)),
+        FieldKind::Map { key, value } => format!(
+            "map of {} keys to {}",
+            match key {
+                langmeld_core::MapKeyKind::Identifier => "identifier",
+                langmeld_core::MapKeyKind::Text => "text",
+            },
+            describe_field_kind(value)
+        ),
+    }
+}
+
+fn describe_value_type(kind: langmeld_language::ValueType) -> &'static str {
+    use langmeld_language::ValueType;
+    match kind {
+        ValueType::Identifier => "identifier",
+        ValueType::Number => "number",
+        ValueType::Text => "text",
+        ValueType::Enum => "enum member",
+        ValueType::Reference => "reference",
+        ValueType::Properties => "property record",
+        ValueType::List => "list",
+        ValueType::Map => "map",
+    }
 }
 
 fn document_symbol_items(
@@ -826,36 +1041,21 @@ fn apply_content_changes(current: &str, changes: &[Value]) -> Option<String> {
 }
 
 fn offset_at_position(source: &str, target_line: u32, target_character: u32) -> Option<usize> {
-    let mut line_start = 0;
-    for line in 0..=target_line {
-        if line == target_line {
-            let line_end = source[line_start..]
-                .find('\n')
-                .map_or(source.len(), |offset| line_start + offset);
-            let content_end = if line_end > line_start && source.as_bytes()[line_end - 1] == b'\r' {
-                line_end - 1
-            } else {
-                line_end
-            };
-            let content = &source[line_start..content_end];
-            let mut character = 0_u32;
-            for (offset, value) in content.char_indices() {
-                if character == target_character {
-                    return Some(line_start + offset);
-                }
-                let units = u32::try_from(value.len_utf16()).ok()?;
-                let next = character.checked_add(units)?;
-                if target_character < next {
-                    return None;
-                }
-                character = next;
-            }
-            return (character == target_character).then_some(content_end);
+    let (line_start, line_end) = line_bounds(source, target_line)?;
+    let content = &source[line_start..line_end];
+    let mut character = 0_u32;
+    for (offset, value) in content.char_indices() {
+        if character == target_character {
+            return Some(line_start + offset);
         }
-        let newline = source[line_start..].find('\n')?;
-        line_start = line_start.checked_add(newline + 1)?;
+        let units = u32::try_from(value.len_utf16()).ok()?;
+        let next = character.checked_add(units)?;
+        if target_character < next {
+            return None;
+        }
+        character = next;
     }
-    None
+    (character == target_character).then_some(line_end)
 }
 
 fn lsp_position(text: &str, offset: usize) -> Value {
@@ -863,15 +1063,74 @@ fn lsp_position(text: &str, offset: usize) -> Value {
     while !text.is_char_boundary(boundary) {
         boundary -= 1;
     }
-    let prefix = &text[..boundary];
-    let line = prefix.bytes().filter(|byte| *byte == b'\n').count();
-    let line_start = prefix
-        .rfind('\n')
-        .map_or(prefix, |index| &prefix[index + 1..]);
+    let (line, line_start) = position_line_start(text, boundary);
+    let line_start = &text[line_start..boundary];
     json!({
         "line": line,
         "character": line_start.encode_utf16().count(),
     })
+}
+
+fn line_bounds(source: &str, target_line: u32) -> Option<(usize, usize)> {
+    let mut line = 0_u32;
+    let mut start = 0;
+    let bytes = source.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if matches!(bytes[index], b'\r' | b'\n') {
+            if line == target_line {
+                return Some((start, index));
+            }
+            if bytes[index] == b'\r' && bytes.get(index + 1) == Some(&b'\n') {
+                index += 1;
+            }
+            line = line.checked_add(1)?;
+            start = index + 1;
+        }
+        index += 1;
+    }
+    (line == target_line).then_some((start, source.len()))
+}
+
+fn position_line_start(source: &str, offset: usize) -> (usize, usize) {
+    let bytes = source.as_bytes();
+    let mut line = 0;
+    let mut start = 0;
+    let mut index = 0;
+    while index < offset {
+        if matches!(bytes[index], b'\r' | b'\n') {
+            if bytes[index] == b'\r' && bytes.get(index + 1) == Some(&b'\n') && index + 1 < offset {
+                index += 1;
+            }
+            line += 1;
+            start = index + 1;
+        }
+        index += 1;
+    }
+    (line, start)
+}
+
+fn declaration_symbol_kind<'language>(
+    language: &'language ValidatedLanguageSpec,
+    nodes: &[AstNode],
+    span: Span,
+) -> Option<&'language str> {
+    for node in nodes {
+        if let Some(symbol) = language
+            .construct(&node.construct)
+            .and_then(|construct| construct.symbol.as_ref())
+            && node
+                .fields
+                .get(&symbol.name_field)
+                .is_some_and(|field| field.span == span)
+        {
+            return Some(&symbol.kind);
+        }
+        if let Some(kind) = declaration_symbol_kind(language, &node.children, span) {
+            return Some(kind);
+        }
+    }
+    None
 }
 
 fn read_message<R: BufRead>(reader: &mut R) -> io::Result<Option<Vec<u8>>> {
@@ -1041,7 +1300,7 @@ mod tests {
     fn keyword_completion_is_empty_without_keywords_and_initialization_is_gated() {
         let items = keyword_completion_items("", 0, std::iter::empty());
         assert!(items.is_empty());
-        let response = initialize_response(json!(1), false, false);
+        let response = initialize_response(json!(1), false, false, false);
         assert!(
             response["result"]["capabilities"]
                 .get("completionProvider")

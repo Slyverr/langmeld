@@ -233,6 +233,100 @@ fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
 }
 
 #[test]
+fn child_process_provides_generic_hover_and_semantic_tokens() {
+    let language = TempLanguage::new();
+    let uri = format!(
+        "file://{}",
+        language.0.with_file_name("editor.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": uri,
+                "languageId": "demo",
+                "version": 1,
+                "text": "program {\nprint \"😀hi\"\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": { "uri": uri },
+                "position": { "line": 1, "character": 9 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/semanticTokens/full",
+            "params": { "textDocument": { "uri": uri } }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 4, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let by_id = |id| {
+        responses
+            .iter()
+            .find(|response| response["id"] == id)
+            .expect("request response exists")
+    };
+    let capabilities = &by_id(1)["result"]["capabilities"];
+    assert_eq!(capabilities["hoverProvider"], true);
+    assert_eq!(capabilities["semanticTokensProvider"]["full"], true);
+    assert_eq!(
+        capabilities["semanticTokensProvider"]["legend"]["tokenModifiers"][0],
+        "declaration"
+    );
+    let hover = by_id(2)["result"]["contents"]["value"]
+        .as_str()
+        .expect("hover markdown is returned");
+    assert!(hover.contains("statement.message"));
+    assert!(hover.contains("Declared: `text`"));
+    assert!(hover.contains("Value: `\"😀hi\"`"));
+    let tokens = by_id(3)["result"]["data"]
+        .as_array()
+        .expect("semantic token data is an array");
+    assert!(tokens.len() >= 5 && tokens.len() % 5 == 0);
+    assert!(
+        tokens
+            .chunks_exact(5)
+            .any(|token| token[3] == 2 && token[2] == 6)
+    );
+    assert_eq!(by_id(4)["result"], Value::Null);
+}
+
+#[test]
 fn child_process_publishes_nested_document_symbols_with_utf16_ranges() {
     let language = TempLanguage::new();
     language.write_symbol_language();
@@ -369,6 +463,24 @@ fn child_process_resolves_definitions_and_references_across_open_documents() {
         }),
         json!({
             "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": { "uri": reference_uri },
+                "position": { "line": 1, "character": 6 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/hover",
+            "params": {
+                "textDocument": { "uri": declaration_uri },
+                "position": { "line": 1, "character": 5 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
             "method": "textDocument/didChange",
             "params": {
                 "textDocument": { "uri": reference_uri, "version": 2 },
@@ -446,6 +558,16 @@ fn child_process_resolves_definitions_and_references_across_open_documents() {
     assert_eq!(
         references[1]["range"]["start"],
         json!({ "line": 1, "character": 6 })
+    );
+    assert!(
+        by_id(6)["result"]["contents"]["value"]
+            .as_str()
+            .is_some_and(|hover| hover.contains("Resolved to `𐐀`"))
+    );
+    assert!(
+        by_id(7)["result"]["contents"]["value"]
+            .as_str()
+            .is_some_and(|hover| hover.contains("Declared symbol"))
     );
     assert!(responses.iter().any(|response| {
         response["method"] == "textDocument/publishDiagnostics"

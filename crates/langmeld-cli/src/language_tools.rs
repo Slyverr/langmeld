@@ -98,6 +98,10 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
             "lsp_ranged_document_changes": true,
             "lsp_literal_keyword_completion": lsp_literal_keyword_completion,
             "lsp_document_symbols": true,
+            "lsp_hover": spec.constructs.iter().any(|construct| {
+                !construct.fields.is_empty() || construct.symbol.is_some()
+            }),
+            "lsp_semantic_tokens": true,
             "lsp_contextual_completion": false,
             "lsp_navigation": lsp_navigation,
             "lsp_navigation_open_documents_only": lsp_navigation,

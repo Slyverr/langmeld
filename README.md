@@ -38,10 +38,11 @@ The standalone `langmeld-lsp` crate provides initialize/shutdown and
 open-document diagnostics over LSP. Start it with
 `cargo run -p langmeld-lsp -- --language language/language.lm` (or
 `--project langmeld.json`). It supports versioned full/ranged document edits,
-diagnostics, global literal-keyword completion, and parsed-construct document
-symbols. Definition and references work across currently open documents when
-the language declares symbol metadata. Context-aware completion, unopened
-project-file navigation, project watchers, and WASM adapters are still pending.
+diagnostics, global literal-keyword completion, parsed-construct document
+symbols, schema-based hover, and semantic tokens. Definition and references
+work across currently open documents when the language declares symbol
+metadata. Context-aware completion, unopened project-file navigation, project
+watchers, and WASM adapters are still pending.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.

@@ -118,6 +118,10 @@ pub fn generate_tooling(
                 "lsp_ranged_document_changes": true,
                 "lsp_literal_keyword_completion": prepared.keywords().next().is_some(),
                 "lsp_document_symbols": true,
+                "lsp_hover": spec.constructs.iter().any(|construct| {
+                    !construct.fields.is_empty() || construct.symbol.is_some()
+                }),
+                "lsp_semantic_tokens": true,
                 "lsp_contextual_completion": false,
                 "lsp_navigation": lsp_navigation,
                 "lsp_navigation_open_documents_only": lsp_navigation,
@@ -165,7 +169,7 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
         )
     };
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, document symbols, and generic definition/references for declared symbols across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser and analysis callbacks; the standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, document symbols, and generic definition/references across open documents; it does not load unopened project source files.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, document symbols, schema-based hover, semantic tokens, and generic definition/references for declared symbols across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser and analysis callbacks; the standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, document symbols, schema-based hover, and generic definition/references across open documents; it does not load unopened project source files or infer host-specific semantics.\n",
         code_span(&version)
     )
 }
