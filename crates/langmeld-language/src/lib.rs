@@ -2,9 +2,14 @@
 
 mod lexer;
 mod lexing;
+mod model;
 
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
+};
+pub use model::{
+    AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, CustomConstructParserFn,
+    HostData, MapEntry, Program, Value, ValueType,
 };
 
 /// Maximum nested construct bodies accepted by default by the generic parser.
