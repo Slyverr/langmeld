@@ -236,3 +236,126 @@ fn generate_check_is_read_only_and_generation_replaces_stale_derived_files() {
     assert!(!stale.exists());
     assert!(run_generate(&project, true).status.success());
 }
+
+#[test]
+fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("host-consumer");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "HostConsumer",
+        "--no-agent-skill",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+
+    let definition_path = project.join("language/language.lm");
+    let definition = fs::read_to_string(&definition_path).expect("starter definition is written");
+    let definition = definition.replace(
+        "  root: program\n",
+        "  root: program\n  behavior semantic_policy: semantic_analysis\n  behavior workspace_names: symbol_resolution\n  behavior workspace_types: workspace_type_analysis\n",
+    );
+    fs::write(&definition_path, definition).expect("analysis callbacks are declared");
+    let constructs_path = project.join("language/constructs/program.lm");
+    let constructs = fs::read_to_string(&constructs_path).expect("starter constructs are written");
+    fs::write(
+        constructs_path,
+        constructs.replace(
+            "  construct statement {\n",
+            "  construct statement {\n    custom_parser: statement_parser\n",
+        ),
+    )
+    .expect("custom parser callback is declared");
+
+    let generated = run_generate(&project, false);
+    assert!(
+        generated.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&generated.stdout),
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let host_generated = project.join(".langmeld/generated/host");
+    let parser = fs::read_to_string(host_generated.join("parser.rs"))
+        .expect("custom parser scaffold is generated");
+    assert!(parser.contains(
+        "CustomConstructParser::new(\"statement_parser\", host_parser_callback_statement_parser)"
+    ));
+    let analysis = fs::read_to_string(host_generated.join("analysis.rs"))
+        .expect("analysis scaffold is generated");
+    assert!(analysis.contains("host_semantic_callback_semantic_policy"));
+    assert!(analysis.contains("host_resolver_callback_workspace_names"));
+    assert!(analysis.contains("host_workspace_callback_workspace_types"));
+    assert!(
+        run_generate(&project, true).status.success(),
+        "host scaffolds are part of deterministic check output"
+    );
+
+    copy_generated_tree(&host_generated, &project.join("src/host"));
+    let library_path = project.join("src/lib.rs");
+    let mut library = fs::read_to_string(&library_path).expect("starter library is written");
+    library.push_str("\npub mod host;\n");
+    fs::write(library_path, library).expect("generated host modules are exposed to the crate");
+    let tests = project.join("tests");
+    fs::create_dir_all(&tests).expect("generated consumer tests directory is created");
+    fs::write(
+        tests.join("generated_host.rs"),
+        r#"use hostconsumer_language::{host, load_language};
+use langmeld::core::SourceFile;
+
+#[test]
+fn generated_host_binds_declared_callbacks_and_parses_source() {
+    let spec = load_language().expect("language definition loads");
+    let parser = host::runtime::configured_parser(spec.clone()).expect("callbacks bind");
+    let source = SourceFile::new("input", "program {\n  print \"Hello\"\n}\n");
+    let parsed = parser.parse(&source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.program.nodes.len(), 1);
+    assert_eq!(host::analysis::semantic_behavior_hooks(&spec).unwrap().len(), 1);
+    assert_eq!(host::analysis::resolver_behavior_hooks(&spec).unwrap().len(), 1);
+    assert_eq!(host::analysis::workspace_behavior_hooks(&spec).unwrap().len(), 1);
+}
+"#,
+    )
+    .expect("generated runtime consumer test is written");
+    let check = Command::new(env!("CARGO"))
+        .args([
+            "test",
+            "--test",
+            "generated_host",
+            "--offline",
+            "--manifest-path",
+        ])
+        .arg(project.join("Cargo.toml"))
+        .output()
+        .expect("generated consumer cargo tests start");
+    assert!(
+        check.status.success(),
+        "generated host consumer failed:\n{}\n{}",
+        String::from_utf8_lossy(&check.stdout),
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+fn copy_generated_tree(source: &std::path::Path, destination: &std::path::Path) {
+    fs::create_dir_all(destination).expect("generated consumer directory is created");
+    for entry in fs::read_dir(source).expect("generated host tree is readable") {
+        let entry = entry.expect("generated host entry is readable");
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        if entry
+            .file_type()
+            .expect("generated entry type is readable")
+            .is_dir()
+        {
+            copy_generated_tree(&source_path, &destination_path);
+        } else {
+            fs::copy(&source_path, &destination_path).expect("generated host file is copied");
+        }
+    }
+}

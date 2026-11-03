@@ -8,6 +8,8 @@ use langmeld_language::{generate_tooling, parse_language_definition_project};
 
 use crate::cli::GenerateArgs;
 
+pub(crate) mod host;
+
 type Files = BTreeMap<PathBuf, String>;
 
 pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
@@ -15,11 +17,16 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
     let definition = root.join("language/language.lm");
     let language = parse_language_definition_project(&definition)
         .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?;
-    let files = generate_tooling(&language)
+    let mut files = generate_tooling(&language)
         .map_err(|error| format!("cannot generate language tooling: {error}"))?
         .into_iter()
         .map(|(path, contents)| (PathBuf::from(path), contents))
         .collect::<Files>();
+    files.extend(
+        host::generate_host_scaffold(&language)
+            .into_iter()
+            .map(|(path, contents)| (PathBuf::from(path), contents)),
+    );
     for path in files.keys() {
         ensure_safe_relative(path)?;
     }

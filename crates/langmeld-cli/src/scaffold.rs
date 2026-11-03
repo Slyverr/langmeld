@@ -7,6 +7,8 @@ use std::{
 use langmeld_core::{SourceFile, ValidatedLanguageSpec};
 use langmeld_language::{generate_tooling, parse_language_definition_modules};
 
+use crate::generate::host::generate_host_scaffold;
+
 const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.lm");
 const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.lm");
 
@@ -31,8 +33,9 @@ pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
     let language = validate_starter_definition(&root, &constructs)?;
     let dependency = local_dependency(&options)?;
     let mut files = starter_files(&options, &slug, &dependency, &root, &constructs);
-    let generated = generate_tooling(&language)
+    let mut generated = generate_tooling(&language)
         .map_err(|error| format!("cannot generate starter tooling: {error}"))?;
+    generated.extend(generate_host_scaffold(&language));
     for (relative, contents) in generated {
         let relative = PathBuf::from(".langmeld/generated").join(relative);
         ensure_safe_relative_path(&relative)?;
