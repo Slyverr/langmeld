@@ -70,6 +70,12 @@ run in WebAssembly.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.
+To edit Langmeld definition files themselves, start
+`cargo run -p langmeld-lsp -- --definitions`; this mode uses the built-in `.lm`
+grammar for parser-backed diagnostics, completion, formatting, and semantic
+tokens across open root and module files. Use `langmeld check --project
+langmeld.json` or `langmeld generate --project-root .` to validate the combined
+definition project, including imports and language-level constraints.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

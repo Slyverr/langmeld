@@ -15,7 +15,8 @@ use langmeld_language::{
     SemanticHook, SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
     WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
     WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
-    analyze_workspace_with_host_callbacks, format_parsed_source, load_project,
+    analyze_workspace_with_host_callbacks, format_parsed_source, langmeld_definition_language,
+    load_project,
 };
 use serde_json::{Value, json};
 
@@ -448,6 +449,26 @@ pub fn serve<R: BufRead, W: Write>(
 ) -> Result<bool, String> {
     let parser = configure_language(language.clone())?;
     serve_configured(input, output, LanguageServerConfig::new(parser))
+}
+
+/// Serves the built-in `.lm` definition grammar for editing language source.
+///
+/// This mode provides the generic parser-backed LSP features for open root and
+/// module definition files. Use the CLI's project validation commands to check
+/// whole-project imports and semantic constraints.
+///
+/// # Errors
+/// Returns bootstrap grammar, parser configuration, framing, I/O, or
+/// JSON-RPC serialization errors.
+pub fn serve_definitions<R: BufRead, W: Write>(input: R, output: W) -> Result<bool, String> {
+    let language = langmeld_definition_language().map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| format!("{}: {}", error.code, error.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    serve(input, output, language)
 }
 
 /// Serves a declarative project and reloads its language after watched-file

@@ -239,6 +239,165 @@ fn standalone_server_explains_that_rust_host_projects_need_host_injection() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("load_project_with_base_language"));
 }
 
+#[test]
+fn definitions_mode_provides_lsp_support_for_modular_lm_sources() {
+    let root_uri = "file:///language/language.lm";
+    let module_uri = "file:///language/constructs/program.lm";
+    let valid_root = "language Demo {\n  version: \"0.1.0\"\n  root: program\n}\n";
+    let valid_module =
+        "constructs {\n  construct program {\n    syntax { default: \"program {\" }\n  }\n}\n";
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": root_uri,
+                "languageId": "langmeld-definition",
+                "version": 1,
+                "text": valid_root
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": module_uri,
+                "languageId": "langmeld-definition",
+                "version": 1,
+                "text": valid_module
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/semanticTokens/full",
+            "params": { "textDocument": { "uri": module_uri } }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": root_uri },
+                "position": { "line": 1, "character": 2 }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": { "uri": module_uri },
+                "options": { "tabSize": 2, "insertSpaces": true }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": { "uri": root_uri, "version": 2 },
+                "contentChanges": [{ "text": "language Demo {\n  version: \"0.1.0\"\n  root: \n}\n" }]
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 5, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .arg("--definitions")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("definition language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let root_diagnostics = responses
+        .iter()
+        .find(|response| {
+            response["method"] == "textDocument/publishDiagnostics"
+                && response["params"]["uri"] == root_uri
+                && response["params"]["version"] == 1
+        })
+        .expect("valid root definition diagnostics are published");
+    assert!(
+        root_diagnostics["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let module_diagnostics = responses
+        .iter()
+        .find(|response| {
+            response["method"] == "textDocument/publishDiagnostics"
+                && response["params"]["uri"] == module_uri
+                && response["params"]["version"] == 1
+        })
+        .expect("valid modular definition diagnostics are published");
+    assert!(
+        module_diagnostics["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let semantic_tokens = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("definition semantic tokens are returned");
+    assert!(
+        !semantic_tokens["result"]["data"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let completions = responses
+        .iter()
+        .find(|response| response["id"] == 3)
+        .expect("definition completions are returned");
+    assert!(!completions["result"].as_array().unwrap().is_empty());
+    assert!(
+        responses
+            .iter()
+            .find(|response| response["id"] == 4)
+            .expect("definition formatting is returned")["result"]
+            .as_array()
+            .is_some()
+    );
+    let invalid_diagnostics = responses
+        .iter()
+        .find(|response| {
+            response["method"] == "textDocument/publishDiagnostics"
+                && response["params"]["uri"] == root_uri
+                && response["params"]["version"] == 2
+        })
+        .expect("invalid definition diagnostics are published");
+    assert!(
+        !invalid_diagnostics["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(responses.iter().any(|response| response["id"] == 1));
+    assert!(responses.iter().any(|response| response["id"] == 5));
+}
+
 fn frame(value: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(value).expect("message serializes");
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
