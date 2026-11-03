@@ -133,7 +133,7 @@ fn starter_files(
     };
     add(
         "Cargo.toml",
-        include_str!("../templates/starter/Cargo.toml"),
+        include_str!("../templates/starter/Cargo.toml.in"),
     );
     add(".gitignore", include_str!("../templates/starter/gitignore"));
     add("README.md", include_str!("../templates/starter/README.md"));

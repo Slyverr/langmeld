@@ -23,7 +23,12 @@ composable, and reliable for language authors.
 
    CI also checks the supported Rust toolchain and operating-system matrix,
    generated artifacts, and the independent example projects. Run the matching
-   example checks when changing shared APIs or generated output.
+   example checks when changing shared APIs or generated output. Before
+   release-related changes, verify package contents and packaged builds with:
+
+   ```sh
+   cargo package --workspace --locked
+   ```
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 
