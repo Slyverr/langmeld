@@ -80,6 +80,10 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     assert!(!project.join(".agents/skills/langmeld/SKILL.md").exists());
     assert!(project.join("language/language.lm").is_file());
     assert!(project.join("language/constructs/program.lm").is_file());
+    let manifest = fs::read_to_string(project.join("langmeld.json"))
+        .expect("init writes the project manifest");
+    assert!(manifest.contains("\"language\": \"language/language.lm\""));
+    assert!(manifest.contains("\"source_roots\": [\n    \"examples\"\n  ]"));
     assert!(project.join(".langmeld/generated/metadata.json").is_file());
     assert!(project.join(".langmeld/generated/rust/ast.rs").is_file());
     assert!(

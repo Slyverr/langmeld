@@ -21,8 +21,10 @@ analysis callback scaffolds under `.langmeld/generated/host/`; callback bodies
 are declaration-driven and compile in a generated Rust project. The
 `langmeld generate --install-host` option safely wires these modules into
 `src/host/` and preserves marked callback implementations while refreshing
-them. Backend templates and broader project commands are pending. LSP and
-WASM adapters are also pending.
+them. `langmeld init` also writes a strict `langmeld.json` project manifest,
+and the language API can load explicit or discovered program sources from it.
+Interactive project configuration and host run/build commands are pending.
+LSP and WASM adapters are also pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

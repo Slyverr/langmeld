@@ -5,7 +5,7 @@ use std::{
 };
 
 use langmeld_core::{SourceFile, ValidatedLanguageSpec};
-use langmeld_language::{generate_tooling, parse_language_definition_modules};
+use langmeld_language::{ProjectManifest, generate_tooling, parse_language_definition_modules};
 
 use crate::generate::host::generate_host_scaffold;
 
@@ -32,7 +32,7 @@ pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
     let constructs = CONSTRUCTS.to_owned();
     let language = validate_starter_definition(&root, &constructs)?;
     let dependency = local_dependency(&options)?;
-    let mut files = starter_files(&options, &slug, &dependency, &root, &constructs);
+    let mut files = starter_files(&options, &slug, &dependency, &root, &constructs)?;
     let mut generated = generate_tooling(&language)
         .map_err(|error| format!("cannot generate starter tooling: {error}"))?;
     generated.extend(generate_host_scaffold(&language));
@@ -89,7 +89,7 @@ fn starter_files(
     dependency: &str,
     root: &str,
     constructs: &str,
-) -> BTreeMap<PathBuf, String> {
+) -> Result<BTreeMap<PathBuf, String>, String> {
     let mut files = BTreeMap::new();
     let extension = format!("{slug}.lmprog");
     let package = format!("{slug}-language");
@@ -121,6 +121,9 @@ fn starter_files(
         "tests/language.rs",
         include_str!("../templates/starter/language_test.rs"),
     );
+    let mut manifest = ProjectManifest::new("language/language.lm");
+    manifest.source_roots.push(PathBuf::from("examples"));
+    files.insert(PathBuf::from("langmeld.json"), manifest.to_json()?);
     files.insert(PathBuf::from("language/language.lm"), root.to_owned());
     files.insert(
         PathBuf::from("language/constructs/program.lm"),
@@ -130,7 +133,7 @@ fn starter_files(
         PathBuf::from(format!("examples/hello.{extension}")),
         format!("program {{\n  print \"Hello from {}!\"\n}}\n", options.name),
     );
-    files
+    Ok(files)
 }
 
 fn local_dependency(options: &ProjectOptions) -> Result<String, String> {
