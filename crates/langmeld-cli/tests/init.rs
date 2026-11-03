@@ -560,8 +560,8 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
     assert_eq!(value["name"], "InspectLanguage");
     assert_eq!(value["construct_count"], 2);
     assert_eq!(
-        value["current_capabilities"]["lsp_implemented"],
-        serde_json::Value::Bool(false)
+        value["current_capabilities"]["lsp_open_document_diagnostics"],
+        serde_json::Value::Bool(true)
     );
     assert!(
         value["definition_sources"]

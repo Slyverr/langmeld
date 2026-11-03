@@ -86,8 +86,10 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
         "construct_ids": spec.constructs.iter().map(|construct| &construct.id).collect::<Vec<_>>(),
         "tree_sitter": tree_sitter,
         "current_capabilities": {
-            "cli_commands": ["check", "format", "constructs", "describe"],
-            "lsp_implemented": false,
+            "language_tool_commands": ["check", "format", "inspect", "constructs", "describe"],
+            "lsp_open_document_diagnostics": true,
+            "lsp_incremental_edits": false,
+            "lsp_navigation": false,
             "wasm_implemented": false,
         },
         "host_implementation_required_for": [

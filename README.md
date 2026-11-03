@@ -34,7 +34,11 @@ their own backends in `src/host/backend.rs`; custom IR still needs a
 host-authored lowering pipeline. The generated `run` command calls the host's
 `run_sources` hook; language authors implement its runtime behavior.
 Interactive project and backend configuration is available.
-LSP and WASM adapters are also pending.
+The standalone `langmeld-lsp` crate provides initialize/shutdown and
+open-document diagnostics over LSP. Start it with
+`cargo run -p langmeld-lsp -- --language language/language.lm` (or
+`--project langmeld.json`). Incremental edits, navigation/completion, project
+watchers, and WASM adapters are still pending.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor

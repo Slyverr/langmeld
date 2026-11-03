@@ -404,6 +404,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-lsp"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "langmeld-core",
+ "langmeld-language",
+ "serde_json",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
