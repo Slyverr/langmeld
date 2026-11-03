@@ -14,12 +14,14 @@ token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
 and workspace type-analysis passes. The CLI, language facade, backends, LSP,
-WASM, and generated tooling are still being ported. A generic artifact pass
-pipeline plans lowering dependencies and runs only the passes needed for
-requested outputs; the host owns its IR values and pass context. Single-program
-backend contracts validate descriptors, settings, required IR, artifacts, and
-source maps. Workspace backends apply the same checks across multiple sources
-and require explicit source indexes for ambiguous mappings.
+WASM, and editor tooling are still being ported. The language crate can generate
+deterministic Rust source for typed AST views and schema reconstruction. A
+generic artifact pass pipeline plans lowering dependencies and runs only the
+passes needed for requested outputs; the host owns its IR values and pass
+context. Single-program backend contracts validate descriptors, settings,
+required IR, artifacts, and source maps. Workspace backends apply the same
+checks across multiple sources and require explicit source indexes for
+ambiguous mappings.
 
 ## Workspace checks
 

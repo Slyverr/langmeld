@@ -11,6 +11,7 @@ mod lexing;
 mod model;
 mod parser;
 mod pipeline;
+mod rust_codegen;
 mod syntax;
 
 pub use analysis::*;
@@ -43,6 +44,7 @@ pub use parser::{
     PatternCompileError, PreparedLanguage,
 };
 pub use pipeline::{PassDescriptor, PassPipeline, PipelineError, PipelinePlanError};
+pub use rust_codegen::generate_rust_ast;
 pub use syntax::{
     CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,
     SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,
