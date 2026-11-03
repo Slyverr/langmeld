@@ -19,6 +19,12 @@ pub enum LanguageTokenKind {
     Arrow,
     /// A source character the host lexer does not classify.
     Unknown(char),
+    /// A source region consumed by a host parser without generic lexical meaning.
+    ///
+    /// Opaque tokens remain in the lossless syntax tree but receive no generic
+    /// editor classification. Emit detailed tokens when the host lexer can
+    /// provide useful source-level highlighting.
+    Opaque,
     /// A comment token.
     Comment,
     /// A line break token.
@@ -48,7 +54,9 @@ impl LanguageToken {
 ///
 /// Whitespace may be omitted except where it separates statements. For
 /// line-sensitive grammars, emit [`LanguageTokenKind::Newline`] tokens so the
-/// generic parser can distinguish adjacent statements.
+/// generic parser can distinguish adjacent statements. A custom parser that
+/// consumes source syntax directly can use [`LanguageTokenKind::Opaque`] for
+/// a source region that should not receive generic lexical classifications.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LexedSource {
     /// Significant tokens in source order. Whitespace may be omitted; Langmeld reconstructs it.

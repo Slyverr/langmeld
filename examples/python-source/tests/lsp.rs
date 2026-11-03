@@ -94,6 +94,7 @@ fn launched_lsp_navigates_local_calls_while_recovering_malformed_syntax() {
         json!({"jsonrpc":"2.0", "id":1, "method":"initialize", "params":{}}),
         json!({"jsonrpc":"2.0", "method":"textDocument/didOpen", "params":{"textDocument":{"uri":uri,"version":1,"text":source}}}),
         json!({"jsonrpc":"2.0", "id":2, "method":"textDocument/definition", "params":{"textDocument":{"uri":uri},"position":{"line":call_line,"character":call_character+2}}}),
+        json!({"jsonrpc":"2.0", "id":4, "method":"textDocument/semanticTokens/full", "params":{"textDocument":{"uri":uri}}}),
         json!({"jsonrpc":"2.0", "id":3, "method":"shutdown"}),
         json!({"jsonrpc":"2.0", "method":"exit"}),
     ];
@@ -110,6 +111,11 @@ fn launched_lsp_navigates_local_calls_while_recovering_malformed_syntax() {
                 .is_some_and(|items| items.iter().any(|item| item["code"] == "PS1001"))
     }));
     assert_eq!(definition["result"][0]["range"]["start"]["line"], 0);
+    let semantic_tokens = responses
+        .iter()
+        .find(|message| message["id"] == 4)
+        .expect("semantic-token response exists");
+    assert_eq!(semantic_tokens["result"]["data"], json!([]));
 }
 
 #[test]

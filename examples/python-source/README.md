@@ -65,5 +65,6 @@ It does not resolve absolute or multi-level imports, package re-exports,
 dynamic imports, classes, methods, arbitrary incomplete statements, or Python
 types. It is a source index, not a type checker, interpreter, or compiler. The
 opaque `.lm` lexer treats each Python file as one host-parsed region, so the
-generated lexical editor grammar does not provide Python token-level syntax
-highlighting.
+generic LSP does not emit Python semantic highlighting and the generated
+lexical editor grammar is not a Python syntax highlighter. A host lexer must
+emit real Python token spans to provide token-level highlighting.

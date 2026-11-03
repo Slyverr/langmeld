@@ -974,6 +974,7 @@ fn token_display(kind: &TokenKind) -> String {
         TokenKind::Arrow => "->".to_owned(),
         TokenKind::Comment => "comment".to_owned(),
         TokenKind::Newline => "newline".to_owned(),
+        TokenKind::Opaque => "opaque source region".to_owned(),
         TokenKind::End => "end of file".to_owned(),
     }
 }
@@ -986,6 +987,7 @@ pub(super) fn token_matches(expected: &TokenKind, actual: &TokenKind) -> bool {
         (TokenKind::Arrow, TokenKind::Arrow)
         | (TokenKind::Comment, TokenKind::Comment)
         | (TokenKind::Newline, TokenKind::Newline)
+        | (TokenKind::Opaque, TokenKind::Opaque)
         | (TokenKind::End, TokenKind::End) => true,
         (TokenKind::Unknown(a), TokenKind::Unknown(b)) => a == b,
         _ => false,

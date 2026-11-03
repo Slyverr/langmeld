@@ -549,7 +549,7 @@ fn typescript_lexer() -> CustomLexer {
         }
         LexedSource::new(
             [LanguageToken::new(
-                LanguageTokenKind::Identifier("typescript_source".to_owned()),
+                LanguageTokenKind::Opaque,
                 Span::new(0, source.text.len()),
             )],
             [],

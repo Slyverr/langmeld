@@ -37,3 +37,8 @@ overload resolution, TypeScript project references, and general-purpose error
 recovery are not modeled. During
 incomplete edits, the compiler AST still contributes valid functions alongside
 syntax diagnostics so LSP navigation can continue.
+
+The adapter uses an opaque source token because the TypeScript compiler owns
+lexing and parsing. Generic LSP semantic tokens and the generated lexical editor
+grammar therefore do not provide TypeScript syntax highlighting; a host lexer
+must return TypeScript token spans for that editor feature.

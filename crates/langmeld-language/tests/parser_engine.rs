@@ -2,8 +2,9 @@ use langmeld_core::{
     ConstructBuilder, Diagnostic, FieldKind, FieldSpec, LanguageBuilder, SourceFile, Span,
 };
 use langmeld_language::{
-    AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, LanguageToken,
-    LanguageTokenKind, ParseLimits, PreparedLanguage, Value,
+    AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, CustomLexer,
+    LanguageToken, LanguageTokenKind, LexedSource, ParseLimits, PreparedLanguage, SyntaxTokenKind,
+    Value, classify_parse_result_prepared,
 };
 
 fn language() -> PreparedLanguage {
@@ -522,6 +523,52 @@ fn equal_length_construct_matches_are_reported_as_ambiguous() {
             .any(|diagnostic| diagnostic.code == "LM1203")
     );
     assert!(result.program.nodes[0].children.is_empty());
+}
+
+#[test]
+fn opaque_tokens_support_host_parsing_without_generic_highlighting() {
+    let spec = LanguageBuilder::new("OpaqueSource")
+        .version("0.1.0")
+        .root("source")
+        .construct(
+            ConstructBuilder::new("source")
+                .custom_parser("opaque-source")
+                .field(FieldSpec::required("name", FieldKind::Identifier)),
+        )
+        .build()
+        .expect("opaque host parser model is valid");
+    let parser = PreparedLanguage::new(spec)
+        .expect("language prepares")
+        .with_custom_parsers([CustomConstructParser::new(
+            "opaque-source",
+            |source, start| {
+                Ok(Some(
+                    CustomConstructMatch::new(Span::new(start, source.text.len()), "opaque")
+                        .with_field(
+                            "name",
+                            CapturedValue::new(
+                                Value::Identifier("source".to_owned()),
+                                Span::new(start, start),
+                            ),
+                        ),
+                ))
+            },
+        )])
+        .expect("host parser registers")
+        .with_custom_lexer(CustomLexer::new(|source| {
+            LexedSource::new(
+                [LanguageToken::new(
+                    LanguageTokenKind::Opaque,
+                    Span::new(0, source.text.len()),
+                )],
+                [],
+            )
+        }));
+    let source = SourceFile::new("source", "host language syntax");
+    let parsed = parser.parse(&source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.syntax_tokens[0].kind, SyntaxTokenKind::Opaque);
+    assert!(classify_parse_result_prepared(parser.language(), &source, &parsed).is_empty());
 }
 
 #[test]

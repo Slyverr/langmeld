@@ -1,6 +1,8 @@
 use langmeld::core::{Severity, SourceFile};
-use langmeld::language::{AstNode, Value};
-use typescript_source_language::{analyze_source, analyze_sources, generated, has_errors};
+use langmeld::language::{AstNode, Value, classify_parse_result_prepared};
+use typescript_source_language::{
+    analyze_source, analyze_sources, configured_parser, generated, has_errors,
+};
 
 fn function<'a>(root: &'a AstNode, name: &str) -> &'a AstNode {
     root.children
@@ -71,6 +73,15 @@ fn typescript_compiler_offsets_are_translated_to_utf8_bytes() {
     let target = &call.fields["target"];
     assert_eq!(&source.text[target.span.start..target.span.end], "target");
     assert_eq!(&source.text[call.span.start..call.span.end], "target('é')");
+}
+
+#[test]
+fn opaque_typescript_regions_do_not_claim_generic_identifier_highlighting() {
+    let source = SourceFile::new("main.ts", include_str!("../main.ts"));
+    let parser = configured_parser().expect("TypeScript parser configures");
+    let parsed = parser.parse(&source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(classify_parse_result_prepared(parser.language(), &source, &parsed).is_empty());
 }
 
 #[test]

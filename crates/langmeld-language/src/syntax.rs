@@ -91,6 +91,8 @@ pub enum SyntaxTokenKind {
     Comment,
     /// Line break, preserving CR, LF, or CRLF in its span.
     Newline,
+    /// A host-parsed source region with no generic lexical classification.
+    Opaque,
     /// Unclassified source characters or input left after lexing stopped.
     Unknown,
     /// Synthetic zero-width right brace inserted at end of incomplete input.
@@ -198,6 +200,7 @@ fn syntax_token_kind(kind: &LanguageTokenKind) -> SyntaxTokenKind {
         LanguageTokenKind::Punctuation(_) => SyntaxTokenKind::Punctuation,
         LanguageTokenKind::Arrow => SyntaxTokenKind::Arrow,
         LanguageTokenKind::Unknown(_) => SyntaxTokenKind::Unknown,
+        LanguageTokenKind::Opaque => SyntaxTokenKind::Opaque,
         LanguageTokenKind::Comment => SyntaxTokenKind::Comment,
         LanguageTokenKind::Newline => SyntaxTokenKind::Newline,
         LanguageTokenKind::End => SyntaxTokenKind::Unknown,
@@ -607,7 +610,9 @@ fn classify_tokens(
                 LanguageTokenKind::Comment => "comment",
                 LanguageTokenKind::Arrow | LanguageTokenKind::Punctuation(_) => "operator",
                 LanguageTokenKind::Unknown(_) => "operator",
-                LanguageTokenKind::Newline | LanguageTokenKind::End => return None,
+                LanguageTokenKind::Newline | LanguageTokenKind::Opaque | LanguageTokenKind::End => {
+                    return None;
+                }
             };
             Some(Classification { span, kind })
         })
@@ -630,6 +635,7 @@ fn classification_kind(kind: SyntaxTokenKind) -> Option<&'static str> {
         SyntaxTokenKind::Comment => Some("comment"),
         SyntaxTokenKind::Whitespace
         | SyntaxTokenKind::Newline
+        | SyntaxTokenKind::Opaque
         | SyntaxTokenKind::MissingRightBrace
         | SyntaxTokenKind::MissingRightBracket => None,
     }

@@ -1,8 +1,10 @@
 use langmeld::{
     core::{Severity, SourceFile},
-    language::{AstNode, Value, load_project},
+    language::{AstNode, Value, classify_parse_result_prepared, load_project},
 };
-use python_source_language::{analyze_source, analyze_sources, generated, has_errors};
+use python_source_language::{
+    analyze_source, analyze_sources, configured_parser, generated, has_errors,
+};
 
 fn function<'a>(root: &'a AstNode, name: &str) -> &'a AstNode {
     root.children
@@ -230,4 +232,13 @@ fn project_manifest_selects_python_files_and_indexes_package_initializers_as_mod
             .iter()
             .all(|source| source.name.ends_with(".py"))
     );
+}
+
+#[test]
+fn opaque_python_regions_do_not_claim_generic_identifier_highlighting() {
+    let source = SourceFile::new("main.py", "def greet(name: str) -> str:\n    return name\n");
+    let parser = configured_parser().expect("Python parser configures");
+    let parsed = parser.parse(&source);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(classify_parse_result_prepared(parser.language(), &source, &parsed).is_empty());
 }

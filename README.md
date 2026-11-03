@@ -9,8 +9,9 @@ source identities, byte spans, structured diagnostics, and validated language
 definitions, plus
 `langmeld-expression` for configurable expression parsing and host-defined type
 and runtime rules, and `langmeld-language` for source-spanned tokens, the
-built-in lexer, custom lexer contracts, and a generic parser that builds typed
-ASTs, lossless syntax trees, and editor classifications. The readable `.lm`
+built-in lexer, custom lexer contracts (including opaque host-parsed regions),
+and a generic parser that builds typed ASTs, lossless syntax trees, and editor
+classifications. The readable `.lm`
 definition format uses the same generic parser, rebuilds its embedded grammar
 from modular sources, and supports in-memory modules and safe relative file
 imports. Prepared grammars compile declarative patterns once and provide

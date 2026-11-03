@@ -258,12 +258,13 @@ fn pattern_part_expression(
                 "literal `{character}` in construct `{}` cannot be exported to Tree-sitter",
                 construct.id
             )),
-            LanguageTokenKind::Comment | LanguageTokenKind::Newline | LanguageTokenKind::End => {
-                Err(format!(
-                    "non-source literal in construct `{}` cannot be exported to Tree-sitter",
-                    construct.id
-                ))
-            }
+            LanguageTokenKind::Comment
+            | LanguageTokenKind::Newline
+            | LanguageTokenKind::Opaque
+            | LanguageTokenKind::End => Err(format!(
+                "non-source literal in construct `{}` cannot be exported to Tree-sitter",
+                construct.id
+            )),
         },
         PatternPart::Capture { field, kind } => {
             let expression = type_rules.expression(kind)?;
@@ -549,6 +550,7 @@ fn collect_query_tokens(
                 | LanguageTokenKind::Text(_)
                 | LanguageTokenKind::Comment
                 | LanguageTokenKind::Newline
+                | LanguageTokenKind::Opaque
                 | LanguageTokenKind::End
                 | LanguageTokenKind::Unknown(_),
             )

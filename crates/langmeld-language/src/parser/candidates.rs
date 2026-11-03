@@ -12,6 +12,7 @@ enum OtherStart {
     Unknown(char),
     Comment,
     Newline,
+    Opaque,
     End,
 }
 
@@ -120,6 +121,10 @@ impl BlockCandidateIndex {
                 .other
                 .get(&OtherStart::Newline)
                 .map_or(&[] as &[usize], Vec::as_slice),
+            TokenKind::Opaque => self
+                .other
+                .get(&OtherStart::Opaque)
+                .map_or(&[] as &[usize], Vec::as_slice),
             TokenKind::End => self
                 .other
                 .get(&OtherStart::End)
@@ -169,6 +174,7 @@ fn pattern_start(part: &PatternPart) -> Option<PatternStart> {
         TokenKind::Unknown(character) => Some(PatternStart::Other(OtherStart::Unknown(*character))),
         TokenKind::Comment => Some(PatternStart::Other(OtherStart::Comment)),
         TokenKind::Newline => Some(PatternStart::Other(OtherStart::Newline)),
+        TokenKind::Opaque => Some(PatternStart::Other(OtherStart::Opaque)),
         TokenKind::End => Some(PatternStart::Other(OtherStart::End)),
     }
 }
