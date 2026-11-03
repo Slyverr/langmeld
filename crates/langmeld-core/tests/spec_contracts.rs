@@ -85,3 +85,70 @@ fn closed_schema_rejects_unknown_language_and_constraint_properties() {
     });
     assert!(serde_json::from_value::<FieldSpec>(invalid_constraints).is_err());
 }
+
+#[test]
+fn flattened_field_kind_rejects_unknown_sibling_properties() {
+    let invalid = serde_json::json!({
+        "name": "value",
+        "kind": "number",
+        "surprise": true
+    });
+
+    assert!(serde_json::from_value::<FieldSpec>(invalid).is_err());
+}
+
+#[test]
+fn flattened_field_kind_rejects_properties_from_other_variants() {
+    let invalid = serde_json::json!({
+        "name": "value",
+        "kind": "identifier",
+        "values": ["unexpected"]
+    });
+
+    assert!(serde_json::from_value::<FieldSpec>(invalid).is_err());
+}
+
+#[test]
+fn nested_field_kinds_still_reject_unknown_properties() {
+    let invalid = serde_json::json!({
+        "name": "items",
+        "kind": "list",
+        "item": { "kind": "number", "surprise": true }
+    });
+
+    let result = serde_json::from_value::<FieldSpec>(invalid);
+    assert!(result.is_err(), "unexpectedly accepted {result:?}");
+}
+
+#[test]
+fn standalone_field_kinds_reject_unknown_properties() {
+    let invalid = serde_json::json!({
+        "kind": "number",
+        "surprise": true
+    });
+
+    assert!(serde_json::from_value::<FieldKind>(invalid).is_err());
+}
+
+#[test]
+fn flattened_field_kind_roundtrips_every_variant() {
+    let inputs = [
+        serde_json::json!({"name": "identifier", "kind": "identifier"}),
+        serde_json::json!({"name": "number", "kind": "number"}),
+        serde_json::json!({"name": "text", "kind": "text"}),
+        serde_json::json!({"name": "choice", "kind": "enum", "values": ["a", "b"]}),
+        serde_json::json!({"name": "named", "kind": "named_enum", "enum_name": "Mode", "values": ["a"]}),
+        serde_json::json!({"name": "reference", "kind": "reference", "target": "node"}),
+        serde_json::json!({"name": "properties", "kind": "properties", "record": "Point", "fields": [{"name": "x", "kind": "number"}]}),
+        serde_json::json!({"name": "list", "kind": "list", "item": {"kind": "text"}}),
+        serde_json::json!({"name": "map", "kind": "map", "key": "text", "value": {"kind": "number"}}),
+    ];
+
+    for input in inputs {
+        let field: FieldSpec = serde_json::from_value(input).expect("field kind deserializes");
+        let serialized = serde_json::to_value(&field).expect("field kind serializes");
+        let decoded: FieldSpec =
+            serde_json::from_value(serialized).expect("serialized field kind deserializes");
+        assert_eq!(decoded, field);
+    }
+}

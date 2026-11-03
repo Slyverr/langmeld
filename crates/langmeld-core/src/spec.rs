@@ -1,6 +1,6 @@
 //! Canonical, serializable language-definition data types.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// The canonical, serializable description of one language.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -131,7 +131,7 @@ pub struct ConstructSpec {
 }
 
 /// A field captured from a construct pattern.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FieldSpec {
     /// Field name referenced by `{name}` in a syntax pattern.
     pub name: String,
@@ -148,6 +148,89 @@ pub struct FieldSpec {
     /// Optional scalar or collection constraints.
     #[serde(default, skip_serializing_if = "FieldConstraints::is_empty")]
     pub constraints: FieldConstraints,
+}
+
+// Serde cannot pair `flatten` with `deny_unknown_fields`, so validate the
+// flattened kind keys explicitly while preserving the public wire shape.
+impl<'de> Deserialize<'de> for FieldSpec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::{self, MapAccess, Visitor};
+        use std::fmt;
+
+        const FIELDS: &[&str] = &[
+            "name",
+            "kind",
+            "required",
+            "default",
+            "constraints",
+            "values",
+            "enum_name",
+            "target",
+            "record",
+            "fields",
+            "item",
+            "key",
+            "value",
+        ];
+
+        struct FieldSpecVisitor;
+
+        impl<'de> Visitor<'de> for FieldSpecVisitor {
+            type Value = FieldSpec;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a flattened field specification")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut name = None;
+                let mut required = None;
+                let mut default = None;
+                let mut constraints = None;
+                let mut kind_fields = FieldKindFields::default();
+
+                while let Some(field) = map.next_key::<String>()? {
+                    macro_rules! read_once {
+                        ($slot:ident, $field:literal, $ty:ty) => {{
+                            if $slot.is_some() {
+                                return Err(de::Error::duplicate_field($field));
+                            }
+                            $slot = Some(map.next_value::<$ty>()?);
+                        }};
+                    }
+
+                    match field.as_str() {
+                        "name" => read_once!(name, "name", String),
+                        "kind" => kind_fields.read("kind", &mut map, FIELDS)?,
+                        "required" => read_once!(required, "required", bool),
+                        "default" => read_once!(default, "default", Option<String>),
+                        "constraints" => {
+                            read_once!(constraints, "constraints", FieldConstraints)
+                        }
+                        _ => kind_fields.read(&field, &mut map, FIELDS)?,
+                    }
+                }
+
+                let kind = kind_fields.build()?;
+
+                Ok(FieldSpec {
+                    name: name.ok_or_else(|| de::Error::missing_field("name"))?,
+                    kind,
+                    required: required.unwrap_or_else(default_true),
+                    default: default.unwrap_or(None),
+                    constraints: constraints.unwrap_or_default(),
+                })
+            }
+        }
+
+        deserializer.deserialize_struct("FieldSpec", FIELDS, FieldSpecVisitor)
+    }
 }
 
 /// Constraints enforced after a value is parsed.
@@ -192,8 +275,8 @@ const fn default_true() -> bool {
 }
 
 /// Built-in field types supported by the shared declarative parser.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FieldKind {
     /// An identifier token.
     Identifier,
@@ -239,6 +322,177 @@ pub enum FieldKind {
         /// Type of every value in the map.
         value: Box<FieldKind>,
     },
+}
+
+#[derive(Default)]
+struct FieldKindFields {
+    kind: Option<String>,
+    values: Option<Vec<String>>,
+    enum_name: Option<String>,
+    target: Option<String>,
+    record: Option<Option<String>>,
+    fields: Option<Vec<FieldSpec>>,
+    item: Option<Box<FieldKind>>,
+    key: Option<MapKeyKind>,
+    value: Option<Box<FieldKind>>,
+}
+
+impl FieldKindFields {
+    fn read<'de, A>(
+        &mut self,
+        field: &str,
+        map: &mut A,
+        expected: &'static [&'static str],
+    ) -> Result<(), A::Error>
+    where
+        A: serde::de::MapAccess<'de>,
+    {
+        use serde::de::Error;
+
+        macro_rules! read_once {
+            ($slot:ident, $field:literal, $ty:ty) => {{
+                if self.$slot.is_some() {
+                    return Err(A::Error::duplicate_field($field));
+                }
+                self.$slot = Some(map.next_value::<$ty>()?);
+            }};
+        }
+
+        match field {
+            "kind" => read_once!(kind, "kind", String),
+            "values" => read_once!(values, "values", Vec<String>),
+            "enum_name" => read_once!(enum_name, "enum_name", String),
+            "target" => read_once!(target, "target", String),
+            "record" => read_once!(record, "record", Option<String>),
+            "fields" => read_once!(fields, "fields", Vec<FieldSpec>),
+            "item" => read_once!(item, "item", Box<FieldKind>),
+            "key" => read_once!(key, "key", MapKeyKind),
+            "value" => read_once!(value, "value", Box<FieldKind>),
+            _ => return Err(A::Error::unknown_field(field, expected)),
+        }
+        Ok(())
+    }
+
+    fn build<E>(self) -> Result<FieldKind, E>
+    where
+        E: serde::de::Error,
+    {
+        const VARIANTS: &[&str] = &[
+            "identifier",
+            "number",
+            "text",
+            "enum",
+            "named_enum",
+            "reference",
+            "properties",
+            "list",
+            "map",
+        ];
+
+        let kind_name = self.kind.ok_or_else(|| E::missing_field("kind"))?;
+        let variant_fields = match kind_name.as_str() {
+            "identifier" | "number" | "text" => &["kind"][..],
+            "enum" => &["kind", "values"],
+            "named_enum" => &["kind", "enum_name", "values"],
+            "reference" => &["kind", "target"],
+            "properties" => &["kind", "record", "fields"],
+            "list" => &["kind", "item"],
+            "map" => &["kind", "key", "value"],
+            _ => return Err(E::unknown_variant(&kind_name, VARIANTS)),
+        };
+
+        for (field, present) in [
+            ("values", self.values.is_some()),
+            ("enum_name", self.enum_name.is_some()),
+            ("target", self.target.is_some()),
+            ("record", self.record.is_some()),
+            ("fields", self.fields.is_some()),
+            ("item", self.item.is_some()),
+            ("key", self.key.is_some()),
+            ("value", self.value.is_some()),
+        ] {
+            if present && !variant_fields.contains(&field) {
+                return Err(E::custom(format!(
+                    "field `{field}` is not valid for `{kind_name}`"
+                )));
+            }
+        }
+
+        match kind_name.as_str() {
+            "identifier" => Ok(FieldKind::Identifier),
+            "number" => Ok(FieldKind::Number),
+            "text" => Ok(FieldKind::Text),
+            "enum" => Ok(FieldKind::Enum {
+                values: self.values.ok_or_else(|| E::missing_field("values"))?,
+            }),
+            "named_enum" => Ok(FieldKind::NamedEnum {
+                name: self
+                    .enum_name
+                    .ok_or_else(|| E::missing_field("enum_name"))?,
+                values: self.values.ok_or_else(|| E::missing_field("values"))?,
+            }),
+            "reference" => Ok(FieldKind::Reference {
+                target: self.target.ok_or_else(|| E::missing_field("target"))?,
+            }),
+            "properties" => Ok(FieldKind::Properties {
+                name: self.record.unwrap_or(None),
+                fields: self.fields.ok_or_else(|| E::missing_field("fields"))?,
+            }),
+            "list" => Ok(FieldKind::List {
+                item: self.item.ok_or_else(|| E::missing_field("item"))?,
+            }),
+            "map" => Ok(FieldKind::Map {
+                key: self.key.ok_or_else(|| E::missing_field("key"))?,
+                value: self.value.ok_or_else(|| E::missing_field("value"))?,
+            }),
+            _ => Err(E::unknown_variant(&kind_name, VARIANTS)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for FieldKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::{MapAccess, Visitor};
+        use std::fmt;
+
+        const FIELDS: &[&str] = &[
+            "kind",
+            "values",
+            "enum_name",
+            "target",
+            "record",
+            "fields",
+            "item",
+            "key",
+            "value",
+        ];
+
+        struct FieldKindVisitor;
+
+        impl<'de> Visitor<'de> for FieldKindVisitor {
+            type Value = FieldKind;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a field kind")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut fields = FieldKindFields::default();
+                while let Some(field) = map.next_key::<String>()? {
+                    fields.read(&field, &mut map, FIELDS)?;
+                }
+                fields.build()
+            }
+        }
+
+        deserializer.deserialize_struct("FieldKind", FIELDS, FieldKindVisitor)
+    }
 }
 
 /// Key spelling supported by a declarative map field.
