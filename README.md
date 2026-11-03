@@ -79,6 +79,19 @@ environment. The library also exposes a structural formatter that preserves
 comments and strings, normalizes CRLF to LF, and supports space or tab
 indentation for valid programs.
 
+## Compatibility
+
+Langmeld is pre-1.0. Public Rust APIs and generated host code may change in a
+minor release, so rebuild generated hosts when upgrading; there is no stable
+binary plugin ABI. The Rust crate version does not version language or project
+data formats.
+
+Project manifests and definition lockfiles have their own schema versions.
+The loader supports project manifest versions 1 and 2 and lockfile version 1,
+and rejects unsupported versions. It preserves existing manifest versions;
+there is no automatic schema migration. Generated files under
+`.langmeld/generated/` are derived and can be rebuilt from project sources.
+
 ## Bootstrap a language project
 
 Run `cargo run -p langmeld-cli -- init` in a terminal for interactive setup.
