@@ -121,7 +121,7 @@ fn print_preview(options: &ProjectOptions) {
     );
 }
 
-fn prompt_text(message: &str, default: &str) -> Result<String, String> {
+pub(crate) fn prompt_text(message: &str, default: &str) -> Result<String, String> {
     if io::stdin().is_terminal() {
         return Text::new(message)
             .with_default(default)

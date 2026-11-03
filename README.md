@@ -51,6 +51,10 @@ cargo run -p langmeld-cli -- generate --project-root ./my-language --check
 ```
 
 The generated project's `README.md` describes its structure and commands.
+From a generated project, update source discovery interactively with
+`langmeld configure`, or pass options such as `--source-root`, `--source`, and
+`--source-extension`. Configuration resolves the proposed language and source
+set before atomically updating `langmeld.json`.
 
 The `langmeld` facade crate exposes the core schema, expression APIs, and
 language tooling under `langmeld::{core, expression, language}`. Its default

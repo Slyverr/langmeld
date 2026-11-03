@@ -60,6 +60,15 @@ fn run_generate_install(project: &std::path::Path) -> std::process::Output {
         .expect("langmeld host installation starts")
 }
 
+fn run_configure(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["configure", "--no-interactive", "--project"])
+        .arg(project.join("langmeld.json"))
+        .args(arguments)
+        .output()
+        .expect("langmeld configure starts")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -117,6 +126,96 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&example.stderr)
     );
     assert!(String::from_utf8_lossy(&example.stdout).contains("Parsed 1 top-level construct"));
+}
+
+#[test]
+fn configure_validates_candidate_before_writing_and_supports_noninteractive_updates() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("configured");
+    let init = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "Configured",
+    ]);
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    let manifest_path = project.join("langmeld.json");
+    let initial = fs::read(&manifest_path).expect("initial manifest is readable");
+
+    let no_options = run_configure(&project, &[]);
+    assert_eq!(no_options.status.code(), Some(2));
+    assert_eq!(fs::read(&manifest_path).unwrap(), initial);
+
+    let invalid = run_configure(&project, &["--source-root", "missing"]);
+    assert_eq!(invalid.status.code(), Some(2));
+    assert_eq!(fs::read(&manifest_path).unwrap(), initial);
+
+    let source = "examples/hello.configured.lmprog";
+    let updated = run_configure(&project, &["--source", source]);
+    assert!(
+        updated.status.success(),
+        "configure failed:\n{}\n{}",
+        String::from_utf8_lossy(&updated.stdout),
+        String::from_utf8_lossy(&updated.stderr)
+    );
+    let configured: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("updated manifest is readable"))
+            .expect("updated manifest is valid JSON");
+    assert_eq!(configured["sources"], serde_json::json!([source]));
+    assert_eq!(configured["source_roots"][0], "examples");
+
+    let before_clear = fs::read(&manifest_path).expect("updated manifest is readable");
+    let clear_all = run_configure(&project, &["--clear-sources", "--clear-source-roots"]);
+    assert_eq!(clear_all.status.code(), Some(2));
+    assert_eq!(fs::read(&manifest_path).unwrap(), before_clear);
+}
+
+#[test]
+fn configure_interactive_blank_answers_preserve_existing_values() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("interactive-configure");
+    let init = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "Interactive",
+    ]);
+    assert!(init.status.success());
+    let manifest_path = project.join("langmeld.json");
+    let original: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("manifest is readable"))
+            .expect("manifest is valid JSON");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["configure", "--interactive", "--project"])
+        .arg(&manifest_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("interactive configure starts");
+    child
+        .stdin
+        .take()
+        .expect("configure stdin is piped")
+        .write_all(b"\n\n\n")
+        .expect("blank defaults are written");
+    let output = child.wait_with_output().expect("configure exits");
+    assert!(
+        output.status.success(),
+        "configure failed:\n{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let updated: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("updated manifest is readable"))
+            .expect("updated manifest is valid JSON");
+    assert_eq!(updated, original);
 }
 
 #[test]

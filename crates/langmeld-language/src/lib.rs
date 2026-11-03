@@ -49,7 +49,10 @@ pub use parser::{
     PatternCompileError, PreparedLanguage,
 };
 pub use pipeline::{PassDescriptor, PassPipeline, PipelineError, PipelinePlanError};
-pub use project::{ProjectManifest, load_project_manifest, load_project_sources};
+pub use project::{
+    ProjectManifest, ProjectSnapshot, load_project, load_project_manifest, load_project_sources,
+    load_project_with_manifest, write_project_manifest,
+};
 pub use rust_codegen::generate_rust_ast;
 pub use syntax::{
     CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,

@@ -19,8 +19,45 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Create a Rust + Langmeld language project.
     Init(InitArgs),
+    /// Update project source discovery settings.
+    Configure(ConfigureArgs),
     /// Rebuild generated language and editor tooling.
     Generate(GenerateArgs),
+}
+
+#[derive(Debug, Args)]
+pub(crate) struct ConfigureArgs {
+    /// Project manifest to edit.
+    #[arg(long, default_value = "langmeld.json")]
+    pub(crate) project: PathBuf,
+    /// Always ask setup questions, even with redirected input.
+    #[arg(long, conflicts_with = "no_interactive")]
+    pub(crate) interactive: bool,
+    /// Disable all setup questions.
+    #[arg(long, conflicts_with = "interactive")]
+    pub(crate) no_interactive: bool,
+    /// Recursively scan this source root. Repeat to replace the root list.
+    #[arg(long = "source-root", conflicts_with = "clear_source_roots")]
+    pub(crate) source_roots: Vec<PathBuf>,
+    /// Remove all configured source roots.
+    #[arg(long, conflicts_with = "source_roots")]
+    pub(crate) clear_source_roots: bool,
+    /// Include this explicit source file. Repeat to replace the source list.
+    #[arg(long = "source", conflicts_with = "clear_sources")]
+    pub(crate) sources: Vec<PathBuf>,
+    /// Remove all configured explicit source files.
+    #[arg(long, conflicts_with = "sources")]
+    pub(crate) clear_sources: bool,
+    /// Override accepted source extensions. Repeat or comma-separate values.
+    #[arg(
+        long = "source-extension",
+        value_delimiter = ',',
+        conflicts_with = "inherit_source_extensions"
+    )]
+    pub(crate) source_extensions: Vec<String>,
+    /// Inherit source extensions from the language definition.
+    #[arg(long, conflicts_with = "source_extensions")]
+    pub(crate) inherit_source_extensions: bool,
 }
 
 #[derive(Debug, Args)]
@@ -104,6 +141,7 @@ mod tests {
     fn clap_help_includes_init_and_its_interaction_controls() {
         let mut command = Cli::command();
         assert!(command.render_long_help().to_string().contains("init"));
+        assert!(command.render_long_help().to_string().contains("configure"));
         assert!(command.render_long_help().to_string().contains("generate"));
         let init = command
             .get_subcommands()
@@ -113,6 +151,14 @@ mod tests {
         assert!(help.contains("--interactive"));
         assert!(help.contains("--no-interactive"));
         assert!(help.contains("--agent-skill"));
+        let configure = command
+            .get_subcommands()
+            .find(|subcommand| subcommand.get_name() == "configure")
+            .expect("configure command is registered");
+        let help = configure.clone().render_long_help().to_string();
+        assert!(help.contains("--source-root"));
+        assert!(help.contains("--source-extension"));
+        assert!(help.contains("--clear-sources"));
         let generate = command
             .get_subcommands()
             .find(|subcommand| subcommand.get_name() == "generate")
@@ -125,6 +171,30 @@ mod tests {
     fn generate_rejects_check_with_host_install() {
         assert!(
             Cli::try_parse_from(["langmeld", "generate", "--check", "--install-host"]).is_err()
+        );
+    }
+
+    #[test]
+    fn configure_rejects_conflicting_source_options() {
+        assert!(
+            Cli::try_parse_from([
+                "langmeld",
+                "configure",
+                "--source-root",
+                "examples",
+                "--clear-source-roots"
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "langmeld",
+                "configure",
+                "--source-extension",
+                "calc",
+                "--inherit-source-extensions"
+            ])
+            .is_err()
         );
     }
 }

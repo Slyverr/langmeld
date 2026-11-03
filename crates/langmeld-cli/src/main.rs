@@ -1,4 +1,5 @@
 mod cli;
+mod configure;
 mod generate;
 mod init;
 mod scaffold;
@@ -9,6 +10,13 @@ fn main() -> std::process::ExitCode {
     let cli = cli::Cli::parse();
     match cli.command {
         cli::Commands::Init(arguments) => match init::initialize(arguments) {
+            Ok(()) => std::process::ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("langmeld: {message}");
+                std::process::ExitCode::from(2)
+            }
+        },
+        cli::Commands::Configure(arguments) => match configure::configure_project(arguments) {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(message) => {
                 eprintln!("langmeld: {message}");

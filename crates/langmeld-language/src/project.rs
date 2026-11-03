@@ -2,12 +2,12 @@
 
 use std::{
     collections::BTreeSet,
-    fs::{self, File},
-    io::Read,
+    fs::{self, File, OpenOptions},
+    io::{Read, Write},
     path::{Component, Path, PathBuf},
 };
 
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, ValidatedLanguageSpec};
 use serde::{Deserialize, Serialize};
 
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
@@ -33,6 +33,17 @@ pub struct ProjectManifest {
     /// Source suffixes used when scanning roots; empty inherits the language definition.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_extensions: Vec<String>,
+}
+
+/// A validated project view shared by CLI commands and editor integrations.
+#[derive(Clone, Debug)]
+pub struct ProjectSnapshot {
+    /// Manifest settings used to load this snapshot.
+    pub manifest: ProjectManifest,
+    /// Fully parsed and validated language definition.
+    pub language: ValidatedLanguageSpec,
+    /// Explicit and discovered source files in stable project order.
+    pub sources: Vec<SourceFile>,
 }
 
 impl ProjectManifest {
@@ -100,16 +111,82 @@ pub fn load_project_manifest(path: &Path) -> Result<ProjectManifest, String> {
     Ok(manifest)
 }
 
-/// Loads explicit and discovered source files in deterministic order.
+/// Loads, resolves, and validates a project from its manifest on disk.
+pub fn load_project(manifest_path: &Path) -> Result<ProjectSnapshot, String> {
+    let manifest = load_project_manifest(manifest_path)?;
+    load_project_with_manifest(manifest_path, &manifest)
+}
+
+/// Loads a proposed project configuration without requiring it to be written first.
 ///
-/// An empty `source_extensions` setting inherits suffixes from the validated
-/// language definition. Explicit sources retain manifest order; discovered
-/// paths follow in lexical order and duplicates are removed.
+/// This is used by interactive configuration: the candidate definition and
+/// source selection are fully validated before the manifest is replaced.
+pub fn load_project_with_manifest(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+) -> Result<ProjectSnapshot, String> {
+    manifest.to_json()?;
+    let root = project_root(manifest_path)?;
+    let definition_path = root.join(&manifest.language);
+    let language =
+        crate::parse_language_definition_project(&definition_path).map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })?;
+    let paths = project_source_paths(manifest_path, manifest, &language.spec().source_extensions)?;
+    let sources = load_project_sources_from_paths(paths)?;
+    Ok(ProjectSnapshot {
+        manifest: manifest.clone(),
+        language,
+        sources,
+    })
+}
+
+/// Loads explicit and discovered source files from a proposed manifest.
+///
+/// Source suffixes are taken from the effective language definition unless
+/// overridden in the project manifest. Explicit sources retain manifest order;
+/// discovered paths follow in lexical order and duplicates are removed.
 pub fn load_project_sources(
     manifest_path: &Path,
-    language_extensions: &[String],
+    manifest: &ProjectManifest,
 ) -> Result<Vec<SourceFile>, String> {
-    let manifest = load_project_manifest(manifest_path)?;
+    load_project_with_manifest(manifest_path, manifest).map(|project| project.sources)
+}
+
+/// Atomically writes a validated project manifest next to the project's files.
+pub fn write_project_manifest(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+) -> Result<(), String> {
+    let contents = manifest.to_json()?;
+    match fs::symlink_metadata(manifest_path) {
+        Ok(metadata) if !metadata.file_type().is_file() => {
+            return Err(format!(
+                "project manifest '{}' is not a regular file",
+                manifest_path.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect project manifest '{}': {error}",
+                manifest_path.display()
+            ));
+        }
+    }
+    write_atomically(manifest_path, contents.as_bytes())
+}
+
+fn project_source_paths(
+    manifest_path: &Path,
+    manifest: &ProjectManifest,
+    language_extensions: &[String],
+) -> Result<Vec<PathBuf>, String> {
     if manifest.sources.is_empty() && manifest.source_roots.is_empty() {
         return Err("project manifest must list `sources` or configure `source_roots`".to_owned());
     }
@@ -132,7 +209,7 @@ pub fn load_project_sources(
         );
     }
 
-    let root = manifest_path.parent().unwrap_or_else(|| Path::new("."));
+    let root = project_root(manifest_path)?;
     let mut paths = Vec::new();
     let mut seen = BTreeSet::new();
     for source in &manifest.sources {
@@ -165,6 +242,10 @@ pub fn load_project_sources(
         return Err("project manifest resolved no source files".to_owned());
     }
 
+    Ok(paths)
+}
+
+fn load_project_sources_from_paths(paths: Vec<PathBuf>) -> Result<Vec<SourceFile>, String> {
     let mut total_bytes = 0_usize;
     let mut sources = Vec::with_capacity(paths.len());
     for path in paths {
@@ -198,17 +279,24 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
     Ok(())
 }
 
+fn project_root(manifest_path: &Path) -> Result<PathBuf, String> {
+    let parent = manifest_path.parent().unwrap_or_else(|| Path::new("."));
+    fs::canonicalize(parent).map_err(|error| {
+        format!(
+            "cannot resolve project directory '{}': {error}",
+            parent.display()
+        )
+    })
+}
+
 fn validate_relative_path(path: &Path, role: &str) -> Result<(), String> {
     if path.as_os_str().is_empty()
-        || path.components().any(|component| {
-            matches!(
-                component,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        })
+        || path
+            .components()
+            .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
     {
         return Err(format!(
-            "project {role} path '{}' must be a non-empty relative path without '..'",
+            "project {role} path '{}' must be a non-empty relative path",
             path.display()
         ));
     }
@@ -302,4 +390,62 @@ fn read_bounded(path: &Path, limit: usize, role: &str) -> Result<Vec<u8>, String
         ));
     }
     Ok(bytes)
+}
+
+fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path.file_name().ok_or_else(|| {
+        format!(
+            "project manifest path '{}' has no file name",
+            path.display()
+        )
+    })?;
+    for attempt in 0..32_u8 {
+        let temporary_path = parent.join(format!(
+            ".{}.{}.{}.tmp",
+            file_name.to_string_lossy(),
+            std::process::id(),
+            attempt
+        ));
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "cannot create temporary manifest '{}': {error}",
+                    temporary_path.display()
+                ));
+            }
+        };
+        let write_result = file
+            .write_all(contents)
+            .and_then(|()| file.sync_all())
+            .map_err(|error| {
+                format!(
+                    "cannot write temporary manifest '{}': {error}",
+                    temporary_path.display()
+                )
+            });
+        drop(file);
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error);
+        }
+        if let Err(error) = fs::rename(&temporary_path, path) {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(format!(
+                "cannot replace project manifest '{}': {error}",
+                path.display()
+            ));
+        }
+        return Ok(());
+    }
+    Err(format!(
+        "cannot create a unique temporary manifest beside '{}'",
+        path.display()
+    ))
 }
