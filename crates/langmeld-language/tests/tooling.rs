@@ -103,6 +103,13 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .iter()
             .any(|item| item == "source_formatter")
     );
+    assert!(
+        capabilities["available_language_apis"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "embedded_language_server")
+    );
     assert_eq!(
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "#"

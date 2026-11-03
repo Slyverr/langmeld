@@ -1,14 +1,18 @@
 //! A small LSP transport and diagnostic server for declarative Langmeld languages.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     io::{self, BufRead, Read, Write},
 };
 
-use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
+use langmeld_core::{BehaviorStage, Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use langmeld_language::{
-    AstNode, ConfiguredLanguageParser, ParseResult, PreparedLanguage, Program, WorkspaceAnalysis,
-    analyze_workspace_with_resolutions,
+    AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, ConfiguredLanguageParser,
+    ConfiguredSemanticHook, ConfiguredSemanticHookRegistration, ParseResult, PreparedLanguage,
+    Program, SemanticHook, SemanticHookRegistration, WorkspaceAnalysis,
+    WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
+    WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
+    analyze_workspace_with_host_callbacks,
 };
 use serde_json::{Value, json};
 
@@ -31,7 +35,7 @@ pub fn configure_language(
 ) -> Result<ConfiguredLanguageParser, String> {
     if !language.spec().behaviors.is_empty() {
         return Err(
-            "language declares host analysis behaviors; use a host-integrated language server"
+            "language declares host behavior; configure its callbacks and use `serve_configured`"
                 .to_owned(),
         );
     }
@@ -41,6 +45,156 @@ pub fn configure_language(
         .map_err(|error| error.to_string())
 }
 
+/// Configuration for an LSP server embedded in a language host.
+///
+/// The parser must already have its custom construct callbacks and lexer
+/// registered. Analysis registrations are checked against the parser's
+/// language before the server reads protocol input.
+pub struct LanguageServerConfig {
+    parser: ConfiguredLanguageParser,
+    semantic_hooks: Vec<SemanticHookRegistration>,
+    configured_semantic_hooks: Vec<ConfiguredSemanticHookRegistration>,
+    symbol_resolvers: Vec<WorkspaceSymbolResolverRegistration>,
+    type_analysis_hooks: Vec<WorkspaceTypeAnalysisRegistration>,
+}
+
+impl LanguageServerConfig {
+    /// Creates an embedded-server configuration from a host-configured parser.
+    #[must_use]
+    pub fn new(parser: ConfiguredLanguageParser) -> Self {
+        Self {
+            parser,
+            semantic_hooks: Vec::new(),
+            configured_semantic_hooks: Vec::new(),
+            symbol_resolvers: Vec::new(),
+            type_analysis_hooks: Vec::new(),
+        }
+    }
+
+    /// Adds per-file semantic callback registrations.
+    #[must_use]
+    pub fn with_semantic_hooks(
+        mut self,
+        registrations: impl IntoIterator<Item = SemanticHookRegistration>,
+    ) -> Self {
+        self.semantic_hooks.extend(registrations);
+        self
+    }
+
+    /// Adds configured per-file semantic callback registrations.
+    #[must_use]
+    pub fn with_configured_semantic_hooks(
+        mut self,
+        registrations: impl IntoIterator<Item = ConfiguredSemanticHookRegistration>,
+    ) -> Self {
+        self.configured_semantic_hooks.extend(registrations);
+        self
+    }
+
+    /// Adds workspace symbol-resolver callback registrations.
+    #[must_use]
+    pub fn with_symbol_resolvers(
+        mut self,
+        registrations: impl IntoIterator<Item = WorkspaceSymbolResolverRegistration>,
+    ) -> Self {
+        self.symbol_resolvers.extend(registrations);
+        self
+    }
+
+    /// Adds workspace type-analysis callback registrations.
+    #[must_use]
+    pub fn with_type_analysis_hooks(
+        mut self,
+        registrations: impl IntoIterator<Item = WorkspaceTypeAnalysisRegistration>,
+    ) -> Self {
+        self.type_analysis_hooks.extend(registrations);
+        self
+    }
+
+    fn into_server(self) -> Result<Server, String> {
+        let language = self.parser.language().spec().clone();
+        validate_semantic_hook_registrations(
+            &language,
+            &self.semantic_hooks,
+            &self.configured_semantic_hooks,
+        )
+        .map_err(|error| format!("invalid semantic hooks: {error}"))?;
+        let semantic_hooks = self
+            .semantic_hooks
+            .into_iter()
+            .map(|registration| registration.hook)
+            .collect();
+        let configured_semantic_hooks = self
+            .configured_semantic_hooks
+            .into_iter()
+            .map(|registration| registration.hook)
+            .collect();
+        let symbol_resolver_hooks =
+            WorkspaceSymbolResolverRegistry::new(&language, self.symbol_resolvers)
+                .map_err(|error| format!("invalid symbol resolvers: {error}"))?
+                .into_hooks();
+        let type_analysis_hooks =
+            WorkspaceTypeAnalysisRegistry::new(&language, self.type_analysis_hooks)
+                .map_err(|error| format!("invalid type-analysis hooks: {error}"))?
+                .into_hooks();
+        Ok(Server {
+            language,
+            parser: self.parser,
+            semantic_hooks,
+            configured_semantic_hooks,
+            symbol_resolver_hooks,
+            type_analysis_hooks,
+            documents: HashMap::new(),
+            shutdown: false,
+        })
+    }
+}
+
+fn validate_semantic_hook_registrations(
+    language: &ValidatedLanguageSpec,
+    semantic: &[SemanticHookRegistration],
+    configured: &[ConfiguredSemanticHookRegistration],
+) -> Result<(), BehaviorRegistrationError> {
+    let declared: BTreeSet<_> = language
+        .spec()
+        .behaviors
+        .iter()
+        .filter(|behavior| behavior.stage == BehaviorStage::SemanticAnalysis)
+        .map(|behavior| behavior.id.as_str())
+        .collect();
+    let mut registered = BTreeSet::new();
+    let mut issues = Vec::new();
+    for id in semantic
+        .iter()
+        .map(|registration| registration.id.as_str())
+        .chain(
+            configured
+                .iter()
+                .map(|registration| registration.id.as_str()),
+        )
+    {
+        if !registered.insert(id) {
+            issues.push(BehaviorRegistrationIssue::Duplicate(id.to_owned()));
+        }
+    }
+    issues.extend(
+        declared
+            .difference(&registered)
+            .map(|id| BehaviorRegistrationIssue::Missing((*id).to_owned())),
+    );
+    issues.extend(
+        registered
+            .difference(&declared)
+            .map(|id| BehaviorRegistrationIssue::Undeclared((*id).to_owned())),
+    );
+    if issues.is_empty() {
+        Ok(())
+    } else {
+        issues.sort();
+        Err(BehaviorRegistrationError { issues })
+    }
+}
+
 /// Serves document synchronization and diagnostics messages.
 ///
 /// Returns true when the client sent shutdown before exit.
@@ -48,17 +202,30 @@ pub fn configure_language(
 /// # Errors
 /// Returns malformed framing, I/O, or JSON-RPC serialization errors.
 pub fn serve<R: BufRead, W: Write>(
-    mut input: R,
-    mut output: W,
+    input: R,
+    output: W,
     language: ValidatedLanguageSpec,
 ) -> Result<bool, String> {
     let parser = configure_language(language.clone())?;
-    let mut server = Server {
-        language,
-        parser,
-        documents: HashMap::new(),
-        shutdown: false,
-    };
+    serve_configured(input, output, LanguageServerConfig::new(parser))
+}
+
+/// Serves LSP requests using a host-configured parser and analysis callbacks.
+///
+/// Callback behavior IDs are validated before protocol input is read. This is
+/// the embedding API for languages with custom parsers or semantic behavior;
+/// the standalone binary intentionally uses [`serve`] instead.
+///
+/// Returns true when the client sent shutdown before exit.
+///
+/// # Errors
+/// Returns callback setup, malformed framing, I/O, or JSON-RPC serialization errors.
+pub fn serve_configured<R: BufRead, W: Write>(
+    mut input: R,
+    mut output: W,
+    config: LanguageServerConfig,
+) -> Result<bool, String> {
+    let mut server = config.into_server()?;
 
     while let Some(message) = read_message(&mut input).map_err(|error| error.to_string())? {
         let value: Value = match serde_json::from_slice(&message) {
@@ -90,6 +257,10 @@ pub fn serve<R: BufRead, W: Write>(
 struct Server {
     language: ValidatedLanguageSpec,
     parser: ConfiguredLanguageParser,
+    semantic_hooks: Vec<SemanticHook>,
+    configured_semantic_hooks: Vec<ConfiguredSemanticHook>,
+    symbol_resolver_hooks: Vec<langmeld_language::WorkspaceSymbolResolverHook>,
+    type_analysis_hooks: Vec<langmeld_language::WorkspaceTypeAnalysisHook>,
     documents: HashMap<String, OpenDocument>,
     shutdown: bool,
 }
@@ -302,7 +473,7 @@ impl Server {
 
     fn publish_workspace_documents(&self) -> Vec<Value> {
         let (uris, files) = self.workspace_snapshot();
-        let analysis = analyze_workspace_with_resolutions(&self.language, &files);
+        let analysis = self.analyze_files(&files);
         uris.iter()
             .enumerate()
             .filter_map(|(source_index, uri)| {
@@ -326,6 +497,17 @@ impl Server {
                 }))
             })
             .collect()
+    }
+
+    fn analyze_files(&self, files: &[(&SourceFile, &Program)]) -> WorkspaceAnalysis {
+        analyze_workspace_with_host_callbacks(
+            &self.language,
+            files,
+            &self.semantic_hooks,
+            &self.configured_semantic_hooks,
+            &self.symbol_resolver_hooks,
+            &self.type_analysis_hooks,
+        )
     }
 
     fn supports_completion(&self) -> bool {
@@ -468,7 +650,7 @@ impl Server {
             navigation::occurrence_at(&self.language, &document.parsed.program, offset)?;
         let (uris, files) = self.workspace_snapshot();
         let source_index = uris.iter().position(|candidate| candidate == uri)?;
-        let analysis = analyze_workspace_with_resolutions(&self.language, &files);
+        let analysis = self.analyze_files(&files);
         Some(NavigationRequest {
             uris,
             files,
@@ -875,6 +1057,205 @@ mod tests {
                 .get("referencesProvider")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn embedded_server_runs_registered_custom_parser_and_analysis_callbacks() {
+        use langmeld_core::{
+            BehaviorStage, ConstructBuilder, Diagnostic, FieldKind, FieldSpec, LanguageBuilder,
+            Span,
+        };
+        use langmeld_language::{
+            CapturedValue, ConfiguredSemanticHookRegistration, CustomConstructMatch,
+            CustomConstructParser, SemanticHookRegistration, Value as LangValue,
+            WorkspaceDiagnostic, WorkspaceSymbolResolverRegistration,
+            WorkspaceTypeAnalysisRegistration,
+        };
+
+        fn plain_semantic_hook(
+            _: &Program,
+            _: &langmeld_core::SourceFile,
+            _: &mut Vec<Diagnostic>,
+        ) {
+        }
+
+        let language = LanguageBuilder::new("Embedded")
+            .version("0.1.0")
+            .root("program")
+            .behavior("semantic-check", BehaviorStage::SemanticAnalysis)
+            .behavior("semantic-note", BehaviorStage::SemanticAnalysis)
+            .behavior("resolve", BehaviorStage::SymbolResolution)
+            .behavior("workspace-types", BehaviorStage::WorkspaceTypeAnalysis)
+            .construct(
+                ConstructBuilder::new("program")
+                    .syntax("program {")
+                    .block(["native"]),
+            )
+            .construct(
+                ConstructBuilder::new("native")
+                    .syntax_variant("native", "host syntax {name}")
+                    .field(FieldSpec::required("name", FieldKind::Identifier))
+                    .custom_parser("parse-native"),
+            )
+            .build()
+            .expect("host language definition validates");
+        let parser = PreparedLanguage::new(language.clone())
+            .expect("syntax patterns compile")
+            .with_custom_parsers([CustomConstructParser::new(
+                "parse-native",
+                |source, offset| {
+                    let Some(rest) = source.text.get(offset..) else {
+                        return Ok(None);
+                    };
+                    let line_end = rest.find('\n').unwrap_or(rest.len());
+                    let line = rest[..line_end].trim_end_matches('\r');
+                    let Some(name) = line.strip_prefix("native ") else {
+                        return Ok(None);
+                    };
+                    let name_start = offset + "native ".len();
+                    let end = offset + line.len();
+                    Ok(Some(
+                        CustomConstructMatch::new(Span::new(offset, end), "native").with_field(
+                            "name",
+                            CapturedValue::new(
+                                LangValue::Identifier(name.to_owned()),
+                                Span::new(name_start, end),
+                            ),
+                        ),
+                    ))
+                },
+            )])
+            .expect("custom parser registration matches the language");
+        assert!(configure_language(language).is_err());
+
+        let missing_hook = serve_configured(
+            Cursor::new(Vec::<u8>::new()),
+            Vec::<u8>::new(),
+            LanguageServerConfig::new(parser.clone()),
+        )
+        .expect_err("missing declared behavior is rejected before input is read");
+        assert!(missing_hook.contains("semantic-check"));
+        let duplicate_hook = serve_configured(
+            Cursor::new(Vec::<u8>::new()),
+            Vec::<u8>::new(),
+            LanguageServerConfig::new(parser.clone())
+                .with_semantic_hooks([SemanticHookRegistration::new(
+                    "semantic-note",
+                    plain_semantic_hook,
+                )])
+                .with_configured_semantic_hooks([ConfiguredSemanticHookRegistration::new(
+                    "semantic-note",
+                    |_, _, _| {},
+                )]),
+        )
+        .expect_err("duplicate behavior IDs are rejected");
+        assert!(duplicate_hook.contains("registered more than once"));
+        let undeclared_hook = serve_configured(
+            Cursor::new(Vec::<u8>::new()),
+            Vec::<u8>::new(),
+            LanguageServerConfig::new(parser.clone()).with_semantic_hooks([
+                SemanticHookRegistration::new("semantic-check", plain_semantic_hook),
+                SemanticHookRegistration::new("semantic-note", plain_semantic_hook),
+                SemanticHookRegistration::new("extra", plain_semantic_hook),
+            ]),
+        )
+        .expect_err("undeclared behavior IDs are rejected");
+        assert!(undeclared_hook.contains("does not declare"));
+
+        let config = LanguageServerConfig::new(parser)
+            .with_semantic_hooks([SemanticHookRegistration::new(
+                "semantic-note",
+                plain_semantic_hook,
+            )])
+            .with_symbol_resolvers([WorkspaceSymbolResolverRegistration::new(
+                "resolve",
+                Box::new(|_, _, analysis| {
+                    analysis.diagnostics.push(WorkspaceDiagnostic {
+                        source_index: 0,
+                        source_id: None,
+                        source_revision: None,
+                        diagnostic: Diagnostic::error(
+                            "HOST0002",
+                            "host symbol resolver ran",
+                            Span::new(10, 15),
+                        ),
+                    });
+                }),
+            )])
+            .with_type_analysis_hooks([WorkspaceTypeAnalysisRegistration::new(
+                "workspace-types",
+                Box::new(|_, _, _, _, _, diagnostics| {
+                    diagnostics.push(WorkspaceDiagnostic {
+                        source_index: 0,
+                        source_id: None,
+                        source_revision: None,
+                        diagnostic: Diagnostic::error(
+                            "HOST0003",
+                            "host type-analysis hook ran",
+                            Span::new(10, 15),
+                        ),
+                    });
+                }),
+            )])
+            .with_configured_semantic_hooks([ConfiguredSemanticHookRegistration::new(
+                "semantic-check",
+                |program, source, diagnostics| {
+                    let has_native_node = program
+                        .nodes
+                        .first()
+                        .and_then(|root| root.children.first())
+                        .is_some_and(|node| node.construct == "native");
+                    if has_native_node {
+                        diagnostics.push(Diagnostic::error(
+                            "HOST0001",
+                            "host semantic callback ran",
+                            Span::new(10, source.text.len().saturating_sub(2)),
+                        ));
+                    }
+                },
+            )]);
+        let requests = [
+            json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+            json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": { "textDocument": {
+                    "uri": "file:///embedded.demo",
+                    "languageId": "embedded",
+                    "version": 1,
+                    "text": "program {\nnative node\n}\n"
+                }}
+            }),
+            json!({ "jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": null }),
+            json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+        ];
+        let mut input = Vec::new();
+        for request in &requests {
+            write_message(&mut input, request).expect("request framing succeeds");
+        }
+        let mut output = Vec::new();
+        assert!(
+            serve_configured(Cursor::new(input), &mut output, config)
+                .expect("embedded server handles protocol requests")
+        );
+        let mut reader = Cursor::new(output);
+        let mut responses = Vec::new();
+        while let Some(message) = read_message(&mut reader).expect("response framing is valid") {
+            responses.push(serde_json::from_slice::<Value>(&message).expect("response is JSON"));
+        }
+        let diagnostics = responses
+            .iter()
+            .find(|response| response["method"] == "textDocument/publishDiagnostics")
+            .and_then(|response| response.pointer("/params/diagnostics"))
+            .and_then(Value::as_array)
+            .expect("host diagnostics are published");
+        for code in ["HOST0001", "HOST0002", "HOST0003"] {
+            assert!(
+                diagnostics.iter().any(|item| item["code"] == code),
+                "{code}"
+            );
+        }
     }
 
     #[test]

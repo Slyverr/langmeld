@@ -42,6 +42,9 @@ diagnostics, global literal-keyword completion, and parsed-construct document
 symbols. Definition and references work across currently open documents when
 the language declares symbol metadata. Context-aware completion, unopened
 project-file navigation, project watchers, and WASM adapters are still pending.
+Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
+a configured parser and registered analysis callbacks. The standalone LSP
+binary remains for declarative-only languages.
 `langmeld-language` generates deterministic Rust source for typed AST views and
 schema reconstruction, plus metadata,
 reference docs, lexical-only TextMate rules, and conventional editor
