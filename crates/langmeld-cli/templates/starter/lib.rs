@@ -9,6 +9,7 @@ use std::path::Path;
 
 pub mod host;
 mod language;
+@WASM_MODULE@
 
 /// Parsed and analyzed inputs supplied to this language's execution hook.
 pub struct RuntimeContext<'a> {

@@ -5,10 +5,14 @@ edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 description = "A Rust language host built with Langmeld."
+@WASM_LIBRARY@
 @CLI_TARGET@
 
 [dependencies]
 @CLI_DEPENDENCY@langmeld = { @LANGMELD_DEPENDENCY@ }
+@WASM_DEPENDENCIES@
 
 [build-dependencies]
 langmeld = { @BUILD_DEPENDENCY@ }
+
+@WASM_FEATURES@

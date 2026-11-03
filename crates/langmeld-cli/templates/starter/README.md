@@ -39,3 +39,5 @@ In interactive setup, choose whether to include the CLI, or pass
 Deterministic editor and language metadata is created under `.langmeld/generated/`.
 That directory is ignored and can be rebuilt from the validated language model
 with `generate_tooling`.
+
+@WASM_README@

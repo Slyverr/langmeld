@@ -475,6 +475,246 @@ fn init_supports_rust_and_combined_authoring_projects() {
 }
 
 #[test]
+fn init_can_create_and_run_a_browser_wasm_adapter_project() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("BrowserLanguage");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--no-agents",
+        "--library-only",
+        "--wasm",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "BrowserLanguage",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "WASM init failed:\n{}\n{}",
+        String::from_utf8_lossy(&initialized.stdout),
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    assert!(project.join("src/wasm.rs").is_file());
+    assert!(!project.join("src/main.rs").exists());
+    assert!(!project.join("src/bin/lsp.rs").exists());
+
+    let manifest = fs::read_to_string(project.join("Cargo.toml")).expect("manifest is written");
+    assert!(manifest.contains("crate-type = [\"cdylib\", \"rlib\"]"));
+    assert!(manifest.contains("wasm = [\"dep:serde\", \"dep:serde_json\", \"dep:wasm-bindgen\"]"));
+    let library = fs::read_to_string(project.join("src/lib.rs")).expect("library is written");
+    assert!(library.contains("pub use wasm::LanguageHost;"));
+    let readme = fs::read_to_string(project.join("README.md")).expect("README is written");
+    assert!(readme.contains("LanguageHost.fromProject()"));
+    assert!(readme.contains("UTF-8 byte offsets"));
+    assert!(readme.contains("This runs Langmeld inside WebAssembly"));
+
+    if std::env::var_os("LANGMELD_WASM_SMOKE").is_none() {
+        return;
+    }
+    let native_check = Command::new(env!("CARGO"))
+        .args(["check", "--lib", "--features", "wasm", "--offline"])
+        .current_dir(&project)
+        .output()
+        .expect("WASM adapter builds for the native development target");
+    assert!(
+        native_check.status.success(),
+        "native WASM feature build failed:\n{}\n{}",
+        String::from_utf8_lossy(&native_check.stdout),
+        String::from_utf8_lossy(&native_check.stderr)
+    );
+
+    assert!(
+        command_exists("wasm32-unknown-unknown"),
+        "the wasm32-unknown-unknown target is required for LANGMELD_WASM_SMOKE"
+    );
+    let bindgen = Command::new("wasm-bindgen")
+        .arg("--version")
+        .output()
+        .expect("wasm-bindgen CLI is installed for the WASM smoke test");
+    assert!(bindgen.status.success(), "wasm-bindgen CLI is unavailable");
+    assert_eq!(
+        String::from_utf8_lossy(&bindgen.stdout).trim(),
+        "wasm-bindgen 0.2.129"
+    );
+    let bun = Command::new("bun")
+        .arg("--version")
+        .output()
+        .expect("Bun is installed for the WASM smoke test");
+    assert!(bun.status.success(), "Bun is unavailable");
+
+    let wasm_build = Command::new(env!("CARGO"))
+        .args([
+            "build",
+            "--lib",
+            "--features",
+            "wasm",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--offline",
+            "--locked",
+        ])
+        .current_dir(&project)
+        .output()
+        .expect("WASM target build starts");
+    assert!(
+        wasm_build.status.success(),
+        "WASM target build failed:\n{}\n{}",
+        String::from_utf8_lossy(&wasm_build.stdout),
+        String::from_utf8_lossy(&wasm_build.stderr)
+    );
+
+    let crate_name = "browserlanguage_language";
+    let bindings_directory = project.join("target/wasm-bindgen");
+    let wasm_file = project.join(format!(
+        "target/wasm32-unknown-unknown/debug/{crate_name}.wasm"
+    ));
+    let bindings = Command::new("wasm-bindgen")
+        .args(["--target", "web", "--out-dir"])
+        .arg(&bindings_directory)
+        .arg(&wasm_file)
+        .current_dir(&project)
+        .output()
+        .expect("wasm-bindgen generates browser bindings");
+    assert!(
+        bindings.status.success(),
+        "browser binding generation failed:\n{}\n{}",
+        String::from_utf8_lossy(&bindings.stdout),
+        String::from_utf8_lossy(&bindings.stderr)
+    );
+    assert!(
+        bindings_directory
+            .join(format!("{crate_name}.d.ts"))
+            .is_file()
+    );
+
+    let spec = langmeld_core::LanguageBuilder::new("WorkspaceWasm")
+        .version("0.1.0")
+        .root("module")
+        .construct(
+            langmeld_core::ConstructBuilder::new("module")
+                .syntax("module {")
+                .block(["binding", "reference"]),
+        )
+        .construct(
+            langmeld_core::ConstructBuilder::new("binding")
+                .syntax("let {name}")
+                .field(langmeld_core::FieldSpec::required(
+                    "name",
+                    langmeld_core::FieldKind::Identifier,
+                ))
+                .symbol(langmeld_core::SymbolSpec::new("variable", "name")),
+        )
+        .construct(
+            langmeld_core::ConstructBuilder::new("reference")
+                .syntax("read {target}")
+                .field(langmeld_core::FieldSpec::required(
+                    "target",
+                    langmeld_core::FieldKind::Reference {
+                        target: "variable".to_owned(),
+                    },
+                )),
+        )
+        .build()
+        .expect("workspace test language is valid");
+    fs::write(
+        bindings_directory.join("workspace-spec.json"),
+        serde_json::to_vec(spec.spec()).expect("workspace spec serializes"),
+    )
+    .expect("workspace spec is written");
+
+    let definitions = serde_json::json!({
+        "root": {
+            "name": "language/language.lm",
+            "text": fs::read_to_string(project.join("language/language.lm"))
+                .expect("root definition is readable"),
+        },
+        "modules": [{
+            "name": "language/constructs/program.lm",
+            "text": fs::read_to_string(project.join("language/constructs/program.lm"))
+                .expect("construct definition is readable"),
+        }],
+    });
+    fs::write(
+        bindings_directory.join("definitions.json"),
+        serde_json::to_vec(&definitions).expect("definition bundle serializes"),
+    )
+    .expect("definition bundle is written");
+    let smoke = r#"import { readFileSync } from "node:fs";
+import initSync, { LanguageHost } from "./@CRATE@.js";
+
+await initSync({ module: readFileSync(new URL("./@CRATE@_bg.wasm", import.meta.url)) });
+const definitions = JSON.parse(readFileSync(new URL("./definitions.json", import.meta.url), "utf8"));
+const host = new LanguageHost(JSON.stringify(definitions));
+const parsed = JSON.parse(host.parse(`program {
+  print "hello"
+}
+`));
+if (parsed.diagnostics.length !== 0) throw new Error(JSON.stringify(parsed.diagnostics));
+if (parsed.program.nodes[0]?.construct !== "program") throw new Error("program AST root missing");
+if (!parsed.classification_types.includes("keyword")) throw new Error("classification legend missing");
+if (!parsed.classifications.some((item) => item.kind === "keyword")) throw new Error("editor classifications missing");
+const incomplete = JSON.parse(host.parse("program {\n"));
+if (incomplete.completion_blocks.length === 0) throw new Error("parser completion context missing");
+
+const projectHost = LanguageHost.fromProject();
+const projectResult = JSON.parse(projectHost.parse(`program {
+  print "compiled model"
+}
+`));
+if (projectResult.diagnostics.length !== 0) throw new Error(JSON.stringify(projectResult.diagnostics));
+
+const spec = JSON.parse(readFileSync(new URL("./workspace-spec.json", import.meta.url), "utf8"));
+const workspaceHost = LanguageHost.fromSpec(JSON.stringify(spec));
+const workspace = JSON.parse(workspaceHost.analyzeWorkspace(JSON.stringify([
+  { name: "declarations.lmprog", text: `module {
+  let shared
+}
+` },
+  { name: "uses.lmprog", text: `module {
+  read shared
+}
+` },
+])));
+if (workspace.files.length !== 2) throw new Error("workspace source files missing");
+if (workspace.analysis.resolved_references.length !== 1) throw new Error("cross-file reference was not resolved");
+
+const customParserSpec = structuredClone(spec);
+customParserSpec.constructs.find((item) => item.id === "binding").custom_parser = "host_parser";
+let rejected = false;
+try { LanguageHost.fromSpec(JSON.stringify(customParserSpec)); } catch (error) { rejected = String(error).includes("host_parser"); }
+if (!rejected) throw new Error("unbound custom parser was not rejected clearly");
+console.log("WASM adapter parsed models and analyzed browser workspace sources");
+"#
+    .replace("@CRATE@", crate_name);
+    fs::write(bindings_directory.join("smoke.mjs"), smoke)
+        .expect("browser smoke script is written");
+    let smoke_output = Command::new("bun")
+        .args(["run", "target/wasm-bindgen/smoke.mjs"])
+        .current_dir(&project)
+        .output()
+        .expect("Bun runs the WebAssembly smoke test");
+    assert!(
+        smoke_output.status.success(),
+        "browser binding smoke failed:\n{}\n{}",
+        String::from_utf8_lossy(&smoke_output.stdout),
+        String::from_utf8_lossy(&smoke_output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&smoke_output.stdout).contains("WASM adapter parsed models"));
+}
+
+fn command_exists(target: &str) -> bool {
+    Command::new("rustup")
+        .args(["target", "list", "--installed"])
+        .output()
+        .is_ok_and(|output| {
+            output.status.success()
+                && String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .any(|installed| installed == target)
+        })
+}
+
+#[test]
 fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
     let workspace = TempWorkspace::new();
     let project = workspace.project("locked-language");
@@ -1696,7 +1936,7 @@ fn interactive_cancel_does_not_create_files() {
         .stdin
         .take()
         .expect("stdin is piped")
-        .write_all(b"y\ndeclarative\nn\n")
+        .write_all(b"y\ndeclarative\nn\nn\n")
         .expect("cancel answer is written");
     let output = child.wait_with_output().expect("interactive process exits");
     assert!(
@@ -1719,7 +1959,10 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("langmeld interactive process starts");
-    let input = format!("{}\nPromptedLang\nn\ndeclarative\ny\n", project.display());
+    let input = format!(
+        "{}\nPromptedLang\nn\ndeclarative\nn\ny\n",
+        project.display()
+    );
     child
         .stdin
         .take()
@@ -1738,6 +1981,7 @@ fn piped_interactive_setup_collects_path_and_name_before_creating_project() {
     assert!(transcript.contains("Language name"));
     assert!(transcript.contains("Include a command-line host?"));
     assert!(transcript.contains("Authoring mode"));
+    assert!(transcript.contains("browser/WASM adapter"));
     assert!(transcript.contains("PROJECT PREVIEW"));
     assert!(!project.join("src/main.rs").exists());
 }

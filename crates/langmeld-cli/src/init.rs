@@ -44,6 +44,8 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
         None if interactive => prompt_authoring_mode()?,
         None => AuthoringMode::default(),
     };
+    let wasm = arguments.wasm
+        || (interactive && prompt_confirm("Include a browser/WASM adapter?", false)?);
 
     let agents = if arguments.no_agents {
         false
@@ -69,6 +71,7 @@ pub(crate) fn initialize(arguments: InitArgs) -> Result<(), String> {
         agent_skill,
         langmeld_path: arguments.langmeld_path,
         library_only,
+        wasm,
         authoring,
     };
     print_preview(&options);
@@ -140,6 +143,9 @@ fn print_preview(options: &ProjectOptions) {
     if options.agent_skill {
         entries.push(".agents/skills/langmeld/SKILL.md");
     }
+    if options.wasm {
+        entries.push("src/wasm.rs");
+    }
     for (index, entry) in entries.iter().enumerate() {
         let branch = if index + 1 == entries.len() {
             "└─"
@@ -152,6 +158,12 @@ fn print_preview(options: &ProjectOptions) {
         "  {}",
         style("The Rust host and language definition are ready to edit.").dim()
     );
+    if options.wasm {
+        println!(
+            "  {}",
+            style("Build the browser adapter with `cargo build --lib --features wasm --target wasm32-unknown-unknown`.").dim()
+        );
+    }
 }
 
 fn prompt_authoring_mode() -> Result<AuthoringMode, String> {

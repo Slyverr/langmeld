@@ -285,6 +285,9 @@ pub(crate) struct InitArgs {
     /// Create a library-only package without the command-line host.
     #[arg(long)]
     pub(crate) library_only: bool,
+    /// Include the optional browser/WASM parser and editor adapter.
+    #[arg(long)]
+    pub(crate) wasm: bool,
     /// Select the language-definition authoring frontend.
     #[arg(long, value_enum)]
     pub(crate) authoring: Option<AuthoringMode>,
@@ -331,6 +334,7 @@ mod tests {
             "./sample",
             "--no-interactive",
             "--agents",
+            "--wasm",
         ])
         .expect("init options parse");
         let Commands::Init(arguments) = cli.command else {
@@ -343,6 +347,7 @@ mod tests {
         );
         assert!(arguments.no_interactive);
         assert!(arguments.agents);
+        assert!(arguments.wasm);
         assert!(
             Cli::try_parse_from(["langmeld", "init", "--interactive", "--no-interactive"]).is_err()
         );
@@ -373,6 +378,7 @@ mod tests {
         assert!(help.contains("--interactive"));
         assert!(help.contains("--no-interactive"));
         assert!(help.contains("--agent-skill"));
+        assert!(help.contains("--wasm"));
         let configure = command
             .get_subcommands()
             .find(|subcommand| subcommand.get_name() == "configure")

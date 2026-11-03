@@ -23,6 +23,7 @@ pub(crate) struct ProjectOptions {
     pub(crate) agent_skill: bool,
     pub(crate) langmeld_path: Option<PathBuf>,
     pub(crate) library_only: bool,
+    pub(crate) wasm: bool,
     pub(crate) authoring: AuthoringMode,
 }
 
@@ -116,6 +117,31 @@ fn starter_files(
     } else {
         "clap = { version = \"4.6.7\", features = [\"derive\"] }\ninquire = \"0.9.4\"\nserde_json = \"1\"\n".to_owned()
     };
+    let wasm_library = if options.wasm {
+        "[lib]\ncrate-type = [\"cdylib\", \"rlib\"]\n"
+    } else {
+        ""
+    };
+    let wasm_dependencies = if options.wasm {
+        "serde = { version = \"1\", features = [\"derive\"], optional = true }\nserde_json = { version = \"1\", optional = true }\nwasm-bindgen = { version = \"=0.2.129\", optional = true }\n"
+    } else {
+        ""
+    };
+    let wasm_features = if options.wasm {
+        "[features]\ndefault = []\nwasm = [\"dep:serde\", \"dep:serde_json\", \"dep:wasm-bindgen\"]\n"
+    } else {
+        ""
+    };
+    let wasm_module = if options.wasm {
+        "\nmod wasm;\npub use wasm::LanguageHost;\n"
+    } else {
+        ""
+    };
+    let wasm_readme = if options.wasm {
+        include_str!("../templates/starter/README-wasm.md").replace("@CRATE@", &crate_name)
+    } else {
+        String::new()
+    };
     let mut add = |path: &str, template: &str| {
         files.insert(
             PathBuf::from(path),
@@ -127,6 +153,11 @@ fn starter_files(
                 .replace("@EXT@", &extension)
                 .replace("@CLI_TARGET@", &cli_target)
                 .replace("@CLI_DEPENDENCY@", &cli_dependency)
+                .replace("@WASM_LIBRARY@", wasm_library)
+                .replace("@WASM_DEPENDENCIES@", wasm_dependencies)
+                .replace("@WASM_FEATURES@", wasm_features)
+                .replace("@WASM_MODULE@", wasm_module)
+                .replace("@WASM_README@", &wasm_readme)
                 .replace("@LANGMELD_DEPENDENCY@", dependency)
                 .replace("@BUILD_DEPENDENCY@", dependency),
         );
@@ -213,6 +244,12 @@ fn starter_files(
         files.insert(
             PathBuf::from("language/constructs/program.lm"),
             constructs.to_owned(),
+        );
+    }
+    if options.wasm {
+        files.insert(
+            PathBuf::from("src/wasm.rs"),
+            include_str!("../templates/starter/wasm.rs").to_owned(),
         );
     }
     let example_source = if options.authoring == AuthoringMode::Combined {
