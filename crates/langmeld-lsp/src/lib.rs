@@ -3,16 +3,17 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     io::{self, BufRead, Read, Write},
+    path::{Path, PathBuf},
 };
 
 use langmeld_core::{BehaviorStage, Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use langmeld_language::{
     AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
     ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
-    ParseResult, PreparedLanguage, Program, SemanticHook, SemanticHookRegistration,
-    WorkspaceAnalysis, WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
-    WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
-    analyze_workspace_with_host_callbacks,
+    ParseResult, PreparedLanguage, Program, ProjectSnapshot, SemanticHook,
+    SemanticHookRegistration, WorkspaceAnalysis, WorkspaceSymbolResolverRegistration,
+    WorkspaceSymbolResolverRegistry, WorkspaceTypeAnalysisRegistration,
+    WorkspaceTypeAnalysisRegistry, analyze_workspace_with_host_callbacks, load_project,
 };
 use serde_json::{Value, json};
 
@@ -30,6 +31,7 @@ const MAX_COMPLETION_INSERT_BYTES: usize = 4096;
 const MAX_DOCUMENT_SYMBOLS: usize = 10_000;
 const MAX_RENAME_NAME_BYTES: usize = 1024;
 const MAX_RENAME_EDITS: usize = 100_000;
+const PROJECT_WATCHER_REGISTRATION_ID: &str = "langmeld-project-watchers";
 
 /// LSP completion item kind supported by the host completion API.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -198,6 +200,7 @@ pub fn configure_language(
 /// language before the server reads protocol input.
 pub struct LanguageServerConfig {
     parser: ConfiguredLanguageParser,
+    project_snapshot: Option<(PathBuf, ProjectSnapshot)>,
     semantic_hooks: Vec<SemanticHookRegistration>,
     configured_semantic_hooks: Vec<ConfiguredSemanticHookRegistration>,
     symbol_resolvers: Vec<WorkspaceSymbolResolverRegistration>,
@@ -211,12 +214,29 @@ impl LanguageServerConfig {
     pub fn new(parser: ConfiguredLanguageParser) -> Self {
         Self {
             parser,
+            project_snapshot: None,
             semantic_hooks: Vec::new(),
             configured_semantic_hooks: Vec::new(),
             symbol_resolvers: Vec::new(),
             type_analysis_hooks: Vec::new(),
             completion_providers: Vec::new(),
         }
+    }
+
+    /// Enables project-definition reloads for a declarative project.
+    ///
+    /// The snapshot must be the one used to configure `parser`. File watching
+    /// is registered with clients that support dynamic watched-file
+    /// registration; clients can also send `workspace/didChangeWatchedFiles`
+    /// notifications directly.
+    #[must_use]
+    fn with_project_snapshot(
+        mut self,
+        manifest_path: impl Into<PathBuf>,
+        snapshot: ProjectSnapshot,
+    ) -> Self {
+        self.project_snapshot = Some((manifest_path.into(), snapshot));
+        self
     }
 
     /// Adds per-file semantic callback registrations.
@@ -300,6 +320,20 @@ impl LanguageServerConfig {
             WorkspaceTypeAnalysisRegistry::new(&language, self.type_analysis_hooks)
                 .map_err(|error| format!("invalid type-analysis hooks: {error}"))?
                 .into_hooks();
+        let project = self
+            .project_snapshot
+            .map(|(manifest_path, snapshot)| {
+                if snapshot.language.spec() != self.parser.language().spec().spec() {
+                    return Err(
+                        "project snapshot language does not match the configured parser".to_owned(),
+                    );
+                }
+                Ok(ProjectState {
+                    manifest_path,
+                    snapshot,
+                })
+            })
+            .transpose()?;
         Ok(Server {
             language,
             parser: self.parser,
@@ -312,6 +346,9 @@ impl LanguageServerConfig {
                 .into_iter()
                 .map(|registration| registration.provider)
                 .collect(),
+            project,
+            client_supports_watched_file_registration: false,
+            watchers_registered: false,
             documents: HashMap::new(),
             shutdown: false,
         })
@@ -378,6 +415,26 @@ pub fn serve<R: BufRead, W: Write>(
     serve_configured(input, output, LanguageServerConfig::new(parser))
 }
 
+/// Serves a declarative project and reloads its language after watched-file
+/// notifications when the changed definitions remain valid.
+///
+/// The last valid language snapshot remains active after a failed reload.
+///
+/// # Errors
+/// Returns project-loading, parser-configuration, framing, I/O, or
+/// JSON-RPC serialization errors.
+pub fn serve_project<R: BufRead, W: Write>(
+    input: R,
+    output: W,
+    manifest_path: &Path,
+) -> Result<bool, String> {
+    let snapshot = load_project(manifest_path)?;
+    let parser = configure_language(snapshot.language.clone())?;
+    let config =
+        LanguageServerConfig::new(parser).with_project_snapshot(manifest_path.to_owned(), snapshot);
+    serve_configured(input, output, config)
+}
+
 /// Serves LSP requests using a host-configured parser and analysis callbacks.
 ///
 /// Callback behavior IDs are validated before protocol input is read. This is
@@ -430,8 +487,16 @@ struct Server {
     symbol_resolver_hooks: Vec<langmeld_language::WorkspaceSymbolResolverHook>,
     type_analysis_hooks: Vec<langmeld_language::WorkspaceTypeAnalysisHook>,
     completion_providers: Vec<CompletionProvider>,
+    project: Option<ProjectState>,
+    client_supports_watched_file_registration: bool,
+    watchers_registered: bool,
     documents: HashMap<String, OpenDocument>,
     shutdown: bool,
+}
+
+struct ProjectState {
+    manifest_path: PathBuf,
+    snapshot: ProjectSnapshot,
 }
 
 struct OpenDocument {
@@ -451,23 +516,41 @@ struct NavigationRequest<'a> {
 impl Server {
     fn handle(&mut self, message: &Value) -> Vec<Value> {
         let Some(method) = message.get("method").and_then(Value::as_str) else {
+            if message.get("id").and_then(Value::as_str) == Some(PROJECT_WATCHER_REGISTRATION_ID)
+                && message.get("error").is_some()
+            {
+                self.watchers_registered = false;
+                let detail = message
+                    .pointer("/error/message")
+                    .and_then(Value::as_str)
+                    .unwrap_or("client rejected the watched-file registration");
+                return vec![log_message(
+                    2,
+                    format!("project file watching is unavailable: {detail}"),
+                )];
+            }
             return Vec::new();
         };
         let id = message.get("id").cloned();
         match method {
-            "initialize" => id
-                .into_iter()
-                .map(|id| {
-                    initialize_response(
-                        id,
-                        self.supports_completion(),
-                        self.supports_navigation(),
-                        self.supports_rename(),
-                        self.supports_hover(),
-                    )
-                })
-                .collect(),
-            "initialized" => Vec::new(),
+            "initialize" => {
+                self.client_supports_watched_file_registration = message
+                    .pointer("/params/capabilities/workspace/didChangeWatchedFiles/dynamicRegistration")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                id.into_iter()
+                    .map(|id| {
+                        initialize_response(
+                            id,
+                            self.supports_completion(),
+                            self.supports_navigation(),
+                            self.supports_rename(),
+                            self.supports_hover(),
+                        )
+                    })
+                    .collect()
+            }
+            "initialized" => self.register_project_watchers(),
             "shutdown" => {
                 self.shutdown = true;
                 id.map(|id| json!({ "jsonrpc": "2.0", "id": id, "result": null }))
@@ -485,6 +568,17 @@ impl Server {
             "textDocument/didChange" => {
                 if let Some(notification) = message.get("params") {
                     self.change_document(notification)
+                } else {
+                    Vec::new()
+                }
+            }
+            "workspace/didChangeWatchedFiles" => {
+                let changed = message
+                    .pointer("/params/changes")
+                    .and_then(Value::as_array)
+                    .is_some_and(|changes| !changes.is_empty());
+                if changed && self.project.is_some() {
+                    self.reload_project()
                 } else {
                     Vec::new()
                 }
@@ -662,6 +756,106 @@ impl Server {
                 parsed,
             },
         );
+        self.publish_workspace_documents()
+    }
+
+    fn register_project_watchers(&mut self) -> Vec<Value> {
+        if !self.client_supports_watched_file_registration
+            || self.watchers_registered
+            || self.project.is_none()
+        {
+            return Vec::new();
+        }
+        let Some(project) = &self.project else {
+            return Vec::new();
+        };
+        let Ok(manifest_path) = project.manifest_path.canonicalize() else {
+            return vec![log_message(
+                2,
+                "cannot register project watchers: manifest path cannot be resolved".to_owned(),
+            )];
+        };
+        let Some(root) = manifest_path.parent() else {
+            return vec![log_message(
+                2,
+                "cannot register project watchers: manifest has no parent directory".to_owned(),
+            )];
+        };
+        let Some(base_uri) = path_to_file_uri(root) else {
+            return vec![log_message(
+                2,
+                "cannot register project watchers: project path cannot be represented as a file URI"
+                    .to_owned(),
+            )];
+        };
+        let manifest_name = manifest_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(escape_glob_literal)
+            .unwrap_or_else(|| "langmeld.json".to_owned());
+        self.watchers_registered = true;
+        vec![json!({
+            "jsonrpc": "2.0",
+            "id": PROJECT_WATCHER_REGISTRATION_ID,
+            "method": "client/registerCapability",
+            "params": {
+                "registrations": [{
+                    "id": PROJECT_WATCHER_REGISTRATION_ID,
+                    "method": "workspace/didChangeWatchedFiles",
+                    "registerOptions": {
+                        "watchers": [
+                            { "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" }, "kind": 7 },
+                            { "globPattern": { "baseUri": base_uri, "pattern": "**/*.json" }, "kind": 7 },
+                            { "globPattern": { "baseUri": base_uri, "pattern": manifest_name }, "kind": 7 },
+                            { "globPattern": { "baseUri": base_uri, "pattern": "langmeld.lock" }, "kind": 7 }
+                        ]
+                    }
+                }]
+            }
+        })]
+    }
+
+    fn reload_project(&mut self) -> Vec<Value> {
+        let Some(manifest_path) = self
+            .project
+            .as_ref()
+            .map(|project| project.manifest_path.clone())
+        else {
+            return Vec::new();
+        };
+        let snapshot = match load_project(&manifest_path) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                return vec![log_message(
+                    2,
+                    format!("project reload failed; keeping the last valid language: {error}"),
+                )];
+            }
+        };
+        if let Some(project) = &mut self.project
+            && project.snapshot.language.spec() == snapshot.language.spec()
+        {
+            project.snapshot = snapshot;
+            return Vec::new();
+        }
+        let parser = match configure_language(snapshot.language.clone()) {
+            Ok(parser) => parser,
+            Err(error) => {
+                return vec![log_message(
+                    2,
+                    format!("project reload failed; keeping the last valid language: {error}"),
+                )];
+            }
+        };
+
+        self.language = snapshot.language.clone();
+        self.parser = parser;
+        if let Some(project) = &mut self.project {
+            project.snapshot = snapshot;
+        }
+        for document in self.documents.values_mut() {
+            document.parsed = self.parser.parse(&document.source);
+        }
         self.publish_workspace_documents()
     }
 
@@ -1337,6 +1531,48 @@ fn initialize_response(
             }
         }
     })
+}
+
+fn log_message(kind: u8, message: String) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "method": "window/logMessage",
+        "params": { "type": kind, "message": message }
+    })
+}
+
+fn path_to_file_uri(path: &Path) -> Option<String> {
+    let path = path.canonicalize().ok()?;
+    let path = path.to_str()?;
+    let path = if cfg!(windows) {
+        path.replace('\\', "/")
+    } else {
+        path.to_owned()
+    };
+    let mut uri = if cfg!(windows) {
+        String::from("file:///")
+    } else {
+        String::from("file://")
+    };
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b':' | b'-' | b'.' | b'_' | b'~') {
+            uri.push(char::from(byte));
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    Some(uri)
+}
+
+fn escape_glob_literal(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '*' | '?' | '[' | ']' | '{' | '}' | '\\') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 fn hover_markdown(value: String) -> Value {
@@ -2112,7 +2348,186 @@ fn write_message<W: Write>(writer: &mut W, message: &Value) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::{fs, io::Cursor, time::SystemTime};
+
+    fn project_directory() -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after the Unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "langmeld lsp project reload-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("language/constructs"))
+            .expect("project definition directory is created");
+        fs::create_dir_all(root.join("src")).expect("project source directory is created");
+        fs::write(
+            root.join("langmeld.json"),
+            r#"{"schema_version":1,"language":"language/language.lm","source_roots":["src"]}"#,
+        )
+        .expect("project manifest is written");
+        fs::write(
+            root.join("language/language.lm"),
+            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".demo\"\n}\n",
+        )
+        .expect("language definition is written");
+        write_project_constructs(&root, "print");
+        fs::write(
+            root.join("src/main.demo"),
+            "program {\nprint \"project source\"\n}\n",
+        )
+        .expect("project source is written");
+        root
+    }
+
+    fn write_project_constructs(root: &Path, keyword: &str) {
+        fs::write(
+            root.join("language/constructs/program.lm"),
+            format!(
+                "constructs {{\n  construct program {{\n    syntax {{ default: \"program {{\" }}\n    block: [statement]\n  }}\n  construct statement {{\n    syntax {{ default: \"{keyword} {{message}}\" }}\n    fields {{ message: text required }}\n  }}\n}}\n"
+            ),
+        )
+        .expect("construct definition is written");
+    }
+
+    fn project_server(root: &Path) -> Server {
+        let manifest = root.join("langmeld.json");
+        let snapshot = load_project(&manifest).expect("project snapshot loads");
+        let parser = configure_language(snapshot.language.clone()).expect("parser configures");
+        LanguageServerConfig::new(parser)
+            .with_project_snapshot(manifest, snapshot)
+            .into_server()
+            .expect("project server configures")
+    }
+
+    fn open_document(uri: &str, version: i64, text: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": uri,
+                "languageId": "reload-demo",
+                "version": version,
+                "text": text
+            }}
+        })
+    }
+
+    fn watched_file(path: &Path) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": { "changes": [{ "uri": path_to_file_uri(path).unwrap(), "type": 2 }] }
+        })
+    }
+
+    fn diagnostics_for<'a>(messages: &'a [Value], uri: &str) -> Option<&'a Vec<Value>> {
+        messages
+            .iter()
+            .find(|message| {
+                message["method"] == "textDocument/publishDiagnostics"
+                    && message.pointer("/params/uri").and_then(Value::as_str) == Some(uri)
+            })
+            .and_then(|message| message.pointer("/params/diagnostics"))
+            .and_then(Value::as_array)
+    }
+
+    #[test]
+    fn watched_project_reload_updates_open_documents_and_keeps_last_valid_snapshot() {
+        let root = project_directory();
+        let construct_path = root.join("language/constructs/program.lm");
+        let mut server = project_server(&root);
+
+        let initialized = server.handle(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "capabilities": { "workspace": {
+                "didChangeWatchedFiles": { "dynamicRegistration": true }
+            }}}
+        }));
+        assert_eq!(
+            initialized[0]["result"]["capabilities"]["textDocumentSync"]["change"],
+            2
+        );
+        let registration = server.handle(&json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {}
+        }));
+        assert_eq!(registration.len(), 1);
+        assert_eq!(registration[0]["method"], "client/registerCapability");
+        let watchers =
+            &registration[0]["params"]["registrations"][0]["registerOptions"]["watchers"];
+        assert!(
+            watchers
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.lm" })
+        );
+        assert!(
+            watchers
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "langmeld.json" })
+        );
+        assert_eq!(
+            watchers[0]["globPattern"]["baseUri"],
+            path_to_file_uri(&root).unwrap()
+        );
+        assert!(
+            watchers[0]["globPattern"]["baseUri"]
+                .as_str()
+                .unwrap()
+                .contains("%20")
+        );
+
+        let old_uri = "file:///reload-old.demo";
+        let old_open = server.handle(&open_document(
+            old_uri,
+            1,
+            "program {\nprint \"old syntax\"\n}\n",
+        ));
+        assert_eq!(diagnostics_for(&old_open, old_uri).unwrap().len(), 0);
+
+        write_project_constructs(&root, "say");
+        let reloaded = server.handle(&watched_file(&construct_path));
+        let old_diagnostics = diagnostics_for(&reloaded, old_uri).unwrap();
+        assert!(old_diagnostics.iter().any(|item| item["severity"] == 1));
+        let new_uri = "file:///reload-new.demo";
+        let new_open = server.handle(&open_document(
+            new_uri,
+            1,
+            "program {\nsay \"new syntax\"\n}\n",
+        ));
+        assert_eq!(diagnostics_for(&new_open, new_uri).unwrap().len(), 0);
+
+        fs::write(&construct_path, "constructs {\n").expect("invalid edit is written");
+        let failed = server.handle(&watched_file(&construct_path));
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0]["method"], "window/logMessage");
+        assert_eq!(failed[0]["params"]["type"], 2);
+        assert!(
+            failed[0]["params"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("keeping the last valid language")
+        );
+
+        let retained_uri = "file:///reload-retained.demo";
+        let retained = server.handle(&open_document(
+            retained_uri,
+            1,
+            "program {\nsay \"still valid\"\n}\n",
+        ));
+        assert_eq!(diagnostics_for(&retained, retained_uri).unwrap().len(), 0);
+        assert!(old_diagnostics.iter().any(|item| item["severity"] == 1));
+
+        fs::remove_dir_all(root).expect("temporary project is removed");
+    }
 
     #[test]
     fn lsp_positions_count_utf16_code_units() {

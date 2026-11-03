@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser};
-use langmeld_language::{load_language, load_project};
-use langmeld_lsp::serve;
+use langmeld_language::load_language;
+use langmeld_lsp::{serve, serve_project};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -28,26 +28,22 @@ struct LanguageInput {
 
 fn main() -> std::process::ExitCode {
     let arguments = Cli::parse();
-    let language = if let Some(path) = arguments.input.language {
-        load_language(&path)
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    let result = if let Some(path) = arguments.input.language {
+        match load_language(&path) {
+            Ok(language) => serve(stdin.lock(), stdout.lock(), language),
+            Err(error) => Err(error),
+        }
     } else {
         let path = arguments
             .input
             .project
             .as_deref()
             .expect("Clap requires a language definition or project");
-        load_project(path).map(|project| project.language)
+        serve_project(stdin.lock(), stdout.lock(), path)
     };
-    let language = match language {
-        Ok(language) => language,
-        Err(error) => {
-            eprintln!("langmeld-lsp: {error}");
-            return std::process::ExitCode::from(2);
-        }
-    };
-    let stdin = std::io::stdin();
-    let stdout = std::io::stdout();
-    match serve(stdin.lock(), stdout.lock(), language) {
+    match result {
         Ok(true) => std::process::ExitCode::SUCCESS,
         Ok(false) => {
             eprintln!("langmeld-lsp: client exited without shutdown");

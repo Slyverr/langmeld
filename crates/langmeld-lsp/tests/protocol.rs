@@ -23,6 +23,7 @@ impl TempLanguage {
             r#"language Demo {
   version: "0.1.0"
   root: program
+  source_extension: ".demo"
   construct program {
     syntax { default: "program {" }
     block: [statement]
@@ -189,6 +190,23 @@ impl TempLanguage {
         )
         .expect("continuation language definition is written");
     }
+
+    fn as_project(&self) -> PathBuf {
+        let root = self.0.parent().expect("language has project root");
+        fs::create_dir_all(root.join("src")).expect("project source root is created");
+        fs::write(
+            root.join("src/main.demo"),
+            "program {\nprint \"project source\"\n}\n",
+        )
+        .expect("project source is written");
+        let manifest = root.join("langmeld.json");
+        fs::write(
+            &manifest,
+            r#"{"schema_version":1,"language":"language.lm","source_roots":["src"]}"#,
+        )
+        .expect("project manifest is written");
+        manifest
+    }
 }
 
 impl Drop for TempLanguage {
@@ -255,6 +273,74 @@ fn read_frames(bytes: &[u8]) -> Vec<Value> {
         messages.push(serde_json::from_slice(&body).expect("response body is JSON"));
     }
     messages
+}
+
+#[test]
+fn project_mode_registers_language_and_manifest_watchers() {
+    let language = TempLanguage::new();
+    let manifest = language.as_project();
+    let messages = [
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": { "capabilities": { "workspace": {
+                "didChangeWatchedFiles": { "dynamicRegistration": true }
+            }}}
+        }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .arg("--project")
+        .arg("langmeld.json")
+        .current_dir(manifest.parent().expect("project has a root"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("project server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("protocol requests are written");
+    let output = child.wait_with_output().expect("project server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    assert_eq!(responses.len(), 3);
+    assert_eq!(responses[0]["id"], 1);
+    assert_eq!(responses[1]["method"], "client/registerCapability");
+    let watchers = responses[1]["params"]["registrations"][0]["registerOptions"]["watchers"]
+        .as_array()
+        .expect("watchers are registered");
+    assert!(
+        watchers
+            .iter()
+            .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.lm" })
+    );
+    assert!(
+        watchers
+            .iter()
+            .any(|watcher| { watcher["globPattern"]["pattern"] == "langmeld.json" })
+    );
+    assert!(watchers.iter().all(|watcher| {
+        watcher["globPattern"]["baseUri"]
+            .as_str()
+            .is_some_and(|uri| uri.starts_with("file://"))
+    }));
+    assert_eq!(responses[2]["id"], 2);
 }
 
 #[test]

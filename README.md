@@ -50,8 +50,10 @@ suggests enum values and in-scope symbols in captured fields,
 offers parser-context enum values, simple child-construct snippets, and
 parser-derived continuations for incomplete patterns with unambiguous literal
 and field sequences. Embedded Rust hosts can register bounded, typed completion
-providers. Unopened project-file navigation, project watchers, and WASM adapters
-remain pending.
+providers. In project mode, clients that support dynamic watched-file
+registration receive watches for language definitions, the manifest, and the
+definition lock; valid changes reload the language and reparse open documents.
+Unopened project-file navigation and WASM adapters remain pending.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.

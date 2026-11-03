@@ -71,9 +71,12 @@ language inside WebAssembly requires a compatible host and runtime build.
 - The language server's generic navigation and rename depend on generic symbol
   resolution. Host-specific resolvers need an explicit safe edit contract before
   rename can support them.
-- Manifest extensions feed generated metadata and editor grammars. A fresh LSP
-  server start after adding an extension includes its child-construct
-  completion; automatic extension watching and hot reload remain pending.
+- Manifest extensions feed generated metadata and editor grammars. In project
+  mode, the LSP registers watches for language definitions, the manifest, and
+  the definition lock. A valid reload reparses open documents; an invalid edit
+  keeps the last valid snapshot and reports the reload failure to the client.
+  Standalone-language mode has no project watcher, and the standalone server
+  still cannot reload Rust-host callbacks.
 - More source-language consumers, language-server features, continuous
   integration across supported platforms, and measured performance baselines
   would improve confidence and usability. The current examples cover
@@ -108,6 +111,9 @@ The workspace checks completed on 2026-11-03:
 - The C signature consumer passes integration tests, strict Clippy, formatting,
   and project CLI `check --project` / `run --project`. Tests cover unsupported
   type diagnostics and compile generated Rust FFI declarations with `rustc`.
+- The LSP package tests cover dynamic watcher registration, successful language
+  reload with open-document reparsing, and invalid reload retention; the project
+  child-process protocol test and strict Clippy pass.
 
 The generated Tree-sitter grammar has not been validated with the Tree-sitter
 CLI. Run that check before relying on generated grammars in an editor.
