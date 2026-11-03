@@ -98,6 +98,15 @@ fn custom_c_parser_reports_unsupported_types() {
 }
 
 #[test]
+fn custom_c_parser_is_rejected_by_declarative_tree_sitter_export() {
+    let language = load_language().expect("compiled language model loads");
+    let error = langmeld::language::generate_tree_sitter(&language)
+        .expect_err("a custom C parser cannot be represented by the declarative exporter");
+    assert!(error.contains("custom parser `c_translation_unit`"));
+    assert!(error.contains("construct `translation_unit`"));
+}
+
+#[test]
 fn embedded_lsp_uses_the_host_registered_c_parser() {
     let language = load_language().expect("compiled language model loads");
     let parser = csignatures_language::parser_for(language)
