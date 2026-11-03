@@ -1,0 +1,53 @@
+constructs {
+construct symbol_block {
+  syntax {
+    root: "symbol {"
+  }
+  block: [symbol_kind, symbol_name, symbol_scope, symbol_scope_name, symbol_scope_lookup]
+}
+
+construct symbol_kind {
+  syntax {
+    default: "kind: {value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+
+construct symbol_name {
+  syntax {
+    default: "name: {value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+
+construct symbol_scope {
+  syntax {
+    default: "scope: {value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+
+construct symbol_scope_name {
+  syntax {
+    default: "scope_name: {value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+
+construct symbol_scope_lookup {
+  syntax {
+    default: "scope_lookup: {value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+}

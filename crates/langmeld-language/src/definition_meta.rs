@@ -1,21 +1,63 @@
 //! Rust-authored bootstrap grammar for the readable `.lm` definition format.
 
+mod embedded_sources {
+    include!(concat!(env!("OUT_DIR"), "/definition_meta_sources.rs"));
+}
 mod api;
 
-use langmeld_core::{SpecError, ValidatedLanguageSpec};
+use langmeld_core::{SourceFile, SpecError, ValidatedLanguageSpec};
 use std::sync::OnceLock;
 
-/// Builds and validates the trusted grammar used to parse `.lm` definitions.
+/// Rebuilds the checked-in `.lm` grammar and verifies it against its Rust seed.
 ///
-/// The Rust builders are the bootstrap seed. Later stages parse the embedded
-/// modular `.lm` description through this grammar and compare its converted
-/// model with the seed.
+/// Rust builders provide the bootstrap grammar; the generic parser reads the
+/// embedded modular source and the converter rebuilds the canonical model.
+/// Initialization fails if parsing fails or the rebuilt model drifts from the
+/// seed.
 ///
 /// # Errors
 /// Returns the language-specification validation errors if the seed is invalid.
 pub fn langmeld_definition_language() -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
     static LANGUAGE: OnceLock<Result<ValidatedLanguageSpec, Vec<SpecError>>> = OnceLock::new();
-    LANGUAGE.get_or_init(api::build).clone()
+    LANGUAGE.get_or_init(build_language).clone()
+}
+
+fn build_language() -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
+    let seed = api::build()?;
+    let prepared = crate::PreparedLanguage::new(seed.clone()).map_err(|error| {
+        vec![SpecError {
+            code: "LM1080",
+            message: error.to_string(),
+        }]
+    })?;
+    let root = SourceFile::new("language/language.lm", embedded_sources::ROOT);
+    let modules = embedded_sources::MODULES
+        .iter()
+        .map(|(path, text)| SourceFile::new(*path, *text))
+        .collect::<Vec<_>>();
+    let rebuilt = super::definition_tree::parse_language_definition_modules_with_prepared(
+        &root,
+        &modules,
+        &prepared,
+        crate::DefinitionLimits::default(),
+    )
+    .map_err(|diagnostics| {
+        diagnostics
+            .into_iter()
+            .map(|diagnostic| SpecError {
+                code: "LM1080",
+                message: format!("{}: {}", diagnostic.code, diagnostic.message),
+            })
+            .collect::<Vec<_>>()
+    })?;
+    if rebuilt.spec() != seed.spec() {
+        return Err(vec![SpecError {
+            code: "LM1081",
+            message: "the embedded `.lm` grammar differs from its Rust API bootstrap definition"
+                .to_owned(),
+        }]);
+    }
+    Ok(rebuilt)
 }
 
 /// Returns the process-wide prepared parser for `.lm` definition source.
@@ -67,5 +109,13 @@ mod tests {
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
         assert_eq!(parsed.program.nodes[0].construct, "language");
         assert_eq!(parsed.program.nodes[0].children.len(), 2);
+    }
+
+    #[test]
+    fn embedded_definition_rebuilds_the_rust_seed_exactly() {
+        let seed = super::api::build().expect("the Rust API seed validates");
+        let rebuilt = langmeld_definition_language()
+            .expect("the embedded modules parse and match the Rust API seed");
+        assert_eq!(rebuilt.spec(), seed.spec());
     }
 }

@@ -15,12 +15,29 @@ pub(super) fn convert_language(
     node: &AstNode,
     source: &SourceFile,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    convert_language_module_specs(std::iter::once((node, source)))?
+    convert_language_modules(std::iter::once((node, source)))
+}
+
+pub(super) fn convert_language_modules<'a>(
+    modules: impl IntoIterator<Item = (&'a AstNode, &'a SourceFile)>,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let modules: Vec<_> = modules.into_iter().collect();
+    let root_span = modules.last().map_or_else(
+        || {
+            Err(vec![Diagnostic::error(
+                "LMBOOT001",
+                "definition project contains no language modules",
+                Span::new(0, 0),
+            )])
+        },
+        |(root, _)| Ok(root.span),
+    )?;
+    convert_language_module_specs(modules)?
         .validate()
         .map_err(|errors| {
             errors
                 .into_iter()
-                .map(|issue| Diagnostic::error(issue.code, issue.message, node.span))
+                .map(|issue| Diagnostic::error(issue.code, issue.message, root_span))
                 .collect()
         })
 }

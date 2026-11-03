@@ -1,0 +1,37 @@
+constructs {
+construct syntax_block {
+  syntax {
+    root: "syntax {"
+  }
+  block: [syntax_variant]
+}
+
+construct syntax_variant {
+  syntax {
+    named: "{id}: {pattern}"
+    unnamed: "{pattern}"
+  }
+  fields {
+    id: identifier optional
+    pattern: string required
+  }
+}
+
+construct syntax_list_decl {
+  syntax {
+    default: "syntax: \\[({patterns}[,])*\\]"
+  }
+  fields {
+    patterns: list<string> optional
+  }
+}
+
+construct block_declaration {
+  syntax {
+    default: "block: \\[({allowed}[,])*\\]"
+  }
+  fields {
+    allowed: list<identifier> optional
+  }
+}
+}

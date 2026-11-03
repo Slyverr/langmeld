@@ -1,0 +1,49 @@
+constructs {
+construct enum_decl {
+  syntax {
+    root: "enum {id} {"
+  }
+  fields {
+    id: identifier required
+  }
+  block: [enum_value]
+}
+
+construct enum_value {
+  syntax {
+    default: "{value}"
+  }
+  fields {
+    value: identifier required
+  }
+}
+
+construct record_type {
+  syntax {
+    root: "type {id} {"
+  }
+  fields {
+    id: identifier required
+  }
+  block: [field, typed_field, property_use]
+}
+
+construct properties_bundle {
+  syntax {
+    root: "properties {id} {"
+  }
+  fields {
+    id: identifier required
+  }
+  block: [field, typed_field, property_use]
+}
+
+construct property_use {
+  syntax {
+    default: "use {id}"
+  }
+  fields {
+    id: identifier required
+  }
+}
+}

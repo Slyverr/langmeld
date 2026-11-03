@@ -47,7 +47,31 @@ pub(crate) fn parse_language_definition_with_prepared_and_limits(
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     let root = parse_definition_tree(source, prepared, limits)?;
-    if let Some(import) = root
+    reject_imports(&root, source)?;
+    conversion::convert_language(&root, source)
+}
+
+pub(crate) fn parse_language_definition_modules_with_prepared(
+    root_source: &SourceFile,
+    modules: &[SourceFile],
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let mut parsed_modules = Vec::with_capacity(modules.len() + 1);
+    for module in modules {
+        let ast = parse_definition_tree(module, prepared, limits)?;
+        reject_imports(&ast, module)?;
+        parsed_modules.push((ast, module));
+    }
+    let root = parse_definition_tree(root_source, prepared, limits)?;
+    reject_imports(&root, root_source)?;
+    parsed_modules.push((root, root_source));
+
+    conversion::convert_language_modules(parsed_modules.iter().map(|(ast, source)| (ast, *source)))
+}
+
+fn reject_imports(node: &AstNode, source: &SourceFile) -> Result<(), Vec<Diagnostic>> {
+    if let Some(import) = node
         .children
         .iter()
         .find(|declaration| declaration.construct == "import_decl")
@@ -61,7 +85,7 @@ pub(crate) fn parse_language_definition_with_prepared_and_limits(
             import.span,
         )]);
     }
-    conversion::convert_language(&root, source)
+    Ok(())
 }
 
 fn parse_limits(limits: DefinitionLimits) -> ParseLimits {

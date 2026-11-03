@@ -1,0 +1,38 @@
+constructs {
+construct construct {
+  syntax {
+    root: "construct {id} {"
+  }
+  fields {
+    id: identifier required
+  }
+  block: [fields_block, syntax_block, syntax_list_decl, block_declaration, symbol_block, implements_declaration, custom_parser_decl]
+}
+
+construct custom_parser_decl {
+  syntax {
+    default: "custom_parser: {id}"
+  }
+  fields {
+    id: identifier required
+  }
+}
+
+construct implements_declaration {
+  syntax {
+    single: "implements: {category}"
+    list: "implements: \\[({categories}[,])*\\]"
+  }
+  fields {
+    category: identifier optional
+    categories: list<identifier> optional
+  }
+}
+
+construct fields_block {
+  syntax {
+    root: "fields {"
+  }
+  block: [field, typed_field, property_use]
+}
+}

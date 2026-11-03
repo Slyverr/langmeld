@@ -1,0 +1,118 @@
+constructs {
+construct typed_field {
+  syntax {
+    recursive: "field {name} {requirement}[ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] {"
+  }
+  fields {
+    name: identifier required
+    requirement: enum [required, optional] required
+    min: number optional
+    max: number optional
+    min_length: number optional
+    max_length: number optional
+    min_items: number optional
+    max_items: number optional
+  }
+  block: [field_type_scalar, field_type_enum, field_type_reference, field_type_list, field_type_map, field_default_text, field_default_number, field_default_identifier]
+}
+
+construct field_type_scalar {
+  syntax {
+    scalar: "scalar: {kind}"
+  }
+  fields { kind: identifier required }
+}
+
+construct field_type_enum {
+  syntax {
+    enum: "enum: \\[({values}[,])*\\]"
+  }
+  fields { values: list<identifier> optional }
+}
+
+construct field_type_reference {
+  syntax {
+    reference: "reference: {item_kind}"
+  }
+  fields { item_kind: identifier required }
+}
+
+construct field_type_list {
+  syntax {
+    list: "list {"
+  }
+  block: [field_type_scalar, field_type_enum, field_type_reference, field_type_list, field_type_map]
+}
+
+construct field_type_map {
+  syntax {
+    map: "map<{key_kind}> {"
+  }
+  fields { key_kind: enum [identifier, string] required }
+  block: [field_type_scalar, field_type_enum, field_type_reference, field_type_list, field_type_map]
+}
+
+construct field_default_text {
+  syntax {
+    text: "default_text: {value}"
+  }
+  fields { value: string required }
+}
+
+construct field_default_number {
+  syntax {
+    number: "default_number: {value}"
+  }
+  fields { value: number required }
+}
+
+construct field_default_identifier {
+  syntax {
+    identifier: "default_identifier: {value}"
+  }
+  fields { value: identifier required }
+}
+
+construct field {
+  syntax {
+    inline_enum: "{name}: enum {enum_values}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}]"
+    inline_enum_default: "{name}: enum {enum_values}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_identifier}"
+    reference: "{name}: ref<{item_kind}>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    reference_keyword: "{name}: reference<{item_kind}>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    list: "{name}: list<{item_kind}>[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}]"
+    list_reference: "{name}: list<ref<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    list_reference_keyword: "{name}: list<reference<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    list_inline_enum: "{name}: list<enum {enum_values}>[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}]"
+    list_properties: "{name}: list<properties {item_kind}>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    list_named_properties: "{name}: list<properties<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    nested_list: "{name}: list<list<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    map: "{name}: map<{key_kind}, {item_kind}>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    map_reference: "{name}: map<{key_kind}, ref<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    map_list: "{name}: map<{key_kind}, list<{item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    list_map: "{name}: list<map<{key_kind}, {item_kind}>>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    properties: "{name}: properties {item_kind}[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    named_properties: "{name}: properties<{item_kind}>[ {requirement}][ min_items {min_items}][ max_items {max_items}]"
+    scalar: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}]"
+    scalar_text_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_text}"
+    scalar_number_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_number}"
+    scalar_identifier_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_identifier}"
+  }
+  fields {
+    name: identifier required
+    kind: identifier optional
+    item_kind: identifier optional
+    key_kind: identifier optional
+    enum_values: list<identifier> optional
+    requirement: enum [required, optional] optional
+    min: number optional
+    max: number optional
+    min_length: number optional
+    max_length: number optional
+    min_items: number optional
+    max_items: number optional
+    default_text: string optional
+    default_number: number optional
+    default_identifier: identifier optional
+  }
+}
+}
