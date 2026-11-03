@@ -42,10 +42,11 @@ diagnostics, global literal-keyword completion, parsed-construct document
 symbols, schema-based hover, and semantic tokens. Definition and references
 work across currently open documents when the language declares symbol
 metadata. It also suggests enum values and in-scope symbols in captured fields,
-offers parser-context enum values and simple child-construct snippets, and lets
-embedded Rust hosts register bounded, typed completion providers. Generic
-multi-part missing-field snippets remain pending, as do unopened project-file
-navigation, project watchers, and WASM adapters.
+offers parser-context enum values, simple child-construct snippets, and
+parser-derived continuations for incomplete patterns with unambiguous literal
+and field sequences. Embedded Rust hosts can register bounded, typed completion
+providers. Unopened project-file navigation, project watchers, and WASM adapters
+remain pending.
 Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
 a configured parser and registered analysis callbacks. The standalone LSP
 binary remains for declarative-only languages.

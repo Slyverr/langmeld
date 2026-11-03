@@ -91,6 +91,30 @@ impl TempLanguage {
         )
         .expect("enum language definition is written");
     }
+
+    fn write_continuation_language(&self) {
+        fs::write(
+            &self.0,
+            r#"language Functions {
+  version: "0.1.0"
+  root: program
+  construct program {
+    syntax { default: "program {" }
+    block: [function]
+  }
+  construct function {
+    syntax { default: "fn {name}\\({parameters}\\) -> {result}" }
+    fields {
+      name: identifier required
+      parameters: identifier required
+      result: identifier required
+    }
+  }
+}
+"#,
+        )
+        .expect("continuation language definition is written");
+    }
 }
 
 impl Drop for TempLanguage {
@@ -543,6 +567,88 @@ fn child_process_completes_partial_enum_values_and_child_construct_snippets() {
         "paint ${1:color}"
     );
     assert_eq!(child_completion["result"][0]["insertTextFormat"], 2);
+}
+
+#[test]
+fn child_process_completes_incomplete_pattern_without_replacing_prior_fields() {
+    let language = TempLanguage::new();
+    language.write_continuation_language();
+    let uri = format!(
+        "file://{}",
+        language.0.with_file_name("functions.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": { "textDocument": {
+                "uri": uri,
+                "languageId": "functions",
+                "version": 1,
+                "text": "program {\nfn main\n}\n"
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/completion",
+            "params": {
+                "textDocument": { "uri": uri },
+                "position": { "line": 1, "character": 7 }
+            }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("completion requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let completion = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("completion response exists");
+    let item = completion["result"]
+        .as_array()
+        .expect("completion items are an array")
+        .iter()
+        .find(|item| item["label"] == "Continue syntax")
+        .expect("parser continuation is offered");
+    assert_eq!(
+        item["textEdit"]["newText"],
+        "(${1:parameters}) -> ${2:result}"
+    );
+    assert_eq!(item["insertTextFormat"], 2);
+    assert_eq!(
+        item["textEdit"]["range"]["start"],
+        json!({ "line": 1, "character": 7 })
+    );
+    assert_eq!(
+        item["textEdit"]["range"]["end"],
+        json!({ "line": 1, "character": 7 })
+    );
 }
 
 #[test]

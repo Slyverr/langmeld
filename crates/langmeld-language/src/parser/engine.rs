@@ -402,6 +402,9 @@ impl Parser<'_> {
             .iter_mut()
             .find(|existing| existing.span == frontier.span)
         {
+            if existing.continuation != frontier.continuation {
+                existing.continuation = None;
+            }
             if existing.ambiguous || frontier.ambiguous {
                 existing.ambiguous = true;
                 return;
@@ -1073,6 +1076,7 @@ fn merge_completion_frontier(
         span: progress.span,
         ambiguous: progress.has_non_capture || overflowed || captures.len() > 1,
         captures,
+        continuation: progress.continuation,
     };
     let Some((current_position, current_frontier)) = current else {
         *current = Some((progress.token_position, candidate));
@@ -1087,7 +1091,11 @@ fn merge_completion_frontier(
     }
     if current_frontier.span != candidate.span {
         current_frontier.ambiguous = true;
+        current_frontier.continuation = None;
         return;
+    }
+    if current_frontier.continuation != candidate.continuation {
+        current_frontier.continuation = None;
     }
     if current_frontier.ambiguous || candidate.ambiguous {
         current_frontier.ambiguous = true;

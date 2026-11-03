@@ -132,6 +132,11 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .unwrap()
     );
     assert!(
+        capabilities["editor_support"]["lsp_parser_continuation_completion"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
         capabilities["editor_support"]["lsp_document_symbols"]
             .as_bool()
             .unwrap()

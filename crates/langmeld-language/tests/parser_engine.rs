@@ -86,6 +86,50 @@ fn parser_retains_expected_capture_and_block_contexts_for_completion() {
     }));
 }
 
+#[test]
+fn parser_exposes_safe_compiled_suffix_for_incomplete_patterns() {
+    use langmeld_language::CompletionPart;
+
+    let spec = LanguageBuilder::new("FunctionCompletions")
+        .version("0.1.0")
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["function"]),
+        )
+        .construct(
+            ConstructBuilder::new("function")
+                .syntax(r"fn {name}\({parameters}\) -> {result}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .field(FieldSpec::required("parameters", FieldKind::Identifier))
+                .field(FieldSpec::required("result", FieldKind::Identifier)),
+        )
+        .build()
+        .expect("function completion language is valid");
+    let parser = PreparedLanguage::new(spec)
+        .expect("function syntax compiles")
+        .with_custom_parsers([])
+        .expect("no custom parsers are required");
+    let source = SourceFile::new("function.lang", "program {\nfn main\n}\n");
+    let parsed = parser.parse(&source);
+    let frontier = parsed
+        .completion_frontiers
+        .iter()
+        .find(|frontier| frontier.continuation.is_some())
+        .expect("the incomplete declaration has a safe completion frontier");
+    assert_eq!(
+        frontier.continuation,
+        Some(vec![
+            CompletionPart::Literal("(".to_owned()),
+            CompletionPart::Capture("parameters".to_owned()),
+            CompletionPart::Literal(")".to_owned()),
+            CompletionPart::Literal("->".to_owned()),
+            CompletionPart::Capture("result".to_owned()),
+        ])
+    );
+}
+
 fn configured() -> langmeld_language::ConfiguredLanguageParser {
     language()
         .with_custom_parsers([CustomConstructParser::new("host-special", |_, _| Ok(None))])

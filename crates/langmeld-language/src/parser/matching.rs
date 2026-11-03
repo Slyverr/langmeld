@@ -7,7 +7,8 @@ use langmeld_core::{
 };
 
 use crate::{
-    CapturedValue, LanguageToken, LanguageTokenKind as TokenKind, MapEntry, Value, ValueType,
+    CapturedValue, CompletionPart, LanguageToken, LanguageTokenKind as TokenKind, MapEntry, Value,
+    ValueType,
 };
 
 use super::pattern::PatternPart;
@@ -30,6 +31,56 @@ pub(super) struct PatternProgress {
     pub(super) span: Span,
     pub(super) captures: Vec<CaptureAttempt>,
     pub(super) has_non_capture: bool,
+    pub(super) continuation: Option<Vec<CompletionPart>>,
+}
+
+const MAX_COMPLETION_PARTS: usize = 64;
+const MAX_COMPLETION_BYTES: usize = 2048;
+
+fn completion_continuation(
+    parts: &[PatternPart],
+    continuation: &[PatternPart],
+) -> Option<Vec<CompletionPart>> {
+    let mut result = Vec::new();
+    let mut bytes = 0_usize;
+    for part in parts.iter().chain(continuation) {
+        let part_bytes = match part {
+            PatternPart::Literal(TokenKind::Identifier(text) | TokenKind::Number(text)) => {
+                text.len()
+            }
+            PatternPart::Literal(TokenKind::Punctuation(character)) => character.len_utf8(),
+            PatternPart::Literal(TokenKind::Arrow) => 2,
+            PatternPart::Literal(_) => return None,
+            PatternPart::Capture { field, .. } => field.len(),
+            PatternPart::Optional(_)
+            | PatternPart::Choice(_)
+            | PatternPart::ZeroOrMore { .. }
+            | PatternPart::OneOrMore { .. } => return None,
+        };
+        if result.len() == MAX_COMPLETION_PARTS
+            || bytes.saturating_add(part_bytes) > MAX_COMPLETION_BYTES
+        {
+            return None;
+        }
+        let completion_part = match part {
+            PatternPart::Literal(TokenKind::Identifier(text) | TokenKind::Number(text)) => {
+                CompletionPart::Literal(text.clone())
+            }
+            PatternPart::Literal(TokenKind::Punctuation(character)) => {
+                CompletionPart::Literal(character.to_string())
+            }
+            PatternPart::Literal(TokenKind::Arrow) => CompletionPart::Literal("->".to_owned()),
+            PatternPart::Literal(_) => return None,
+            PatternPart::Capture { field, .. } => CompletionPart::Capture(field.clone()),
+            PatternPart::Optional(_)
+            | PatternPart::Choice(_)
+            | PatternPart::ZeroOrMore { .. }
+            | PatternPart::OneOrMore { .. } => return None,
+        };
+        bytes += part_bytes;
+        result.push(completion_part);
+    }
+    (!result.is_empty()).then_some(result)
 }
 
 impl PatternMatch {
@@ -218,14 +269,14 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
     ) -> Result<Option<usize>, Diagnostic> {
         self.step(position)?;
         let Some((part, rest)) = parts.split_first() else {
-            self.observe_progress(position, None);
+            self.observe_progress(position, parts, continuation);
             return if continuation.is_empty() {
                 Ok(Some(position))
             } else {
                 self.match_parts(continuation, position, fields, &[])
             };
         };
-        self.observe_progress(position, Some(part));
+        self.observe_progress(position, parts, continuation);
         match part {
             PatternPart::Literal(expected) => {
                 if self
@@ -310,14 +361,24 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
         }
     }
 
-    fn observe_progress(&mut self, position: usize, part: Option<&PatternPart>) {
+    fn observe_progress(
+        &mut self,
+        position: usize,
+        parts: &[PatternPart],
+        continuation: &[PatternPart],
+    ) {
         let Some(token) = self.tokens.get(position) else {
             return;
         };
+        let suffix = completion_continuation(parts, continuation);
+        let part = parts.first();
         match self.progress.as_mut() {
             Some(progress) if position < progress.token_position => {}
             Some(progress) if position == progress.token_position => {
                 record_expected_part(progress, part);
+                if progress.continuation != suffix {
+                    progress.continuation = None;
+                }
             }
             _ => {
                 let mut progress = PatternProgress {
@@ -325,6 +386,7 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
                     span: token.span,
                     captures: Vec::new(),
                     has_non_capture: false,
+                    continuation: suffix,
                 };
                 record_expected_part(&mut progress, part);
                 self.progress = Some(progress);

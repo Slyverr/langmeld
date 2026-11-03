@@ -7,10 +7,10 @@ use std::{
 
 use langmeld_core::{BehaviorStage, Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use langmeld_language::{
-    AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, ConfiguredLanguageParser,
-    ConfiguredSemanticHook, ConfiguredSemanticHookRegistration, ParseResult, PreparedLanguage,
-    Program, SemanticHook, SemanticHookRegistration, WorkspaceAnalysis,
-    WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
+    AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
+    ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
+    ParseResult, PreparedLanguage, Program, SemanticHook, SemanticHookRegistration,
+    WorkspaceAnalysis, WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
     WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
     analyze_workspace_with_host_callbacks,
 };
@@ -987,6 +987,24 @@ impl Server {
                 }
             }
         }
+        if items.len() < MAX_COMPLETION_ITEMS
+            && let Some(frontier) = frontier
+            && let Some(parts) = &frontier.continuation
+            && let Some(snippet) = completion_continuation_snippet(parts)
+            && let Some(replacement) =
+                continuation_replacement_range(frontier.span, offset, word_start)
+            && let Some(mut item) = completion_item(
+                "Continue syntax",
+                &snippet,
+                CompletionItemKind::Text,
+                None,
+                replacement,
+                text,
+            )
+        {
+            item["insertTextFormat"] = json!(2);
+            push_unique_completion(&mut items, &mut labels, item);
+        }
         if !has_frontier && items.len() < MAX_COMPLETION_ITEMS {
             let spec = self.language.spec();
             let block = document
@@ -1593,6 +1611,67 @@ fn construct_pattern_snippet(pattern: &str) -> Option<String> {
     Some(output)
 }
 
+fn completion_continuation_snippet(parts: &[CompletionPart]) -> Option<String> {
+    let mut output = String::new();
+    let mut tab_stop = 1;
+    let mut previous = None::<String>;
+    for part in parts {
+        let current = match part {
+            CompletionPart::Literal(value) => value.as_str(),
+            CompletionPart::Capture(value) => value.as_str(),
+        };
+        let word_like = |value: &str| {
+            value
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_alphanumeric() || character == '_')
+        };
+        if let Some(previous) = previous.as_deref()
+            && (previous == "->"
+                || current == "->"
+                || (word_like(previous) && word_like(current))
+                || matches!(previous, "," | ";"))
+        {
+            output.push(' ');
+        }
+        match part {
+            CompletionPart::Literal(value) => {
+                for character in value.chars() {
+                    push_snippet_literal(&mut output, character);
+                }
+            }
+            CompletionPart::Capture(field) => {
+                output.push_str(&format!("${{{tab_stop}:"));
+                for character in field.chars() {
+                    push_snippet_literal(&mut output, character);
+                }
+                output.push('}');
+                tab_stop += 1;
+            }
+        }
+        if output.len() > MAX_COMPLETION_INSERT_BYTES {
+            return None;
+        }
+        previous = Some(current.to_owned());
+    }
+    (!output.is_empty()).then_some(output)
+}
+
+fn continuation_replacement_range(
+    frontier: Span,
+    offset: usize,
+    word_start: usize,
+) -> Option<Span> {
+    if frontier.start > frontier.end || offset > frontier.end {
+        return None;
+    }
+    if frontier.start < offset {
+        Some(Span::new(word_start.max(frontier.start), offset))
+    } else {
+        Some(Span::new(offset, offset))
+    }
+}
+
 fn push_snippet_literal(output: &mut String, value: char) {
     if matches!(value, '$' | '}' | '\\') {
         output.push('\\');
@@ -2049,6 +2128,38 @@ mod tests {
         assert_eq!(
             construct_pattern_snippet("block {"),
             Some("block {".to_owned())
+        );
+    }
+
+    #[test]
+    fn parser_continuation_snippets_render_fields_literals_and_spacing() {
+        let snippet = completion_continuation_snippet(&[
+            CompletionPart::Literal("fn".to_owned()),
+            CompletionPart::Capture("name".to_owned()),
+            CompletionPart::Literal("(".to_owned()),
+            CompletionPart::Capture("parameters".to_owned()),
+            CompletionPart::Literal(")".to_owned()),
+            CompletionPart::Literal("->".to_owned()),
+            CompletionPart::Capture("result".to_owned()),
+        ]);
+        assert_eq!(
+            snippet,
+            Some("fn ${1:name}(${2:parameters}) -> ${3:result}".to_owned())
+        );
+    }
+
+    #[test]
+    fn parser_continuation_snippets_escape_snippet_metacharacters_and_bound_size() {
+        assert_eq!(
+            completion_continuation_snippet(&[
+                CompletionPart::Capture("field$name".to_owned()),
+                CompletionPart::Literal("}".to_owned()),
+            ]),
+            Some(r"${1:field\$name}\}".to_owned())
+        );
+        assert_eq!(
+            completion_continuation_snippet(&[CompletionPart::Literal("x".repeat(4097))]),
+            None
         );
     }
 

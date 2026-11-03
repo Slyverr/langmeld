@@ -827,6 +827,10 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
         serde_json::Value::Bool(true)
     );
     assert_eq!(
+        value["current_capabilities"]["lsp_parser_continuation_completion"],
+        serde_json::Value::Bool(true)
+    );
+    assert_eq!(
         value["current_capabilities"]["lsp_document_symbols"],
         serde_json::Value::Bool(true)
     );

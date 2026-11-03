@@ -110,6 +110,7 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
             "lsp_contextual_completion": lsp_contextual_completion
                 || spec.constructs.iter().flat_map(|construct| &construct.fields)
                     .any(|field| language_kind_has_reference(&field.kind)),
+            "lsp_parser_continuation_completion": true,
             "lsp_navigation": lsp_navigation,
             "lsp_navigation_open_documents_only": lsp_navigation,
             "wasm_implemented": false,

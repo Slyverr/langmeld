@@ -41,6 +41,17 @@ pub struct CompletionFrontier {
     pub ambiguous: bool,
     /// Schema fields that can continue this prefix.
     pub captures: Vec<ExpectedCapture>,
+    /// Bounded, unambiguous continuation from this point in a simple pattern.
+    pub continuation: Option<Vec<CompletionPart>>,
+}
+
+/// One literal or field placeholder in a parser-derived completion continuation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CompletionPart {
+    /// Literal source text required by the compiled pattern.
+    Literal(String),
+    /// A schema field to insert as an editable snippet placeholder.
+    Capture(String),
 }
 
 /// One declared field expected at an incomplete grammar frontier.

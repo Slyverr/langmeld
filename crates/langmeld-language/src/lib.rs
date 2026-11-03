@@ -41,9 +41,9 @@ pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
 };
 pub use model::{
-    AstNode, CapturedValue, CompletionBlockContext, CompletionFrontier, CustomConstructMatch,
-    CustomConstructParser, CustomConstructParserFn, ExpectedCapture, HostData, MapEntry,
-    ParseResult, Program, Value,
+    AstNode, CapturedValue, CompletionBlockContext, CompletionFrontier, CompletionPart,
+    CustomConstructMatch, CustomConstructParser, CustomConstructParserFn, ExpectedCapture,
+    HostData, MapEntry, ParseResult, Program, Value,
 };
 pub use parser::{
     ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
