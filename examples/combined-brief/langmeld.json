@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "language_source": {
+    "kind": "rust_host"
+  },
+  "source_roots": [
+    "examples"
+  ],
+  "extensions": [
+    "language/extensions/starter.lm"
+  ]
+}

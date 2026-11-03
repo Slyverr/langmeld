@@ -215,16 +215,24 @@ fn starter_files(
             constructs.to_owned(),
         );
     }
+    let example_source = if options.authoring == AuthoringMode::Combined {
+        format!(
+            "program {{\n  print \"Hello from {}!\"\n  note \"A note from {}.\"\n}}\n",
+            options.name, options.name
+        )
+    } else {
+        format!("program {{\n  print \"Hello from {}!\"\n}}\n", options.name)
+    };
     files.insert(
         PathBuf::from(format!("examples/hello.{extension}")),
-        format!("program {{\n  print \"Hello from {}!\"\n}}\n", options.name),
+        example_source,
     );
     Ok(files)
 }
 
 fn extension_definition(name: &str) -> String {
     format!(
-        "language {name} {{\n  version: \"0.1.0\"\n  root: program\n  construct note {{\n    syntax {{ default: \"note {{text}}\" }}\n    fields {{ text: text required }}\n  }}\n}}\n",
+        "language {name} {{\n  version: \"0.1.0\"\n  root: program\n  construct note {{\n    implements: program_statement\n    syntax {{ default: \"note {{text}}\" }}\n    fields {{ text: text required }}\n  }}\n}}\n",
     )
 }
 

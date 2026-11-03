@@ -412,6 +412,14 @@ fn init_supports_rust_and_combined_authoring_projects() {
             String::from_utf8_lossy(&checked.stderr)
         );
         if has_extension {
+            let source = fs::read_to_string(project.join("examples/hello.combinedmodel.lmprog"))
+                .expect("combined starter source is readable");
+            assert!(source.contains("note \"A note from CombinedModel.\""));
+            assert!(
+                String::from_utf8_lossy(&checked.stdout).contains("no issues found"),
+                "combined extension example was not checked:\n{}",
+                String::from_utf8_lossy(&checked.stdout)
+            );
             let extension_path = project.join("language/extensions/starter.lm");
             let mut extension =
                 fs::read_to_string(&extension_path).expect("combined authoring extension reads");

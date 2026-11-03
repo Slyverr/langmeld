@@ -1,0 +1,4 @@
+program {
+  print "Hello from Brief!"
+  note "A note from Brief."
+}

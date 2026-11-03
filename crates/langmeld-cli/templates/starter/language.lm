@@ -2,4 +2,5 @@ language @NAME@ {
   version: "0.1.0"
   root: program
   source_extension: ".@SLUG@.lmprog"
+  category program_statement {}
 }

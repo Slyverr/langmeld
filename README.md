@@ -134,6 +134,9 @@ CLI from the example directory; the example README has the commands and output.
 with the Rust API, parses zero-argument and parameterized function signatures,
 and lowers them to compilable Rust from a library-only project.
 
+[`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
+base model, a modular `.lm` extension, and a Rust host that renders Markdown.
+
 ## Workspace checks
 
 ```sh

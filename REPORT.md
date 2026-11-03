@@ -35,11 +35,9 @@ line, and language-server support.
 - **Project scaffolding:** Use the interactive or scripted `langmeld init`
   workflow to create Rust, declarative, or combined language-authoring projects.
   Generated files are kept under `.langmeld/`.
-- **Consumer examples:** The standalone declarative interpreter exercises a
-  modular `.lm` grammar, manifest extension composition, workspace reference
-  resolution, generated editor artifacts, and host-owned AST evaluation. A
-  library-only Rust API consumer parses function declarations and lowers them
-  to compilable Rust source.
+- **Consumer examples:** Independent consumers cover declarative interpretation
+  and extension composition, Rust API parsing and code generation, and combined
+  Rust-base plus `.lm` extension authoring with host-owned Markdown rendering.
 
 ## Design boundaries
 
@@ -75,11 +73,11 @@ language inside WebAssembly requires a compatible host and runtime build.
 - Manifest extensions feed generated metadata and editor grammars. A fresh LSP
   server start after adding an extension includes its child-construct
   completion; automatic extension watching and hot reload remain pending.
-- Broader consumer examples, language-server features, continuous integration
-  across supported platforms, and measured performance baselines would improve
-  confidence and usability. The current example covers one declarative
-  interpreted language and one Rust API language; combined authoring and
-  structurally different source-language consumers remain to be added.
+- Broader source-language consumers, language-server features, continuous
+  integration across supported platforms, and measured performance baselines
+  would improve confidence and usability. The current examples cover
+  declarative, Rust API, and combined authoring, but do not yet demonstrate a
+  structurally different source-language parser.
 
 ## Verification
 
@@ -103,6 +101,10 @@ The workspace checks completed on 2026-11-03:
 - The Rust API consumer passed `cargo test --offline --locked`, strict Clippy,
   formatting, and its `hello` example. Its test compiled the generated Rust
   output with `rustc`.
+- The combined consumer passes tests that parse both Rust-authored and `.lm`
+  extension constructs, then render their shared AST to Markdown. Its project
+  CLI passes `check --project` and `run --project`, and strict Clippy and
+  formatting checks pass.
 
 The generated Tree-sitter grammar has not been validated with the Tree-sitter
 CLI. Run that check before relying on generated grammars in an editor.

@@ -1,0 +1,9 @@
+language Brief {
+  version: "0.1.0"
+  root: program
+  construct note {
+    implements: program_statement
+    syntax { default: "note {text}" }
+    fields { text: text required }
+  }
+}

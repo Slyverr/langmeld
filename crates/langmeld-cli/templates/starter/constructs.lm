@@ -3,10 +3,11 @@ constructs {
     syntax {
       default: "program {"
     }
-    block: [statement]
+    block: [program_statement]
   }
 
   construct statement {
+    implements: program_statement
     syntax {
       default: "print {message}"
     }
