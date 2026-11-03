@@ -242,6 +242,12 @@ TypeScript compiler API through a persistent Bun worker, maps selected
 declarations and references into Langmeld's generic and typed ASTs, and
 demonstrates TypeScript source indexing over LSP.
 
+[`examples/python-source`](examples/python-source) uses CPython's standard
+library parser through a persistent isolated worker, maps top-level functions
+and direct relative sibling imports into Langmeld's generic and typed ASTs, and
+demonstrates Python source indexing over LSP. Python 3.11 or newer is required;
+the example README documents the indexed syntax subset.
+
 [`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
 base model, a modular `.lm` extension, and a Rust host that renders Markdown.
 

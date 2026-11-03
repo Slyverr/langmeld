@@ -1,0 +1,62 @@
+language PythonSourceIndex {
+  version: "0.1.0"
+  root: module
+
+  behavior python_project_imports: workspace_type_analysis
+
+  enum FunctionKind {
+    sync
+    async
+  }
+
+  properties Parameter {
+    name: identifier required
+    annotation: text optional
+  }
+
+  construct module {
+    custom_parser: python_module
+    fields {
+      name: identifier required
+    }
+    block: [function, python_import, call]
+  }
+
+  construct function {
+    fields {
+      name: identifier required
+      parameters: list<properties<Parameter>> optional
+      return_type: text optional
+      kind: FunctionKind required
+    }
+    symbol {
+      kind: function
+      name: name
+      scope: module
+      scope_name: name
+    }
+    block: [call, module]
+  }
+
+  construct python_import {
+    fields {
+      module: text required
+      names: list<properties<ImportedName>> required
+    }
+  }
+
+  properties ImportedName {
+    imported_name: identifier required
+    local_name: identifier required
+  }
+
+  construct call {
+    syntax {
+      python_call: "{target}"
+    }
+    fields {
+      target: ref<function> required
+      local_target: identifier optional
+    }
+  }
+}

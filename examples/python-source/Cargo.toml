@@ -1,0 +1,27 @@
+[package]
+name = "python-source-language"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+description = "A Python source index built with Langmeld."
+default-run = "python-source"
+
+[[bin]]
+name = "python-source"
+path = "src/main.rs"
+
+[[bin]]
+name = "python-source-lsp"
+path = "src/bin/lsp.rs"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+langmeld = { version = "0.1.0", path = "../../crates/langmeld", default-features = false }
+langmeld-lsp = { version = "0.1.0", path = "../../crates/langmeld-lsp" }
+serde_json = "1.0.154"
+
+[build-dependencies]
+langmeld = { version = "0.1.0", path = "../../crates/langmeld", default-features = false }
+
+[workspace]
