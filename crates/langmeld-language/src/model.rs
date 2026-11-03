@@ -127,7 +127,11 @@ impl AstNode {
         self
     }
 
-    /// Attaches an immutable host-owned value to this node.
+    /// Attaches an immutable, thread-safe host-owned value to this node.
+    ///
+    /// The value must implement `Send + Sync`. For parser-library AST types
+    /// that do not, attach an owned thread-safe projection or keep the native
+    /// value in host-owned state outside the Langmeld syntax tree.
     #[must_use]
     pub fn with_host_data<T: Any + Send + Sync + 'static>(mut self, data: T) -> Self {
         self.host_data = Some(HostData::new(data));
@@ -144,9 +148,12 @@ impl AstNode {
 /// An immutable, type-erased value owned by a language host.
 ///
 /// Langmeld clones this shared handle with syntax nodes and does not inspect the
-/// value. A host can use it to retain native AST nodes, type information, or other
-/// parser data while Langmeld operates on the node's generic projection. Equality
-/// compares shared handle identity, since the wrapped type may not implement `Eq`.
+/// value. A host can use it to retain thread-safe native AST nodes, type
+/// information, or other parser data while Langmeld operates on the node's
+/// generic projection. Parser libraries sometimes use thread-affine span
+/// handles; project those into an owned `Send + Sync` representation or retain
+/// them in host-owned state. Equality compares shared handle identity, since the
+/// wrapped type may not implement `Eq`.
 #[derive(Clone)]
 pub struct HostData {
     value: Arc<dyn Any + Send + Sync>,
@@ -277,7 +284,10 @@ impl CustomConstructMatch {
         self
     }
 
-    /// Attaches a native host AST node or another immutable parser result.
+    /// Attaches an immutable, thread-safe native host AST node or parser result.
+    ///
+    /// The value must implement `Send + Sync`; use an owned projection for
+    /// parser-library nodes that do not.
     #[must_use]
     pub fn with_host_data<T: Any + Send + Sync + 'static>(mut self, data: T) -> Self {
         self.host_data = Some(HostData::new(data));

@@ -233,6 +233,10 @@ CLI from the example directory; the example README has the commands and output.
 with the Rust API, parses zero-argument and parameterized function signatures,
 and lowers them to compilable Rust from a library-only project.
 
+[`examples/rust-source`](examples/rust-source) delegates Rust file parsing to
+`syn`, maps top-level function signatures into Langmeld's generic and typed
+ASTs, and retains a thread-safe host-owned signature projection.
+
 [`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
 base model, a modular `.lm` extension, and a Rust host that renders Markdown.
 
