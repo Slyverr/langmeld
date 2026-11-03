@@ -6,7 +6,9 @@ spans, structured diagnostics, and validated language definitions, plus
 `langmeld-expression` for configurable expression parsing and host-defined type
 and runtime rules, and `langmeld-language` for source-spanned tokens, the
 built-in lexer, custom lexer contracts, and parser resource limits. Prepared
-grammars, AST parsing, CLI, and full language tooling are still being ported.
+grammars compile declarative patterns once, expose keyword and capture
+metadata, and provide token-based block-child candidate hints. AST parsing,
+CLI, and full language tooling are still being ported.
 
 ## Workspace checks
 
