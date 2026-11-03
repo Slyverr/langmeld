@@ -692,6 +692,48 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         String::from_utf8_lossy(&up_to_date.stderr)
     );
 
+    let extension_path = project.join("extensions/local.lm");
+    let extension = fs::read_to_string(&extension_path).expect("extension definition reads");
+    let changed_extension = extension.replace("note {name}", "memo {name}");
+    assert_ne!(changed_extension, extension, "fixture syntax changes");
+    fs::write(&extension_path, changed_extension).expect("extension definition changes");
+
+    let refreshed_lock = run_lock(&project);
+    assert!(
+        refreshed_lock.status.success(),
+        "changed definitions refresh their project lock:\n{}",
+        String::from_utf8_lossy(&refreshed_lock.stderr)
+    );
+    let stale = run_generate(&project, true);
+    assert!(
+        !stale.status.success(),
+        "definition changes must invalidate generated tooling"
+    );
+    assert!(
+        String::from_utf8_lossy(&stale.stderr).contains("generated output differs"),
+        "stale output explains how to refresh it: {}",
+        String::from_utf8_lossy(&stale.stderr)
+    );
+
+    let regenerated = run_generate(&project, false);
+    assert!(
+        regenerated.status.success(),
+        "changed extension regenerates tooling:\n{}",
+        String::from_utf8_lossy(&regenerated.stderr)
+    );
+    let refreshed_grammar = fs::read_to_string(
+        project.join(".langmeld/generated/syntaxes/extensionlanguage.tmLanguage.json"),
+    )
+    .expect("refreshed editor grammar is readable");
+    assert!(
+        refreshed_grammar.contains("memo"),
+        "regenerated grammar includes the changed extension syntax"
+    );
+    assert!(
+        run_generate(&project, true).status.success(),
+        "regenerated extension tooling passes check"
+    );
+
     let listed = run_extension(&project, &["list"]);
     assert!(listed.status.success());
     assert!(String::from_utf8_lossy(&listed.stdout).contains("extensions/local.lm"));
