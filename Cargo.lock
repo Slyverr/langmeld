@@ -28,6 +28,7 @@ name = "langmeld-language"
 version = "0.1.0"
 dependencies = [
  "langmeld-core",
+ "serde_json",
 ]
 
 [[package]]
