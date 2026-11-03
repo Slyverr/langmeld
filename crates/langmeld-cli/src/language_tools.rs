@@ -93,6 +93,7 @@ fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>)
             "lsp_open_document_diagnostics": true,
             "lsp_ranged_document_changes": true,
             "lsp_literal_keyword_completion": lsp_literal_keyword_completion,
+            "lsp_document_symbols": true,
             "lsp_contextual_completion": false,
             "lsp_navigation": false,
             "wasm_implemented": false,

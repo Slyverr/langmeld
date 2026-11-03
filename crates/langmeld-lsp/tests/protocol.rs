@@ -37,6 +37,36 @@ impl TempLanguage {
         .expect("language definition is written");
         Self(path.join("language.lm"))
     }
+
+    fn write_symbol_language(&self) {
+        fs::write(
+            &self.0,
+            r#"language Symbols {
+  version: "0.1.0"
+  root: program
+  construct program {
+    syntax { default: "program {namespace} {" }
+    fields { namespace: identifier required }
+    block: [function]
+  }
+  construct function {
+    syntax { default: "fn {name} -> {result}" }
+    fields {
+      name: identifier required
+      result: identifier required
+    }
+    symbol {
+      kind: function
+      name: name
+      scope: program
+      scope_name: namespace
+    }
+  }
+}
+"#,
+        )
+        .expect("symbol language definition is written");
+    }
 }
 
 impl Drop for TempLanguage {
@@ -196,4 +226,85 @@ fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
         responses[3]["params"]["diagnostics"]
     );
     assert_eq!(responses[4]["id"], 2);
+}
+
+#[test]
+fn child_process_publishes_nested_document_symbols_with_utf16_ranges() {
+    let language = TempLanguage::new();
+    language.write_symbol_language();
+    let uri = format!(
+        "file://{}",
+        language.0.with_file_name("symbols.demo").display()
+    );
+    let messages = [
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
+        json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "symbols",
+                    "version": 1,
+                    "text": "program main {\n  fn 𐐀 -> unit\n}\n"
+                }
+            }
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/documentSymbol",
+            "params": { "textDocument": { "uri": uri } }
+        }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "shutdown", "params": null }),
+        json!({ "jsonrpc": "2.0", "method": "exit", "params": null }),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    assert_eq!(responses.len(), 4);
+    assert_eq!(
+        responses[0]["result"]["capabilities"]["documentSymbolProvider"],
+        true
+    );
+    assert_eq!(responses[2]["id"], 2);
+    let symbols = responses[2]["result"]
+        .as_array()
+        .expect("symbols are an array");
+    assert_eq!(symbols.len(), 1);
+    assert_eq!(symbols[0]["name"], "program");
+    assert_eq!(symbols[0]["children"][0]["name"], "𐐀");
+    assert_eq!(
+        symbols[0]["children"][0]["selectionRange"]["start"],
+        json!({ "line": 1, "character": 5 })
+    );
+    assert_eq!(
+        symbols[0]["children"][0]["selectionRange"]["end"],
+        json!({ "line": 1, "character": 7 })
+    );
+    assert_eq!(responses[3]["id"], 3);
 }

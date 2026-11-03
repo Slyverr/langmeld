@@ -124,6 +124,11 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .unwrap()
     );
     assert!(
+        capabilities["editor_support"]["lsp_document_symbols"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
         capabilities["not_yet_available"]
             .as_array()
             .unwrap()
@@ -142,7 +147,9 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .iter()
             .any(|item| item == "wasm_adapter")
     );
-    assert!(artifacts["agent-skill/SKILL.md"].contains("literal-keyword suggestions"));
+    let skill = &artifacts["agent-skill/SKILL.md"];
+    assert!(skill.contains("literal-keyword suggestions"));
+    assert!(skill.contains("document symbols from parsed constructs"));
     assert!(artifacts["README.md"].contains("`let {mode} {name} => {value}`"));
 
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])

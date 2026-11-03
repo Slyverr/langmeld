@@ -6,13 +6,16 @@ use std::{
 };
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
-use langmeld_language::{ConfiguredLanguageParser, PreparedLanguage, analyze_workspace};
+use langmeld_language::{
+    AstNode, ConfiguredLanguageParser, ParseResult, PreparedLanguage, analyze_workspace,
+};
 use serde_json::{Value, json};
 
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 const MAX_MESSAGE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES: usize = 8 * 1024 * 1024;
 const MAX_COMPLETION_ITEMS: usize = 200;
+const MAX_DOCUMENT_SYMBOLS: usize = 10_000;
 
 /// Creates a generic parser for a language that does not require host callbacks.
 ///
@@ -91,6 +94,7 @@ struct Server {
 struct OpenDocument {
     version: i64,
     source: SourceFile,
+    parsed: ParseResult,
 }
 
 impl Server {
@@ -133,6 +137,17 @@ impl Server {
                         "jsonrpc": "2.0",
                         "id": id,
                         "result": self.completion_items(params)
+                    })
+                })
+                .into_iter()
+                .collect(),
+            "textDocument/documentSymbol" => id
+                .map(|id| {
+                    let params = message.get("params").unwrap_or(&Value::Null);
+                    json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": self.document_symbols(params)
                     })
                 })
                 .into_iter()
@@ -187,14 +202,18 @@ impl Server {
             return Vec::new();
         }
         let source = SourceFile::new(uri, text);
+        let parsed = self.parser.parse(&source);
         self.documents.insert(
             uri.to_owned(),
             OpenDocument {
                 version,
-                source: source.clone(),
+                source,
+                parsed,
             },
         );
-        self.publish_document(&source, version)
+        self.documents
+            .get(uri)
+            .map_or_else(Vec::new, |document| self.publish_document(document))
     }
 
     fn change_document(&mut self, params: &Value) -> Vec<Value> {
@@ -220,29 +239,35 @@ impl Server {
             return Vec::new();
         }
         let source = SourceFile::new(uri, text);
+        let parsed = self.parser.parse(&source);
         self.documents.insert(
             uri.to_owned(),
             OpenDocument {
                 version,
-                source: source.clone(),
+                source,
+                parsed,
             },
         );
-        self.publish_document(&source, version)
+        self.documents
+            .get(uri)
+            .map_or_else(Vec::new, |document| self.publish_document(document))
     }
 
-    fn publish_document(&self, source: &SourceFile, version: i64) -> Vec<Value> {
-        let parsed = self.parser.parse(source);
-        let mut diagnostics = parsed.diagnostics.clone();
-        for item in analyze_workspace(&self.language, &[(source, &parsed.program)]) {
+    fn publish_document(&self, document: &OpenDocument) -> Vec<Value> {
+        let mut diagnostics = document.parsed.diagnostics.clone();
+        for item in analyze_workspace(
+            &self.language,
+            &[(&document.source, &document.parsed.program)],
+        ) {
             diagnostics.push(item.diagnostic);
         }
         vec![json!({
             "jsonrpc": "2.0",
             "method": "textDocument/publishDiagnostics",
             "params": {
-                "uri": source.name.as_str(),
-                "version": version,
-                "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(source, item)).collect::<Vec<_>>()
+                "uri": document.source.name.as_str(),
+                "version": document.version,
+                "diagnostics": diagnostics.iter().map(|item| lsp_diagnostic(&document.source, item)).collect::<Vec<_>>()
             }
         })]
     }
@@ -276,11 +301,28 @@ impl Server {
             self.parser.language().keywords(),
         )
     }
+
+    fn document_symbols(&self, params: &Value) -> Vec<Value> {
+        let Some(uri) = params.pointer("/textDocument/uri").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let Some(document) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        let mut remaining = MAX_DOCUMENT_SYMBOLS;
+        document_symbol_items(
+            &self.language,
+            &document.source.text,
+            &document.parsed.program.nodes,
+            &mut remaining,
+        )
+    }
 }
 
 fn initialize_response(id: Value, supports_completion: bool) -> Value {
     let mut capabilities = json!({
-        "textDocumentSync": { "openClose": true, "change": 2 }
+        "textDocumentSync": { "openClose": true, "change": 2 },
+        "documentSymbolProvider": true
     });
     if supports_completion {
         capabilities["completionProvider"] = json!({ "resolveProvider": false });
@@ -295,6 +337,46 @@ fn initialize_response(id: Value, supports_completion: bool) -> Value {
                 "version": env!("CARGO_PKG_VERSION")
             }
         }
+    })
+}
+
+fn document_symbol_items(
+    spec: &ValidatedLanguageSpec,
+    source: &str,
+    nodes: &[AstNode],
+    remaining: &mut usize,
+) -> Vec<Value> {
+    let mut symbols = Vec::new();
+    for node in nodes {
+        if *remaining == 0 {
+            break;
+        }
+        *remaining -= 1;
+        let construct = spec.construct(&node.construct);
+        let declaration = construct
+            .and_then(|construct| construct.symbol.as_ref())
+            .and_then(|symbol| node.fields.get(&symbol.name_field));
+        let selection_span = declaration.map_or(node.span, |value| value.span);
+        let name = declaration
+            .and_then(|value| source.get(value.span.start..value.span.end))
+            .unwrap_or(&node.construct);
+        let children = document_symbol_items(spec, source, &node.children, remaining);
+        symbols.push(json!({
+            "name": name,
+            "detail": node.construct,
+            "kind": 13,
+            "range": lsp_range(source, node.span),
+            "selectionRange": lsp_range(source, selection_span),
+            "children": children
+        }));
+    }
+    symbols
+}
+
+fn lsp_range(source: &str, span: Span) -> Value {
+    json!({
+        "start": lsp_position(source, span.start),
+        "end": lsp_position(source, span.end)
     })
 }
 

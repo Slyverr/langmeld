@@ -102,6 +102,7 @@ pub fn generate_tooling(
                 "lsp_open_document_diagnostics": true,
                 "lsp_ranged_document_changes": true,
                 "lsp_literal_keyword_completion": prepared.keywords().next().is_some(),
+                "lsp_document_symbols": true,
                 "lsp_contextual_completion": false,
                 "lsp_navigation": false,
                 "lsp_project_reload": false
@@ -151,7 +152,7 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
         )
     };
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, and literal-keyword suggestions for supported declarative languages; context-aware completion and callback-dependent servers require additional host integration.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP currently offers only global literal-keyword completion; it does not infer field values, host semantics, or navigation.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, and document symbols from parsed constructs for supported declarative languages; context-aware completion and callback-dependent servers require additional host integration.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP currently offers global literal-keyword completion and document symbols from parsed constructs; it does not infer field values, host semantics, or navigation.\n",
         code_span(&version)
     )
 }
