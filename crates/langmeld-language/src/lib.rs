@@ -9,6 +9,7 @@ mod lexer;
 mod lexing;
 mod model;
 mod parser;
+mod pipeline;
 mod syntax;
 
 pub use analysis::*;
@@ -33,6 +34,7 @@ pub use parser::{
     ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,
     PatternCompileError, PreparedLanguage,
 };
+pub use pipeline::{PassDescriptor, PassPipeline, PipelineError, PipelinePlanError};
 pub use syntax::{
     CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,
     SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,

@@ -14,7 +14,9 @@ token-based block-child candidate hints. Generic analysis resolves symbols and
 references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
 and workspace type-analysis passes. The CLI, language facade, backends, LSP,
-WASM, and generated tooling are still being ported.
+WASM, and generated tooling are still being ported. A generic artifact pass
+pipeline plans lowering dependencies and runs only the passes needed for
+requested outputs; the host owns its IR values and pass context.
 
 ## Workspace checks
 
