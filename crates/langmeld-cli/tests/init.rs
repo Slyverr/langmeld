@@ -43,6 +43,15 @@ fn run_init(arguments: &[&str]) -> std::process::Output {
         .expect("langmeld binary starts")
 }
 
+fn run_generate(project: &std::path::Path, check: bool) -> std::process::Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
+    command.args(["generate", "--project-root"]).arg(project);
+    if check {
+        command.arg("--check");
+    }
+    command.output().expect("langmeld generate starts")
+}
+
 #[test]
 fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let temporary = TempWorkspace::new();
@@ -183,4 +192,47 @@ fn init_refuses_a_nonempty_target_without_touching_existing_files() {
         fs::read_to_string(project.join("keep.txt")).expect("existing marker remains"),
         "keep me"
     );
+}
+
+#[test]
+fn generate_check_is_read_only_and_generation_replaces_stale_derived_files() {
+    let temporary = TempWorkspace::new();
+    let project = temporary.project("generated");
+    let initialized = run_init(&[
+        "--no-interactive",
+        "--path",
+        project.to_str().unwrap(),
+        "--name",
+        "Generated",
+        "--no-agent-skill",
+    ]);
+    assert!(
+        initialized.status.success(),
+        "{}",
+        String::from_utf8_lossy(&initialized.stderr)
+    );
+    let check = run_generate(&project, true);
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+
+    let stale = project.join(".langmeld/generated/stale.txt");
+    fs::write(&stale, "stale").expect("stale artifact writes");
+    let check = run_generate(&project, true);
+    assert!(!check.status.success());
+    assert_eq!(
+        fs::read_to_string(&stale).expect("check is read-only"),
+        "stale"
+    );
+
+    let regenerate = run_generate(&project, false);
+    assert!(
+        regenerate.status.success(),
+        "{}",
+        String::from_utf8_lossy(&regenerate.stderr)
+    );
+    assert!(!stale.exists());
+    assert!(run_generate(&project, true).status.success());
 }

@@ -19,6 +19,8 @@ pub(crate) struct Cli {
 pub(crate) enum Commands {
     /// Create a Rust + Langmeld language project.
     Init(InitArgs),
+    /// Rebuild generated language and editor tooling.
+    Generate(GenerateArgs),
 }
 
 #[derive(Debug, Args)]
@@ -52,6 +54,16 @@ pub(crate) struct InitArgs {
     pub(crate) langmeld_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Args)]
+pub(crate) struct GenerateArgs {
+    /// Project root containing language/language.lm.
+    #[arg(long, default_value = ".")]
+    pub(crate) project_root: PathBuf,
+    /// Verify generated files without writing them.
+    #[arg(long)]
+    pub(crate) check: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,7 +82,9 @@ mod tests {
             "--agents",
         ])
         .expect("init options parse");
-        let Commands::Init(arguments) = cli.command;
+        let Commands::Init(arguments) = cli.command else {
+            panic!("init command parsed as another subcommand");
+        };
         assert_eq!(arguments.name.as_deref(), Some("SampleLanguage"));
         assert_eq!(
             arguments.path.as_deref(),
@@ -87,6 +101,7 @@ mod tests {
     fn clap_help_includes_init_and_its_interaction_controls() {
         let mut command = Cli::command();
         assert!(command.render_long_help().to_string().contains("init"));
+        assert!(command.render_long_help().to_string().contains("generate"));
         let init = command
             .get_subcommands()
             .find(|subcommand| subcommand.get_name() == "init")
