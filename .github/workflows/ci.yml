@@ -193,3 +193,10 @@ jobs:
             --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
             --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
             --config 'patch.crates-io.langmeld.path="crates/langmeld"'
+      - name: Verify generated project against packaged crates
+        if: matrix.full == true
+        env:
+          LANGMELD_PACKAGE_ROOT: ${{ github.workspace }}/target/package
+          TMPDIR: ${{ runner.temp }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/package-consumer
+        run: bash scripts/check-packaged-consumer.sh

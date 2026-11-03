@@ -37,6 +37,15 @@ composable, and reliable for language authors.
 
    These local patches let Cargo verify dependent crate archives and test-only
    workspace dependencies before the crates have been published to crates.io.
+   After packaging, check a generated project against the extracted archives:
+
+   ```sh
+   bash scripts/check-packaged-consumer.sh
+   ```
+
+   If Cargo uses a custom target directory, set `CARGO_TARGET_DIR` when
+   packaging as well. Set `LANGMELD_PACKAGE_ROOT` separately only when the
+   archives are stored outside its default `target/package` subdirectory.
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 
