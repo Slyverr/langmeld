@@ -194,6 +194,19 @@ Rust FFI declarations.
 
 ## Workspace checks
 
+On NixOS or a supported Nix system (x86_64 Linux, aarch64 Linux, or Apple
+Silicon macOS) with flakes enabled, enter the pinned development shell with
+`nix develop`. It provides Rustup, Bun, and `wasm-bindgen`; the
+workspace `rust-toolchain.toml` selects Rust 1.88, Clippy, rustfmt, and the
+WebAssembly target. With direnv installed, run `direnv allow` once in the
+repository to load the same shell automatically. The full Tree-sitter grammar
+check uses CLI 0.27.0, which can be installed with
+`cargo +stable install tree-sitter-cli --version 0.27.0 --locked` because that
+CLI requires a newer Rust compiler than the workspace's 1.88 minimum.
+Build the Langmeld CLI package with `nix build .#langmeld`; the executable is
+available at `./result/bin/langmeld`. The Nix package runs CLI binary-target
+tests; use the workspace commands below for the full Rust test and lint suites.
+
 ```sh
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
