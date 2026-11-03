@@ -87,6 +87,7 @@ fn run_host(
         .arg(manifest)
         .arg("--")
         .args(arguments)
+        .env("CARGO_NET_OFFLINE", "true")
         .current_dir(current_dir)
         .output()
         .expect("langmeld host starts")
@@ -117,6 +118,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     assert!(project.join("language/language.lm").is_file());
     assert!(project.join("language/constructs/program.lm").is_file());
     assert!(project.join("src/main.rs").is_file());
+    assert!(project.join("src/host/runtime.rs").is_file());
     let manifest = fs::read_to_string(project.join("langmeld.json"))
         .expect("init writes the project manifest");
     assert!(manifest.contains("\"language\": \"language/language.lm\""));
@@ -190,6 +192,33 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     assert!(
         String::from_utf8_lossy(&run.stderr).contains("runtime behavior is not implemented yet")
     );
+
+    let library_path = project.join("src/lib.rs");
+    let library = fs::read_to_string(&library_path).expect("runtime hook is readable");
+    let library = library.replace(
+        "pub fn run_sources(_sources: &[SourceFile]) -> Result<(), String> {\n    Err(\"runtime behavior is not implemented yet; add it in src/lib.rs\".to_owned())\n}",
+        "pub fn run_sources(sources: &[SourceFile]) -> Result<(), String> {\n    println!(\"host executed {} source(s)\", sources.len());\n    Ok(())\n}",
+    );
+    fs::write(&library_path, library).expect("host runtime implementation is written");
+
+    let executed = run_project_host(&project, &["run", "--project"]);
+    assert!(
+        executed.status.success(),
+        "host runtime failed:\n{}\n{}",
+        String::from_utf8_lossy(&executed.stdout),
+        String::from_utf8_lossy(&executed.stderr)
+    );
+    assert!(String::from_utf8_lossy(&executed.stdout).contains("host executed 1 source(s)"));
+
+    let library = fs::read_to_string(&library_path).expect("runtime hook remains readable");
+    let library = library.replace(
+        "    println!(\"host executed {} source(s)\", sources.len());\n    Ok(())",
+        "    let _ = sources;\n    Err(\"interpreter rejected input\".to_owned())",
+    );
+    fs::write(&library_path, library).expect("host runtime error is configured");
+    let failed = run_project_host(&project, &["run", "--project"]);
+    assert_eq!(failed.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("interpreter rejected input"));
 }
 
 #[test]
@@ -675,6 +704,14 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
     assert_eq!(library.matches("pub mod host;").count(), 1);
     assert!(project.join("src/host/runtime.rs").is_file());
 
+    let checked = run_project_host(&project, &["check", "--project"]);
+    assert!(
+        checked.status.success(),
+        "host callbacks did not support project check:\n{}\n{}",
+        String::from_utf8_lossy(&checked.stdout),
+        String::from_utf8_lossy(&checked.stderr)
+    );
+
     let parser_path = project.join("src/host/parser.rs");
     let parser = fs::read_to_string(&parser_path).expect("custom parser is installed");
     fs::write(
@@ -820,6 +857,7 @@ fn generate_install_host_refuses_symlink_before_project_writes() {
     let outside_host = temporary.project("outside-host");
     fs::create_dir(&outside_host).expect("external target directory is created");
     fs::write(outside_host.join("keep.txt"), "keep").expect("external marker is written");
+    fs::remove_dir_all(project.join("src/host")).expect("generated host tree is removed");
     symlink(&outside_host, project.join("src/host")).expect("host path symlink is created");
     let library_before = fs::read(project.join("src/lib.rs")).expect("library is readable");
     let tooling_before = fs::read(project.join(".langmeld/generated/host/README.md"))

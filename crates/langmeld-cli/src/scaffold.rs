@@ -36,7 +36,11 @@ pub(crate) fn create_project(options: ProjectOptions) -> Result<(), String> {
     let mut files = starter_files(&options, &slug, &dependency, &root, &constructs)?;
     let mut generated = generate_tooling(&language)
         .map_err(|error| format!("cannot generate starter tooling: {error}"))?;
-    generated.extend(generate_host_scaffold(&language));
+    let host_scaffold = generate_host_scaffold(&language);
+    for (relative, contents) in &host_scaffold {
+        files.insert(PathBuf::from("src").join(relative), contents.clone());
+    }
+    generated.extend(host_scaffold);
     for (relative, contents) in generated {
         let relative = PathBuf::from(".langmeld/generated").join(relative);
         ensure_safe_relative_path(&relative)?;

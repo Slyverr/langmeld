@@ -1,11 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Parser, Subcommand};
-use langmeld::core::{Severity, SourceFile};
-use langmeld::language::{
-    ConfiguredLanguageParser, PreparedLanguage, analyze_workspace, load_language, load_project,
-    load_source_files,
-};
+use langmeld::core::Severity;
+use langmeld::language::{load_project, load_source_files};
 
 #[derive(Debug, Parser)]
 #[command(about = "Check or run this language project.", subcommand_required = true)]
@@ -53,46 +50,38 @@ fn process(input: InputArgs, check_only: bool) -> Result<(), (u8, String)> {
         let project = load_project(Path::new("langmeld.json")).map_err(|error| (2, error))?;
         (project.language, project.sources)
     } else {
-        let language = load_language(Path::new("language/language.lm"))
-            .map_err(|error| (2, error))?;
+        let language = @CRATE@::load_language().map_err(|errors| {
+            (
+                2,
+                errors
+                    .into_iter()
+                    .map(|error| format!("{}: {}", error.code, error.message))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        })?;
         let sources = load_source_files(&input.sources).map_err(|error| (2, error))?;
         (language, sources)
     };
-    if !language.spec().behaviors.is_empty() {
-        return Err((
+    let parser = @CRATE@::parser_for(language.clone()).map_err(|errors| {
+        (
             2,
-            "this language declares host analysis behaviors; register them in the Rust host before checking"
-                .to_owned(),
-        ));
-    }
-    let parser = PreparedLanguage::new(language.clone())
-        .map_err(|error| (2, error.to_string()))?
-        .with_custom_parsers([])
-        .map_err(|error| (2, error.to_string()))?;
-    check_sources(&language, &parser, &sources)?;
-    if check_only {
-        println!("checked {} source file(s)", sources.len());
-        return Ok(());
-    }
-    @CRATE@::run_sources(&sources).map_err(|error| (2, error))
-}
-
-fn check_sources(
-    language: &langmeld::core::ValidatedLanguageSpec,
-    parser: &ConfiguredLanguageParser,
-    sources: &[SourceFile],
-) -> Result<(), (u8, String)> {
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    })?;
     let parsed: Vec<_> = sources.iter().map(|source| parser.parse(source)).collect();
-    let files: Vec<_> = sources
-        .iter()
-        .zip(&parsed)
-        .map(|(source, result)| (source, &result.program))
-        .collect();
+    let programs: Vec<_> = parsed.iter().map(|result| &result.program).collect();
+    let analysis = @CRATE@::analyze_sources(&language, &sources, &programs)
+        .map_err(|error| (2, error))?;
     let mut diagnostics: Vec<_> = parsed
-        .iter()
-        .map(|result| result.diagnostics.clone())
+        .into_iter()
+        .map(|result| result.diagnostics)
         .collect();
-    for item in analyze_workspace(language, &files) {
+    for item in analysis.diagnostics {
         diagnostics[item.source_index].push(item.diagnostic);
     }
 
@@ -115,8 +104,11 @@ fn check_sources(
         }
     }
     if has_errors {
-        Err((1, "source contains errors".to_owned()))
-    } else {
-        Ok(())
+        return Err((1, "source contains errors".to_owned()));
     }
+    if check_only {
+        println!("checked {} source file(s)", sources.len());
+        return Ok(());
+    }
+    @CRATE@::run_sources(&sources).map_err(|error| (2, error))
 }

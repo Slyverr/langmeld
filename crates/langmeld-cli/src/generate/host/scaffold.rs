@@ -228,9 +228,15 @@ pattern try. Once the input has the construct's recognizable prefix, return a
 diagnostic for malformed syntax instead of falling through. Successful matches
 must include the construct's declared required fields and UTF-8 byte spans.
 
-`langmeld generate` writes these deterministic templates under `.langmeld/generated/host/`. They are generated references; the current command does not install them into `src/host/`.
+`langmeld init` seeds these modules into `src/host/`. `langmeld generate`
+writes deterministic refresh references under `.langmeld/generated/host/`;
+`langmeld generate --install-host` safely refreshes the project modules while
+preserving marked callback implementations.
 
-Copy these modules into `src/host/`, expose `pub mod host;`, and call `host::runtime::configured_parser` with the validated language model to use the generated parser and lexer registrations. The checked analysis registry helpers are available for a host compile pipeline. Backend and lowering-pass scaffolds will be added with the host compilation workflow.
+The starter exposes `pub mod host;`, binds parser and lexer callbacks through
+`host::runtime::configured_parser`, and calls the checked analysis registries
+from its project-aware CLI. Backend and lowering-pass scaffolds will be added
+with the host compilation workflow.
 
 The generated host tree contains callbacks derived from the language definition. Keep implementation code in the project host until Langmeld provides its safe install and refresh workflow.
 "#

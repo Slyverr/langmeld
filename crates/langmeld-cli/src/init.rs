@@ -101,6 +101,7 @@ fn print_preview(options: &ProjectOptions) {
         "language/language.lm",
         "language/constructs/program.lm",
         "src/lib.rs",
+        "src/host/",
         "examples/hello.<extension>",
         "tests/language.rs",
         ".langmeld/generated/",

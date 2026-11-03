@@ -1,8 +1,13 @@
 //! Rust host entry points for the @NAME@ language.
 
 use langmeld::core::{Diagnostic, SourceFile, ValidatedLanguageSpec};
-use langmeld::language::{ConfiguredLanguageParser, ParseResult, PreparedLanguage};
+use langmeld::language::{
+    ConfiguredLanguageParser, ParseResult, Program, WorkspaceAnalysis,
+    analyze_workspace_with_host_callbacks,
+};
 use std::path::PathBuf;
+
+pub mod host;
 
 /// Loads the modular language definition from `language/`.
 pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
@@ -11,17 +16,51 @@ pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
 
 /// Prepares the declarative parser for the language.
 pub fn parser() -> Result<ConfiguredLanguageParser, Vec<Diagnostic>> {
-    let prepared = PreparedLanguage::new(load_language()?).map_err(|error| {
-        vec![Diagnostic::spec_error("LMSTARTER001", error.to_string())]
-    })?;
-    prepared.with_custom_parsers([]).map_err(|error| {
-        vec![Diagnostic::spec_error("LMSTARTER002", error.to_string())]
+    parser_for(load_language()?)
+}
+
+/// Prepares a validated language model with this project's custom callbacks.
+pub fn parser_for(
+    language: ValidatedLanguageSpec,
+) -> Result<ConfiguredLanguageParser, Vec<Diagnostic>> {
+    host::runtime::configured_parser(language).map_err(|error| {
+        vec![Diagnostic::spec_error("LMSTARTER001", error)]
     })
 }
 
 /// Parses one source snapshot and returns its syntax tree and diagnostics.
 pub fn parse_source(source: &SourceFile) -> Result<ParseResult, Vec<Diagnostic>> {
     Ok(parser()?.parse(source))
+}
+
+/// Runs the project's registered analysis callbacks over parsed source files.
+pub fn analyze_sources(
+    language: &ValidatedLanguageSpec,
+    sources: &[SourceFile],
+    programs: &[&Program],
+) -> Result<WorkspaceAnalysis, String> {
+    if sources.len() != programs.len() {
+        return Err(format!(
+            "source and program counts differ: {} sources, {} programs",
+            sources.len(),
+            programs.len()
+        ));
+    }
+    let files: Vec<_> = sources.iter().zip(programs.iter().copied()).collect();
+    let semantic_hooks = host::analysis::semantic_behavior_hooks(language)
+        .map_err(|error| error.to_string())?;
+    let resolver_hooks = host::analysis::resolver_behavior_hooks(language)
+        .map_err(|error| error.to_string())?;
+    let type_hooks = host::analysis::workspace_behavior_hooks(language)
+        .map_err(|error| error.to_string())?;
+    Ok(analyze_workspace_with_host_callbacks(
+        language,
+        &files,
+        &[],
+        &semantic_hooks,
+        &resolver_hooks,
+        &type_hooks,
+    ))
 }
 
 /// Runs validated source files using this language's runtime implementation.

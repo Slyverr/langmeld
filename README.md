@@ -16,13 +16,13 @@ references across files and reports nested value-type facts. Checked host
 behavior registries provide semantic callbacks, replacement symbol resolvers,
 and workspace type-analysis passes. The Clap-based CLI provides `init`,
 `configure`, `check`, `host`, and `generate` commands for Rust hosts with
-modular `.lm` definitions. Generation rebuilds language tooling and includes
-Rust parser, lexer, and
-analysis callback scaffolds under `.langmeld/generated/host/`; callback bodies
-are declaration-driven and compile in a generated Rust project. The
-`langmeld generate --install-host` option safely wires these modules into
-`src/host/` and preserves marked callback implementations while refreshing
-them. `langmeld init` also writes a strict `langmeld.json` project manifest,
+modular `.lm` definitions. Generation rebuilds language tooling and emits Rust
+parser, lexer, and analysis callback scaffolds under
+`.langmeld/generated/host/`; callback bodies are declaration-driven and
+compile in a generated Rust project. `langmeld init` seeds the same host
+modules in `src/host/`, and `langmeld generate --install-host` safely refreshes
+them while preserving marked callback implementations. `langmeld init` also
+writes a strict `langmeld.json` project manifest,
 and the language API can load explicit or discovered program sources from it.
 Interactive setup can include a Clap-based language CLI with `check` and `run`
 commands, or omit it with `--library-only`. The generated `run` command calls
