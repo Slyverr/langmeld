@@ -124,4 +124,9 @@ jobs:
         run: cargo test --locked -p langmeld-cli --test init init_can_create_and_run_a_browser_wasm_adapter_project -- --nocapture
       - name: Verify publishable crate packages
         if: matrix.full == true
-        run: cargo package --workspace --locked
+        run: |
+          cargo package --workspace --locked \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld.path="crates/langmeld"'

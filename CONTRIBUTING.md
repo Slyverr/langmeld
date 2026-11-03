@@ -27,8 +27,15 @@ composable, and reliable for language authors.
    release-related changes, verify package contents and packaged builds with:
 
    ```sh
-   cargo package --workspace --locked
+   cargo package --workspace --locked \
+     --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+     --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"' \
+     --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+     --config 'patch.crates-io.langmeld.path="crates/langmeld"'
    ```
+
+   These local patches let Cargo verify dependent crate archives before the
+   workspace crates have been published to crates.io.
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 
