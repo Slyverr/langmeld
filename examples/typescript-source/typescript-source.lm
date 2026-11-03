@@ -1,0 +1,66 @@
+language TypeScriptSourceIndex {
+  version: "0.1.0"
+  root: module
+
+  behavior typescript_project_imports: workspace_type_analysis
+
+  enum FunctionKind {
+    sync
+    async
+  }
+
+  properties Parameter {
+    name: text required
+    annotation: text optional
+  }
+
+  construct module {
+    custom_parser: typescript_module
+    fields {
+      name: identifier required
+    }
+    block: [function, default_export_alias, call]
+  }
+
+  construct function {
+    custom_parser: typescript_function
+    fields {
+      name: identifier required
+      parameters: list<properties<Parameter>> optional
+      return_type: text optional
+      kind: FunctionKind required
+    }
+    symbol {
+      kind: function
+      name: name
+      scope: module
+      scope_name: name
+    }
+    block: [call, module]
+  }
+
+  construct default_export_alias {
+    custom_parser: typescript_default_export_alias
+    fields {
+      name: identifier required
+    }
+    symbol {
+      kind: function
+      name: name
+      scope: module
+      scope_name: name
+    }
+    block: [function]
+  }
+
+  construct call {
+    syntax {
+      typescript_call: "{target}"
+    }
+    fields {
+      target: ref<function> required
+      module_specifier: text optional
+      local_name: text optional
+    }
+  }
+}

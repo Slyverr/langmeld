@@ -1,0 +1,9 @@
+{
+  "schema_version": 2,
+  "language_source": {
+    "kind": "declarative",
+    "path": "../typescript-source.lm"
+  },
+  "source_roots": ["."],
+  "source_extensions": [".ts"]
+}

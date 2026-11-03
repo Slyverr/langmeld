@@ -237,6 +237,11 @@ and lowers them to compilable Rust from a library-only project.
 `syn`, maps top-level function signatures into Langmeld's generic and typed
 ASTs, and retains a thread-safe host-owned signature projection.
 
+[`examples/typescript-source`](examples/typescript-source) uses the official
+TypeScript compiler API through a persistent Bun worker, maps selected
+declarations and references into Langmeld's generic and typed ASTs, and
+demonstrates TypeScript source indexing over LSP.
+
 [`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
 base model, a modular `.lm` extension, and a Rust host that renders Markdown.
 

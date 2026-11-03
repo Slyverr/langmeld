@@ -235,14 +235,12 @@ impl LanguageServerConfig {
         }
     }
 
-    /// Enables project-definition reloads for a declarative project.
+    /// Preloads a validated project snapshot into this embedded language server.
     ///
-    /// The snapshot must be the one used to configure `parser`. File watching
-    /// is registered with clients that support dynamic watched-file
-    /// registration; clients can also send `workspace/didChangeWatchedFiles`
-    /// notifications directly.
+    /// The snapshot language must match the supplied parser. The manifest path
+    /// anchors project file watching and reloads when the client supports it.
     #[must_use]
-    fn with_project_snapshot(
+    pub fn with_project_snapshot(
         mut self,
         manifest_path: impl Into<PathBuf>,
         snapshot: ProjectSnapshot,

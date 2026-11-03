@@ -62,6 +62,16 @@ jobs:
           cargo run --locked -p langmeld-cli -- generate --project-root examples/declarative-interpreter --check
           cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures
           cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures --check
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/typescript-source
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/typescript-source --check
+      - name: Set up Bun for external examples and WebAssembly checks
+        if: matrix.full == true
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Install TypeScript example dependencies
+        if: matrix.full == true
+        run: bun install --cwd examples/typescript-source --frozen-lockfile
       - name: Test external examples
         if: matrix.full == true
         run: |
@@ -72,16 +82,14 @@ jobs:
           cargo test --locked --manifest-path examples/rust-source/Cargo.toml
           cargo fmt --manifest-path examples/rust-source/Cargo.toml -- --check
           cargo clippy --locked --manifest-path examples/rust-source/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path examples/typescript-source/Cargo.toml
+          cargo fmt --manifest-path examples/typescript-source/Cargo.toml -- --check
+          cargo clippy --locked --manifest-path examples/typescript-source/Cargo.toml --all-targets -- -D warnings
       - name: Install browser/WASM verification tools
         if: matrix.full == true
         run: |
           rustup target add wasm32-unknown-unknown
           cargo install wasm-bindgen-cli --version 0.2.129 --locked
-      - name: Set up Bun for the WebAssembly smoke test
-        if: matrix.full == true
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
       - name: Install Tree-sitter CLI
         if: matrix.full == true
         run: cargo install tree-sitter-cli --version 0.27.0 --locked

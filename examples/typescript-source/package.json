@@ -1,0 +1,8 @@
+{
+  "name": "langmeld-typescript-source-index",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "typescript": "5.9.3"
+  }
+}
