@@ -10,8 +10,10 @@ composable, and reliable for language authors.
    limits.
 2. Choose one cohesive slice with a clear dependency boundary. Keep the project
    buildable at the end of the change.
-3. Add or update focused tests for behavior changes, plus user documentation
-   when commands or workflows change.
+3. Add or update focused tests for behavior changes, user documentation when
+   commands or workflows change, and `CHANGELOG.md` for notable user-facing
+   changes. Keep changelog entries concise and describe the impact on language
+   authors rather than listing internal commits.
 4. Run the relevant checks before committing. For the current starter, use:
 
    ```sh
@@ -52,6 +54,53 @@ composable, and reliable for language authors.
 Avoid speculative abstractions and dependencies. Keep parser, analysis, runtime,
 and backend boundaries explicit so users can combine Langmeld's generic
 capabilities with their own Rust implementations.
+
+## Versioning and releases
+
+- Workspace crates share the version declared in the root `Cargo.toml`. Keep
+  internal crate requirements and any versioned package constraints aligned
+  with it.
+- Follow [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) for
+  `CHANGELOG.md`: keep an `Unreleased` section first, use its `Added`, `Changed`,
+  `Deprecated`, `Removed`, `Fixed`, and `Security` categories as applicable,
+  and describe user-visible effects rather than commit history. Group related
+  changes into a concise entry; omit empty categories.
+- Do not bump the version for each feature commit. The current unreleased
+  version is `0.1.0`; accumulate its changes under `Unreleased` until the
+  release gates pass.
+- Before release, confirm the workspace package versions and internal
+  dependency requirements agree, then refresh the root and affected consumer
+  lockfiles. Run workspace tests, formatting, strict Clippy, warnings-denied
+  docs, the documented package verification command, and
+  `bash scripts/check-packaged-consumer.sh`. Also run
+  `python3 -m unittest discover -s scripts/tests -p 'test_*.py'` and
+  `python3 scripts/check_version_sync.py`. The version guard requires Python
+  3.11+ and checks workspace crates, internal dependencies, example manifests,
+  and their lockfiles. Require the hosted toolchain/platform matrix,
+  generated-artifact checks, and a fresh-project workflow review to pass too.
+- Prepare each release in one commit. For the first one, use
+  `chore(release): prepare 0.1.0`; substitute the new version in that subject
+  for later releases. Move shipped entries from `Unreleased` to a dated version
+  heading, start a fresh `Unreleased` section, update the root workspace
+  version, internal crate requirements, example-consumer requirements, and all
+  affected lockfiles together. Refresh each affected lockfile before running
+  locked checks, then review the lockfile diff for unrelated dependency
+  updates. Review `cargo metadata --offline --locked --no-deps
+  --format-version 1` and every `langmeld*` dependency in `crates/`, `examples/`,
+  and `benchmarks/` to confirm versions and constraints agree. Run the full
+  release checks after those edits; do not tag a failing or unverified state.
+- After the release commit passes, create the matching `vMAJOR.MINOR.PATCH` Git
+  tag. Prerelease package versions and tags must use the same suffix, such as
+  `0.2.0-alpha.1` and `v0.2.0-alpha.1`.
+- Follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) with
+  this project's pre-1.0 policy: patch releases are for compatible fixes;
+  minor releases add capabilities and may include breaking API changes while
+  the project is still `0.y.z`. Document any break and migration path. Reserve
+  `1.0.0` until the public Rust APIs, generated-project contract, supported
+  targets, and compatibility policy are ready to be treated as stable.
+- From `1.0.0` onward, increment MAJOR for incompatible public API changes,
+  MINOR for backward-compatible functionality, and PATCH for backward-
+  compatible bug fixes. Reset lower components when a higher component changes.
 
 ## Commit conventions
 

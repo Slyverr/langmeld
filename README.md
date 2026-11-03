@@ -278,6 +278,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ## Project guidance
 
+- [CHANGELOG.md](CHANGELOG.md) tracks notable user-facing changes.
 - [CONTRIBUTING.md](CONTRIBUTING.md) describes the development workflow,
   verification, and commit conventions.
 - [AGENTS.md](AGENTS.md) gives coding agents the repository-specific rules and

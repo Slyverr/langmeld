@@ -79,6 +79,11 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+      - name: Check workspace and consumer version alignment
+        if: matrix.full == true
+        run: |
+          python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+          python3 scripts/check_version_sync.py
       - name: Test external examples
         if: matrix.full == true
         run: |
