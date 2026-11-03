@@ -5,7 +5,7 @@ use std::{
 };
 
 use langmeld_language::{
-    ProjectLanguageSource, generate_tooling, load_project_manifest,
+    ProjectLanguageSource, generate_tooling, load_project_language, load_project_manifest,
     parse_language_definition_project,
 };
 
@@ -18,11 +18,11 @@ type Files = BTreeMap<PathBuf, String>;
 pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
     let root = arguments.project_root;
     let manifest_path = root.join("langmeld.json");
-    let definition = match fs::symlink_metadata(&manifest_path) {
+    let language = match fs::symlink_metadata(&manifest_path) {
         Ok(_) => {
             let manifest = load_project_manifest(&manifest_path)?;
             match manifest.language_source {
-                ProjectLanguageSource::Declarative { path } => root.join(path),
+                ProjectLanguageSource::Declarative { .. } => load_project_language(&manifest_path)?,
                 ProjectLanguageSource::RustHost {} => {
                     return Err(
                         "`langmeld generate` cannot load Rust-host models; use the compiled host to generate tooling"
@@ -32,7 +32,9 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
             }
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            root.join("language/language.lm")
+            let definition = root.join("language/language.lm");
+            parse_language_definition_project(&definition)
+                .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?
         }
         Err(error) => {
             return Err(format!(
@@ -41,8 +43,6 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
             ));
         }
     };
-    let language = parse_language_definition_project(&definition)
-        .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?;
     let host_artifacts = host::generate_host_scaffold(&language);
     let install_plan = arguments
         .install_host

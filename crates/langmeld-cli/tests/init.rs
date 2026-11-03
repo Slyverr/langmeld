@@ -650,6 +650,40 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         "{}",
         String::from_utf8_lossy(&added_path.stderr)
     );
+    let generated = run_generate(&project, false);
+    assert!(
+        generated.status.success(),
+        "generation with a local extension failed:\n{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let metadata: serde_json::Value = serde_json::from_slice(
+        &fs::read(project.join(".langmeld/generated/metadata.json"))
+            .expect("generated metadata is readable"),
+    )
+    .expect("generated metadata is valid JSON");
+    assert!(
+        metadata["constructs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|construct| construct["id"] == "note"),
+        "extension construct is absent from metadata: {metadata}"
+    );
+    let grammar = fs::read_to_string(
+        project.join(".langmeld/generated/syntaxes/extensionlanguage.tmLanguage.json"),
+    )
+    .expect("generated editor grammar is readable");
+    assert!(
+        grammar.contains("note"),
+        "extension syntax is absent from editor grammar"
+    );
+    let up_to_date = run_generate(&project, true);
+    assert!(
+        up_to_date.status.success(),
+        "extension tooling is stale:\n{}",
+        String::from_utf8_lossy(&up_to_date.stderr)
+    );
+
     let listed = run_extension(&project, &["list"]);
     assert!(listed.status.success());
     assert!(String::from_utf8_lossy(&listed.stdout).contains("extensions/local.lm"));

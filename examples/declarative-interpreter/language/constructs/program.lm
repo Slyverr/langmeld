@@ -3,10 +3,11 @@ constructs {
     syntax {
       default: "program {"
     }
-    block: [set, add, print]
+    block: [statement]
   }
 
   construct set {
+    implements: statement
     syntax {
       default: "set {name} to {value}"
     }
@@ -21,6 +22,7 @@ constructs {
   }
 
   construct add {
+    implements: statement
     syntax {
       default: "add {left} and {right} as {name}"
     }
@@ -36,6 +38,7 @@ constructs {
   }
 
   construct print {
+    implements: statement
     syntax {
       default: "print {target}"
     }

@@ -36,9 +36,10 @@ line, and language-server support.
   workflow to create Rust, declarative, or combined language-authoring projects.
   Generated files are kept under `.langmeld/`.
 - **Consumer examples:** The standalone declarative interpreter exercises a
-  modular `.lm` grammar, workspace reference resolution, and host-owned AST
-  evaluation. A library-only Rust API consumer parses function declarations
-  and lowers them to compilable Rust source.
+  modular `.lm` grammar, manifest extension composition, workspace reference
+  resolution, generated editor artifacts, and host-owned AST evaluation. A
+  library-only Rust API consumer parses function declarations and lowers them
+  to compilable Rust source.
 
 ## Design boundaries
 
@@ -71,6 +72,9 @@ language inside WebAssembly requires a compatible host and runtime build.
 - The language server's generic navigation and rename depend on generic symbol
   resolution. Host-specific resolvers need an explicit safe edit contract before
   rename can support them.
+- Manifest extensions feed generated metadata and editor grammars. A fresh LSP
+  server start after adding an extension includes its child-construct
+  completion; automatic extension watching and hot reload remain pending.
 - Broader consumer examples, language-server features, continuous integration
   across supported platforms, and measured performance baselines would improve
   confidence and usability. The current example covers one declarative
@@ -87,9 +91,15 @@ The workspace checks completed on 2026-11-03:
 - `cargo clippy --workspace --all-targets --offline --locked -- -D warnings`
   passed.
 - Both rename protocol cases passed after the final scope-path change.
+- The CLI extension-generation regression and four focused generation tests
+  passed; generated metadata and the TextMate grammar contain the extension's
+  `subtract` construct.
+- A fresh `langmeld-lsp --project` session returned `subtract` as a child
+  construct completion for the extension-composed language.
 - The independent example passed `cargo test --offline --locked` and strict
   Clippy. Its generated CLI `check --project` succeeded, and `run --project`
-  printed `total = 42`.
+  printed `total = 42` and `remainder = 23`. Generated tooling was regenerated
+  from the extension-composed language and `generate --check` passed.
 - The Rust API consumer passed `cargo test --offline --locked`, strict Clippy,
   formatting, and its `hello` example. Its test compiled the generated Rust
   output with `rustc`.

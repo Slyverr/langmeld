@@ -25,10 +25,12 @@ fn definition_and_example_parse_and_analyze() {
     assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
     assert_eq!(parsed.program.nodes[0].construct, "program");
     let root = &parsed.program.nodes[0];
-    assert_eq!(root.children.len(), 4);
+    assert_eq!(root.children.len(), 6);
     assert_eq!(root.children[0].construct, "set");
     assert_eq!(root.children[2].construct, "add");
-    assert_eq!(root.children[3].construct, "print");
+    assert_eq!(root.children[3].construct, "subtract");
+    assert_eq!(root.children[4].construct, "print");
+    assert_eq!(root.children[5].construct, "print");
 
     let sources = vec![source];
     let programs = vec![parsed.program];
@@ -39,7 +41,7 @@ fn definition_and_example_parse_and_analyze() {
         "{:#?}",
         analysis.diagnostics
     );
-    assert_eq!(analysis.resolved_references.len(), 3);
+    assert_eq!(analysis.resolved_references.len(), 6);
 
     let output = evaluate(&RuntimeContext {
         language: &language,
@@ -48,7 +50,7 @@ fn definition_and_example_parse_and_analyze() {
         analysis: &analysis,
     })
     .expect("the host interpreter evaluates the program");
-    assert_eq!(output, ["total = 42"]);
+    assert_eq!(output, ["total = 42", "remainder = 23"]);
 }
 
 #[test]

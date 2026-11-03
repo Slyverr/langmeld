@@ -2,4 +2,5 @@ language Ledger {
   version: "0.1.0"
   root: program
   source_extension: ".ledger.lmprog"
+  category statement {}
 }

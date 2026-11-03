@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "resolution_sha256": "408b79282e4054fcfa3b8b63823a3b29f9767c27b545d4dc0410b3d99ac95381",
+  "definitions": [
+    {
+      "path": "language/constructs/program.lm",
+      "sha256": "8783fc86374c0ccd1e85fb9fa4ba080225745c787343a5e294416cabbff1c25b"
+    },
+    {
+      "path": "language/language.lm",
+      "sha256": "8bfdb9a192a61f5839cd223a0e04576f5f6ba7eab8822dc76fa915657dfcd56d"
+    },
+    {
+      "path": "language/extensions/subtract.lm",
+      "sha256": "b75cabcff10c37dd0098981bd36192a601c78fc8596696f5d272aa2b1a2e662d"
+    }
+  ],
+  "extensions": [],
+  "effective_language_sha256": "c4fd98855d4eb9874f73d447f92e4cd23e7f268df5d5915a1ef6aeff9ba81af5"
+}

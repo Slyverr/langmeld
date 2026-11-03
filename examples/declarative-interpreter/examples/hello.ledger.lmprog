@@ -2,5 +2,7 @@ program {
   set first to 19
   set second to 23
   add first and second as total
+  subtract first from total as remainder
   print total
+  print remainder
 }

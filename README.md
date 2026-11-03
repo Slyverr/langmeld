@@ -125,9 +125,10 @@ planned.
 
 [`examples/declarative-interpreter`](examples/declarative-interpreter) is an
 independent consumer project. Its modular `.lm` definition declares a small
-arithmetic language, Langmeld resolves its variable references, and a Rust
-host interprets the parsed programs. Run its tests and CLI from the example
-directory; the example README has the commands and expected output.
+arithmetic language with a separate subtraction extension, Langmeld resolves
+its variable references, and a Rust host interprets the parsed programs. Its
+generated editor and typed-AST artifacts track the extension. Run its tests and
+CLI from the example directory; the example README has the commands and output.
 
 [`examples/rust-functions`](examples/rust-functions) authors a language model
 with the Rust API, parses zero-argument and parameterized function signatures,

@@ -1,0 +1,19 @@
+language Ledger {
+  version: "0.1.0"
+  root: program
+  construct subtract {
+    implements: statement
+    syntax {
+      default: "subtract {right} from {left} as {name}"
+    }
+    fields {
+      right: ref<variable> required
+      left: ref<variable> required
+      name: identifier required
+    }
+    symbol {
+      kind: variable
+      name: name
+    }
+  }
+}
