@@ -1298,7 +1298,7 @@ impl Server {
                 ));
             }
             if let Some(kind) = symbol_kind {
-                return hover_markdown(format!("`{} {}`\n\nDeclared symbol.", kind, name));
+                return hover_markdown(format!("`{kind} {name}`\n\nDeclared symbol."));
             }
             if !occurrence.is_declaration {
                 return hover_markdown(format!("`{name}`\n\nUnresolved reference."));

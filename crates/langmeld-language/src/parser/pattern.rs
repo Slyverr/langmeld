@@ -76,69 +76,73 @@ fn compile_at_depth(
                     characters.next();
                 }
             }
-            '(' if let Some((end, quantifier)) = repetition_end(pattern, offset) => {
-                let mut repeated =
-                    compile_at_depth(&pattern[offset + 1..end], construct, repeat_depth + 1)?;
-                let separator = repeated.last().and_then(|part| {
-                    let PatternPart::Optional(optional) = part else {
-                        return None;
+            '(' => {
+                if let Some((end, quantifier)) = repetition_end(pattern, offset) {
+                    let mut repeated =
+                        compile_at_depth(&pattern[offset + 1..end], construct, repeat_depth + 1)?;
+                    let separator = repeated.last().and_then(|part| {
+                        let PatternPart::Optional(optional) = part else {
+                            return None;
+                        };
+                        optional
+                            .iter()
+                            .all(|part| matches!(part, PatternPart::Literal(_)))
+                            .then(|| optional.clone())
+                    });
+                    if separator.is_some() {
+                        repeated.pop();
+                    }
+                    let capture_fields = capture_fields(&repeated);
+                    let nested = repeat_depth > 0;
+                    let repeated = if quantifier == '+' {
+                        PatternPart::OneOrMore {
+                            parts: repeated,
+                            capture_fields,
+                            separator,
+                            nested,
+                        }
+                    } else {
+                        PatternPart::ZeroOrMore {
+                            parts: repeated,
+                            capture_fields,
+                            separator,
+                            nested,
+                        }
                     };
-                    optional
-                        .iter()
-                        .all(|part| matches!(part, PatternPart::Literal(_)))
-                        .then(|| optional.clone())
-                });
-                if separator.is_some() {
-                    repeated.pop();
-                }
-                let capture_fields = capture_fields(&repeated);
-                let nested = repeat_depth > 0;
-                let repeated = if quantifier == '+' {
-                    PatternPart::OneOrMore {
-                        parts: repeated,
-                        capture_fields,
-                        separator,
-                        nested,
+                    parts.push(repeated);
+                    let after = end + 1 + quantifier.len_utf8();
+                    characters = pattern.char_indices().peekable();
+                    while characters
+                        .peek()
+                        .is_some_and(|(position, _)| *position < after)
+                    {
+                        characters.next();
+                    }
+                } else if let Some(end) = choice_end(pattern, offset) {
+                    let mut alternatives = Vec::new();
+                    for alternative in split_alternatives(&pattern[offset + 1..end]) {
+                        let compiled =
+                            compile_at_depth(alternative.trim(), construct, repeat_depth)?;
+                        if compiled.is_empty() {
+                            return None;
+                        }
+                        alternatives.push(compiled);
+                    }
+                    if alternatives.len() < 2 {
+                        return None;
+                    }
+                    parts.push(PatternPart::Choice(alternatives));
+                    while characters
+                        .peek()
+                        .is_some_and(|(position, _)| *position <= end)
+                    {
+                        characters.next();
                     }
                 } else {
-                    PatternPart::ZeroOrMore {
-                        parts: repeated,
-                        capture_fields,
-                        separator,
-                        nested,
-                    }
-                };
-                parts.push(repeated);
-                let after = end + 1 + quantifier.len_utf8();
-                characters = pattern.char_indices().peekable();
-                while characters
-                    .peek()
-                    .is_some_and(|(position, _)| *position < after)
-                {
-                    characters.next();
-                }
-            }
-            '(' if let Some(end) = choice_end(pattern, offset) => {
-                let mut alternatives = Vec::new();
-                for alternative in split_alternatives(&pattern[offset + 1..end]) {
-                    let compiled = compile_at_depth(alternative.trim(), construct, repeat_depth)?;
-                    if compiled.is_empty() {
-                        return None;
-                    }
-                    alternatives.push(compiled);
-                }
-                if alternatives.len() < 2 {
                     return None;
                 }
-                parts.push(PatternPart::Choice(alternatives));
-                while characters
-                    .peek()
-                    .is_some_and(|(position, _)| *position <= end)
-                {
-                    characters.next();
-                }
             }
-            '(' | ']' | '}' => return None,
+            ']' | '}' => return None,
             '{' => {
                 let mut name = String::new();
                 let mut closed = false;

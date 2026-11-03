@@ -1,5 +1,8 @@
 # Langmeld
 
+Langmeld requires Rust 1.88 or newer (Edition 2024). The CI workflow runs on
+Linux, macOS, and Windows.
+
 Langmeld is an early-stage Rust language framework. The workspace currently
 contains the `langmeld` facade and `langmeld-core` for source snapshots, stable
 source identities, byte spans, structured diagnostics, and validated language

@@ -183,6 +183,11 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     assert!(project.join("language/constructs/program.lm").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("src/host/runtime.rs").is_file());
+    assert!(
+        fs::read_to_string(project.join("Cargo.toml"))
+            .expect("generated Cargo manifest reads")
+            .contains("rust-version = \"1.88\"")
+    );
     let manifest = fs::read_to_string(project.join("langmeld.json"))
         .expect("init writes the project manifest");
     assert!(manifest.contains("\"language\": \"language/language.lm\""));

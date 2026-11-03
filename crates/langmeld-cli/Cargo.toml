@@ -2,12 +2,14 @@
 name = "langmeld-cli"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "Command-line tools for bootstrapping Langmeld language projects."
 
 [[bin]]
 name = "langmeld"
 path = "src/main.rs"
+doc = false
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }

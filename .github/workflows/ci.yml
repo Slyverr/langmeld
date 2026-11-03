@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: ${{ matrix.toolchain }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            toolchain: 1.88.0
+          - os: ubuntu-latest
+            toolchain: stable
+            full: true
+          - os: macos-latest
+            toolchain: stable
+          - os: windows-latest
+            toolchain: stable
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy, rustfmt
+      - name: Check formatting
+        if: matrix.full == true
+        run: cargo fmt --all -- --check
+      - name: Test workspace
+        run: cargo test --workspace --locked
+      - name: Run strict Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Build documentation
+        if: matrix.full == true
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --locked
+      - name: Check generated example artifacts
+        if: matrix.full == true
+        run: |
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/declarative-interpreter
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/declarative-interpreter --check
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures --check
+      - name: Test external examples
+        if: matrix.full == true
+        run: |
+          cargo test --locked --manifest-path examples/declarative-interpreter/Cargo.toml
+          cargo test --locked --manifest-path examples/rust-functions/Cargo.toml
+          cargo test --locked --manifest-path examples/combined-brief/Cargo.toml
+          cargo test --locked --manifest-path examples/c-signatures/Cargo.toml

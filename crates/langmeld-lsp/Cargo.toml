@@ -2,6 +2,7 @@
 name = "langmeld-lsp"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "A JSON-RPC language-server foundation for Langmeld languages."
 

@@ -787,10 +787,9 @@ fn field_kind_expression(kind: &FieldKind) -> String {
             name,
             string_vector(values)
         ),
-        FieldKind::Reference { target } => format!(
-            "langmeld_core::FieldKind::Reference {{ target: {:?}.to_owned() }}",
-            target
-        ),
+        FieldKind::Reference { target } => {
+            format!("langmeld_core::FieldKind::Reference {{ target: {target:?}.to_owned() }}")
+        }
         FieldKind::Properties { fields, name } => format!(
             "langmeld_core::FieldKind::Properties {{ name: {}, fields: {} }}",
             name.as_ref().map_or_else(

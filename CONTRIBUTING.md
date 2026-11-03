@@ -16,12 +16,14 @@ composable, and reliable for language authors.
 
    ```sh
    cargo fmt --all -- --check
-   cargo test --locked
+   cargo test --workspace --locked
    cargo clippy --all-targets --locked -- -D warnings
+   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
    ```
 
-   As the repository grows into a workspace, run focused package checks during
-   development and the applicable workspace checks before integrating a stage.
+   CI also checks the supported Rust toolchain and operating-system matrix,
+   generated artifacts, and the independent example projects. Run the matching
+   example checks when changing shared APIs or generated output.
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 
