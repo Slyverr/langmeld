@@ -11,7 +11,7 @@ use std::{
 use crate::{
     AstNode, DefinitionLimits, PreparedLanguage,
     definition_tree::{
-        convert_language_modules, error, limit_diagnostics, parse_definition_tree, text,
+        convert_language_module_specs, error, limit_diagnostics, parse_definition_tree, text,
     },
 };
 
@@ -23,13 +23,36 @@ pub(crate) fn parse_project(
     prepared: &PreparedLanguage,
     limits: DefinitionLimits,
 ) -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
+    let (spec, source_len) = parse_project_spec_and_length(path, prepared, limits)?;
+    let result = spec.validate().map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|issue| Diagnostic::error(issue.code, issue.message, Span::new(0, source_len)))
+            .collect()
+    });
+    limit_diagnostics(result, limits.max_diagnostics, source_len)
+}
+
+pub(crate) fn parse_project_spec(
+    path: &Path,
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+) -> Result<langmeld_core::LanguageSpec, Vec<Diagnostic>> {
+    parse_project_spec_and_length(path, prepared, limits).map(|(spec, _)| spec)
+}
+
+fn parse_project_spec_and_length(
+    path: &Path,
+    prepared: &PreparedLanguage,
+    limits: DefinitionLimits,
+) -> Result<(langmeld_core::LanguageSpec, usize), Vec<Diagnostic>> {
     let project = load_project(path, prepared, limits)?;
     let source_len = project
         .modules
         .last()
         .map_or(0, |(_, source)| source.text.len());
-    limit_diagnostics(
-        convert_language_modules(
+    let spec = limit_diagnostics(
+        convert_language_module_specs(
             project
                 .modules
                 .iter()
@@ -37,7 +60,8 @@ pub(crate) fn parse_project(
         ),
         limits.max_diagnostics,
         source_len,
-    )
+    )?;
+    Ok((spec, source_len))
 }
 
 struct LoadedProject {

@@ -9,7 +9,7 @@ use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 
 use crate::{AstNode, DefinitionLimits, ParseLimits, PreparedLanguage};
 
-pub(crate) use conversion::convert_language_modules;
+pub(crate) use conversion::convert_language_module_specs;
 pub(crate) use helpers::{error, text};
 
 pub(crate) fn parse_language_definition_with_meta(

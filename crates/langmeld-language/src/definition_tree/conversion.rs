@@ -42,7 +42,7 @@ pub(crate) fn convert_language_modules<'a>(
         })
 }
 
-pub(super) fn convert_language_module_specs<'a>(
+pub(crate) fn convert_language_module_specs<'a>(
     modules: impl IntoIterator<Item = (&'a AstNode, &'a SourceFile)>,
 ) -> Result<LanguageSpec, Vec<Diagnostic>> {
     let modules: Vec<_> = modules.into_iter().collect();

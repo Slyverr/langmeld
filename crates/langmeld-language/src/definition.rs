@@ -122,6 +122,21 @@ pub fn parse_language_definition_project_with_limits(
     crate::definition_import::parse_project(root_path, prepared_definition_parser()?, limits)
 }
 
+/// Parses a language definition project into a canonical model without requiring
+/// the declarations to form a complete language on their own.
+///
+/// This is intended for data-only extension definitions. Callers must compose
+/// the returned model with a base language and validate the effective result.
+///
+/// # Errors
+/// Returns parser, conversion, or import-resolution diagnostics.
+pub(crate) fn parse_language_definition_project_spec_with_limits(
+    root_path: &Path,
+    limits: DefinitionLimits,
+) -> Result<langmeld_core::LanguageSpec, Vec<Diagnostic>> {
+    crate::definition_import::parse_project_spec(root_path, prepared_definition_parser()?, limits)
+}
+
 /// Loads a file-based `.lm` project with a caller-supplied meta-language.
 ///
 /// # Errors

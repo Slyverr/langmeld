@@ -10,6 +10,11 @@ use std::{
 use langmeld_core::{LanguageSpec, SourceFile, ValidatedLanguageSpec};
 use serde::{Deserialize, Serialize};
 
+mod extensions;
+pub use extensions::{
+    ExtensionDependency, ExtensionPackage, ManifestExtension, compose_extensions,
+};
+
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_TOTAL_SOURCE_BYTES: usize = 64 * 1024 * 1024;
@@ -33,6 +38,9 @@ pub struct ProjectManifest {
     /// Source suffixes used when scanning roots; empty inherits the language definition.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_extensions: Vec<String>,
+    /// Ordered local declarative extensions composed onto the base language.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extensions: Vec<ManifestExtension>,
     /// Optional backend defaults used by the project's Rust host.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<ProjectBuildConfig>,
@@ -93,6 +101,7 @@ impl ProjectManifest {
             sources: Vec::new(),
             source_roots: Vec::new(),
             source_extensions: Vec::new(),
+            extensions: Vec::new(),
             build: None,
         }
     }
@@ -201,7 +210,9 @@ pub fn load_project_with_manifest(
     manifest.to_json()?;
     let root = project_root(manifest_path)?;
     let definition_path = root.join(&manifest.language);
-    let language = load_language(&definition_path)?;
+    let base_language = load_language(&definition_path)?;
+    let language =
+        extensions::resolve_project_language(&root, &manifest.extensions, &base_language)?;
     let paths = project_source_paths(manifest_path, manifest, &language.spec().source_extensions)?;
     let sources = load_project_sources_from_paths(paths)?;
     Ok(ProjectSnapshot {
@@ -359,6 +370,26 @@ fn validate_manifest_paths(manifest: &ProjectManifest) -> Result<(), String> {
     for path in &manifest.source_roots {
         validate_relative_path(path, "source root")?;
     }
+    for extension in &manifest.extensions {
+        validate_relative_path(extension.path(), "extension")?;
+        if let ManifestExtension::Package(package) = extension {
+            if package.id.trim().is_empty() {
+                return Err("extension package ID must not be empty".to_owned());
+            }
+            if package.version.trim().is_empty() {
+                return Err(format!(
+                    "extension package `{}` version must not be empty",
+                    package.id
+                ));
+            }
+            if package.language_version.trim().is_empty() {
+                return Err(format!(
+                    "extension package `{}` language version requirement must not be empty",
+                    package.id
+                ));
+            }
+        }
+    }
     if let Some(build) = &manifest.build {
         if build.backend.trim().is_empty() {
             return Err("project build backend ID must not be empty".to_owned());
@@ -484,7 +515,7 @@ fn has_extension(path: &Path, extensions: &BTreeSet<String>) -> bool {
     })
 }
 
-fn read_bounded(path: &Path, limit: usize, role: &str) -> Result<Vec<u8>, String> {
+pub(super) fn read_bounded(path: &Path, limit: usize, role: &str) -> Result<Vec<u8>, String> {
     let file = File::open(path)
         .map_err(|error| format!("cannot read {role} '{}': {error}", path.display()))?;
     let mut bytes = Vec::new();
