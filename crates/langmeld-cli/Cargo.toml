@@ -22,5 +22,8 @@ langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
 langmeld-language = { version = "0.1.0", path = "../langmeld-language" }
 serde_json.workspace = true
 
+[dev-dependencies]
+langmeld-lsp = { version = "0.1.0", path = "../langmeld-lsp" }
+
 [lints]
 workspace = true

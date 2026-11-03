@@ -1245,12 +1245,20 @@ impl Server {
         .err()
         .unwrap_or_default();
         for project_diagnostic in diagnostics {
-            let uri = project_diagnostic
+            let source_is_in_project = project_diagnostic
                 .source_path
                 .as_deref()
-                .and_then(path_to_file_uri)
-                .unwrap_or_else(|| root_uri.clone());
-            if project_diagnostic.source_path.is_some()
+                .is_some_and(|path| path.starts_with(root_directory));
+            let uri = if source_is_in_project {
+                project_diagnostic
+                    .source_path
+                    .as_deref()
+                    .and_then(path_to_file_uri)
+                    .unwrap_or_else(|| root_uri.clone())
+            } else {
+                root_uri.clone()
+            };
+            if source_is_in_project
                 && self.documents.get(&uri).is_some_and(|document| {
                     document.parsed.diagnostics.iter().any(|diagnostic| {
                         diagnostic.span == project_diagnostic.diagnostic.span
@@ -1271,7 +1279,7 @@ impl Server {
                 })
                 .unwrap_or_else(|| SourceFile::new(uri.as_str(), ""));
             let mut diagnostic = project_diagnostic.diagnostic;
-            if project_diagnostic.source_path.is_none() {
+            if !source_is_in_project {
                 diagnostic.span = None;
             }
             diagnostics_by_uri
@@ -3436,6 +3444,71 @@ mod tests {
                 .len(),
             0
         );
+        fs::remove_dir_all(root).expect("temporary project is removed");
+    }
+
+    #[test]
+    fn definition_project_rejects_import_cycles_root_escapes_and_oversized_modules() {
+        let root = project_directory();
+        let extension_path = add_definition_import(&root, "0.1.0");
+        let extension_uri = path_to_file_uri(&extension_path).unwrap();
+        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let mut server = definition_project_server(&root);
+
+        let cycle = extension_definition("0.1.0").replace(
+            "  construct note {",
+            "  import: \"../language.lm\"\n  construct note {",
+        );
+        let notifications = server.handle(&open_document(&extension_uri, 1, &cycle));
+        let root_diagnostics = diagnostics_for(&notifications, &root_uri)
+            .expect("import-cycle diagnostic is published within the project");
+        assert!(root_diagnostics.iter().any(|diagnostic| {
+            diagnostic["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("import cycle"))
+        }));
+
+        let outside_path = root.join("outside.lm");
+        fs::write(&outside_path, "language Outside {}\n").expect("outside file is written");
+        let escaped = extension_definition("0.1.0").replace(
+            "  construct note {",
+            "  import: \"../../outside.lm\"\n  construct note {",
+        );
+        let notifications = server.handle(&change_document(&extension_uri, 2, &escaped));
+        let root_diagnostics = diagnostics_for(&notifications, &root_uri)
+            .expect("root-escape diagnostic is kept within the project");
+        assert!(root_diagnostics.iter().any(|diagnostic| {
+            diagnostic["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("escapes the language directory"))
+        }));
+        assert!(
+            diagnostics_for(&notifications, &path_to_file_uri(&outside_path).unwrap()).is_none()
+        );
+
+        let oversized = format!(
+            "{}{}",
+            extension_definition("0.1.0"),
+            " ".repeat(DefinitionLimits::default().max_source_bytes)
+        );
+        server.handle(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didClose",
+            "params": { "textDocument": { "uri": extension_uri } }
+        }));
+        fs::write(&extension_path, &oversized).expect("oversized module is written");
+        let notifications = server.handle(&watched_file(&extension_path));
+        let extension_diagnostics = diagnostics_for(&notifications, &extension_uri)
+            .expect("resource-limit diagnostic is published for the imported file");
+        assert!(
+            extension_diagnostics.iter().any(|diagnostic| {
+                diagnostic["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains("total parsing limit"))
+            }),
+            "unexpected diagnostics: {extension_diagnostics:?}"
+        );
+
         fs::remove_dir_all(root).expect("temporary project is removed");
     }
 
