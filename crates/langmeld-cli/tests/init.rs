@@ -326,8 +326,8 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     let library_path = project.join("src/lib.rs");
     let library = fs::read_to_string(&library_path).expect("runtime hook is readable");
     let library = library.replace(
-        "pub fn run_sources(_sources: &[SourceFile]) -> Result<(), String> {\n    Err(\"runtime behavior is not implemented yet; add it in src/lib.rs\".to_owned())\n}",
-        "pub fn run_sources(sources: &[SourceFile]) -> Result<(), String> {\n    println!(\"host executed {} source(s)\", sources.len());\n    Ok(())\n}",
+        "pub fn run_sources(_context: &RuntimeContext<'_>) -> Result<(), String> {\n    Err(\"runtime behavior is not implemented yet; add it in src/lib.rs\".to_owned())\n}",
+        "pub fn run_sources(context: &RuntimeContext<'_>) -> Result<(), String> {\n    println!(\"host executed {} source(s), {} program(s), and {} analysis diagnostic(s)\", context.sources.len(), context.programs.len(), context.analysis.diagnostics.len());\n    let _ = context.language;\n    Ok(())\n}",
     );
     fs::write(&library_path, library).expect("host runtime implementation is written");
 
@@ -338,12 +338,15 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&executed.stdout),
         String::from_utf8_lossy(&executed.stderr)
     );
-    assert!(String::from_utf8_lossy(&executed.stdout).contains("host executed 1 source(s)"));
+    assert!(
+        String::from_utf8_lossy(&executed.stdout)
+            .contains("host executed 1 source(s), 1 program(s), and 0 analysis diagnostic(s)")
+    );
 
     let library = fs::read_to_string(&library_path).expect("runtime hook remains readable");
     let library = library.replace(
-        "    println!(\"host executed {} source(s)\", sources.len());\n    Ok(())",
-        "    let _ = sources;\n    Err(\"interpreter rejected input\".to_owned())",
+        "    println!(\"host executed {} source(s), {} program(s), and {} analysis diagnostic(s)\", context.sources.len(), context.programs.len(), context.analysis.diagnostics.len());\n    let _ = context.language;\n    Ok(())",
+        "    let _ = context;\n    Err(\"interpreter rejected input\".to_owned())",
     );
     fs::write(&library_path, library).expect("host runtime error is configured");
     let failed = run_project_host(&project, &["run", "--project"]);

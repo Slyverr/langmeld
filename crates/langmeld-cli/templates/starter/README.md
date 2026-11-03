@@ -21,8 +21,10 @@ starting point for custom lexing, parsing, analysis, or output. Keep `.lm`
 definitions modular under `language/`.
 The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
 commands use `langmeld.json`; source paths can also be passed directly.
-`run` calls `run_sources` in `src/lib.rs`, where this starter reports that
-runtime behavior still needs to be implemented.
+`run` calls `run_sources` in `src/lib.rs` with a `RuntimeContext` containing
+the validated language, source snapshots, parsed programs, and workspace
+analysis. The starter reports that runtime behavior still needs to be
+implemented.
 Register a backend in `src/host/backend.rs` before using `build`. Project
 backend defaults live in the `build` object in `langmeld.json`; command-line
 options override those defaults for one build. The starter has no registered

@@ -10,6 +10,18 @@ use std::path::Path;
 pub mod host;
 mod language;
 
+/// Parsed and analyzed inputs supplied to this language's execution hook.
+pub struct RuntimeContext<'a> {
+    /// Validated language model used to parse and analyze the inputs.
+    pub language: &'a ValidatedLanguageSpec,
+    /// Source snapshots in the order selected by the project.
+    pub sources: &'a [SourceFile],
+    /// Parsed programs corresponding to `sources` by index.
+    pub programs: &'a [Program],
+    /// Generic and host-provided analysis results for those programs.
+    pub analysis: &'a WorkspaceAnalysis,
+}
+
 /// Loads the effective language model compiled by this crate's build script.
 pub fn load_language() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     language::load_language()
@@ -82,7 +94,7 @@ pub fn analyze_sources(
 }
 
 /// Runs validated source files using this language's runtime implementation.
-pub fn run_sources(_sources: &[SourceFile]) -> Result<(), String> {
+pub fn run_sources(_context: &RuntimeContext<'_>) -> Result<(), String> {
     Err("runtime behavior is not implemented yet; add it in src/lib.rs".to_owned())
 }
 

@@ -82,6 +82,7 @@ struct Prepared {
     language: langmeld::core::ValidatedLanguageSpec,
     sources: Vec<SourceFile>,
     programs: Vec<Program>,
+    analysis: langmeld::language::WorkspaceAnalysis,
 }
 
 fn main() -> std::process::ExitCode {
@@ -107,7 +108,13 @@ fn process(input: InputArgs, check_only: bool) -> Result<(), (u8, String)> {
         println!("checked {} source file(s)", prepared.sources.len());
         return Ok(());
     }
-    @CRATE@::run_sources(&prepared.sources).map_err(|error| (2, error))
+    @CRATE@::run_sources(&@CRATE@::RuntimeContext {
+        language: &prepared.language,
+        sources: &prepared.sources,
+        programs: &prepared.programs,
+        analysis: &prepared.analysis,
+    })
+    .map_err(|error| (2, error))
 }
 
 fn prepare(input: InputArgs) -> Result<Prepared, (u8, String)> {
@@ -147,8 +154,8 @@ fn prepare(input: InputArgs) -> Result<Prepared, (u8, String)> {
         .into_iter()
         .map(|result| result.diagnostics)
         .collect();
-    for item in analysis.diagnostics {
-        diagnostics[item.source_index].push(item.diagnostic);
+    for item in &analysis.diagnostics {
+        diagnostics[item.source_index].push(item.diagnostic.clone());
     }
     if report_diagnostics(&sources, diagnostics) {
         return Err((1, "source contains errors".to_owned()));
@@ -158,6 +165,7 @@ fn prepare(input: InputArgs) -> Result<Prepared, (u8, String)> {
         language,
         sources,
         programs,
+        analysis,
     })
 }
 
