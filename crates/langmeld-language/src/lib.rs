@@ -1,6 +1,7 @@
 //! Shared lexical contracts and resource limits for Langmeld language parsers.
 
 mod analysis;
+mod backend;
 mod definition;
 mod definition_import;
 mod definition_meta;
@@ -13,6 +14,12 @@ mod pipeline;
 mod syntax;
 
 pub use analysis::*;
+pub use backend::{
+    ArtifactBackend, BackendDescriptor, BackendDescriptorIssue, BackendError, BackendFormat,
+    BackendInputs, BackendOptions, BackendSetting, CompilationArtifact, SourceMapEntry,
+    compile_with_backend, resolve_backend_settings, validate_backend_descriptor,
+    validate_backend_settings,
+};
 pub use definition::{
     DefinitionLimits, parse_definition, parse_definition_with_limits,
     parse_language_definition_modules, parse_language_definition_modules_with_limits,
