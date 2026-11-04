@@ -9,6 +9,8 @@ is cut, changes belong under `Unreleased`.
 
 ### Changed
 
+- **Generated Rust AST:** Type references by symbol-kind marker instead of an
+  arbitrary construct that happens to declare that kind.
 - **Generated documentation:** Include artifact and language-service support
   statuses from the validated capability report in the generated grammar
   reference, and direct the generated Agent Skill to that source.

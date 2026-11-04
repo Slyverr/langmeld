@@ -52,6 +52,19 @@ pub fn generate_rust_ast(language: &ValidatedLanguageSpec) -> String {
         })
         .collect::<Vec<_>>();
     let registry = TypeRegistry::new(spec, &mut used_types);
+    let symbol_types = spec
+        .constructs
+        .iter()
+        .filter_map(|construct| construct.symbol.as_ref().map(|symbol| symbol.kind.as_str()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|kind| {
+            (
+                kind.to_owned(),
+                unique(format!("{}Symbol", pascal_case(kind)), &mut used_types),
+            )
+        })
+        .collect::<Vec<_>>();
     let field_names = spec
         .constructs
         .iter()
@@ -68,16 +81,9 @@ pub fn generate_rust_ast(language: &ValidatedLanguageSpec) -> String {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-    let symbols = spec
-        .constructs
+    let symbols = symbol_types
         .iter()
-        .enumerate()
-        .filter_map(|(index, construct)| {
-            construct
-                .symbol
-                .as_ref()
-                .map(|symbol| (symbol.kind.as_str(), construct_types[index].as_str()))
-        })
+        .map(|(kind, symbol_type)| (kind.as_str(), symbol_type.as_str()))
         .collect::<HashMap<_, _>>();
 
     let mut output = String::from(
@@ -105,7 +111,7 @@ pub struct Spanned<T> {
     pub span: Span,
 }
 
-/// A reference spelling parameterized by the generated declaration type.
+/// A reference spelling parameterized by its generated symbol-kind marker.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reference<T> {
     pub name: String,
@@ -148,6 +154,7 @@ impl std::error::Error for ConversionError {}
 "#,
     );
 
+    write_symbol_types(&mut output, &symbol_types);
     write_enum_types(&mut output, &registry);
     write_collection_aliases(&mut output, &registry, &symbols);
     write_property_records(&mut output, &registry, &symbols);
@@ -166,6 +173,15 @@ impl std::error::Error for ConversionError {}
     );
     write_program_conversion(&mut output, spec, &construct_types);
     output
+}
+
+fn write_symbol_types(output: &mut String, symbols: &[(String, String)]) {
+    for (kind, type_name) in symbols {
+        let _ = writeln!(
+            output,
+            "/// Marker for declarations of the `{kind}` symbol kind.\n#[derive(Clone, Copy, Debug, PartialEq, Eq)]\npub struct {type_name};\n"
+        );
+    }
 }
 
 /// Generates Rust source that reconstructs and validates a canonical language specification.

@@ -62,6 +62,26 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
                 symbol: Some(langmeld_core::SymbolSpec { kind: "item".to_owned(), name_field: "name".to_owned(), scope: Some(langmeld_core::ScopeSpec { construct: "box".to_owned(), name_field: "namespace".to_owned(), lookup: langmeld_core::ScopeLookup::LexicalParents }) }),
             },
             langmeld_core::ConstructSpec {
+                id: "named_item".to_owned(),
+                implements: vec!["statement".to_owned()],
+                custom_parser: None,
+                syntax: vec!["named {name}".to_owned()],
+                syntax_ids: vec![],
+                fields: vec![langmeld_core::FieldSpec { name: "name".to_owned(), kind: langmeld_core::FieldKind::Identifier, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
+                block: None,
+                symbol: Some(langmeld_core::SymbolSpec { kind: "item".to_owned(), name_field: "name".to_owned(), scope: Some(langmeld_core::ScopeSpec { construct: "box".to_owned(), name_field: "namespace".to_owned(), lookup: langmeld_core::ScopeLookup::LexicalParents }) }),
+            },
+            langmeld_core::ConstructSpec {
+                id: "lookup".to_owned(),
+                implements: vec!["statement".to_owned()],
+                custom_parser: None,
+                syntax: vec!["use {target}".to_owned()],
+                syntax_ids: vec![],
+                fields: vec![langmeld_core::FieldSpec { name: "target".to_owned(), kind: langmeld_core::FieldKind::Reference { target: "item".to_owned() }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
+                block: None,
+                symbol: None,
+            },
+            langmeld_core::ConstructSpec {
                 id: "evaluate".to_owned(),
                 implements: vec!["statement".to_owned()],
                 custom_parser: None,
@@ -89,7 +109,7 @@ pub struct Spanned<T> {
     pub span: Span,
 }
 
-/// A reference spelling parameterized by the generated declaration type.
+/// A reference spelling parameterized by its generated symbol-kind marker.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reference<T> {
     pub name: String,
@@ -129,6 +149,14 @@ impl fmt::Display for ConversionError {
 }
 impl std::error::Error for ConversionError {}
 
+/// Marker for declarations of the `item` symbol kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemSymbol;
+
+/// Marker for declarations of the `namespace` symbol kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NamespaceSymbol;
+
 /// Values accepted by this generated field type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -161,8 +189,8 @@ pub struct Coordinates {
 impl TryFrom<&PropertyMap> for Coordinates {
     type Error = ConversionError;
     fn try_from(values: &PropertyMap) -> Result<Self, Self::Error> {
-        let x = read_value_4(values.get("x").ok_or(ConversionError::MissingField("x"))?)?;
-        let y = read_value_5(values.get("y").ok_or(ConversionError::MissingField("y"))?)?;
+        let x = read_value_6(values.get("x").ok_or(ConversionError::MissingField("x"))?)?;
+        let y = read_value_7(values.get("y").ok_or(ConversionError::MissingField("y"))?)?;
         Ok(Self {
             x,
             y,
@@ -182,10 +210,10 @@ pub struct ItemConfig {
 impl TryFrom<&PropertyMap> for ItemConfig {
     type Error = ConversionError;
     fn try_from(values: &PropertyMap) -> Result<Self, Self::Error> {
-        let title = read_value_6(values.get("title").ok_or(ConversionError::MissingField("title"))?)?;
-        let mode = read_value_7(values.get("mode").ok_or(ConversionError::MissingField("mode"))?)?;
-        let tags = read_value_8(values.get("tags").ok_or(ConversionError::MissingField("tags"))?)?;
-        let attrs = read_value_10(values.get("attrs").ok_or(ConversionError::MissingField("attrs"))?)?;
+        let title = read_value_8(values.get("title").ok_or(ConversionError::MissingField("title"))?)?;
+        let mode = read_value_9(values.get("mode").ok_or(ConversionError::MissingField("mode"))?)?;
+        let tags = read_value_10(values.get("tags").ok_or(ConversionError::MissingField("tags"))?)?;
+        let attrs = read_value_12(values.get("attrs").ok_or(ConversionError::MissingField("attrs"))?)?;
         Ok(Self {
             title,
             mode,
@@ -199,6 +227,8 @@ impl TryFrom<&PropertyMap> for ItemConfig {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoxChild {
     Item(Item),
+    NamedItem(NamedItem),
+    Lookup(Lookup),
     Evaluate(Evaluate),
 }
 
@@ -218,27 +248,37 @@ fn read_value_2(captured: &langmeld_language::CapturedValue) -> Result<Spanned<I
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_3(captured: &langmeld_language::CapturedValue) -> Result<Spanned<langmeld::expression::Expression>, ConversionError> {
+fn read_value_3(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+    let value = match &captured.value { langmeld_language::Value::Identifier(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("name")) };
+    Ok(Spanned { value, span: captured.span })
+}
+
+fn read_value_4(captured: &langmeld_language::CapturedValue) -> Result<Spanned<Reference<ItemSymbol>>, ConversionError> {
+    let value = match &captured.value { langmeld_language::Value::Reference(value) => Reference::new(value.clone()), _ => return Err(ConversionError::WrongFieldKind("target")) };
+    Ok(Spanned { value, span: captured.span })
+}
+
+fn read_value_5(captured: &langmeld_language::CapturedValue) -> Result<Spanned<langmeld::expression::Expression>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Expression(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("result")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_4(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
+fn read_value_6(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Number(value) => *value, _ => return Err(ConversionError::WrongFieldKind("x")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_5(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
+fn read_value_7(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Number(value) => *value, _ => return Err(ConversionError::WrongFieldKind("y")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_6(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+fn read_value_8(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("title")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_7(captured: &langmeld_language::CapturedValue) -> Result<Spanned<Mode>, ConversionError> {
+fn read_value_9(captured: &langmeld_language::CapturedValue) -> Result<Spanned<Mode>, ConversionError> {
     let value = match &captured.value {
         langmeld_language::Value::Enum(value) => match value.as_str() {
             "fast" => Mode::Fast,
@@ -250,24 +290,24 @@ fn read_value_7(captured: &langmeld_language::CapturedValue) -> Result<Spanned<M
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_8(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigTagsCollection>, ConversionError> {
+fn read_value_10(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigTagsCollection>, ConversionError> {
     let values = match &captured.value { langmeld_language::Value::List(values) => values, _ => return Err(ConversionError::WrongFieldKind("tags")) };
-    let value = values.iter().map(read_value_9).collect::<Result<Vec<_>, ConversionError>>()?;
-    Ok(Spanned { value, span: captured.span })
-}
-
-fn read_value_9(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
-    let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("tags")) };
-    Ok(Spanned { value, span: captured.span })
-}
-
-fn read_value_10(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigAttrsCollection>, ConversionError> {
-    let entries = match &captured.value { langmeld_language::Value::Map(entries) => entries, _ => return Err(ConversionError::WrongFieldKind("attrs")) };
-    let value = entries.iter().map(|entry| Ok((entry.key.clone(), read_value_11(&entry.value)?))).collect::<Result<BTreeMap<_, _>, ConversionError>>()?;
+    let value = values.iter().map(read_value_11).collect::<Result<Vec<_>, ConversionError>>()?;
     Ok(Spanned { value, span: captured.span })
 }
 
 fn read_value_11(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+    let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("tags")) };
+    Ok(Spanned { value, span: captured.span })
+}
+
+fn read_value_12(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigAttrsCollection>, ConversionError> {
+    let entries = match &captured.value { langmeld_language::Value::Map(entries) => entries, _ => return Err(ConversionError::WrongFieldKind("attrs")) };
+    let value = entries.iter().map(|entry| Ok((entry.key.clone(), read_value_13(&entry.value)?))).collect::<Result<BTreeMap<_, _>, ConversionError>>()?;
+    Ok(Spanned { value, span: captured.span })
+}
+
+fn read_value_13(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("attrs")) };
     Ok(Spanned { value, span: captured.span })
 }
@@ -289,6 +329,8 @@ impl TryFrom<&AstNode> for Box {
         let namespace = read_value_0(node.fields.get("namespace").ok_or(ConversionError::MissingField("namespace"))?)?;
         let children = node.children.iter().map(|child| match child.construct.as_str() {
             "item" => Ok(BoxChild::Item(Item::try_from(child)?)),
+            "named_item" => Ok(BoxChild::NamedItem(NamedItem::try_from(child)?)),
+            "lookup" => Ok(BoxChild::Lookup(Lookup::try_from(child)?)),
             "evaluate" => Ok(BoxChild::Evaluate(Evaluate::try_from(child)?)),
             child => Err(ConversionError::UnknownChild { parent: "box", child: child.to_owned() }),
         }).collect::<Result<Vec<_>, ConversionError>>()?;
@@ -327,6 +369,50 @@ impl TryFrom<&AstNode> for Item {
     }
 }
 
+/// Typed form of the `named_item` construct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedItem {
+    pub name: Spanned<String>,
+    pub syntax_variant: String,
+    pub span: Span,
+}
+
+impl TryFrom<&AstNode> for NamedItem {
+    type Error = ConversionError;
+    fn try_from(node: &AstNode) -> Result<Self, Self::Error> {
+        if node.construct != "named_item" { return Err(ConversionError::WrongConstruct { expected: "named_item", actual: node.construct.clone() }); }
+        let name = read_value_3(node.fields.get("name").ok_or(ConversionError::MissingField("name"))?)?;
+        if !node.children.is_empty() { return Err(ConversionError::UnexpectedChildren { parent: "named_item" }); }
+        Ok(Self {
+            name,
+            syntax_variant: node.syntax_variant.clone(),
+            span: node.span,
+        })
+    }
+}
+
+/// Typed form of the `lookup` construct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Lookup {
+    pub target: Spanned<Reference<ItemSymbol>>,
+    pub syntax_variant: String,
+    pub span: Span,
+}
+
+impl TryFrom<&AstNode> for Lookup {
+    type Error = ConversionError;
+    fn try_from(node: &AstNode) -> Result<Self, Self::Error> {
+        if node.construct != "lookup" { return Err(ConversionError::WrongConstruct { expected: "lookup", actual: node.construct.clone() }); }
+        let target = read_value_4(node.fields.get("target").ok_or(ConversionError::MissingField("target"))?)?;
+        if !node.children.is_empty() { return Err(ConversionError::UnexpectedChildren { parent: "lookup" }); }
+        Ok(Self {
+            target,
+            syntax_variant: node.syntax_variant.clone(),
+            span: node.span,
+        })
+    }
+}
+
 /// Typed form of the `evaluate` construct.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Evaluate {
@@ -340,7 +426,7 @@ impl TryFrom<&AstNode> for Evaluate {
     fn try_from(node: &AstNode) -> Result<Self, Self::Error> {
         if node.construct != "evaluate" { return Err(ConversionError::WrongConstruct { expected: "evaluate", actual: node.construct.clone() }); }
         if !matches!(node.syntax_variant.as_str(), "expression") { return Err(ConversionError::InvalidSyntaxVariant { construct: "evaluate", variant: node.syntax_variant.clone() }); }
-        let result = read_value_3(node.fields.get("result").ok_or(ConversionError::MissingField("result"))?)?;
+        let result = read_value_5(node.fields.get("result").ok_or(ConversionError::MissingField("result"))?)?;
         if !node.children.is_empty() { return Err(ConversionError::UnexpectedChildren { parent: "evaluate" }); }
         Ok(Self {
             result,

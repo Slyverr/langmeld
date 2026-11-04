@@ -93,6 +93,21 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
                 )),
         )
         .construct(
+            ConstructBuilder::new("named_item")
+                .implements(["statement"])
+                .syntax("named {name}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .symbol(SymbolSpec::new("item", "name").with_scope(
+                    ScopeSpec::new("box", "namespace").lookup(ScopeLookup::LexicalParents),
+                )),
+        )
+        .construct(
+            ConstructBuilder::new("lookup")
+                .implements(["statement"])
+                .syntax("use {target}")
+                .field(FieldSpec::required("target", FieldKind::reference("item"))),
+        )
+        .construct(
             ConstructBuilder::new("evaluate")
                 .implements(["statement"])
                 .syntax_variant("expression", "evaluate {result};")
@@ -194,4 +209,12 @@ fn generated_rust_artifact_matches_the_compiled_fixture() {
         generated_source.replace("\r\n", "\n"),
         include_str!("fixtures/generated_ast.rs").replace("\r\n", "\n")
     );
+}
+
+#[test]
+fn generated_references_use_symbol_kind_markers() {
+    let generated = generate_rust_ast(&language());
+
+    assert!(generated.contains("pub struct ItemSymbol;"));
+    assert!(generated.contains("pub target: Spanned<Reference<ItemSymbol>>"));
 }
