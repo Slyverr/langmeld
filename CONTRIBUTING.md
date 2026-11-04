@@ -96,26 +96,21 @@ capabilities with their own Rust implementations.
   and `benchmarks/` to confirm versions and constraints agree. Run the full
   release checks after those edits; do not tag a failing or unverified state.
 - After the release commit's full CI passes, create and push the matching
-  `vMAJOR.MINOR.PATCH` Git tag. Wait for the tag-triggered validation to pass
-  before publishing. Prerelease package versions and tags must use the same
-  suffix, such as `0.2.0-alpha.1` and `v0.2.0-alpha.1`.
-- Pushing a version tag currently runs CI only; it does not publish crates.
-  Publish manually with Cargo credentials configured outside the repository,
-  never by committing a registry token. Publish dependencies before their
-  dependents, in this workspace order:
-
-  ```sh
-  cargo publish -p langmeld-core
-  cargo publish -p langmeld-expression
-  cargo publish -p langmeld-language
-  cargo publish -p langmeld
-  cargo publish -p langmeld-lsp
-  cargo publish -p langmeld-cli
-  ```
-
-  Confirm each published version is available from crates.io before publishing
-  the next crate. The package graph is checked from the workspace manifests;
-  if those dependencies change, review this order.
+  `vMAJOR.MINOR.PATCH` Git tag. The `Publish Release` workflow reruns the
+  release validation through the shared CI workflow, then publishes all six
+  crates to crates.io in dependency order. Prerelease package versions and tags
+  must use the same suffix, such as `0.2.0-alpha.1` and `v0.2.0-alpha.1`.
+- Before enabling publication for a crate, configure its crates.io Trusted
+  Publisher for this repository, using workflow `release.yml` and GitHub
+  Actions environment `crates-io`. Repeat this for each workspace crate. The
+  release workflow uses OIDC and does not need a long-lived crates.io token
+  secret.
+- The release script verifies that every workspace crate version matches the
+  pushed tag and skips crate versions already on crates.io, so a retry after a
+  partial publish can continue. Keep the dependency order in
+  `scripts/publish-workspace.sh` aligned with the workspace package graph.
+  Publishing is permanent; only push a release tag after reviewing the release
+  commit and its successful validation.
 - Follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) with
   this project's pre-1.0 policy: patch releases are for compatible fixes;
   minor releases add capabilities and may include breaking API changes while
