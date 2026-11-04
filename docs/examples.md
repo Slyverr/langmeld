@@ -5,7 +5,7 @@ Langmeld integration.
 
 | Example | What it demonstrates |
 | --- | --- |
-| [`declarative-interpreter`](../examples/declarative-interpreter/README.md) | Modular `.langmeld` definitions, a local subtraction extension, generic symbol resolution, and a Rust interpreter. |
+| [`declarative-interpreter`](../examples/declarative-interpreter/README.md) | Modular `.langmeld` definitions, a syntax-only subtraction extension with a separate Rust handler, generic symbol resolution, and a Rust interpreter. |
 | [`rust-functions`](../examples/rust-functions/README.md) | A Rust-authored model for zero-argument and parameterized function signatures, with lowering to compilable Rust. |
 | [`rust-source`](../examples/rust-source/README.md) | Host-owned Rust parsing through `syn`, mapped into Langmeld's generic and typed ASTs. |
 | [`typescript-source`](../examples/typescript-source/README.md) | TypeScript Compiler API parsing through a persistent Bun worker and LSP source indexing. |

@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 pub mod host;
+mod extensions;
 mod language;
 
 /// Parsed and analyzed inputs supplied to this language's execution hook.
@@ -168,20 +169,7 @@ fn execute_node(
             let value = evaluate_numeric_expression(expression(node, "value")?)?;
             insert_variable(variables, name, value)?;
         }
-        "subtract" => {
-            let right_name = reference(node, "right")?;
-            let left_name = reference(node, "left")?;
-            let name = identifier(node, "name")?.to_owned();
-            let left = lookup_variable(variables, left_name)?;
-            let right = lookup_variable(variables, right_name)?;
-            let value = left - right;
-            if !value.is_finite() {
-                return Err(format!(
-                    "subtraction for `{name}` produced a non-finite value"
-                ));
-            }
-            insert_variable(variables, name, value)?;
-        }
+        "subtract" => extensions::execute(node, variables)?,
         "print" => {
             let name = reference(node, "target")?;
             let value = lookup_variable(variables, name)?;

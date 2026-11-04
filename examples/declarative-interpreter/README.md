@@ -23,9 +23,14 @@ program {
 The base definition declares a `statement` category and the `set`, `add`, and
 `print` constructs. `language/extensions/subtract.langmeld` adds the subtraction
 construct through that category, so the extension does not need to edit the
-root block. Langmeld parses the source and resolves references across the
-workspace. The host evaluates the AST, checks execution order, and prints
-`total = 42`, `remainder = 23`, and `computed = 84`. The `calculate` syntax
+root block. That file contributes syntax and data only. The Rust host explicitly
+dispatches the `subtract` construct from `src/lib.rs` to
+`src/extensions/subtract.rs`, where the runtime operation is implemented.
+Langmeld does not load executable code from declarative extensions; the host
+application must compile and register any corresponding behavior. Langmeld
+parses the source and resolves references across the workspace. The host checks
+execution order and prints `total = 42`, `remainder = 23`, and `computed = 84`.
+The `calculate` syntax
 captures a schema-v3 expression; its Rust runtime defines numeric atoms and
 operator behavior. Parentheses and precedence come from Langmeld's expression
 parser, while evaluation remains owned by this example.
