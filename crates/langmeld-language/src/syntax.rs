@@ -52,6 +52,20 @@ pub enum SyntaxNodeRole {
     MapKey,
     /// Value of a map entry.
     MapValue,
+    /// Root of a parsed expression value.
+    Expression,
+    /// Literal, identifier, or host-defined expression atom.
+    ExpressionAtom,
+    /// Prefix or infix operator application.
+    ExpressionOperator,
+    /// Parenthesized expression.
+    ExpressionGroup,
+    /// Call expression.
+    ExpressionCall,
+    /// Member access expression.
+    ExpressionMember,
+    /// Indexed access expression.
+    ExpressionIndex,
 }
 
 /// A nested syntax node or an indexed lossless token leaf.
@@ -341,12 +355,14 @@ impl ValueSpecContext<'_> {
                         map_entry_spec(self, field.clone(), entry_index, entry, depth + 1)
                     })
                     .collect(),
+                Value::Expression(expression) => {
+                    vec![expression_spec(expression, depth + 1)]
+                }
                 Value::Identifier(_)
                 | Value::Number(_)
                 | Value::Text(_)
                 | Value::Enum(_)
-                | Value::Reference(_)
-                | Value::Expression(_) => Vec::new(),
+                | Value::Reference(_) => Vec::new(),
             }
         };
         if role == SyntaxNodeRole::Property
@@ -374,6 +390,99 @@ impl ValueSpecContext<'_> {
             span,
             children,
         }
+    }
+}
+
+fn expression_spec(expression: &langmeld_expression::Expression, depth: usize) -> NodeSpec {
+    if depth >= crate::MAX_NESTING_DEPTH {
+        return NodeSpec {
+            role: SyntaxNodeRole::Expression,
+            construct: None,
+            syntax_variant: None,
+            field: None,
+            index: None,
+            span: expression.span(),
+            children: Vec::new(),
+        };
+    }
+    let child = expression_node_spec(expression, depth + 1);
+    NodeSpec {
+        role: SyntaxNodeRole::Expression,
+        construct: None,
+        syntax_variant: None,
+        field: None,
+        index: None,
+        span: expression.span(),
+        children: vec![child],
+    }
+}
+
+fn expression_node_spec(expression: &langmeld_expression::Expression, depth: usize) -> NodeSpec {
+    use langmeld_expression::Expression;
+
+    if depth >= crate::MAX_NESTING_DEPTH {
+        return NodeSpec {
+            role: SyntaxNodeRole::Expression,
+            construct: None,
+            syntax_variant: None,
+            field: None,
+            index: None,
+            span: expression.span(),
+            children: Vec::new(),
+        };
+    }
+    let (role, mut children) = match expression {
+        Expression::Atom(_, _) => (SyntaxNodeRole::ExpressionAtom, Vec::new()),
+        Expression::Prefix { operand, .. } => (
+            SyntaxNodeRole::ExpressionOperator,
+            vec![expression_node_spec(operand, depth + 1)],
+        ),
+        Expression::Infix { left, right, .. } => (
+            SyntaxNodeRole::ExpressionOperator,
+            vec![
+                expression_node_spec(left, depth + 1),
+                expression_node_spec(right, depth + 1),
+            ],
+        ),
+        Expression::Group { expression, .. } => (
+            SyntaxNodeRole::ExpressionGroup,
+            vec![expression_node_spec(expression, depth + 1)],
+        ),
+        Expression::Call {
+            callee, arguments, ..
+        } => (
+            SyntaxNodeRole::ExpressionCall,
+            std::iter::once(expression_node_spec(callee, depth + 1))
+                .chain(
+                    arguments
+                        .iter()
+                        .map(|argument| expression_node_spec(argument, depth + 1)),
+                )
+                .collect(),
+        ),
+        Expression::Member { receiver, .. } => (
+            SyntaxNodeRole::ExpressionMember,
+            vec![expression_node_spec(receiver, depth + 1)],
+        ),
+        Expression::Index {
+            receiver, index, ..
+        } => (
+            SyntaxNodeRole::ExpressionIndex,
+            vec![
+                expression_node_spec(receiver, depth + 1),
+                expression_node_spec(index, depth + 1),
+            ],
+        ),
+    };
+    sort_specs(&mut children);
+    NodeSpec {
+        role,
+        construct: None,
+        syntax_variant: None,
+        field: None,
+        index: None,
+        span: expression.span(),
+        children,
     }
 }
 

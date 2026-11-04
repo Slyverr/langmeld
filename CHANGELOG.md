@@ -21,6 +21,9 @@ is cut, changes belong under `Unreleased`.
   expression-valued fields in schema 3. Parsing honors operator precedence,
   nested groups, explicit punctuation terminators, and source spans. The
   standalone expression crate also provides a host-defined atom API.
+- **Expression tooling:** The lossless syntax tree exposes nested expression,
+  operator, atom, group, call, member, and index nodes while retaining each
+  source token exactly once.
 - **Project workflow:** An interactive CLI initializes and configures Rust
   language projects, checks and formats programs, inspects definitions,
   manages local declarative extensions, and generates deterministic editor and

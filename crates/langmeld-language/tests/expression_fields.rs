@@ -5,7 +5,10 @@ use langmeld_core::{
 };
 use langmeld_expression::{Atom, CustomAtomToken, Expression};
 use langmeld_language::parse_definition;
-use langmeld_language::{ExpressionAtomParserRegistration, PreparedLanguage, Value};
+use langmeld_language::{
+    ExpressionAtomParserRegistration, PreparedLanguage, SyntaxElement, SyntaxNode, SyntaxNodeRole,
+    Value, generate_tooling,
+};
 
 fn parser() -> langmeld_language::ConfiguredLanguageParser {
     let language = LanguageBuilder::new("Calc")
@@ -65,6 +68,111 @@ fn parses_expression_field_to_structured_ast_and_stops_at_its_terminator() {
         matches!(expression, Expression::Infix { operator, right, .. }
         if operator == "+" && matches!(right.as_ref(), Expression::Infix { operator, .. } if operator == "*"))
     );
+}
+
+#[test]
+fn expression_syntax_tree_exposes_nested_expression_nodes_and_keeps_all_tokens() {
+    let source = SourceFile::new(
+        "program.calc",
+        "program {\neval foo.bar(1)[2] + (2 * 3);\n}",
+    );
+    let result = parser().parse(&source);
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+
+    let mut roles = Vec::new();
+    let mut token_indices = Vec::new();
+    collect_syntax(&result.syntax_tree, &mut roles, &mut token_indices);
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::Expression)
+            .count(),
+        1
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionOperator)
+            .count(),
+        2
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionGroup)
+            .count(),
+        1
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionAtom)
+            .count(),
+        5
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionCall)
+            .count(),
+        1
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionMember)
+            .count(),
+        1
+    );
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role| **role == SyntaxNodeRole::ExpressionIndex)
+            .count(),
+        1
+    );
+    assert_eq!(
+        token_indices,
+        (0..result.syntax_tokens.len()).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn expression_tooling_reports_why_tree_sitter_is_unavailable() {
+    let parser = parser();
+    let language = parser.language().spec();
+    let artifacts = generate_tooling(language).expect("baseline tooling still generates");
+    assert!(
+        !artifacts
+            .keys()
+            .any(|path| path.starts_with("tree-sitter/"))
+    );
+
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capabilities are JSON");
+    assert_eq!(
+        capabilities["optional_artifacts"]["tree_sitter"]["available"],
+        false
+    );
+    assert_eq!(
+        capabilities["optional_artifacts"]["tree_sitter"]["reason"],
+        "Tree-sitter export does not yet represent expression field grammar `arithmetic`"
+    );
+}
+
+fn collect_syntax(
+    node: &SyntaxNode,
+    roles: &mut Vec<SyntaxNodeRole>,
+    token_indices: &mut Vec<usize>,
+) {
+    roles.push(node.role);
+    for element in &node.children {
+        match element {
+            SyntaxElement::Node(child) => collect_syntax(child, roles, token_indices),
+            SyntaxElement::Token(index) => token_indices.push(*index),
+        }
+    }
 }
 
 #[test]
