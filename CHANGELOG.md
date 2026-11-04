@@ -7,6 +7,8 @@ is cut, changes belong under `Unreleased`.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-04
+
 ### Added
 
 - **Language framework:** Build languages from modular `.langmeld` definitions or
