@@ -16,8 +16,6 @@ jobs:
   validate:
     name: ${{ matrix.toolchain }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     strategy:
       fail-fast: false
       matrix:
@@ -90,6 +88,8 @@ jobs:
           python3 scripts/check_version_sync.py
       - name: Test external examples
         if: matrix.full == true
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: |
           cargo test --locked --manifest-path examples/declarative-interpreter/Cargo.toml
           cargo test --locked --manifest-path examples/aster-language/Cargo.toml
@@ -238,7 +238,7 @@ jobs:
         if: matrix.full == true
         env:
           LANGMELD_WASM_SMOKE: "1"
-        run: cargo test --locked -p langmeld-cli --test init init_can_create_and_run_a_browser_wasm_adapter_project -- --nocapture
+        run: cargo test --locked -p langmeld-cli --test init -- --ignored --exact init_can_create_and_run_a_browser_wasm_adapter_project --nocapture
       - name: Verify publishable crate packages
         if: matrix.full == true
         run: |

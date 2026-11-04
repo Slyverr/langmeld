@@ -602,6 +602,7 @@ fn extension_construct_is_available_in_the_typed_ast() {
 }
 
 #[test]
+#[ignore = "runs in the dedicated browser/WASM CI validation step"]
 fn init_can_create_and_run_a_browser_wasm_adapter_project() {
     let temporary = TempWorkspace::new();
     let project = temporary.project("BrowserLanguage");
@@ -636,7 +637,7 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
     assert!(readme.contains("This runs Langmeld inside WebAssembly"));
 
     let adapter_test = cargo_command()
-        .args(["test", "--features", "wasm", "--offline"])
+        .args(["test", "--features", "wasm"])
         .current_dir(&project)
         .output()
         .expect("generated browser adapter tests start");
