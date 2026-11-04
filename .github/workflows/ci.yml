@@ -104,10 +104,30 @@ jobs:
         if: matrix.full == true
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo install wasm-bindgen-cli --version 0.2.129 --locked
-      - name: Install Tree-sitter CLI
+          version=0.2.129
+          archive="$RUNNER_TEMP/wasm-bindgen-$version.tar.gz"
+          url="https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$version/wasm-bindgen-$version-x86_64-unknown-linux-musl.tar.gz"
+          curl --fail --location --retry 3 --silent --show-error "$url" --output "$archive"
+          printf '%s  %s\n' '82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e' "$archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP"
+          bindgen_dir="$RUNNER_TEMP/wasm-bindgen-$version-x86_64-unknown-linux-musl"
+          mkdir -p "$HOME/.cargo/bin"
+          install -m 0755 "$bindgen_dir/wasm-bindgen" "$HOME/.cargo/bin/wasm-bindgen"
+          install -m 0755 "$bindgen_dir/wasm-bindgen-test-runner" "$HOME/.cargo/bin/wasm-bindgen-test-runner"
+          install -m 0755 "$bindgen_dir/wasm2es6js" "$HOME/.cargo/bin/wasm2es6js"
+          wasm-bindgen --version
+      - name: Install prebuilt Tree-sitter CLI
         if: matrix.full == true
-        run: cargo install tree-sitter-cli --version 0.27.0 --locked
+        run: |
+          archive="$RUNNER_TEMP/tree-sitter-cli-linux-x64.zip"
+          curl --fail --location --retry 3 --silent --show-error \
+            https://github.com/tree-sitter/tree-sitter/releases/download/v0.27.0/tree-sitter-cli-linux-x64.zip \
+            --output "$archive"
+          printf '%s  %s\n' 'e4a3826bcd0fe099ee3a5617767374939cbc23c4a35b5b53f5fc04142525a2c1' "$archive" | sha256sum --check --strict
+          unzip -q "$archive" -d "$RUNNER_TEMP/tree-sitter-cli"
+          mkdir -p "$HOME/.cargo/bin"
+          install -m 0755 "$RUNNER_TEMP/tree-sitter-cli/tree-sitter" "$HOME/.cargo/bin/tree-sitter"
+          tree-sitter --version
       - name: Validate generated Tree-sitter grammar and highlights
         if: matrix.full == true
         working-directory: examples/declarative-interpreter/.langmeld/generated/tree-sitter
