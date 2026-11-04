@@ -116,6 +116,37 @@ fn incomplete_expressions_keep_source_diagnostics() {
 }
 
 #[test]
+fn expressions_follow_precedence_associativity_and_nested_groups() {
+    let language = load_language().expect("compiled language model loads");
+    let source = SourceFile::new(
+        "expressions.aster.lmprog",
+        "program {\n  fn main {\n    let precedence = 2 + 3 * 4;\n    let associativity = 10 - 3 - 2;\n    let grouped = (2 + 3) * 4;\n    print precedence\n    print associativity\n    print grouped\n    return grouped;\n  }\n}",
+    );
+    let parsed = parse_source(&source).expect("parser prepares");
+    assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+    let programs = vec![parsed.program];
+    let analysis =
+        analyze_sources(&language, &[source.clone()], &[&programs[0]]).expect("host analysis runs");
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:#?}",
+        analysis.diagnostics
+    );
+
+    let output = evaluate(&RuntimeContext {
+        language: &language,
+        sources: &[source],
+        programs: &programs,
+        analysis: &analysis,
+    })
+    .expect("host lowers, optimizes, and interprets each expression");
+    assert_eq!(
+        output,
+        ["precedence = 14", "associativity = 5", "grouped = 20"]
+    );
+}
+
+#[test]
 fn host_type_analysis_checks_expression_names_call_arity_and_return_values() {
     let language = load_language().expect("compiled language model loads");
     let source = SourceFile::new(
