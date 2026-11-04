@@ -21,6 +21,9 @@ pub struct LanguageSpec {
     /// hash line-comment behavior.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lexical: Option<LexicalSpec>,
+    /// Optional generic name-resolution policies keyed by declared symbol kind.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbol_policies: Vec<SymbolPolicySpec>,
     /// Reusable kinds that constructs may implement and blocks may accept.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<CategorySpec>,
@@ -789,6 +792,74 @@ pub struct SymbolSpec {
     /// Optional ancestor construct that owns this symbol namespace.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<ScopeSpec>,
+}
+
+/// Generic name-resolution rules for one declared symbol kind.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SymbolPolicySpec {
+    /// Symbol kind this policy controls.
+    pub kind: String,
+    /// Whether references can see declarations later in the same source file.
+    #[serde(default, skip_serializing_if = "DeclarationOrder::is_hoisted")]
+    pub declaration_order: DeclarationOrder,
+    /// How repeated names in the same scope are handled.
+    #[serde(default, skip_serializing_if = "DuplicatePolicy::is_error")]
+    pub duplicates: DuplicatePolicy,
+    /// Whether a declaration may reuse a name from an enclosing scope.
+    #[serde(default, skip_serializing_if = "ShadowingPolicy::is_allowed")]
+    pub shadowing: ShadowingPolicy,
+}
+
+/// Declaration visibility order within one source file.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeclarationOrder {
+    /// Declarations are visible throughout their scope.
+    #[default]
+    Hoisted,
+    /// A declaration is visible only after its source position.
+    Sequential,
+}
+
+impl DeclarationOrder {
+    const fn is_hoisted(value: &Self) -> bool {
+        matches!(value, Self::Hoisted)
+    }
+}
+
+/// Policy for repeated names in the same scope.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DuplicatePolicy {
+    /// Report a duplicate and keep the first declaration as the reference target.
+    #[default]
+    Error,
+    /// Permit duplicate declarations, reporting ambiguity when a reference matches them.
+    AllowAmbiguous,
+}
+
+impl DuplicatePolicy {
+    const fn is_error(value: &Self) -> bool {
+        matches!(value, Self::Error)
+    }
+}
+
+/// Policy for reusing a name from an enclosing lexical scope.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShadowingPolicy {
+    /// Inner declarations may reuse names from enclosing scopes.
+    #[default]
+    Allow,
+    /// Diagnose inner declarations that reuse a visible enclosing name.
+    Disallow,
+}
+
+impl ShadowingPolicy {
+    const fn is_allowed(value: &Self) -> bool {
+        matches!(value, Self::Allow)
+    }
 }
 
 /// Identifies a named ancestor construct as the owner of a symbol namespace.

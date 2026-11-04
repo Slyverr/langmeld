@@ -1,11 +1,12 @@
 use super::*;
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::HashMap;
 
 pub(super) type ScopeIdentity<'a> = Vec<(&'a str, &'a str)>;
 
 pub(super) struct AnalysisIndexes<'a> {
     pub(super) constructs_by_id: HashMap<&'a str, &'a ConstructSpec>,
     pub(super) symbol_scopes_by_kind: HashMap<&'a str, Option<&'a langmeld_core::ScopeSpec>>,
+    pub(super) symbol_policies_by_kind: HashMap<&'a str, &'a langmeld_core::SymbolPolicySpec>,
 }
 
 impl<'a> AnalysisIndexes<'a> {
@@ -23,9 +24,15 @@ impl<'a> AnalysisIndexes<'a> {
                     .or_insert(symbol.scope.as_ref());
             }
         }
+        let symbol_policies_by_kind = spec
+            .symbol_policies
+            .iter()
+            .map(|policy| (policy.kind.as_str(), policy))
+            .collect();
         Self {
             constructs_by_id,
             symbol_scopes_by_kind,
+            symbol_policies_by_kind,
         }
     }
 }
@@ -45,12 +52,18 @@ pub(super) struct PendingReference<'a> {
     pub(super) span: Span,
 }
 
+pub(super) struct SymbolDeclaration<'a> {
+    pub(super) source_index: usize,
+    pub(super) span: Span,
+    pub(super) scope_path: Option<ScopeIdentity<'a>>,
+}
+
 pub(super) fn collect_workspace_symbols<'a>(
     indexes: &AnalysisIndexes<'a>,
     nodes: &'a [AstNode],
     ancestors: &mut Vec<&'a AstNode>,
     source_index: usize,
-    declarations: &mut HashMap<SymbolKey<'a>, (usize, Span)>,
+    declarations: &mut HashMap<SymbolKey<'a>, Vec<SymbolDeclaration<'a>>>,
     references: &mut Vec<PendingReference<'a>>,
     diagnostics: &mut Vec<WorkspaceDiagnostic>,
 ) {
@@ -68,12 +81,19 @@ pub(super) fn collect_workspace_symbols<'a>(
         });
         if let Some((symbol, value, name)) = declaration {
             if let Some(scope) = scope_key(symbol.scope.as_ref(), ancestors) {
-                match declarations.entry(SymbolKey {
+                let key = SymbolKey {
                     kind: symbol.kind.as_str(),
                     scope,
                     name,
-                }) {
-                    Entry::Occupied(_) => diagnostics.push(WorkspaceDiagnostic {
+                };
+                let policy = indexes.symbol_policies_by_kind.get(symbol.kind.as_str());
+                let existing = declarations.entry(key).or_default();
+                if !existing.is_empty()
+                    && policy.is_none_or(|policy| {
+                        policy.duplicates == langmeld_core::DuplicatePolicy::Error
+                    })
+                {
+                    diagnostics.push(WorkspaceDiagnostic {
                         source_index,
                         source_id: None,
                         source_revision: None,
@@ -85,10 +105,19 @@ pub(super) fn collect_workspace_symbols<'a>(
                             ),
                             value.span,
                         ),
-                    }),
-                    Entry::Vacant(entry) => {
-                        entry.insert((source_index, value.span));
-                    }
+                    });
+                } else {
+                    let scope_path = policy
+                        .is_some_and(|policy| {
+                            policy.shadowing == langmeld_core::ShadowingPolicy::Disallow
+                        })
+                        .then(|| scope_path(symbol.scope.as_ref(), ancestors))
+                        .flatten();
+                    existing.push(SymbolDeclaration {
+                        source_index,
+                        span: value.span,
+                        scope_path,
+                    });
                 }
             } else {
                 diagnostics.push(WorkspaceDiagnostic {
@@ -214,7 +243,37 @@ fn scope_key<'a>(
     scope: Option<&'a langmeld_core::ScopeSpec>,
     ancestors: &[&'a AstNode],
 ) -> Option<Option<ScopeIdentity<'a>>> {
-    scope_keys(scope, ancestors)?.into_iter().next()
+    let Some(scope) = scope else {
+        return Some(None);
+    };
+    let path = scope_path(Some(scope), ancestors)?;
+    Some(Some(if scope.lookup == langmeld_core::ScopeLookup::Exact {
+        vec![*path.last().expect("matching scope exists")]
+    } else {
+        path
+    }))
+}
+
+fn scope_path<'a>(
+    scope: Option<&'a langmeld_core::ScopeSpec>,
+    ancestors: &[&'a AstNode],
+) -> Option<ScopeIdentity<'a>> {
+    let scope = scope?;
+    let matching: Vec<_> = ancestors
+        .iter()
+        .filter(|ancestor| ancestor.construct == scope.construct)
+        .filter_map(|ancestor| {
+            ancestor
+                .fields
+                .get(&scope.name_field)
+                .and_then(|field| match &field.value {
+                    Value::Identifier(name) => Some(name.as_str()),
+                    _ => None,
+                })
+                .map(|name| (scope.construct.as_str(), name))
+        })
+        .collect();
+    (!matching.is_empty()).then_some(matching)
 }
 
 fn scope_keys<'a>(

@@ -15,6 +15,7 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
                 "source_extension_decl",
                 "import_decl",
                 "lexical_decl",
+                "symbol_policy_decl",
                 "category_decl",
                 "behavior_decl",
                 "rule_decl",
@@ -49,6 +50,24 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
             .syntax_variant("default", "block_comment: {open} {close}")
             .field(FieldSpec::required("open", FieldKind::Text))
             .field(FieldSpec::required("close", FieldKind::Text)),
+        ConstructBuilder::new("symbol_policy_decl")
+            .syntax_variant(
+                "default",
+                "symbol_policy {kind}[: {order}][ {duplicates}][ {shadowing}]",
+            )
+            .field(FieldSpec::required("kind", FieldKind::Identifier))
+            .field(FieldSpec::optional(
+                "order",
+                FieldKind::enumeration(["hoisted", "sequential"]),
+            ))
+            .field(FieldSpec::optional(
+                "duplicates",
+                FieldKind::enumeration(["error", "allow_ambiguous"]),
+            ))
+            .field(FieldSpec::optional(
+                "shadowing",
+                FieldKind::enumeration(["allow", "disallow"]),
+            )),
         ConstructBuilder::new("category_decl")
             .syntax_variant("root", "category {id} {")
             .field(FieldSpec::required("id", FieldKind::Identifier))

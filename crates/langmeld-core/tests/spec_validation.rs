@@ -2,8 +2,8 @@ use langmeld_core::{
     BehaviorSpec, BehaviorStage, BlockSeparator, BlockSeparatorPolicy, BlockSpec, ConstructBuilder,
     ConstructSpec, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
     ExpressionSpec, FieldConstraints, FieldKind, FieldSpec, LanguageBuilder, LanguageSpec,
-    LexicalSpec, NamedEnum, NamedRecord, ScopeLookup, ScopeSpec, SymbolSpec, SyntaxPattern,
-    SyntaxRuleSpec,
+    LexicalSpec, NamedEnum, NamedRecord, ScopeLookup, ScopeSpec, SymbolPolicySpec, SymbolSpec,
+    SyntaxPattern, SyntaxRuleSpec,
 };
 
 fn valid_spec() -> LanguageSpec {
@@ -11,6 +11,7 @@ fn valid_spec() -> LanguageSpec {
         schema_version: 1,
         source_extensions: Vec::new(),
         lexical: None,
+        symbol_policies: Vec::new(),
         name: "Flow".to_owned(),
         version: "0.1.0".to_owned(),
         root: "flow".to_owned(),
@@ -73,14 +74,52 @@ fn valid_language_definition_has_a_validated_state() {
 #[test]
 fn validation_rejects_unsupported_language_model_schema_versions() {
     let mut spec = valid_spec();
-    spec.schema_version = 5;
+    spec.schema_version = 6;
 
     let errors = spec
         .validate()
         .expect_err("unsupported language model schema is rejected");
     assert!(errors.iter().any(|error| {
-        error.code == "LM1001" && error.message.contains("unsupported schema_version 5")
+        error.code == "LM1001" && error.message.contains("unsupported schema_version 6")
     }));
+}
+
+#[test]
+fn symbol_policies_require_schema_five_and_a_declared_kind() {
+    let policy = SymbolPolicySpec {
+        kind: "node".to_owned(),
+        declaration_order: Default::default(),
+        duplicates: Default::default(),
+        shadowing: Default::default(),
+    };
+    let mut spec = valid_spec();
+    spec.symbol_policies.push(policy.clone());
+    assert!(
+        spec.validate()
+            .unwrap_err()
+            .iter()
+            .any(|error| error.code == "LM1093")
+    );
+
+    let mut spec = valid_spec();
+    spec.schema_version = 5;
+    spec.symbol_policies.push(policy);
+    assert!(spec.validate().is_ok());
+
+    let mut spec = valid_spec();
+    spec.schema_version = 5;
+    spec.symbol_policies.push(SymbolPolicySpec {
+        kind: "missing".to_owned(),
+        declaration_order: Default::default(),
+        duplicates: Default::default(),
+        shadowing: Default::default(),
+    });
+    assert!(
+        spec.validate()
+            .unwrap_err()
+            .iter()
+            .any(|error| error.code == "LM1095")
+    );
 }
 
 #[test]

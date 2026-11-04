@@ -1,4 +1,7 @@
-use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, MapKeyKind};
+use langmeld_core::{
+    DeclarationOrder, DuplicatePolicy, FieldKind, FieldSpec, LanguageSpec, LexicalSpec, MapKeyKind,
+    ShadowingPolicy, SymbolPolicySpec,
+};
 
 #[test]
 fn language_spec_round_trips_nested_types_and_flattened_field_kinds() {
@@ -255,4 +258,45 @@ fn flattened_field_kind_roundtrips_every_variant() {
             serde_json::from_value(serialized).expect("serialized field kind deserializes");
         assert_eq!(decoded, field);
     }
+}
+
+#[test]
+fn schema_v5_symbol_policies_roundtrip_and_legacy_models_default_empty() {
+    let mut spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 5,
+        "name": "Symbols",
+        "version": "0.1.0",
+        "root": "program",
+        "symbol_policies": [{
+            "kind": "variable",
+            "declaration_order": "sequential",
+            "duplicates": "allow_ambiguous",
+            "shadowing": "disallow"
+        }],
+        "constructs": []
+    }))
+    .expect("schema-v5 policy deserializes");
+    assert_eq!(
+        spec.symbol_policies,
+        [SymbolPolicySpec {
+            kind: "variable".to_owned(),
+            declaration_order: DeclarationOrder::Sequential,
+            duplicates: DuplicatePolicy::AllowAmbiguous,
+            shadowing: ShadowingPolicy::Disallow,
+        }]
+    );
+
+    let serialized = serde_json::to_value(&spec).expect("schema-v5 policy serializes");
+    let decoded: LanguageSpec =
+        serde_json::from_value(serialized).expect("serialized policy deserializes");
+    assert_eq!(decoded.symbol_policies, spec.symbol_policies);
+
+    spec.schema_version = 4;
+    spec.symbol_policies.clear();
+    let mut serialized = serde_json::to_value(spec).expect("legacy model serializes");
+    assert!(serialized.get("symbol_policies").is_none());
+    serialized["schema_version"] = serde_json::json!(4);
+    let legacy: LanguageSpec = serde_json::from_value(serialized)
+        .expect("legacy model defaults the optional policy section");
+    assert!(legacy.symbol_policies.is_empty());
 }

@@ -125,6 +125,29 @@ declared line-comment delimiter; it reports configured block comments as
 unavailable until it can represent them exactly. Languages needing nested or
 stateful comments can provide a custom Rust lexer.
 
+Schema 5 lets a language set generic name-resolution behavior once per symbol
+kind in its root definition. Without an entry, declarations are hoisted,
+duplicates are errors that keep the first declaration as the navigation
+target, and nested scopes may shadow outer names. Policies can make declarations
+sequential within each file, permit duplicates and diagnose references that
+become ambiguous, or reject shadowing. Declarations in other files remain
+visible regardless of source-list order; imports and module visibility are not
+inferred from file order.
+
+```langmeld
+language Example {
+  version: "0.1.0"
+  schema_version: 5
+  root: program
+
+  symbol_policy variable: sequential allow_ambiguous disallow
+}
+```
+
+An ambiguous reference has a diagnostic and no navigation target. Languages
+with overload resolution or other custom name rules can replace the generic
+workspace resolver with a Rust host callback.
+
 ## Develop the language
 
 Edit the project sources, then regenerate and check derived output:

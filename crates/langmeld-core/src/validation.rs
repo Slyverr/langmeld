@@ -326,11 +326,11 @@ impl LanguageSpec {
             }
         }
 
-        if !matches!(self.schema_version, 1..=4) {
+        if !matches!(self.schema_version, 1..=5) {
             errors.push(SpecError {
                 code: "LM1001",
                 message: format!(
-                    "unsupported schema_version {}; expected 1, 2, 3, or 4",
+                    "unsupported schema_version {}; expected 1, 2, 3, 4, or 5",
                     self.schema_version
                 ),
             });
@@ -349,6 +349,39 @@ impl LanguageSpec {
                 });
             }
             validate_lexical_spec(lexical, &self.expressions, &mut errors);
+        }
+        if !self.symbol_policies.is_empty() && self.schema_version < 5 {
+            errors.push(SpecError {
+                code: "LM1093",
+                message: "symbol resolution policies require schema_version 5".to_owned(),
+            });
+        }
+        let declared_symbol_kinds: BTreeSet<_> = self
+            .constructs
+            .iter()
+            .filter_map(|construct| construct.symbol.as_ref())
+            .map(|symbol| symbol.kind.as_str())
+            .collect();
+        let mut symbol_policy_kinds = BTreeSet::new();
+        for policy in &self.symbol_policies {
+            if !valid_identifier(&policy.kind) || !symbol_policy_kinds.insert(policy.kind.as_str())
+            {
+                errors.push(SpecError {
+                    code: "LM1094",
+                    message: format!(
+                        "symbol policy kind `{}` is invalid or declared more than once",
+                        policy.kind
+                    ),
+                });
+            } else if !declared_symbol_kinds.contains(policy.kind.as_str()) {
+                errors.push(SpecError {
+                    code: "LM1095",
+                    message: format!(
+                        "symbol policy refers to undeclared symbol kind `{}`",
+                        policy.kind
+                    ),
+                });
+            }
         }
         if self.name.trim().is_empty() || self.version.trim().is_empty() {
             errors.push(SpecError {

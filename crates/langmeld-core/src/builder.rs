@@ -428,6 +428,7 @@ impl LanguageBuilder {
                 root: String::new(),
                 source_extensions: Vec::new(),
                 lexical: None,
+                symbol_policies: Vec::new(),
                 categories: Vec::new(),
                 rules: Vec::new(),
                 enums: Vec::new(),
@@ -484,6 +485,13 @@ impl LanguageBuilder {
     #[must_use]
     pub fn lexical(mut self, lexical: LexicalSpec) -> Self {
         self.spec.lexical = Some(lexical);
+        self
+    }
+
+    /// Adds explicit generic name-resolution rules for one symbol kind.
+    #[must_use]
+    pub fn symbol_policy(mut self, policy: SymbolPolicySpec) -> Self {
+        self.spec.symbol_policies.push(policy);
         self
     }
 

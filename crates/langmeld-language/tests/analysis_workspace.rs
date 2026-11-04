@@ -1,6 +1,7 @@
 use langmeld_core::{
-    BehaviorStage, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, ScopeLookup, ScopeSpec,
-    SourceDatabase, SourceFile, Span, SymbolSpec,
+    BehaviorStage, ConstructBuilder, DeclarationOrder, DuplicatePolicy, FieldKind, FieldSpec,
+    LanguageBuilder, ScopeLookup, ScopeSpec, ShadowingPolicy, SourceDatabase, SourceFile, Span,
+    SymbolPolicySpec, SymbolSpec,
 };
 use langmeld_language::{
     AnalysisLimits, AstNode, BehaviorRegistrationIssue, CapturedValue,
@@ -18,12 +19,25 @@ use std::sync::{
 };
 
 fn language(scope_lookup: ScopeLookup) -> langmeld_core::ValidatedLanguageSpec {
-    LanguageBuilder::new("AnalysisFixture")
+    language_with_policy(scope_lookup, None)
+}
+
+fn language_with_policy(
+    scope_lookup: ScopeLookup,
+    policy: Option<SymbolPolicySpec>,
+) -> langmeld_core::ValidatedLanguageSpec {
+    let root_syntax = if policy.is_some() {
+        "program {namespace}"
+    } else {
+        "program {namespace} {"
+    };
+    let mut builder = LanguageBuilder::new("AnalysisFixture")
+        .schema_version(if policy.is_some() { 5 } else { 1 })
         .version("0.1.0")
         .root("program")
         .construct(
             ConstructBuilder::new("program")
-                .syntax_variant("root", "program {namespace} {")
+                .syntax_variant("root", root_syntax)
                 .field(FieldSpec::required("namespace", FieldKind::Identifier))
                 .block(["program", "variable", "reference"]),
         )
@@ -44,18 +58,38 @@ fn language(scope_lookup: ScopeLookup) -> langmeld_core::ValidatedLanguageSpec {
                     "target",
                     FieldKind::reference("variable"),
                 )),
-        )
-        .build()
-        .expect("analysis fixture validates")
+        );
+    if let Some(policy) = policy {
+        builder = builder.symbol_policy(policy);
+    }
+    builder.build().expect("analysis fixture validates")
+}
+
+fn symbol_policy(
+    declaration_order: DeclarationOrder,
+    duplicates: DuplicatePolicy,
+    shadowing: ShadowingPolicy,
+) -> SymbolPolicySpec {
+    SymbolPolicySpec {
+        kind: "variable".to_owned(),
+        declaration_order,
+        duplicates,
+        shadowing,
+    }
 }
 
 fn parse(spec: &langmeld_core::ValidatedLanguageSpec, source: &SourceFile) -> Program {
-    PreparedLanguage::new(spec.clone())
+    let result = PreparedLanguage::new(spec.clone())
         .expect("language patterns compile")
         .configure()
         .expect("fixture has no host callbacks")
-        .parse(source)
-        .program
+        .parse(source);
+    assert!(
+        !result.program.nodes.is_empty(),
+        "source did not produce AST nodes: {:?}",
+        result.diagnostics
+    );
+    result.program
 }
 
 #[test]
@@ -93,14 +127,227 @@ fn workspace_analysis_resolves_across_files_and_keeps_first_duplicate() {
             .iter()
             .any(|item| { item.source_index == 1 && item.diagnostic.code == "LM2001" })
     );
+    assert_eq!(analysis.resolved_references.len(), 1, "{analysis:#?}");
     let resolved = analysis
         .resolved_references
         .iter()
         .find(|reference| reference.name == "item")
         .expect("the cross-file reference resolves");
+    assert_eq!(
+        resolved.declaration_span.start,
+        declaration_source
+            .text
+            .find("let item = 1")
+            .expect("first duplicate exists")
+            + 4
+    );
     assert_eq!(resolved.source_index, 1);
     assert_eq!(resolved.declaration_source_index, 0);
     assert_eq!(analysis.type_facts.len(), 8);
+}
+
+#[test]
+fn workspace_analysis_resolves_forward_references_across_files() {
+    let spec = language(ScopeLookup::Exact);
+    let reference_source = SourceFile::new("references.lang", "program main {\n  use item\n}\n");
+    let declaration_source =
+        SourceFile::new("declarations.lang", "program main {\n  let item = 1\n}\n");
+    let reference_program = parse(&spec, &reference_source);
+    let declaration_program = parse(&spec, &declaration_source);
+
+    let analysis = analyze_workspace_with_limits(
+        &spec,
+        &[
+            (&reference_source, &reference_program),
+            (&declaration_source, &declaration_program),
+        ],
+        AnalysisLimits::default(),
+    );
+
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    assert_eq!(analysis.resolved_references.len(), 1);
+    assert_eq!(analysis.resolved_references[0].source_index, 0);
+    assert_eq!(analysis.resolved_references[0].declaration_source_index, 1);
+}
+
+#[test]
+fn workspace_analysis_resolves_forward_references_within_a_file() {
+    let spec = language(ScopeLookup::Exact);
+    let source = SourceFile::new(
+        "forward.lang",
+        "program main {\n  use item\n  let item = 1\n}\n",
+    );
+    let program = parse(&spec, &source);
+
+    let analysis =
+        analyze_workspace_with_limits(&spec, &[(&source, &program)], AnalysisLimits::default());
+
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    assert_eq!(analysis.resolved_references.len(), 1);
+    assert_eq!(
+        analysis.resolved_references[0].declaration_span.start,
+        source
+            .text
+            .find("let item = 1")
+            .expect("declaration exists")
+            + 4
+    );
+}
+
+#[test]
+fn sequential_policy_hides_later_same_file_declarations_but_not_other_files() {
+    let spec = language_with_policy(
+        ScopeLookup::Exact,
+        Some(symbol_policy(
+            DeclarationOrder::Sequential,
+            DuplicatePolicy::Error,
+            ShadowingPolicy::Allow,
+        )),
+    );
+    let reference_source = SourceFile::new(
+        "references.lang",
+        "program main {\n  use item\n  let item = 1\n  use item\n}\n",
+    );
+    let reference_program = parse(&spec, &reference_source);
+    let analysis = analyze_workspace_with_limits(
+        &spec,
+        &[(&reference_source, &reference_program)],
+        AnalysisLimits::default(),
+    );
+    assert_eq!(analysis.resolved_references.len(), 1);
+    assert_eq!(analysis.diagnostics.len(), 1, "{analysis:#?}");
+    assert_eq!(analysis.diagnostics[0].diagnostic.code, "LM2001");
+
+    let early_source = SourceFile::new("early.lang", "program main {\n  use item\n}\n");
+    let declaration_source = SourceFile::new("later.lang", "program main {\n  let item = 1\n}\n");
+    let early_program = parse(&spec, &early_source);
+    let declaration_program = parse(&spec, &declaration_source);
+    let cross_file = analyze_workspace_with_limits(
+        &spec,
+        &[
+            (&early_source, &early_program),
+            (&declaration_source, &declaration_program),
+        ],
+        AnalysisLimits::default(),
+    );
+    assert!(
+        cross_file.diagnostics.is_empty(),
+        "{:?}",
+        cross_file.diagnostics
+    );
+    assert_eq!(cross_file.resolved_references.len(), 1);
+    assert_eq!(
+        cross_file.resolved_references[0].declaration_source_index,
+        1
+    );
+}
+
+#[test]
+fn allowed_duplicate_symbols_report_ambiguity_without_navigation_edges() {
+    let spec = language_with_policy(
+        ScopeLookup::Exact,
+        Some(symbol_policy(
+            DeclarationOrder::Hoisted,
+            DuplicatePolicy::AllowAmbiguous,
+            ShadowingPolicy::Allow,
+        )),
+    );
+    let first_source = SourceFile::new("first.lang", "program main {\n  let item = 1\n}\n");
+    let second_source = SourceFile::new("second.lang", "program main {\n  let item = 2\n}\n");
+    let reference_source = SourceFile::new("use.lang", "program main {\n  use item\n}\n");
+    let first_program = parse(&spec, &first_source);
+    let second_program = parse(&spec, &second_source);
+    let reference_program = parse(&spec, &reference_source);
+    let analysis = analyze_workspace_with_limits(
+        &spec,
+        &[
+            (&first_source, &first_program),
+            (&second_source, &second_program),
+            (&reference_source, &reference_program),
+        ],
+        AnalysisLimits::default(),
+    );
+    assert!(analysis.resolved_references.is_empty());
+    assert_eq!(analysis.diagnostics.len(), 1, "{analysis:#?}");
+    assert_eq!(analysis.diagnostics[0].diagnostic.code, "LM2006");
+}
+
+#[test]
+fn disallowed_shadowing_is_reported_after_collecting_all_declarations() {
+    let spec = language_with_policy(
+        ScopeLookup::Exact,
+        Some(symbol_policy(
+            DeclarationOrder::Hoisted,
+            DuplicatePolicy::Error,
+            ShadowingPolicy::Disallow,
+        )),
+    );
+    let source = SourceFile::new(
+        "nested.lang",
+        "program outer {\n  program inner {\n    let item = 2\n  }\n  let item = 1\n}\n",
+    );
+    let program = parse(&spec, &source);
+    let analysis =
+        analyze_workspace_with_limits(&spec, &[(&source, &program)], AnalysisLimits::default());
+    let shadow = analysis
+        .diagnostics
+        .iter()
+        .find(|item| item.diagnostic.code == "LM2005")
+        .expect("the inner declaration shadows the outer one");
+    assert_eq!(
+        shadow
+            .diagnostic
+            .span
+            .expect("shadow diagnostics include their declaration span")
+            .start,
+        source.text.find("let item = 2").expect("inner declaration") + 4
+    );
+}
+
+#[test]
+fn lexical_parent_lookup_resolves_to_the_nearest_shadowing_declaration() {
+    let spec = language(ScopeLookup::LexicalParents);
+    let text = "program outer {\n  let item = 1\n  program inner {\n    let item = 2\n    use item\n  }\n  use item\n}\n";
+    let source = SourceFile::new("nested.lang", text);
+    let program = parse(&spec, &source);
+
+    let analysis =
+        analyze_workspace_with_limits(&spec, &[(&source, &program)], AnalysisLimits::default());
+
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:?}",
+        analysis.diagnostics
+    );
+    assert_eq!(analysis.resolved_references.len(), 2);
+    let inner_use = text.find("use item").expect("inner use exists");
+    let outer_use = text.rfind("use item").expect("outer use exists");
+    let outer_declaration = text.find("let item = 1").expect("outer declaration exists") + 4;
+    let inner_declaration = text.find("let item = 2").expect("inner declaration exists") + 4;
+
+    let reference_at = |offset| {
+        analysis
+            .resolved_references
+            .iter()
+            .find(|reference| reference.reference_span.start == offset + 4)
+            .expect("reference is resolved")
+    };
+    assert_eq!(
+        reference_at(inner_use).declaration_span.start,
+        inner_declaration
+    );
+    assert_eq!(
+        reference_at(outer_use).declaration_span.start,
+        outer_declaration
+    );
 }
 
 #[test]

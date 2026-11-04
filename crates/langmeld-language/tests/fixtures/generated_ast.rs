@@ -18,6 +18,8 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
         root: "box".to_owned(),
         source_extensions: vec![".lm".to_owned(), ".lmd".to_owned()],
         lexical: Some(langmeld_core::LexicalSpec { line_comment: Some("//".to_owned()), block_comment: Some(langmeld_core::BlockCommentSpec { open: "/*".to_owned(), close: "*/".to_owned() }) }),
+        symbol_policies: vec![
+        ],
         categories: vec![
             langmeld_core::CategorySpec { id: "statement".to_owned() },
         ],

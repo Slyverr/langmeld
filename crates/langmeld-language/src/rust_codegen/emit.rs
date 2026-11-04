@@ -660,6 +660,27 @@ fn write_language_spec(output: &mut String, spec: &langmeld_core::LanguageSpec) 
         }
         None => output.push_str("        lexical: None,\n"),
     }
+    output.push_str("        symbol_policies: vec![\n");
+    for policy in &spec.symbol_policies {
+        let declaration_order = match policy.declaration_order {
+            langmeld_core::DeclarationOrder::Hoisted => "Hoisted",
+            langmeld_core::DeclarationOrder::Sequential => "Sequential",
+        };
+        let duplicates = match policy.duplicates {
+            langmeld_core::DuplicatePolicy::Error => "Error",
+            langmeld_core::DuplicatePolicy::AllowAmbiguous => "AllowAmbiguous",
+        };
+        let shadowing = match policy.shadowing {
+            langmeld_core::ShadowingPolicy::Allow => "Allow",
+            langmeld_core::ShadowingPolicy::Disallow => "Disallow",
+        };
+        let _ = writeln!(
+            output,
+            "            langmeld_core::SymbolPolicySpec {{ kind: {:?}.to_owned(), declaration_order: langmeld_core::DeclarationOrder::{declaration_order}, duplicates: langmeld_core::DuplicatePolicy::{duplicates}, shadowing: langmeld_core::ShadowingPolicy::{shadowing} }},",
+            policy.kind
+        );
+    }
+    output.push_str("        ],\n");
     output.push_str("        categories: vec![\n");
     for category in &spec.categories {
         let _ = writeln!(

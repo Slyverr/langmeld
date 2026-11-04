@@ -1,7 +1,8 @@
 use langmeld_core::{
-    BehaviorStage, Diagnostic, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
-    ExpressionSpec, FieldSpec, InfixOperatorSpec, LanguageBuilder, LanguageSpec, LexicalSpec,
-    SourceFile, Span, ValidatedLanguageSpec,
+    BehaviorStage, DeclarationOrder, Diagnostic, DuplicatePolicy, ExpressionAssociativity,
+    ExpressionAtomKind, ExpressionOperatorSpec, ExpressionSpec, FieldSpec, InfixOperatorSpec,
+    LanguageBuilder, LanguageSpec, LexicalSpec, ShadowingPolicy, SourceFile, Span,
+    SymbolPolicySpec, ValidatedLanguageSpec,
 };
 use std::collections::{BTreeMap, VecDeque};
 
@@ -130,6 +131,7 @@ pub(crate) fn convert_language_module_specs<'a>(
     let mut expressions = Vec::new();
     let mut constructs = Vec::new();
     let mut lexical = None;
+    let mut symbol_policies = Vec::new();
     let declarations: Vec<_> = modules
         .iter()
         .flat_map(|(module, source)| module.children.iter().map(move |node| (node, *source)))
@@ -274,6 +276,15 @@ pub(crate) fn convert_language_module_specs<'a>(
                     }
                     lexical = Some(convert_lexical_spec(declaration)?);
                 }
+                "symbol_policy_decl" => {
+                    if module.syntax_variant != "root" {
+                        return Err(vec![error(
+                            declaration,
+                            "symbol resolution policies must be declared in the root language file",
+                        )]);
+                    }
+                    symbol_policies.push(convert_symbol_policy(declaration)?);
+                }
                 "source_extension_decl" => {
                     source_extensions.push(text(declaration, "value")?);
                 }
@@ -305,6 +316,9 @@ pub(crate) fn convert_language_module_specs<'a>(
         .root(root_id);
     if let Some(lexical) = lexical {
         language = language.lexical(lexical);
+    }
+    for policy in symbol_policies {
+        language = language.symbol_policy(policy);
     }
     for extension in source_extensions {
         language = language.source_extension(extension);
@@ -566,6 +580,46 @@ fn convert_behavior(node: &AstNode) -> Result<(String, BehaviorStage), Vec<Diagn
         }
     };
     Ok((id, stage))
+}
+
+fn convert_symbol_policy(node: &AstNode) -> Result<SymbolPolicySpec, Vec<Diagnostic>> {
+    let kind = identifier(node, "kind")?;
+    let declaration_order = match optional_identifier_or_enum(node, "order")?.unwrap_or("hoisted") {
+        "hoisted" => DeclarationOrder::Hoisted,
+        "sequential" => DeclarationOrder::Sequential,
+        other => {
+            return Err(vec![error(
+                node,
+                format!("unsupported declaration order `{other}`"),
+            )]);
+        }
+    };
+    let duplicates = match optional_identifier_or_enum(node, "duplicates")?.unwrap_or("error") {
+        "error" => DuplicatePolicy::Error,
+        "allow_ambiguous" => DuplicatePolicy::AllowAmbiguous,
+        other => {
+            return Err(vec![error(
+                node,
+                format!("unsupported duplicate policy `{other}`"),
+            )]);
+        }
+    };
+    let shadowing = match optional_identifier_or_enum(node, "shadowing")?.unwrap_or("allow") {
+        "allow" => ShadowingPolicy::Allow,
+        "disallow" => ShadowingPolicy::Disallow,
+        other => {
+            return Err(vec![error(
+                node,
+                format!("unsupported shadowing policy `{other}`"),
+            )]);
+        }
+    };
+    Ok(SymbolPolicySpec {
+        kind,
+        declaration_order,
+        duplicates,
+        shadowing,
+    })
 }
 
 fn convert_type(

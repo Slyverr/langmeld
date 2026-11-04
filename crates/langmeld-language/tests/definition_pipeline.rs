@@ -1,10 +1,11 @@
 use langmeld_core::{
-    BehaviorStage, BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec,
-    LanguageBuilder, NamedRecord, SourceFile,
+    BehaviorStage, BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, DeclarationOrder,
+    DuplicatePolicy, FieldKind, FieldSpec, LanguageBuilder, NamedRecord, ShadowingPolicy,
+    SourceFile, SymbolPolicySpec,
 };
 use langmeld_language::{
-    DefinitionLimits, PreparedLanguage, langmeld_definition_language, parse_definition,
-    parse_definition_with_limits, parse_language_definition_modules,
+    DefinitionLimits, PreparedLanguage, generate_rust_language_spec, langmeld_definition_language,
+    parse_definition, parse_definition_with_limits, parse_language_definition_modules,
     parse_language_definition_modules_with_limits, parse_language_definition_modules_with_meta,
     parse_language_definition_with_meta,
 };
@@ -211,6 +212,70 @@ fn supplied_meta_language_uses_the_same_parser_and_conversion_path() {
     assert_eq!(converted.spec().name, "Demo");
     assert_eq!(converted.spec().constructs.len(), 2);
     assert_eq!(converted.spec().types[0].id, "Position");
+}
+
+#[test]
+fn schema_v5_symbol_policy_converts_from_declarative_definitions() {
+    let source = SourceFile::new(
+        "policy.langmeld",
+        r#"language Policy {
+  version: "0.1.0"
+  schema_version: 5
+  root: program
+
+  symbol_policy variable: sequential allow_ambiguous disallow
+
+  construct program {
+    syntax { default: "program {name}" }
+    fields { name: identifier required }
+    block: [variable]
+  }
+
+  construct variable {
+    syntax { default: "let {name}" }
+    fields { name: identifier required }
+    symbol {
+      kind: variable
+      name: name
+    }
+  }
+}
+"#,
+    );
+    let parsed = parse_definition(&source).expect("schema-v5 symbol policy converts");
+    assert_eq!(
+        parsed.symbol_policies,
+        [SymbolPolicySpec {
+            kind: "variable".to_owned(),
+            declaration_order: DeclarationOrder::Sequential,
+            duplicates: DuplicatePolicy::AllowAmbiguous,
+            shadowing: ShadowingPolicy::Disallow,
+        }]
+    );
+    let validated = parsed
+        .validate()
+        .expect("policy language validates for code generation");
+    let generated = generate_rust_language_spec(&validated);
+    assert!(generated.contains("symbol_policies: vec!["));
+    assert!(generated.contains("DeclarationOrder::Sequential"));
+    assert!(generated.contains("DuplicatePolicy::AllowAmbiguous"));
+    assert!(generated.contains("ShadowingPolicy::Disallow"));
+
+    let minimal_definition = source.text.replace(
+        "symbol_policy variable: sequential allow_ambiguous disallow",
+        "symbol_policy variable: sequential",
+    );
+    let minimal = parse_definition(&SourceFile::new("minimal.langmeld", minimal_definition))
+        .expect("omitted policy choices receive defaults");
+    assert_eq!(
+        minimal.symbol_policies[0].declaration_order,
+        DeclarationOrder::Sequential
+    );
+    assert_eq!(
+        minimal.symbol_policies[0].duplicates,
+        DuplicatePolicy::Error
+    );
+    assert_eq!(minimal.symbol_policies[0].shadowing, ShadowingPolicy::Allow);
 }
 
 #[test]

@@ -25,6 +25,9 @@ is cut, changes belong under `Unreleased`.
   Built-in parsing, expression parsing, TextMate, editor comment settings, and
   generated Rust models share the configured policy; unsupported Tree-sitter
   block-comment export is reported explicitly.
+- **Symbol analysis:** Schema 5 can configure declaration order, duplicate-name
+  handling, and shadowing once per symbol kind. Ambiguous references produce
+  diagnostics without navigation targets; defaults preserve existing behavior.
 - **Editor configuration:** Generated bracket pairs follow declared blocks and
   built-in list, map, property, and expression fields; unused conventional
   pairs are omitted.

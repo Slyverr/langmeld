@@ -13,7 +13,9 @@ use langmeld_core::{
 use std::collections::HashMap;
 
 use crate::{AstNode, CapturedValue, Program, Value};
-use symbols::{AnalysisIndexes, SymbolKey, collect_workspace_symbols};
+use symbols::{
+    AnalysisIndexes, PendingReference, SymbolDeclaration, SymbolKey, collect_workspace_symbols,
+};
 use types::collect_program_type_facts;
 
 /// Host implementation that replaces generic workspace symbol resolution.
@@ -223,6 +225,47 @@ pub fn analyze_workspace_with_limits(
     analyze_workspace_with_host_callbacks_and_limits(spec, files, &[], &[], &[], &[], limits)
 }
 
+enum ResolutionOutcome {
+    Resolved { source_index: usize, span: Span },
+    Ambiguous,
+    Unresolved,
+}
+
+fn resolve_reference<'a>(
+    indexes: &AnalysisIndexes<'a>,
+    declarations: &HashMap<SymbolKey<'a>, Vec<SymbolDeclaration<'a>>>,
+    reference: &PendingReference<'a>,
+) -> ResolutionOutcome {
+    let policy = indexes.symbol_policies_by_kind.get(reference.kind);
+    for scope in &reference.scopes {
+        let Some(candidates) = declarations.get(&SymbolKey {
+            kind: reference.kind,
+            scope: scope.clone(),
+            name: reference.name,
+        }) else {
+            continue;
+        };
+        let mut visible = candidates.iter().filter(|declaration| {
+            policy.is_none_or(|policy| {
+                policy.declaration_order == langmeld_core::DeclarationOrder::Hoisted
+                    || declaration.source_index != reference.source_index
+                    || declaration.span.start < reference.span.start
+            })
+        });
+        match (visible.next(), visible.next()) {
+            (None, _) => {}
+            (Some(declaration), None) => {
+                return ResolutionOutcome::Resolved {
+                    source_index: declaration.source_index,
+                    span: declaration.span,
+                };
+            }
+            (Some(_), Some(_)) => return ResolutionOutcome::Ambiguous,
+        }
+    }
+    ResolutionOutcome::Unresolved
+}
+
 fn analyze_workspace_with_resolver_hook_and_limits(
     spec: &ValidatedLanguageSpec,
     files: &[(&SourceFile, &Program)],
@@ -237,7 +280,7 @@ fn analyze_workspace_with_resolver_hook_and_limits(
     }
 
     let indexes = AnalysisIndexes::new(spec.spec());
-    let mut declarations: HashMap<SymbolKey<'_>, (usize, Span)> = HashMap::new();
+    let mut declarations: HashMap<SymbolKey<'_>, Vec<SymbolDeclaration<'_>>> = HashMap::new();
     let mut references = Vec::new();
     let mut diagnostics = Vec::new();
     let mut resolved_references = Vec::new();
@@ -264,31 +307,91 @@ fn analyze_workspace_with_resolver_hook_and_limits(
         }
     }
 
-    for reference in references {
-        let declaration = reference.scopes.iter().find_map(|scope| {
-            declarations
-                .get(&SymbolKey {
-                    kind: reference.kind,
-                    scope: scope.clone(),
-                    name: reference.name,
+    for (key, candidates) in &declarations {
+        let rejects_shadowing = indexes
+            .symbol_policies_by_kind
+            .get(key.kind)
+            .is_some_and(|policy| policy.shadowing == langmeld_core::ShadowingPolicy::Disallow);
+        if !rejects_shadowing {
+            continue;
+        }
+        for declaration in candidates {
+            let Some(path) = declaration
+                .scope_path
+                .as_ref()
+                .filter(|path| path.len() > 1)
+            else {
+                continue;
+            };
+            let lookup = indexes
+                .symbol_scopes_by_kind
+                .get(key.kind)
+                .and_then(|scope| *scope)
+                .map_or(langmeld_core::ScopeLookup::Exact, |scope| scope.lookup);
+            let shadows = (1..path.len()).any(|length| {
+                let parent = &path[..length];
+                let parent_scope = if lookup == langmeld_core::ScopeLookup::Exact {
+                    Some(vec![*parent.last().expect("parent path is nonempty")])
+                } else {
+                    Some(parent.to_vec())
+                };
+                declarations.contains_key(&SymbolKey {
+                    kind: key.kind,
+                    scope: parent_scope,
+                    name: key.name,
                 })
-                .copied()
-        });
-        if let Some((declaration_source_index, declaration_span)) = declaration {
-            resolved_references.push(ResolvedReference {
+            });
+            if shadows {
+                diagnostics.push(WorkspaceDiagnostic {
+                    source_index: declaration.source_index,
+                    source_id: None,
+                    source_revision: None,
+                    diagnostic: Diagnostic::error(
+                        "LM2005",
+                        format!(
+                            "{} declaration `{}` shadows an enclosing declaration",
+                            key.kind, key.name
+                        ),
+                        declaration.span,
+                    ),
+                });
+            }
+        }
+    }
+
+    for reference in references {
+        match resolve_reference(&indexes, &declarations, &reference) {
+            ResolutionOutcome::Resolved {
+                source_index: declaration_source_index,
+                span: declaration_span,
+            } => {
+                resolved_references.push(ResolvedReference {
+                    source_index: reference.source_index,
+                    source_id: None,
+                    source_revision: None,
+                    reference_span: reference.span,
+                    declaration_source_index,
+                    declaration_source_id: None,
+                    declaration_source_revision: None,
+                    declaration_span,
+                    kind: reference.kind.to_owned(),
+                    name: reference.name.to_owned(),
+                });
+            }
+            ResolutionOutcome::Ambiguous => diagnostics.push(WorkspaceDiagnostic {
                 source_index: reference.source_index,
                 source_id: None,
                 source_revision: None,
-                reference_span: reference.span,
-                declaration_source_index,
-                declaration_source_id: None,
-                declaration_source_revision: None,
-                declaration_span,
-                kind: reference.kind.to_owned(),
-                name: reference.name.to_owned(),
-            });
-        } else {
-            diagnostics.push(WorkspaceDiagnostic {
+                diagnostic: Diagnostic::error(
+                    "LM2006",
+                    format!(
+                        "ambiguous {} `{}` has multiple declarations in this scope",
+                        reference.kind, reference.name
+                    ),
+                    reference.span,
+                ),
+            }),
+            ResolutionOutcome::Unresolved => diagnostics.push(WorkspaceDiagnostic {
                 source_index: reference.source_index,
                 source_id: None,
                 source_revision: None,
@@ -300,7 +403,7 @@ fn analyze_workspace_with_resolver_hook_and_limits(
                     ),
                     reference.span,
                 ),
-            });
+            }),
         }
     }
 

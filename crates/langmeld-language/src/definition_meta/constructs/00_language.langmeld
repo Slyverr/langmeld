@@ -9,7 +9,7 @@ construct language {
   fields {
     name: identifier optional
   }
-  block: [language_version, language_root, schema_version_decl, source_extension_decl, import_decl, lexical_decl, category_decl, behavior_decl, rule_decl, construct, enum_decl, record_type, properties_bundle, expression_decl]
+  block: [language_version, language_root, schema_version_decl, source_extension_decl, import_decl, lexical_decl, symbol_policy_decl, category_decl, behavior_decl, rule_decl, construct, enum_decl, record_type, properties_bundle, expression_decl]
 }
 
 construct language_version {
@@ -72,6 +72,16 @@ construct block_comment_decl {
   fields {
     open: string required
     close: string required
+  }
+}
+
+construct symbol_policy_decl {
+  syntax { default: "symbol_policy {kind}[: {order}][ {duplicates}][ {shadowing}]" }
+  fields {
+    kind: identifier required
+    order: enum [hoisted, sequential] optional
+    duplicates: enum [error, allow_ambiguous] optional
+    shadowing: enum [allow, disallow] optional
   }
 }
 
