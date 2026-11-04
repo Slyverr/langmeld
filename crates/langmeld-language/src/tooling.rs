@@ -1053,22 +1053,22 @@ fn textmate_grammar(
     lexical: &LexicalSpec,
 ) -> serde_json::Value {
     let mut patterns = Vec::new();
-    if let Some(line_comment) = &lexical.line_comment {
-        if let Some(scope) = textmate_scope_for_classification("comment") {
-            patterns.push(serde_json::json!({
-                "name": format!("{scope}.line"),
-                "match": format!("{}[^\\r\\n]*", regex_escape(line_comment))
-            }));
-        }
+    if let Some(line_comment) = &lexical.line_comment
+        && let Some(scope) = textmate_scope_for_classification("comment")
+    {
+        patterns.push(serde_json::json!({
+            "name": format!("{scope}.line"),
+            "match": format!("{}[^\\r\\n]*", regex_escape(line_comment))
+        }));
     }
-    if let Some(block_comment) = &lexical.block_comment {
-        if let Some(scope) = textmate_scope_for_classification("comment") {
-            patterns.push(serde_json::json!({
-                "name": format!("{scope}.block"),
-                "begin": regex_escape(&block_comment.open),
-                "end": regex_escape(&block_comment.close)
-            }));
-        }
+    if let Some(block_comment) = &lexical.block_comment
+        && let Some(scope) = textmate_scope_for_classification("comment")
+    {
+        patterns.push(serde_json::json!({
+            "name": format!("{scope}.block"),
+            "begin": regex_escape(&block_comment.open),
+            "end": regex_escape(&block_comment.close)
+        }));
     }
     let string_scope = textmate_scope_for_classification("string").unwrap_or("string");
     let number_scope = textmate_scope_for_classification("number").unwrap_or("constant.numeric");
@@ -1076,21 +1076,20 @@ fn textmate_grammar(
         serde_json::json!({"name": string_scope, "begin": "\\\"", "end": "\\\""}),
         serde_json::json!({"name": number_scope, "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"}),
     ]);
-    if !keywords.is_empty() {
-        if let Some(scope) = textmate_scope_for_classification("keyword") {
-            patterns.push(serde_json::json!({"name": scope, "match": word_regex(keywords)}));
-        }
+    if !keywords.is_empty()
+        && let Some(scope) = textmate_scope_for_classification("keyword")
+    {
+        patterns.push(serde_json::json!({"name": scope, "match": word_regex(keywords)}));
     }
-    if !operators.is_empty() {
-        if let Some(scope) = textmate_scope_for_classification("operator") {
-            patterns
-                .push(serde_json::json!({"name": scope, "match": alternative_regex(operators)}));
-        }
+    if !operators.is_empty()
+        && let Some(scope) = textmate_scope_for_classification("operator")
+    {
+        patterns.push(serde_json::json!({"name": scope, "match": alternative_regex(operators)}));
     }
-    if !enum_values.is_empty() {
-        if let Some(scope) = textmate_scope_for_classification("enumMember") {
-            patterns.push(serde_json::json!({"name": scope, "match": word_regex(enum_values)}));
-        }
+    if !enum_values.is_empty()
+        && let Some(scope) = textmate_scope_for_classification("enumMember")
+    {
+        patterns.push(serde_json::json!({"name": scope, "match": word_regex(enum_values)}));
     }
     if let Some(scope) = textmate_scope_for_classification("identifier") {
         patterns.push(serde_json::json!({
