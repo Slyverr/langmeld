@@ -1,9 +1,9 @@
 use langmeld::core::{Diagnostic, SourceFile, ValidatedLanguageSpec};
 use langmeld::language::{
     analyze_workspace_with_host_callbacks, classify_parse_result_prepared,
-    parse_language_definition_modules_with_limits, AnalysisLimits, CompletionBlockContext,
-    CompletionFrontier, CompletionPart, DefinitionLimits, ExpectedCapture, ParseLimits,
-    ParseResult, PreparedLanguage, Program, WorkspaceAnalysis,
+    parse_language_definition_modules_with_limits, AnalysisLimits, BlockDelimiterSpan,
+    CompletionBlockContext, CompletionFrontier, CompletionPart, DefinitionLimits, ExpectedCapture,
+    ParseLimits, ParseResult, PreparedLanguage, Program, WorkspaceAnalysis,
 };
 use serde::Deserialize;
 use serde_json::{json, Map, Value as JsonValue};
@@ -130,6 +130,7 @@ impl LanguageHost {
             "classifications": classifications_json(&self.parser, &source, &parsed),
             "completion_frontiers": completion_frontiers_json(&parsed.completion_frontiers),
             "completion_blocks": completion_blocks_json(&parsed.completion_blocks),
+            "block_delimiters": block_delimiters_json(&parsed.block_delimiters),
             "resolved_references": references_json(&analysis),
             "resource_limited": parsed.resource_limited || analysis.resource_limited,
         });
@@ -188,6 +189,7 @@ impl LanguageHost {
                     "classifications": classifications_json(&self.parser, source, result),
                     "completion_frontiers": completion_frontiers_json(&result.completion_frontiers),
                     "completion_blocks": completion_blocks_json(&result.completion_blocks),
+                    "block_delimiters": block_delimiters_json(&result.block_delimiters),
                     "resource_limited": result.resource_limited,
                 })
             })
@@ -386,6 +388,17 @@ fn completion_blocks_json(blocks: &[CompletionBlockContext]) -> JsonValue {
             "parent": block.parent,
             "allowed": block.allowed,
             "span": block.span,
+        }))
+        .collect::<Vec<_>>())
+}
+
+fn block_delimiters_json(delimiters: &[BlockDelimiterSpan]) -> JsonValue {
+    json!(delimiters
+        .iter()
+        .map(|delimiter| json!({
+            "construct": delimiter.construct,
+            "span": delimiter.span,
+            "opens": delimiter.opens,
         }))
         .collect::<Vec<_>>())
 }

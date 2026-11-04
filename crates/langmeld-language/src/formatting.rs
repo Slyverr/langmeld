@@ -2,7 +2,7 @@
 
 use langmeld_core::{Diagnostic, Severity, SourceFile, ValidatedLanguageSpec};
 
-use crate::{ParseResult, PreparedLanguage, SyntaxTokenKind, analyze};
+use crate::{BlockDelimiterSpan, ParseResult, PreparedLanguage, analyze};
 
 /// Whitespace policy used by the structural indentation formatter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,8 +88,8 @@ pub fn format_parsed_source(
     let trailing_newline = source.text.ends_with('\n');
     let lines: Vec<_> = source.text.split('\n').collect();
     let line_count = lines.len() - usize::from(trailing_newline);
-    let braces = parsed_brace_events(source, parsed);
-    let mut brace_index = 0;
+    let delimiters = parsed_block_delimiters(parsed);
+    let mut delimiter_index = 0;
     let mut line_start = 0;
     let mut output = String::with_capacity(source.text.len());
     let mut depth = 0_usize;
@@ -99,15 +99,18 @@ pub fn format_parsed_source(
         let content = line.trim_start();
         let content_start = line_start + line.len() - content.len();
         let line_end = line_start + line.len();
-        let first_event = brace_index;
-        while brace_index < braces.len() && braces[brace_index].offset < line_end {
-            brace_index += 1;
+        let first_event = delimiter_index;
+        while delimiter_index < delimiters.len()
+            && delimiters[delimiter_index].span.start < line_end
+        {
+            delimiter_index += 1;
         }
-        let line_events = &braces[first_event..brace_index];
+        let line_events = &delimiters[first_event..delimiter_index];
         if content.is_empty() {
             output.push('\n');
         } else {
-            let leading_closes = leading_closing_braces(content, content_start, line_events);
+            let leading_closes =
+                leading_closing_delimiters(source, content, content_start, line_events);
             depth = depth.saturating_sub(leading_closes);
             for _ in 0..depth {
                 output.push_str(&indentation);
@@ -127,60 +130,37 @@ pub fn format_parsed_source(
     Ok(output)
 }
 
-#[derive(Clone, Copy)]
-struct BraceEvent {
-    offset: usize,
-    opens: bool,
+fn parsed_block_delimiters(parsed: &ParseResult) -> Vec<&BlockDelimiterSpan> {
+    let mut delimiters = parsed.block_delimiters.iter().collect::<Vec<_>>();
+    delimiters.sort_by_key(|delimiter| delimiter.span.start);
+    delimiters
 }
 
-fn parsed_brace_events(source: &SourceFile, parsed: &ParseResult) -> Vec<BraceEvent> {
-    parsed
-        .syntax_tokens
-        .iter()
-        .filter_map(|token| {
-            if token.kind != SyntaxTokenKind::Punctuation {
-                return None;
-            }
-            let start = token.span.start;
-            let end = token.span.end;
-            match source.text.get(start..end)? {
-                "{" => Some(BraceEvent {
-                    offset: start,
-                    opens: true,
-                }),
-                "}" => Some(BraceEvent {
-                    offset: start,
-                    opens: false,
-                }),
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-fn leading_closing_braces(content: &str, content_start: usize, events: &[BraceEvent]) -> usize {
+fn leading_closing_delimiters(
+    source: &SourceFile,
+    content: &str,
+    content_start: usize,
+    events: &[&BlockDelimiterSpan],
+) -> usize {
     let mut event_index = 0;
     let mut offset = content_start;
     let mut count = 0;
-    for character in content.chars() {
-        if character != '}' {
+    while let Some(event) = events.get(event_index) {
+        if event.opens || event.span.start != offset {
             break;
         }
-        while events
-            .get(event_index)
-            .is_some_and(|event| event.offset < offset)
-        {
-            event_index += 1;
-        }
-        if !events
-            .get(event_index)
-            .is_some_and(|event| event.offset == offset && !event.opens)
-        {
+        let Some(delimiter) = source.text.get(event.span.start..event.span.end) else {
+            break;
+        };
+        let Some(rest) = content.get(offset - content_start..) else {
+            break;
+        };
+        if !rest.starts_with(delimiter) {
             break;
         }
         event_index += 1;
         count += 1;
-        offset += character.len_utf8();
+        offset += delimiter.len();
     }
     count
 }

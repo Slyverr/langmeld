@@ -22,6 +22,37 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
                 "allowed",
                 FieldKind::list(FieldKind::Identifier),
             )),
+        ConstructBuilder::new("configured_block_declaration")
+            .syntax_variant("default", "block: \\[({allowed}[,])*\\] {")
+            .field(FieldSpec::optional(
+                "allowed",
+                FieldKind::list(FieldKind::Identifier),
+            ))
+            .block([
+                "block_open_decl",
+                "block_close_decl",
+                "block_separator_decl",
+                "block_no_separators_decl",
+                "block_separator_policy_decl",
+            ]),
+        ConstructBuilder::new("block_open_decl")
+            .syntax_variant("default", "open: {value}")
+            .field(FieldSpec::required("value", FieldKind::Text)),
+        ConstructBuilder::new("block_close_decl")
+            .syntax_variant("default", "close: {value}")
+            .field(FieldSpec::required("value", FieldKind::Text)),
+        ConstructBuilder::new("block_separator_decl")
+            .syntax_variant("newline", "separator: newline")
+            .syntax_variant("literal", "separator: {value}")
+            .field(FieldSpec::optional("value", FieldKind::Text)),
+        ConstructBuilder::new("block_no_separators_decl")
+            .syntax_variant("default", "separators: \\[\\]"),
+        ConstructBuilder::new("block_separator_policy_decl")
+            .syntax_variant("default", "separator_policy: {value}")
+            .field(FieldSpec::required(
+                "value",
+                FieldKind::enumeration(["optional", "required"]),
+            )),
         ConstructBuilder::new("symbol_block")
             .syntax_variant("root", "symbol {")
             .block([

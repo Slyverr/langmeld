@@ -1,7 +1,7 @@
 use langmeld_core::{
-    BehaviorSpec, BehaviorStage, BlockSpec, ConstructBuilder, ConstructSpec, FieldConstraints,
-    FieldKind, FieldSpec, LanguageBuilder, LanguageSpec, NamedEnum, NamedRecord, ScopeLookup,
-    ScopeSpec, SymbolSpec, SyntaxPattern, SyntaxRuleSpec,
+    BehaviorSpec, BehaviorStage, BlockSeparator, BlockSeparatorPolicy, BlockSpec, ConstructBuilder,
+    ConstructSpec, FieldConstraints, FieldKind, FieldSpec, LanguageBuilder, LanguageSpec,
+    NamedEnum, NamedRecord, ScopeLookup, ScopeSpec, SymbolSpec, SyntaxPattern, SyntaxRuleSpec,
 };
 
 fn valid_spec() -> LanguageSpec {
@@ -32,6 +32,7 @@ fn valid_spec() -> LanguageSpec {
                 }],
                 block: Some(BlockSpec {
                     allowed: vec!["node".to_owned()],
+                    ..BlockSpec::default()
                 }),
                 symbol: None,
             },
@@ -68,14 +69,128 @@ fn valid_language_definition_has_a_validated_state() {
 #[test]
 fn validation_rejects_unsupported_language_model_schema_versions() {
     let mut spec = valid_spec();
-    spec.schema_version = 2;
+    spec.schema_version = 3;
 
     let errors = spec
         .validate()
         .expect_err("unsupported language model schema is rejected");
     assert!(errors.iter().any(|error| {
-        error.code == "LM1001" && error.message.contains("unsupported schema_version 2")
+        error.code == "LM1001" && error.message.contains("unsupported schema_version 3")
     }));
+}
+
+#[test]
+fn schema_v2_accepts_custom_block_delimiters_and_required_separators() {
+    let mut spec = valid_spec();
+    spec.schema_version = 2;
+    spec.constructs[0].syntax = vec!["flow {name}".to_owned()];
+    let block = spec.constructs[0]
+        .block
+        .as_mut()
+        .expect("root block is declared");
+    block.open = "begin".to_owned();
+    block.close = "end".to_owned();
+    block.separators = vec![BlockSeparator::literal(";")];
+    block.separator_policy = BlockSeparatorPolicy::Required;
+
+    assert!(spec.validate().is_ok());
+}
+
+#[test]
+fn schema_v1_rejects_non_default_block_layout() {
+    let mut spec = valid_spec();
+    spec.constructs[0]
+        .block
+        .as_mut()
+        .expect("root block is declared")
+        .open = "begin".to_owned();
+
+    let errors = spec
+        .validate()
+        .expect_err("schema v1 cannot carry non-default block configuration");
+    assert!(
+        errors.iter().any(|error| {
+            error.code == "LM1071" && error.message.contains("schema_version to 2")
+        })
+    );
+}
+
+#[test]
+fn schema_v2_block_conflicts_include_the_owned_opener() {
+    let mut spec = LanguageBuilder::new("BlockOpeners")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("root")
+        .construct(
+            ConstructBuilder::new("root")
+                .syntax("root")
+                .block(["group_a", "group_b"]),
+        )
+        .construct(
+            ConstructBuilder::new("group_a")
+                .syntax("group")
+                .block(["leaf"])
+                .block_delimiters("begin", "end"),
+        )
+        .construct(
+            ConstructBuilder::new("group_b")
+                .syntax("group")
+                .block(["leaf"])
+                .block_delimiters("start", "finish"),
+        )
+        .construct(ConstructBuilder::new("leaf").syntax("leaf"))
+        .into_spec();
+    assert!(spec.clone().validate().is_ok());
+
+    spec.constructs[2]
+        .block
+        .as_mut()
+        .expect("group b has a block")
+        .open = "begin".to_owned();
+    let errors = spec
+        .validate()
+        .expect_err("matching block openers leave the child syntax ambiguous");
+    assert!(
+        errors
+            .iter()
+            .any(|error| { error.code == "LM1060" && error.message.contains("can both match") })
+    );
+}
+
+#[test]
+fn schema_v2_rejects_ambiguous_and_incomplete_block_layouts() {
+    let mut spec = valid_spec();
+    spec.schema_version = 2;
+    let block = spec.constructs[0]
+        .block
+        .as_mut()
+        .expect("root block is declared");
+    block.open = "begin".to_owned();
+    block.close = "begin".to_owned();
+    block.separators = vec![
+        BlockSeparator::literal("begin"),
+        BlockSeparator::literal("begin"),
+    ];
+    block.separator_policy = BlockSeparatorPolicy::Required;
+    let errors = spec
+        .validate()
+        .expect_err("equal delimiters and duplicate/conflicting separators are invalid");
+    for code in ["LM1073", "LM1076", "LM1077"] {
+        assert!(errors.iter().any(|error| error.code == code), "{errors:#?}");
+    }
+
+    let mut spec = valid_spec();
+    spec.schema_version = 2;
+    let block = spec.constructs[0]
+        .block
+        .as_mut()
+        .expect("root block is declared");
+    block.separator_policy = BlockSeparatorPolicy::Required;
+    block.separators.clear();
+    let errors = spec
+        .validate()
+        .expect_err("required policy needs at least one separator");
+    assert!(errors.iter().any(|error| error.code == "LM1074"));
 }
 
 #[test]
@@ -741,6 +856,7 @@ fn custom_parser_can_own_recursive_layout_blocks_without_brace_patterns() {
     spec.constructs[0].custom_parser = Some("layout".to_owned());
     spec.constructs[0].block = Some(BlockSpec {
         allowed: vec!["node".to_owned(), "if".to_owned()],
+        ..BlockSpec::default()
     });
     spec.constructs.push(ConstructSpec {
         id: "if".to_owned(),
@@ -757,6 +873,7 @@ fn custom_parser_can_own_recursive_layout_blocks_without_brace_patterns() {
         }],
         block: Some(BlockSpec {
             allowed: vec!["node".to_owned(), "if".to_owned()],
+            ..BlockSpec::default()
         }),
         symbol: None,
     });

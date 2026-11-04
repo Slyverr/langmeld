@@ -1,4 +1,7 @@
-use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, SourceFile};
+use langmeld_core::{
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder,
+    SourceFile,
+};
 use langmeld_language::{FormatOptions, PreparedLanguage, format_parsed_source, format_source};
 
 fn flow_language() -> langmeld_core::ValidatedLanguageSpec {
@@ -133,5 +136,48 @@ fn formatter_rejects_invalid_programs_without_rewriting_them() {
         diagnostics
             .iter()
             .any(|diagnostic| diagnostic.severity == langmeld_core::Severity::Error)
+    );
+}
+
+#[test]
+fn formatter_uses_parser_owned_custom_block_delimiters() {
+    let language = LanguageBuilder::new("ConfiguredBlocks")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"])
+                .block_delimiters("begin block", "end block")
+                .block_separators(
+                    [BlockSeparator::literal(";")],
+                    BlockSeparatorPolicy::Required,
+                ),
+        )
+        .construct(
+            ConstructBuilder::new("statement")
+                .syntax("step {name}")
+                .field(FieldSpec::required("name", FieldKind::Identifier)),
+        )
+        .build()
+        .expect("configured block language validates");
+    let source = SourceFile::new(
+        "configured.lang",
+        "program begin block\nstep one;step two\nend block\n",
+    );
+
+    let parsed = PreparedLanguage::new(language.clone())
+        .expect("language prepares")
+        .configure()
+        .expect("declarative parser configures")
+        .parse(&source);
+    assert_eq!(parsed.block_delimiters.len(), 2);
+    assert!(parsed.block_delimiters[0].opens);
+    assert!(!parsed.block_delimiters[1].opens);
+    assert_eq!(
+        format_parsed_source(&language, &source, &parsed, FormatOptions::default())
+            .expect("custom block formats"),
+        "program begin block\n  step one;step two\nend block\n"
     );
 }

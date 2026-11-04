@@ -1,30 +1,121 @@
 use langmeld_core::{
-    ConstructBuilder, ConstructSpec, Diagnostic, FieldSpec, ScopeLookup, ScopeSpec, SourceFile,
-    SymbolSpec,
+    BlockSeparator, BlockSeparatorPolicy, BlockSpec, ConstructBuilder, ConstructSpec, Diagnostic,
+    FieldSpec, ScopeLookup, ScopeSpec, SourceFile, SymbolSpec,
 };
 use std::collections::BTreeMap;
 
 use super::{fields::convert_field_declarations, helpers::*};
 use crate::{AstNode, Value};
 
-fn convert_block(node: &AstNode) -> Result<Vec<String>, Vec<Diagnostic>> {
-    let Some(values) = node.fields.get("allowed") else {
-        return Ok(Vec::new());
-    };
-    let Value::List(values) = &values.value else {
-        return Err(vec![error(
-            node,
-            "block declaration child list did not parse as a list",
-        )]);
-    };
-    let allowed = values
-        .iter()
-        .map(|value| match &value.value {
-            Value::Identifier(value) => Ok(value.clone()),
-            _ => Err(vec![error(node, "block child IDs must be identifiers")]),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(allowed)
+fn convert_block(node: &AstNode) -> Result<BlockSpec, Vec<Diagnostic>> {
+    let mut block = BlockSpec::default();
+    if let Some(values) = node.fields.get("allowed") {
+        let Value::List(values) = &values.value else {
+            return Err(vec![error(
+                node,
+                "block declaration child list did not parse as a list",
+            )]);
+        };
+        block.allowed = values
+            .iter()
+            .map(|value| match &value.value {
+                Value::Identifier(value) => Ok(value.clone()),
+                _ => Err(vec![error(node, "block child IDs must be identifiers")]),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+    }
+
+    let mut open_seen = false;
+    let mut close_seen = false;
+    let mut separators_seen = false;
+    let mut no_separators_seen = false;
+    let mut policy_seen = false;
+    for child in &node.children {
+        match child.construct.as_str() {
+            "block_open_decl" => {
+                if open_seen {
+                    return Err(vec![error(
+                        child,
+                        "block opener is declared more than once",
+                    )]);
+                }
+                block.open = text(child, "value")?.to_owned();
+                open_seen = true;
+            }
+            "block_close_decl" => {
+                if close_seen {
+                    return Err(vec![error(
+                        child,
+                        "block closer is declared more than once",
+                    )]);
+                }
+                block.close = text(child, "value")?.to_owned();
+                close_seen = true;
+            }
+            "block_separator_decl" => {
+                if no_separators_seen {
+                    return Err(vec![error(
+                        child,
+                        "`separators: []` cannot be combined with separator declarations",
+                    )]);
+                }
+                if !separators_seen {
+                    block.separators.clear();
+                    separators_seen = true;
+                }
+                let separator = match child.syntax_variant.as_str() {
+                    "newline" => BlockSeparator::Newline,
+                    "literal" => BlockSeparator::literal(text(child, "value")?),
+                    _ => return Err(vec![error(child, "unknown block separator form")]),
+                };
+                if block.separators.contains(&separator) {
+                    return Err(vec![error(
+                        child,
+                        "block separator is declared more than once",
+                    )]);
+                }
+                block.separators.push(separator);
+            }
+            "block_no_separators_decl" => {
+                if separators_seen || no_separators_seen {
+                    return Err(vec![error(
+                        child,
+                        "`separators: []` must be the only separator declaration",
+                    )]);
+                }
+                block.separators.clear();
+                no_separators_seen = true;
+            }
+            "block_separator_policy_decl" => {
+                if policy_seen {
+                    return Err(vec![error(
+                        child,
+                        "block separator policy is declared more than once",
+                    )]);
+                }
+                let value = optional_identifier_or_enum(child, "value")?
+                    .ok_or_else(|| vec![error(child, "missing block separator policy")])?;
+                block.separator_policy = match value {
+                    "optional" => BlockSeparatorPolicy::Optional,
+                    "required" => BlockSeparatorPolicy::Required,
+                    value => {
+                        return Err(vec![error(
+                            child,
+                            format!("unsupported block separator policy `{value}`"),
+                        )]);
+                    }
+                };
+                policy_seen = true;
+            }
+            construct => {
+                return Err(vec![error(
+                    child,
+                    format!("unsupported block declaration `{construct}`"),
+                )]);
+            }
+        }
+    }
+    Ok(block)
 }
 
 pub(super) fn convert_construct(
@@ -103,7 +194,16 @@ pub(super) fn convert_construct(
         )?);
     }
 
-    let block = optional_child(node, "block_declaration")?
+    let simple_block = optional_child(node, "block_declaration")?;
+    let configured_block = optional_child(node, "configured_block_declaration")?;
+    if simple_block.is_some() && configured_block.is_some() {
+        return Err(vec![error(
+            node,
+            "a construct cannot declare both `block:` and a configured block",
+        )]);
+    }
+    let block = simple_block
+        .or(configured_block)
         .map(convert_block)
         .transpose()?;
     let symbol = optional_child(node, "symbol_block")?
@@ -139,7 +239,10 @@ pub(super) fn convert_construct(
         construct = construct.field(field);
     }
     if let Some(block) = block {
-        construct = construct.block(block);
+        construct = construct
+            .block(block.allowed.clone())
+            .block_delimiters(block.open, block.close)
+            .block_separators(block.separators, block.separator_policy);
     }
     if let Some(symbol) = symbol {
         construct = construct.symbol(symbol);

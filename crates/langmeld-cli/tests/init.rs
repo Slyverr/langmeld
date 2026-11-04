@@ -229,6 +229,10 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
 
     let definition_path = project.join("language/language.langmeld");
     let definition = fs::read_to_string(&definition_path).expect("language definition reads");
+    assert!(definition.contains("schema_version: 2"));
+    let constructs = fs::read_to_string(project.join("language/constructs/program.langmeld"))
+        .expect("construct definitions read");
+    assert!(constructs.contains("default: \"program\""));
     fs::write(
         &definition_path,
         definition.replace("version: \"0.1.0\"", "version: \"0.1.1\""),
@@ -695,6 +699,7 @@ const parsed = JSON.parse(host.parse(`program {
 `));
 if (parsed.diagnostics.length !== 0) throw new Error(JSON.stringify(parsed.diagnostics));
 if (parsed.program.nodes[0]?.construct !== "program") throw new Error("program AST root missing");
+if (parsed.block_delimiters.length !== 2) throw new Error("block delimiter spans missing");
 if (!parsed.classification_types.includes("keyword")) throw new Error("classification legend missing");
 if (!parsed.classifications.some((item) => item.kind === "keyword")) throw new Error("editor classifications missing");
 const incomplete = JSON.parse(host.parse("program {\n"));
@@ -706,6 +711,7 @@ const projectResult = JSON.parse(projectHost.parse(`program {
 }
 `));
 if (projectResult.diagnostics.length !== 0) throw new Error(JSON.stringify(projectResult.diagnostics));
+if (projectResult.block_delimiters.length !== 2) throw new Error("project block delimiter spans missing");
 
 const spec = JSON.parse(readFileSync(new URL("./workspace-spec.json", import.meta.url), "utf8"));
 const workspaceHost = LanguageHost.fromSpec(JSON.stringify(spec));
@@ -920,6 +926,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         project.join("extensions/local.langmeld"),
         r#"language ExtensionLanguage {
   version: "0.1.0"
+  schema_version: 2
   root: program
   construct note {
     syntax { default: "note {name}" }
@@ -934,6 +941,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         project.join("extensions/extra.langmeld"),
         r#"language ExtensionLanguage {
   version: "0.1.0"
+  schema_version: 2
   root: program
   construct extra {
     syntax { default: "extra {name}" }
@@ -1144,6 +1152,7 @@ fn versioned_extension_can_be_shared_from_a_sibling_directory() {
         extension_directory.join("shared.langmeld"),
         r#"language SharedExtensionLanguage {
   version: "0.1.0"
+  schema_version: 2
   root: program
   construct shared_note {
     syntax { default: "shared_note {name}" }
@@ -1280,6 +1289,7 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
     let value: serde_json::Value =
         serde_json::from_slice(&inspected.stdout).expect("inspection is JSON");
     assert_eq!(value["name"], "InspectLanguage");
+    assert_eq!(value["schema_version"], 2);
     assert_eq!(value["construct_count"], 2);
     assert_eq!(
         value["current_capabilities"]["lsp_open_document_diagnostics"],
@@ -1340,6 +1350,9 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
     let constructs: serde_json::Value =
         serde_json::from_slice(&listed.stdout).expect("construct list is JSON");
     assert_eq!(constructs.as_array().unwrap().len(), 2);
+    assert_eq!(constructs[0]["block"]["open"], "{");
+    assert_eq!(constructs[0]["block"]["close"], "}");
+    assert_eq!(constructs[0]["block"]["separators"][0]["kind"], "newline");
     let alias_list = run_language_tools(&[
         "language",
         "constructs",
@@ -1359,6 +1372,18 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
     let construct: serde_json::Value =
         serde_json::from_slice(&described.stdout).expect("construct description is JSON");
     assert_eq!(construct["id"], "statement");
+    let described_block = run_language_tools(&[
+        "describe",
+        "--language",
+        language.to_str().unwrap(),
+        "--construct",
+        "program",
+    ]);
+    assert!(described_block.status.success());
+    let block: serde_json::Value =
+        serde_json::from_slice(&described_block.stdout).expect("block description is JSON");
+    assert_eq!(block["block"]["open"], "{");
+    assert_eq!(block["block"]["separator_policy"], "optional");
     let missing = run_language_tools(&[
         "describe",
         "--language",

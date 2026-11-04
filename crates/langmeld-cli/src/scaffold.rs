@@ -269,7 +269,7 @@ fn starter_files(
 
 fn extension_definition(name: &str) -> String {
     format!(
-        "language {name} {{\n  version: \"0.1.0\"\n  root: program\n  construct note {{\n    implements: program_statement\n    syntax {{ default: \"note {{text}}\" }}\n    fields {{ text: text required }}\n  }}\n}}\n",
+        "language {name} {{\n  version: \"0.1.0\"\n  schema_version: 2\n  root: program\n  construct note {{\n    implements: program_statement\n    syntax {{ default: \"note {{text}}\" }}\n    fields {{ text: text required }}\n  }}\n}}\n",
     )
 }
 

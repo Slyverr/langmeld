@@ -505,12 +505,113 @@ pub enum MapKeyKind {
     Text,
 }
 
-/// Child construct kinds permitted in a construct body.
+/// A source-token separator recognized between constructs in a block.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum BlockSeparator {
+    /// A line break token.
+    Newline,
+    /// A literal token sequence, such as `;` or `,`.
+    Literal(String),
+}
+
+impl BlockSeparator {
+    /// Creates a literal token-sequence separator.
+    #[must_use]
+    pub fn literal(value: impl Into<String>) -> Self {
+        Self::Literal(value.into())
+    }
+}
+
+/// Whether configured block separators must occur between adjacent children.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockSeparatorPolicy {
+    /// Consume configured separators when present, but allow adjacent children.
+    #[default]
+    Optional,
+    /// Require at least one configured separator between adjacent children.
+    Required,
+}
+
+/// Child construct kinds and layout permitted in a construct body.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BlockSpec {
     /// IDs of constructs accepted in this body.
     pub allowed: Vec<String>,
+    /// Literal token sequence that opens this block.
+    #[serde(
+        default = "default_block_open",
+        skip_serializing_if = "is_default_block_open"
+    )]
+    pub open: String,
+    /// Literal token sequence that closes this block.
+    #[serde(
+        default = "default_block_close",
+        skip_serializing_if = "is_default_block_close"
+    )]
+    pub close: String,
+    /// Separators recognized between block children.
+    #[serde(
+        default = "default_block_separators",
+        skip_serializing_if = "is_default_block_separators"
+    )]
+    pub separators: Vec<BlockSeparator>,
+    /// Whether separators are optional or required between adjacent children.
+    #[serde(default, skip_serializing_if = "is_optional_block_separator_policy")]
+    pub separator_policy: BlockSeparatorPolicy,
+}
+
+impl Default for BlockSpec {
+    fn default() -> Self {
+        Self {
+            allowed: Vec::new(),
+            open: default_block_open(),
+            close: default_block_close(),
+            separators: default_block_separators(),
+            separator_policy: BlockSeparatorPolicy::Optional,
+        }
+    }
+}
+
+impl BlockSpec {
+    /// Returns whether this block uses the legacy brace and separator defaults.
+    #[must_use]
+    pub fn uses_default_layout(&self) -> bool {
+        self.open == default_block_open()
+            && self.close == default_block_close()
+            && self.separators == default_block_separators()
+            && self.separator_policy == BlockSeparatorPolicy::Optional
+    }
+}
+
+fn default_block_open() -> String {
+    "{".to_owned()
+}
+
+fn default_block_close() -> String {
+    "}".to_owned()
+}
+
+fn default_block_separators() -> Vec<BlockSeparator> {
+    vec![BlockSeparator::Newline, BlockSeparator::literal(";")]
+}
+
+fn is_default_block_open(value: &String) -> bool {
+    value == "{"
+}
+
+fn is_default_block_close(value: &String) -> bool {
+    value == "}"
+}
+
+fn is_default_block_separators(value: &[BlockSeparator]) -> bool {
+    value == default_block_separators()
+}
+
+fn is_optional_block_separator_policy(value: &BlockSeparatorPolicy) -> bool {
+    *value == BlockSeparatorPolicy::Optional
 }
 
 /// Symbol declaration metadata for generic duplicate and reference checks.

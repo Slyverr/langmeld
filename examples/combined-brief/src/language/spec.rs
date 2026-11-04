@@ -27,6 +27,7 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
                 fields: vec![],
                 block: Some(langmeld_core::BlockSpec {
                     allowed: vec!["program_statement".to_owned()],
+                    ..langmeld_core::BlockSpec::default()
                 }),
                 symbol: None,
             },

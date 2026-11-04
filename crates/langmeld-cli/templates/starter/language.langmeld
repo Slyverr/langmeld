@@ -1,5 +1,6 @@
 language @NAME@ {
   version: "0.1.0"
+  schema_version: 2
   root: program
   source_extension: ".@SLUG@.lmprog"
   category program_statement {}

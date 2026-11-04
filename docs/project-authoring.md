@@ -40,6 +40,27 @@ definitions composable. Rust host modules live under `src/host/`. Files under
 `.langmeld/generated/` are derived outputs. The generated project's README
 describes the selected layout and its commands.
 
+New declarative projects use language-model schema 2. The block opener is
+inferred from the block declaration, so the root syntax does not repeat it:
+
+```langmeld
+language Example {
+  version: "0.1.0"
+  schema_version: 2
+  root: program
+}
+
+construct program {
+  syntax { default: "program {name}" }
+  fields { name: identifier required }
+  block: [statement]
+}
+```
+
+Schema 2 defaults to `{` and `}` with optional newline or semicolon separators.
+Configured blocks can declare `open`, `close`, `separator`, and
+`separator_policy` entries when a language needs different layout.
+
 ## Develop the language
 
 Edit the project sources, then regenerate and check derived output:

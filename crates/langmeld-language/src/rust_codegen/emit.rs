@@ -698,10 +698,30 @@ fn write_language_spec(output: &mut String, spec: &langmeld_core::LanguageSpec) 
             field_vector(&construct.fields)
         );
         if let Some(block) = &construct.block {
+            let separators = block
+                .separators
+                .iter()
+                .map(|separator| match separator {
+                    langmeld_core::BlockSeparator::Newline => {
+                        "langmeld_core::BlockSeparator::Newline".to_owned()
+                    }
+                    langmeld_core::BlockSeparator::Literal(value) => {
+                        format!("langmeld_core::BlockSeparator::Literal({value:?}.to_owned())")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let separator_policy = match block.separator_policy {
+                langmeld_core::BlockSeparatorPolicy::Optional => "Optional",
+                langmeld_core::BlockSeparatorPolicy::Required => "Required",
+            };
             let _ = writeln!(
                 output,
-                "                block: Some(langmeld_core::BlockSpec {{ allowed: {} }}),",
-                string_vector(&block.allowed)
+                "                block: Some(langmeld_core::BlockSpec {{ allowed: {}, open: {:?}.to_owned(), close: {:?}.to_owned(), separators: vec![{}], separator_policy: langmeld_core::BlockSeparatorPolicy::{separator_policy} }}),",
+                string_vector(&block.allowed),
+                block.open,
+                block.close,
+                separators
             );
         } else {
             output.push_str("                block: None,\n");

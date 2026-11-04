@@ -1,4 +1,7 @@
-use langmeld_core::{ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, SymbolSpec};
+use langmeld_core::{
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder,
+    SymbolSpec,
+};
 use langmeld_language::{generate_rust_ast, generate_tooling};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
@@ -226,6 +229,40 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
             .unwrap()
             .contains("custom parser `host-custom`")
     );
+}
+
+#[test]
+fn generated_editor_configuration_and_reference_include_configured_blocks() {
+    let language = LanguageBuilder::new("ConfiguredBlocks")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"])
+                .block_delimiters("begin", "end")
+                .block_separators(
+                    [BlockSeparator::literal(";")],
+                    BlockSeparatorPolicy::Required,
+                ),
+        )
+        .construct(ConstructBuilder::new("statement").syntax("step"))
+        .build()
+        .expect("configured block language validates");
+    let artifacts = generate_tooling(&language).expect("tooling generation succeeds");
+    let configuration: serde_json::Value =
+        serde_json::from_str(&artifacts["language-configuration.json"])
+            .expect("editor configuration is valid JSON");
+
+    assert!(
+        configuration["brackets"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!(["begin", "end"]))
+    );
+    assert!(artifacts["README.md"].contains("Block delimiters: `begin` and `end`"));
+    assert!(artifacts["README.md"].contains("Child separators: `;` (required)"));
 }
 
 #[test]

@@ -579,6 +579,7 @@ fn empty_analysis(source: &SourceFile, diagnostics: Vec<Diagnostic>) -> SourceAn
             completion_blocks: Vec::new(),
             completion_frontiers: Vec::new(),
             custom_parser_spans: Vec::new(),
+            block_delimiters: Vec::new(),
             resource_limited: false,
         },
         diagnostics,

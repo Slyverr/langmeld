@@ -30,6 +30,7 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
                 "syntax_block",
                 "syntax_list_decl",
                 "block_declaration",
+                "configured_block_declaration",
                 "symbol_block",
                 "implements_declaration",
                 "custom_parser_decl",

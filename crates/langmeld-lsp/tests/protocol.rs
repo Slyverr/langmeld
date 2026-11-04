@@ -957,6 +957,108 @@ fn formatting_and_source_action_return_safe_versioned_edits() {
 }
 
 #[test]
+fn standalone_language_server_inserts_configured_block_closers() {
+    let language = TempLanguage::new();
+    fs::write(
+        &language.0,
+        r#"language Configured {
+  version: "0.1.0"
+  schema_version: 2
+  root: program
+  construct program {
+    syntax { default: "program" }
+    block: [statement] {
+      open: "begin"
+      close: "end block"
+      separator: ";"
+      separator_policy: required
+    }
+  }
+  construct statement {
+    syntax { default: "step {name}" }
+    fields { name: identifier required }
+  }
+}
+"#,
+    )
+    .expect("configured language definition is written");
+    let source = "program begin\nstep one";
+    let messages = [
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {"textDocument": {
+                "uri": "file:///configured.demo",
+                "languageId": "demo",
+                "version": 1,
+                "text": source
+            }}
+        }),
+        json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/codeAction",
+            "params": {
+                "textDocument": { "uri": "file:///configured.demo", "version": 1 },
+                "range": {
+                    "start": { "line": 0, "character": 0 },
+                    "end": { "line": 1, "character": 8 }
+                },
+                "context": {
+                    "diagnostics": [{
+                        "range": {
+                            "start": { "line": 1, "character": 8 },
+                            "end": { "line": 1, "character": 8 }
+                        },
+                        "severity": 1,
+                        "code": "LM1204",
+                        "source": "langmeld",
+                        "message": "expected block closer `end block` before the end of the file"
+                    }],
+                    "only": ["quickfix"]
+                }
+            }
+        }),
+        json!({"jsonrpc": "2.0", "id": 3, "method": "shutdown", "params": null}),
+        json!({"jsonrpc": "2.0", "method": "exit", "params": null}),
+    ];
+    let mut input = Vec::new();
+    for message in &messages {
+        input.extend(frame(message));
+    }
+    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld-lsp"))
+        .args(["--language"])
+        .arg(&language.0)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("language server starts");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(&input)
+        .expect("LSP requests are written");
+    let output = child.wait_with_output().expect("language server exits");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let responses = read_frames(&output.stdout);
+    let action = responses
+        .iter()
+        .find(|response| response["id"] == 2)
+        .expect("configured closer action responds");
+    assert_eq!(action["result"][0]["title"], "Insert missing `end block`");
+    assert_eq!(
+        action["result"][0]["edit"]["documentChanges"][0]["edits"][0]["newText"],
+        "\nend block"
+    );
+}
+
+#[test]
 fn child_process_initializes_and_publishes_diagnostics_for_open_documents() {
     let language = TempLanguage::new();
     let uri = format!(

@@ -1554,7 +1554,9 @@ impl Server {
             .filter(|token| {
                 matches!(
                     token.kind,
-                    SyntaxTokenKind::MissingRightBrace | SyntaxTokenKind::MissingRightBracket
+                    SyntaxTokenKind::MissingRightBrace
+                        | SyntaxTokenKind::MissingBlockCloser
+                        | SyntaxTokenKind::MissingRightBracket
                 )
             })
             .collect();
@@ -1563,6 +1565,14 @@ impl Server {
         };
         let (code, closer) = match token.kind {
             SyntaxTokenKind::MissingRightBrace => ("LM1204", "}"),
+            SyntaxTokenKind::MissingBlockCloser => {
+                let diagnostic = document
+                    .parsed
+                    .diagnostics
+                    .iter()
+                    .find(|diagnostic| diagnostic.code == "LM1204")?;
+                ("LM1204", missing_block_closer(&diagnostic.message)?)
+            }
             SyntaxTokenKind::MissingRightBracket => ("LM1219", "]"),
             _ => return None,
         };
@@ -1586,8 +1596,10 @@ impl Server {
         }) {
             return None;
         }
-        let insertion = if closer == "}"
-            && !document.source.text.ends_with('\n')
+        let insertion = if matches!(
+            token.kind,
+            SyntaxTokenKind::MissingRightBrace | SyntaxTokenKind::MissingBlockCloser
+        ) && !document.source.text.ends_with('\n')
             && !document.source.text.ends_with('\r')
         {
             format!("\n{closer}")
@@ -2161,6 +2173,12 @@ impl Server {
             analysis,
         })
     }
+}
+
+fn missing_block_closer(message: &str) -> Option<&str> {
+    let value = message.strip_prefix("expected block closer `")?;
+    let (closer, _) = value.split_once("` before the end of the file")?;
+    (!closer.is_empty()).then_some(closer)
 }
 
 fn initialize_response(

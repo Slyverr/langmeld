@@ -12,6 +12,13 @@ project can combine Rust-authored definitions with declarative modules and
 extensions. Langmeld validates the definition, parses source into a generic
 syntax tree, and can generate typed Rust views of that tree.
 
+New declarative projects use language-model schema 2. A block owns its opening
+and closing token sequences and can require separators between child
+constructs; schema 1 keeps its existing inline-brace syntax. The generic parser,
+formatter, editor configuration, and browser adapter expose configured block
+layout. Tree-sitter export handles the exact representable subset and reports
+unsupported delimiter tokens instead of emitting a misleading grammar.
+
 The built-in parser handles compatible declarative syntax. A Rust host can
 provide a custom parser when a language's grammar needs different parsing
 behavior. The generic analyzer provides symbol and reference resolution and

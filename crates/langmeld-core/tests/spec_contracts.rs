@@ -67,6 +67,75 @@ fn optional_schema_collections_default_and_are_omitted_when_empty() {
 }
 
 #[test]
+fn schema_v1_block_layout_defaults_round_trip_without_changing_wire_shape() {
+    let spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 1,
+        "name": "Legacy",
+        "version": "0.1.0",
+        "root": "program",
+        "constructs": [{
+            "id": "program",
+            "syntax": ["program {"],
+            "block": { "allowed": ["statement"] }
+        }, {
+            "id": "statement",
+            "syntax": ["statement"]
+        }]
+    }))
+    .expect("schema-v1 block deserializes without layout fields");
+
+    let block = spec.constructs[0].block.as_ref().expect("block is present");
+    assert_eq!(block.open, "{");
+    assert_eq!(block.close, "}");
+    assert_eq!(block.separators.len(), 2);
+    assert_eq!(
+        block.separator_policy,
+        langmeld_core::BlockSeparatorPolicy::Optional
+    );
+
+    let serialized = serde_json::to_value(&spec).expect("language spec serializes");
+    assert_eq!(
+        serialized["constructs"][0]["block"],
+        serde_json::json!({
+            "allowed": ["statement"]
+        })
+    );
+}
+
+#[test]
+fn schema_v2_block_layout_round_trips_delimiters_and_separator_policy() {
+    let spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 2,
+        "name": "Configured",
+        "version": "0.1.0",
+        "root": "program",
+        "constructs": [{
+            "id": "program",
+            "syntax": ["program"],
+            "block": {
+                "allowed": ["statement"],
+                "open": "begin",
+                "close": "end",
+                "separators": [{"kind": "literal", "value": ";"}],
+                "separator_policy": "required"
+            }
+        }, {
+            "id": "statement",
+            "syntax": ["statement"]
+        }]
+    }))
+    .expect("schema-v2 configured block deserializes");
+
+    assert_eq!(
+        serde_json::from_value::<LanguageSpec>(
+            serde_json::to_value(&spec).expect("language spec serializes")
+        )
+        .expect("round trip deserializes"),
+        spec
+    );
+}
+
+#[test]
 fn closed_schema_rejects_unknown_language_and_constraint_properties() {
     let invalid_language = serde_json::json!({
         "schema_version": 1,

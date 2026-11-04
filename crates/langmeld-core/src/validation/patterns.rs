@@ -216,7 +216,7 @@ pub(super) fn pattern_placeholders(pattern: &str) -> Result<Vec<(String, bool, u
 #[derive(Clone)]
 pub(super) struct PatternConflictCandidate<'a> {
     pub(super) construct: &'a ConstructSpec,
-    pub(super) pattern: &'a str,
+    pub(super) pattern: String,
     pub(super) captures: Vec<(String, bool, usize)>,
     pub(super) signature: String,
     pub(super) atoms: Option<Vec<PatternAtom>>,
@@ -271,7 +271,7 @@ pub(super) struct PatternTokenAutomaton {
 
 pub(super) struct PatternAutomatonCandidate<'a> {
     pub(super) construct: &'a ConstructSpec,
-    pub(super) pattern: &'a str,
+    pub(super) pattern: String,
     pub(super) automaton: PatternTokenAutomaton,
 }
 

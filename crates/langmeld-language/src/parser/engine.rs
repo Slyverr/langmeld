@@ -3,46 +3,43 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use langmeld_core::{
-    ConstructSpec, Diagnostic, FieldKind, FieldSpec, MapKeyKind, SourceFile, Span,
+    BlockSeparatorPolicy, ConstructSpec, Diagnostic, FieldKind, FieldSpec, MapKeyKind, SourceFile,
+    Span,
 };
 
 use crate::{
-    AstNode, CapturedValue, CompletionBlockContext, CompletionFrontier, CustomConstructMatch,
-    CustomConstructParser, ExpectedCapture, LanguageToken, LanguageTokenKind as TokenKind,
-    ParseLimits, Program, Value, ValueType,
+    AstNode, BlockDelimiterSpan, CapturedValue, CompletionBlockContext, CompletionFrontier,
+    CustomConstructMatch, CustomConstructParser, ExpectedCapture, LanguageToken,
+    LanguageTokenKind as TokenKind, ParseLimits, Program, Value, ValueType,
 };
 
 use super::{
     candidates::BlockCandidateIndex,
     matching::{PatternMatcher, PatternProgress, default_value},
-    prepared::{ConfiguredLanguageParser, PreparedLanguage},
+    prepared::{CompiledBlock, CompiledBlockSeparator, ConfiguredLanguageParser, PreparedLanguage},
 };
 
 const MAX_COMPLETION_FRONTIERS: usize = 1024;
 const MAX_COMPLETION_BLOCKS: usize = 1024;
 const MAX_COMPLETION_EXPECTED_CAPTURES: usize = 64;
 
+pub(super) struct ParsedTokens {
+    pub(super) program: Program,
+    pub(super) diagnostics: Vec<Diagnostic>,
+    pub(super) custom_parser_spans: Vec<Span>,
+    pub(super) block_delimiters: Vec<BlockDelimiterSpan>,
+    pub(super) completion_frontiers: Vec<CompletionFrontier>,
+    pub(super) completion_blocks: Vec<CompletionBlockContext>,
+    pub(super) resource_limited: bool,
+}
+
 pub(super) fn parse_tokens(
     parser: &ConfiguredLanguageParser,
     source: &SourceFile,
     tokens: Vec<LanguageToken>,
     limits: ParseLimits,
-) -> (
-    Program,
-    Vec<Diagnostic>,
-    Vec<Span>,
-    Vec<CompletionFrontier>,
-    Vec<CompletionBlockContext>,
-    bool,
-) {
-    let (
-        program,
-        diagnostics,
-        custom_parser_spans,
-        completion_frontiers,
-        completion_blocks,
-        resource_limited,
-    ) = Parser {
+) -> ParsedTokens {
+    Parser {
         language: &parser.language,
         source,
         tokens,
@@ -50,6 +47,7 @@ pub(super) fn parse_tokens(
         position: 0,
         diagnostics: Vec::new(),
         custom_parser_spans: Vec::new(),
+        block_delimiters: Vec::new(),
         completion_frontiers: Vec::new(),
         completion_blocks: Vec::new(),
         depth: 0,
@@ -58,15 +56,7 @@ pub(super) fn parse_tokens(
         remaining_pattern_steps: limits.max_pattern_steps,
         resource_limited: false,
     }
-    .parse();
-    (
-        program,
-        diagnostics,
-        custom_parser_spans,
-        completion_frontiers,
-        completion_blocks,
-        resource_limited,
-    )
+    .parse()
 }
 
 struct Parser<'a> {
@@ -77,6 +67,7 @@ struct Parser<'a> {
     position: usize,
     diagnostics: Vec<Diagnostic>,
     custom_parser_spans: Vec<Span>,
+    block_delimiters: Vec<BlockDelimiterSpan>,
     completion_frontiers: Vec<CompletionFrontier>,
     completion_blocks: Vec<CompletionBlockContext>,
     depth: usize,
@@ -99,16 +90,7 @@ struct Candidate {
 }
 
 impl Parser<'_> {
-    fn parse(
-        mut self,
-    ) -> (
-        Program,
-        Vec<Diagnostic>,
-        Vec<Span>,
-        Vec<CompletionFrontier>,
-        Vec<CompletionBlockContext>,
-        bool,
-    ) {
+    fn parse(mut self) -> ParsedTokens {
         self.skip_separators();
         let root = self.language.spec.spec().root.clone();
         let nodes =
@@ -130,14 +112,15 @@ impl Parser<'_> {
         } else {
             (self.completion_frontiers, self.completion_blocks)
         };
-        (
-            Program { nodes },
-            self.diagnostics,
-            self.custom_parser_spans,
+        ParsedTokens {
+            program: Program { nodes },
+            diagnostics: self.diagnostics,
+            custom_parser_spans: self.custom_parser_spans,
+            block_delimiters: self.block_delimiters,
             completion_frontiers,
             completion_blocks,
-            self.resource_limited,
-        )
+            resource_limited: self.resource_limited,
+        }
     }
 
     fn parse_construct(
@@ -239,8 +222,9 @@ impl Parser<'_> {
                     continue;
                 }
                 let block_opener = construct.block.is_some()
-                    && matched.end_position > start_position
-                    && is_punct(&self.tokens[matched.end_position - 1].kind, '{');
+                    && (self.language.spec.spec().schema_version == 2
+                        || (matched.end_position > start_position
+                            && is_punct(&self.tokens[matched.end_position - 1].kind, '{')));
                 if !is_line_end(&self.tokens, matched.end_position) && !block_opener {
                     continue;
                 }
@@ -315,8 +299,9 @@ impl Parser<'_> {
         let construct = &self.language.spec.spec().constructs[candidate.construct_index];
         self.validate_constraints(construct, &candidate.fields);
         let block_opener = construct.block.is_some()
-            && candidate.end_position > start_position
-            && is_punct(&self.tokens[candidate.end_position - 1].kind, '{');
+            && (self.language.spec.spec().schema_version == 2
+                || (candidate.end_position > start_position
+                    && is_punct(&self.tokens[candidate.end_position - 1].kind, '{')));
         if is_root && !is_line_end(&self.tokens, candidate.end_position) && !block_opener {
             self.diagnostics.push(Diagnostic::error(
                 "LM1200",
@@ -348,6 +333,20 @@ impl Parser<'_> {
         if let Some(block) = &construct.block
             && !has_custom_children
         {
+            if let Some(layout) = self.language.blocks.get(&construct.id)
+                && let Some(start) =
+                    self.sequence_start_ending_at(candidate.end_position, &layout.open)
+                && let (Some(first), Some(last)) = (
+                    self.tokens.get(start),
+                    self.tokens.get(candidate.end_position.saturating_sub(1)),
+                )
+            {
+                self.block_delimiters.push(BlockDelimiterSpan {
+                    construct: construct.id.clone(),
+                    span: Span::new(first.span.start, last.span.end),
+                    opens: true,
+                });
+            }
             self.skip_separators();
             if self.depth >= self.max_nesting_depth() {
                 self.resource_limited = true;
@@ -359,7 +358,7 @@ impl Parser<'_> {
                     ),
                     node.span,
                 ));
-                if let Some(close) = self.skip_balanced_block() {
+                if let Some(close) = self.skip_balanced_block(&construct.id) {
                     node.span.end = close;
                 } else {
                     node.span.end = self.source.text.len();
@@ -728,14 +727,28 @@ impl Parser<'_> {
         let mut children: Vec<AstNode> = Vec::new();
         let allowed = self.expanded_allowed(declared_allowed);
         let candidate_index = self.language.block_candidates.get(parent_id).cloned();
+        let Some(block_layout) = self.language.blocks.get(parent_id).cloned() else {
+            self.diagnostics.push(Diagnostic::error(
+                "LM1207",
+                format!("block `{parent_id}` has no compiled layout"),
+                self.current().span,
+            ));
+            return (children, None);
+        };
         let mut close = None;
+        let mut has_child = false;
         loop {
-            self.skip_separators();
+            let separator_found = self.skip_block_separators(&block_layout);
             let gap_start = children.last().map_or(open_end, |child| child.span.end);
             let token = self.current();
             let gap_end = match token.kind {
-                TokenKind::Punctuation('}') => token.span.start,
                 TokenKind::End => self.source.text.len(),
+                _ if self
+                    .matches_sequence(self.position, &block_layout.close)
+                    .is_some() =>
+                {
+                    token.span.start
+                }
                 _ => token.span.end,
             };
             if gap_start <= gap_end {
@@ -745,30 +758,49 @@ impl Parser<'_> {
                     Span::new(gap_start, gap_end),
                 );
             }
-            match self.current().kind {
-                TokenKind::Punctuation('}') => {
-                    close = Some(self.current().span.end);
-                    self.position += 1;
-                    break;
+            if let Some(after_close) = self.matches_sequence(self.position, &block_layout.close) {
+                if let (Some(first), Some(last)) = (
+                    self.tokens.get(self.position),
+                    self.tokens.get(after_close.saturating_sub(1)),
+                ) {
+                    self.block_delimiters.push(BlockDelimiterSpan {
+                        construct: parent_id.to_owned(),
+                        span: Span::new(first.span.start, last.span.end),
+                        opens: false,
+                    });
                 }
-                TokenKind::End => {
-                    self.diagnostics.push(Diagnostic::error(
-                        "LM1204",
-                        "expected `}` before the end of the file",
-                        self.current().span,
-                    ));
-                    break;
-                }
-                _ => {
-                    if let Some(node) =
-                        self.parse_construct(&allowed, false, candidate_index.as_deref())
-                    {
-                        children.push(node);
-                    }
-                    if self.resource_limited {
-                        break;
-                    }
-                }
+                close = self.tokens.get(after_close - 1).map(|token| token.span.end);
+                self.position = after_close;
+                break;
+            }
+            if matches!(self.current().kind, TokenKind::End) {
+                self.diagnostics.push(Diagnostic::error(
+                    "LM1204",
+                    missing_block_close_message(&block_layout),
+                    self.current().span,
+                ));
+                break;
+            }
+            if has_child
+                && block_layout.separator_policy == BlockSeparatorPolicy::Required
+                && !separator_found
+            {
+                self.diagnostics.push(Diagnostic::error(
+                    "LM1206",
+                    "expected a block separator between child constructs",
+                    self.current().span,
+                ));
+            }
+            let start_position = self.position;
+            if let Some(node) = self.parse_construct(&allowed, false, candidate_index.as_deref()) {
+                children.push(node);
+                has_child = true;
+            }
+            if self.position == start_position {
+                self.position += 1;
+            }
+            if self.resource_limited {
+                break;
             }
         }
         (children, close)
@@ -972,30 +1004,123 @@ impl Parser<'_> {
             .map(|(index, _)| index + 1)
     }
 
-    fn skip_balanced_block(&mut self) -> Option<usize> {
-        let mut nesting = 1_usize;
+    fn skip_balanced_block(&mut self, construct_id: &str) -> Option<usize> {
+        let block = self.language.blocks.get(construct_id)?.clone();
+        let mut closers = vec![block.close.clone()];
+        let mut openers = self.language.blocks.values().collect::<Vec<_>>();
+        openers.sort_by(|left, right| {
+            right
+                .open
+                .len()
+                .cmp(&left.open.len())
+                .then_with(|| left.close_text.cmp(&right.close_text))
+        });
         while !matches!(self.current().kind, TokenKind::End) {
-            match self.current().kind {
-                TokenKind::Punctuation('{') => nesting += 1,
-                TokenKind::Punctuation('}') => {
-                    nesting -= 1;
-                    let end = self.current().span.end;
-                    self.position += 1;
-                    if nesting == 0 {
-                        return Some(end);
-                    }
-                    continue;
+            let active_closer = closers.last()?.clone();
+            if let Some(after_close) = self.matches_sequence(self.position, &active_closer) {
+                closers.pop();
+                self.position = after_close;
+                let end = self
+                    .tokens
+                    .get(self.position.saturating_sub(1))
+                    .map(|token| token.span.end)?;
+                if closers.is_empty() {
+                    return Some(end);
                 }
-                _ => {}
+                continue;
+            }
+            if let Some((nested, after_open)) = openers.iter().find_map(|candidate| {
+                self.matches_sequence(self.position, &candidate.open)
+                    .map(|after| (*candidate, after))
+            }) {
+                closers.push(nested.close.clone());
+                self.position = after_open;
+                continue;
             }
             self.position += 1;
         }
         self.diagnostics.push(Diagnostic::error(
             "LM1204",
-            "expected `}` before the end of the file",
+            missing_block_close_message(&block),
             self.current().span,
         ));
         None
+    }
+
+    fn skip_block_separators(&mut self, block: &CompiledBlock) -> bool {
+        let mut found = false;
+        loop {
+            match self.current().kind {
+                TokenKind::Comment => self.position += 1,
+                TokenKind::Newline => {
+                    found |= block
+                        .separators
+                        .iter()
+                        .any(|separator| matches!(separator, CompiledBlockSeparator::Newline));
+                    self.position += 1;
+                }
+                _ => {
+                    let matched = block
+                        .separators
+                        .iter()
+                        .find_map(|separator| match separator {
+                            CompiledBlockSeparator::Newline => None,
+                            CompiledBlockSeparator::Literal(literal) => {
+                                self.matches_sequence(self.position, literal)
+                            }
+                        });
+                    let Some(after) = matched else {
+                        break;
+                    };
+                    found = true;
+                    self.position = after;
+                }
+            }
+        }
+        found
+    }
+
+    fn matches_sequence(&self, start: usize, expected: &[TokenKind]) -> Option<usize> {
+        if expected.is_empty() {
+            return None;
+        }
+        let mut position = start;
+        for kind in expected {
+            while self
+                .tokens
+                .get(position)
+                .is_some_and(|token| matches!(token.kind, TokenKind::Newline | TokenKind::Comment))
+            {
+                position += 1;
+            }
+            if self.tokens.get(position)?.kind != *kind {
+                return None;
+            }
+            position += 1;
+        }
+        Some(position)
+    }
+
+    fn sequence_start_ending_at(&self, end: usize, expected: &[TokenKind]) -> Option<usize> {
+        if expected.is_empty() || end > self.tokens.len() {
+            return None;
+        }
+        let mut position = end;
+        for expected_kind in expected.iter().rev() {
+            while position > 0
+                && matches!(
+                    self.tokens[position - 1].kind,
+                    TokenKind::Newline | TokenKind::Comment
+                )
+            {
+                position -= 1;
+            }
+            position = position.checked_sub(1)?;
+            if self.tokens.get(position)?.kind != *expected_kind {
+                return None;
+            }
+        }
+        Some(position)
     }
 
     fn range(&self, start: usize, end: usize) -> Span {
@@ -1275,6 +1400,18 @@ fn valid_span(source: &SourceFile, span: Span) -> bool {
         && source.text.is_char_boundary(span.start)
         && source.text.is_char_boundary(span.end)
 }
+
+fn missing_block_close_message(block: &CompiledBlock) -> String {
+    if block.close_text == "}" {
+        "expected `}` before the end of the file".to_owned()
+    } else {
+        format!(
+            "expected block closer `{}` before the end of the file",
+            block.close_text
+        )
+    }
+}
+
 fn valid_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) -> bool {
     diagnostic.span.is_none_or(|span| valid_span(source, span))
 }

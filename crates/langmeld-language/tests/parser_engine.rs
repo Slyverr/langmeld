@@ -1,5 +1,6 @@
 use langmeld_core::{
-    ConstructBuilder, Diagnostic, FieldKind, FieldSpec, LanguageBuilder, SourceFile, Span,
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, Diagnostic, FieldKind, FieldSpec,
+    LanguageBuilder, SourceFile, Span,
 };
 use langmeld_language::{
     AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, CustomLexer,
@@ -76,6 +77,35 @@ fn nested_block_parser() -> langmeld_language::ConfiguredLanguageParser {
         .expect("nested block language is valid");
     PreparedLanguage::new(spec)
         .expect("nested block patterns compile")
+        .configure()
+        .expect("no callback registrations are required")
+}
+
+fn configured_delimiter_parser(
+    separator_policy: BlockSeparatorPolicy,
+) -> langmeld_language::ConfiguredLanguageParser {
+    let spec = LanguageBuilder::new("ConfiguredBlocks")
+        .schema_version(2)
+        .version("0.1.0")
+        .root("module")
+        .construct(
+            ConstructBuilder::new("module")
+                .syntax("module {name}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .block(["binding"])
+                .block_delimiters("begin", "end")
+                .block_separators([BlockSeparator::literal(";")], separator_policy),
+        )
+        .construct(
+            ConstructBuilder::new("binding")
+                .syntax("let {name} = {value}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .field(FieldSpec::required("value", FieldKind::Number)),
+        )
+        .build()
+        .expect("configured block language is valid");
+    PreparedLanguage::new(spec)
+        .expect("configured block patterns compile")
         .configure()
         .expect("no callback registrations are required")
 }
@@ -245,6 +275,44 @@ fn missing_nested_block_closers_preserve_partial_tree_and_report_each_scope() {
 }
 
 #[test]
+fn configured_block_delimiters_and_required_separators_drive_parsing() {
+    let parser = configured_delimiter_parser(BlockSeparatorPolicy::Required);
+    let result = parser.parse(&SourceFile::new(
+        "configured-blocks.lang",
+        "module Main begin\nlet first = 1;\nlet second = 2\nend\n",
+    ));
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let module = &result.program.nodes[0];
+    assert_eq!(
+        module.fields["name"].value,
+        Value::Identifier("Main".to_owned())
+    );
+    assert_eq!(module.children.len(), 2);
+    assert_eq!(
+        module.span.end,
+        "module Main begin\nlet first = 1;\nlet second = 2\nend".len()
+    );
+}
+
+#[test]
+fn required_block_separators_report_missing_boundaries_and_keep_children() {
+    let result =
+        configured_delimiter_parser(BlockSeparatorPolicy::Required).parse(&SourceFile::new(
+            "missing-separator.lang",
+            "module Main begin\nlet first = 1\nlet second = 2\nend\n",
+        ));
+
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM1206")
+    );
+    assert_eq!(result.program.nodes[0].children.len(), 2);
+}
+
+#[test]
 fn child_errors_recover_and_keep_valid_siblings() {
     let result = configured().parse(&SourceFile::new(
         "recovery.lang",
@@ -315,6 +383,46 @@ fn nesting_and_node_limits_report_resource_errors_and_keep_the_root() {
     );
     assert_eq!(nodes.program.nodes.len(), 1);
     assert!(nodes.program.nodes[0].children.is_empty());
+}
+
+#[test]
+fn recovery_balances_nested_blocks_with_different_openers_and_shared_closers() {
+    let spec = LanguageBuilder::new("RecoveryBlocks")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("root")
+        .construct(
+            ConstructBuilder::new("root")
+                .syntax("root")
+                .block(["inner"])
+                .block_delimiters("begin", "end"),
+        )
+        .construct(
+            ConstructBuilder::new("inner")
+                .syntax("inner")
+                .block(["leaf"])
+                .block_delimiters("[", "end"),
+        )
+        .construct(ConstructBuilder::new("leaf").syntax("leaf"))
+        .build()
+        .expect("recovery fixture validates");
+    let parser = PreparedLanguage::new(spec)
+        .expect("configured delimiters compile")
+        .configure()
+        .expect("fixture has no callbacks");
+    let source = SourceFile::new("recovery.lang", "root begin\ninner [\nleaf\nend\nend\n");
+    let parsed = parser.parse_with_limits(
+        &source,
+        ParseLimits {
+            max_nesting_depth: 0,
+            ..ParseLimits::default()
+        },
+    );
+    assert!(parsed.resource_limited);
+    assert_eq!(
+        parsed.program.nodes[0].span.end,
+        source.text.rfind("end").unwrap() + 3
+    );
 }
 
 #[test]

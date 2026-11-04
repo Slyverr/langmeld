@@ -97,6 +97,8 @@ pub enum SyntaxTokenKind {
     Unknown,
     /// Synthetic zero-width right brace inserted at end of incomplete input.
     MissingRightBrace,
+    /// Synthetic zero-width configured block closer inserted at end of incomplete input.
+    MissingBlockCloser,
     /// Synthetic zero-width right bracket inserted at end of incomplete input.
     MissingRightBracket,
 }
@@ -215,6 +217,9 @@ pub(super) fn append_missing_tokens(
     let eof = Span::new(source.text.len(), source.text.len());
     for diagnostic in diagnostics {
         let kind = match diagnostic.code.as_str() {
+            "LM1204" if diagnostic.message.starts_with("expected block closer `") => {
+                SyntaxTokenKind::MissingBlockCloser
+            }
             "LM1204" | "LM1217" | "LM1223" => SyntaxTokenKind::MissingRightBrace,
             "LM1219" => SyntaxTokenKind::MissingRightBracket,
             _ => continue,
@@ -636,6 +641,7 @@ fn classification_kind(kind: SyntaxTokenKind) -> Option<&'static str> {
         SyntaxTokenKind::Whitespace
         | SyntaxTokenKind::Newline
         | SyntaxTokenKind::Opaque
+        | SyntaxTokenKind::MissingBlockCloser
         | SyntaxTokenKind::MissingRightBrace
         | SyntaxTokenKind::MissingRightBracket => None,
     }

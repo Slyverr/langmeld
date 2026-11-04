@@ -97,11 +97,7 @@ pub fn generate_tooling(
     );
     artifacts.insert(
         "language-configuration.json".to_owned(),
-        json_value(serde_json::json!({
-            "comments": { "lineComment": "#" },
-            "brackets": [["{", "}"], ["[", "]"], ["(", ")"]],
-            "autoClosingPairs": [["{", "}"], ["[", "]"], ["(", ")"], ["\"", "\""]]
-        }))?,
+        json_value(language_configuration(spec))?,
     );
     artifacts.insert("agent-skill/SKILL.md".to_owned(), agent_skill(spec, &slug));
     artifacts.insert("agent-skill/references/grammar.md".to_owned(), reference);
@@ -167,6 +163,26 @@ fn json_file(spec: &LanguageSpec) -> Result<String, serde_json::Error> {
 
 fn json_value(value: serde_json::Value) -> Result<String, serde_json::Error> {
     Ok(serde_json::to_string_pretty(&value)? + "\n")
+}
+
+fn language_configuration(spec: &LanguageSpec) -> serde_json::Value {
+    let mut brackets = BTreeSet::from([
+        ("{".to_owned(), "}".to_owned()),
+        ("[".to_owned(), "]".to_owned()),
+        ("(".to_owned(), ")".to_owned()),
+    ]);
+    for construct in &spec.constructs {
+        if let Some(block) = &construct.block {
+            brackets.insert((block.open.clone(), block.close.clone()));
+        }
+    }
+    let mut auto_closing_pairs = brackets.clone();
+    auto_closing_pairs.insert(("\"".to_owned(), "\"".to_owned()));
+    serde_json::json!({
+        "comments": { "lineComment": "#" },
+        "brackets": brackets,
+        "autoClosingPairs": auto_closing_pairs
+    })
 }
 
 fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
@@ -540,7 +556,25 @@ fn reference_document(spec: &LanguageSpec) -> String {
                 .map(|value| code_span(value))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let _ = writeln!(output, "\nAllowed in the body: {allowed}.");
+            let separator_policy = match block.separator_policy {
+                langmeld_core::BlockSeparatorPolicy::Optional => "optional",
+                langmeld_core::BlockSeparatorPolicy::Required => "required",
+            };
+            let separators = block
+                .separators
+                .iter()
+                .map(|separator| match separator {
+                    langmeld_core::BlockSeparator::Newline => "newline".to_owned(),
+                    langmeld_core::BlockSeparator::Literal(value) => code_span(value),
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let _ = writeln!(
+                output,
+                "\nAllowed in the body: {allowed}.\n\nBlock delimiters: {} and {}. Child separators: {separators} ({separator_policy}).",
+                code_span(&block.open),
+                code_span(&block.close)
+            );
         }
         if let Some(symbol) = &construct.symbol {
             let scope = symbol.scope.as_ref().map_or_else(

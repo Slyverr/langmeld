@@ -7,7 +7,10 @@ use std::{
     sync::Arc,
 };
 
-use langmeld_core::{ConstructSpec, FieldKind, SourceFile, ValidatedLanguageSpec};
+use langmeld_core::{
+    BlockSeparator, BlockSeparatorPolicy, ConstructSpec, FieldKind, SourceFile,
+    ValidatedLanguageSpec,
+};
 
 use super::{
     candidates::BlockCandidateIndex,
@@ -26,6 +29,21 @@ pub(super) struct CompiledPattern {
 pub(super) struct CompiledConstruct {
     pub(super) construct_index: usize,
     pub(super) patterns: Vec<CompiledPattern>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct CompiledBlock {
+    pub(super) open: Vec<LanguageTokenKind>,
+    pub(super) close: Vec<LanguageTokenKind>,
+    pub(super) close_text: String,
+    pub(super) separators: Vec<CompiledBlockSeparator>,
+    pub(super) separator_policy: BlockSeparatorPolicy,
+}
+
+#[derive(Clone, Debug)]
+pub(super) enum CompiledBlockSeparator {
+    Newline,
+    Literal(Vec<LanguageTokenKind>),
 }
 
 /// A validated pattern that the shared parser could not compile.
@@ -54,6 +72,7 @@ impl Error for PatternCompileError {}
 pub struct PreparedLanguage {
     pub(super) spec: ValidatedLanguageSpec,
     pub(super) compiled: HashMap<String, CompiledConstruct>,
+    pub(super) blocks: HashMap<String, CompiledBlock>,
     pub(super) block_candidates: HashMap<String, Arc<BlockCandidateIndex>>,
     keywords: BTreeSet<String>,
 }
@@ -66,18 +85,66 @@ impl PreparedLanguage {
     /// and runtime pattern compilation instead of silently dropping a construct.
     pub fn new(spec: ValidatedLanguageSpec) -> Result<Self, PatternCompileError> {
         let mut compiled = HashMap::new();
+        let mut blocks = HashMap::new();
         let mut block_candidates = HashMap::new();
         let mut keywords = BTreeSet::new();
 
         for (construct_index, construct) in spec.spec().constructs.iter().enumerate() {
+            let block = construct
+                .block
+                .as_ref()
+                .map(|block| {
+                    let compile_delimiter = |name: &str, value: &str| {
+                        pattern::compile_literal_sequence(value).ok_or_else(|| {
+                            PatternCompileError {
+                                construct: construct.id.clone(),
+                                pattern: format!("block {name} `{value}`"),
+                            }
+                        })
+                    };
+                    let open = compile_delimiter("opener", &block.open)?;
+                    let close = compile_delimiter("closer", &block.close)?;
+                    let mut separators = Vec::with_capacity(block.separators.len());
+                    for separator in &block.separators {
+                        separators.push(match separator {
+                            BlockSeparator::Newline => CompiledBlockSeparator::Newline,
+                            BlockSeparator::Literal(value) => CompiledBlockSeparator::Literal(
+                                compile_delimiter("separator", value)?,
+                            ),
+                        });
+                    }
+                    Ok(CompiledBlock {
+                        open,
+                        close,
+                        close_text: block.close.clone(),
+                        separators,
+                        separator_policy: block.separator_policy,
+                    })
+                })
+                .transpose()?;
+            if let Some(block) = block {
+                blocks.insert(construct.id.clone(), block);
+            }
+
             let mut patterns = Vec::with_capacity(construct.syntax.len());
             for (index, source_pattern) in construct.syntax.iter().enumerate() {
-                let Some(parts) = pattern::compile_pattern(source_pattern, construct) else {
+                let Some(mut parts) = pattern::compile_pattern(source_pattern, construct) else {
                     return Err(PatternCompileError {
                         construct: construct.id.clone(),
                         pattern: source_pattern.clone(),
                     });
                 };
+                if spec.spec().schema_version == 2
+                    && let Some(block) = blocks.get(&construct.id)
+                {
+                    parts.extend(
+                        block
+                            .open
+                            .iter()
+                            .cloned()
+                            .map(pattern::PatternPart::Literal),
+                    );
+                }
                 pattern::collect_keywords(&parts, &mut keywords);
                 let mut capture_kinds = BTreeMap::new();
                 collect_capture_kinds(&parts, &mut capture_kinds);
@@ -161,6 +228,7 @@ impl PreparedLanguage {
         Ok(Self {
             spec,
             compiled,
+            blocks,
             block_candidates,
             keywords,
         })

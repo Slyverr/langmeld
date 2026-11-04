@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use langmeld_core::{ConstructSpec, FieldKind};
+use langmeld_core::{ConstructSpec, FieldKind, SourceFile};
 
 use crate::LanguageTokenKind as TokenKind;
 
@@ -27,6 +27,28 @@ pub(super) enum PatternPart {
         separator: Option<Vec<PatternPart>>,
         nested: bool,
     },
+}
+
+pub(super) fn compile_literal_sequence(literal: &str) -> Option<Vec<TokenKind>> {
+    const MAX_LITERAL_TOKENS: usize = 64;
+
+    let source = SourceFile::new("<block-literal>", literal);
+    let (tokens, diagnostics, resource_limited) = crate::lexing::lex(&source, MAX_LITERAL_TOKENS);
+    if resource_limited || !diagnostics.is_empty() {
+        return None;
+    }
+
+    let mut sequence = Vec::with_capacity(tokens.len());
+    for token in tokens {
+        match token.kind {
+            TokenKind::End => break,
+            TokenKind::Newline | TokenKind::Comment | TokenKind::Unknown(_) | TokenKind::Opaque => {
+                return None;
+            }
+            kind => sequence.push(kind),
+        }
+    }
+    (!sequence.is_empty()).then_some(sequence)
 }
 
 pub(super) fn compile_pattern(

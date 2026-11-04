@@ -6,7 +6,7 @@ construct construct {
   fields {
     id: identifier required
   }
-  block: [fields_block, syntax_block, syntax_list_decl, block_declaration, symbol_block, implements_declaration, custom_parser_decl]
+  block: [fields_block, syntax_block, syntax_list_decl, block_declaration, configured_block_declaration, symbol_block, implements_declaration, custom_parser_decl]
 }
 
 construct custom_parser_decl {

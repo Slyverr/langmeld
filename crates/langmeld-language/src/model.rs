@@ -24,12 +24,25 @@ pub struct ParseResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Source ranges recognized by host-provided construct parsers.
     pub custom_parser_spans: Vec<Span>,
+    /// Source spans of generic block delimiters consumed by the parser.
+    pub block_delimiters: Vec<BlockDelimiterSpan>,
     /// Parser-derived completion expectations for incomplete declarative syntax.
     pub completion_frontiers: Vec<CompletionFrontier>,
     /// Active child-construct contexts inferred while parsing declarative blocks.
     pub completion_blocks: Vec<CompletionBlockContext>,
     /// Whether a source, token, AST, nesting, or matcher-work limit stopped parsing.
     pub resource_limited: bool,
+}
+
+/// A source span for one consumed block opener or closer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockDelimiterSpan {
+    /// Construct whose block owns this delimiter.
+    pub construct: String,
+    /// Source span containing the delimiter token sequence.
+    pub span: Span,
+    /// Whether this span opens or closes the block.
+    pub opens: bool,
 }
 
 /// Expected captures at the furthest valid prefix of one incomplete construct.

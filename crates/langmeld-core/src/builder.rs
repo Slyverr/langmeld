@@ -359,10 +359,34 @@ impl ConstructBuilder {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        self.0.block = Some(BlockSpec {
-            allowed: allowed.into_iter().map(Into::into).collect(),
-        });
+        self.block_spec_mut().allowed = allowed.into_iter().map(Into::into).collect();
         self
+    }
+
+    /// Sets the literal token sequences that open and close this block.
+    #[must_use]
+    pub fn block_delimiters(mut self, open: impl Into<String>, close: impl Into<String>) -> Self {
+        let block = self.block_spec_mut();
+        block.open = open.into();
+        block.close = close.into();
+        self
+    }
+
+    /// Sets the separators recognized between block children and their policy.
+    #[must_use]
+    pub fn block_separators(
+        mut self,
+        separators: impl IntoIterator<Item = BlockSeparator>,
+        policy: BlockSeparatorPolicy,
+    ) -> Self {
+        let block = self.block_spec_mut();
+        block.separators = separators.into_iter().collect();
+        block.separator_policy = policy;
+        self
+    }
+
+    fn block_spec_mut(&mut self) -> &mut BlockSpec {
+        self.0.block.get_or_insert_with(BlockSpec::default)
     }
 
     /// Adds generic symbol declaration metadata.

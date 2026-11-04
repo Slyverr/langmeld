@@ -14,6 +14,9 @@ is cut, changes belong under `Unreleased`.
   parsing, typed AST generation, workspace analysis, source diagnostics,
   formatting, custom Rust host hooks, and host-owned runtime/lowering/backend
   contracts support interpreted or artifact-producing languages.
+- **Language grammar:** Schema 2 blocks own their delimiters and child separators.
+  New declarative projects use the schema, and parsing, formatting, generated
+  editor configuration, and representable Tree-sitter grammars honor the layout.
 - **Project workflow:** An interactive CLI initializes and configures Rust
   language projects, checks and formats programs, inspects definitions,
   manages local declarative extensions, and generates deterministic editor and

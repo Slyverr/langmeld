@@ -34,4 +34,57 @@ construct block_declaration {
     allowed: list<identifier> optional
   }
 }
+
+construct configured_block_declaration {
+  syntax {
+    default: "block: \\[({allowed}[,])*\\] {"
+  }
+  fields {
+    allowed: list<identifier> optional
+  }
+  block: [block_open_decl, block_close_decl, block_separator_decl, block_no_separators_decl, block_separator_policy_decl]
+}
+
+construct block_open_decl {
+  syntax {
+    default: "open: {value}"
+  }
+  fields {
+    value: text required
+  }
+}
+
+construct block_close_decl {
+  syntax {
+    default: "close: {value}"
+  }
+  fields {
+    value: text required
+  }
+}
+
+construct block_separator_decl {
+  syntax {
+    newline: "separator: newline"
+    literal: "separator: {value}"
+  }
+  fields {
+    value: text optional
+  }
+}
+
+construct block_no_separators_decl {
+  syntax {
+    default: "separators: \\[\\]"
+  }
+}
+
+construct block_separator_policy_decl {
+  syntax {
+    default: "separator_policy: {value}"
+  }
+  fields {
+    value: enum [optional, required] required
+  }
+}
 }

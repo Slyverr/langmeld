@@ -1,10 +1,12 @@
 use langmeld_core::{
-    BehaviorStage, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, NamedRecord, SourceFile,
+    BehaviorStage, BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec,
+    LanguageBuilder, NamedRecord, SourceFile,
 };
 use langmeld_language::{
-    DefinitionLimits, langmeld_definition_language, parse_definition, parse_definition_with_limits,
-    parse_language_definition_modules, parse_language_definition_modules_with_limits,
-    parse_language_definition_modules_with_meta, parse_language_definition_with_meta,
+    DefinitionLimits, PreparedLanguage, langmeld_definition_language, parse_definition,
+    parse_definition_with_limits, parse_language_definition_modules,
+    parse_language_definition_modules_with_limits, parse_language_definition_modules_with_meta,
+    parse_language_definition_with_meta,
 };
 
 const DEFINITION: &str = r#"language Demo {
@@ -93,6 +95,110 @@ fn built_in_frontend_converts_to_the_canonical_language_model() {
         .expect("the expected Rust model validates");
 
     assert_eq!(parsed, expected.spec().clone());
+}
+
+#[test]
+fn definition_frontend_converts_schema_v2_block_layouts() {
+    let source = SourceFile::new(
+        "configured.langmeld",
+        r#"language Configured {
+  version: "0.1.0"
+  schema_version: 2
+  root: program
+
+  construct program {
+    syntax {
+      default: "program {name}"
+    }
+    fields {
+      name: identifier required
+    }
+    block: [statement] {
+      open: "begin"
+      close: "end"
+      separator: ";"
+      separator_policy: required
+    }
+  }
+
+  construct statement {
+    syntax {
+      default: "step {name}"
+    }
+    fields {
+      name: identifier required
+    }
+  }
+}
+"#,
+    );
+    let parsed = parse_definition(&source).expect("configured block declaration converts");
+    let program = parsed
+        .constructs
+        .iter()
+        .find(|construct| construct.id == "program")
+        .expect("program construct is converted");
+    let block = program.block.as_ref().unwrap();
+
+    assert_eq!(parsed.schema_version, 2);
+    assert_eq!(program.syntax, ["program {name}"]);
+    assert_eq!(block.open, "begin");
+    assert_eq!(block.close, "end");
+    assert_eq!(block.separators, [BlockSeparator::literal(";")]);
+    assert_eq!(block.separator_policy, BlockSeparatorPolicy::Required);
+
+    let language = parsed
+        .validate()
+        .expect("converted schema-v2 model validates");
+    let parser = PreparedLanguage::new(language)
+        .expect("converted schema-v2 patterns compile")
+        .configure()
+        .expect("definition declares no host callbacks");
+    let source = SourceFile::new(
+        "configured.source",
+        "program demo begin\nstep first;step second\nend\n",
+    );
+    let parsed_source = parser.parse(&source);
+    assert!(
+        parsed_source.diagnostics.is_empty(),
+        "{:?}",
+        parsed_source.diagnostics
+    );
+    assert_eq!(parsed_source.program.nodes[0].children.len(), 2);
+    assert_eq!(
+        parsed_source.program.nodes[0].children[1].fields["name"].value,
+        langmeld_language::Value::Identifier("second".to_owned())
+    );
+}
+
+#[test]
+fn definition_frontend_reports_duplicate_block_layout_declarations_at_source() {
+    let source = SourceFile::new(
+        "duplicate.langmeld",
+        r#"language Duplicate {
+  version: "0.1.0"
+  schema_version: 2
+  root: program
+  construct program {
+    syntax { default: "program" }
+    block: [] {
+      open: "begin"
+      open: "start"
+      close: "end"
+    }
+  }
+}
+"#,
+    );
+
+    let diagnostics =
+        parse_definition(&source).expect_err("duplicate block declarations are rejected");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("block opener is declared more than once")
+            && diagnostic.span.is_some_and(|span| span.start < span.end)
+    }));
 }
 
 #[test]

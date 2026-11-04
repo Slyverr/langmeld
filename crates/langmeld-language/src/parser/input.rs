@@ -52,14 +52,15 @@ pub(super) fn parse_configured(
         crate::lexing::lex(source, limits.max_tokens)
     };
     let mut syntax_tokens = lossless_syntax_tokens(source, &tokens);
-    let (
+    let super::engine::ParsedTokens {
         program,
-        mut parse_diagnostics,
+        diagnostics: mut parse_diagnostics,
         custom_parser_spans,
+        block_delimiters,
         completion_frontiers,
         completion_blocks,
-        parse_limited,
-    ) = super::engine::parse_tokens(parser, source, tokens, limits);
+        resource_limited: parse_limited,
+    } = super::engine::parse_tokens(parser, source, tokens, limits);
     diagnostics.append(&mut parse_diagnostics);
     append_missing_tokens(source, &diagnostics, &mut syntax_tokens);
     let syntax_tree = build_syntax_tree(&program, &syntax_tokens, source);
@@ -69,6 +70,7 @@ pub(super) fn parse_configured(
         syntax_tokens,
         diagnostics,
         custom_parser_spans,
+        block_delimiters,
         completion_frontiers,
         completion_blocks,
         resource_limited: resource_limited || parse_limited,
@@ -158,6 +160,7 @@ fn failure(source: &SourceFile, diagnostic: Diagnostic, resource_limited: bool) 
         syntax_tokens,
         diagnostics: vec![diagnostic],
         custom_parser_spans: Vec::new(),
+        block_delimiters: Vec::new(),
         completion_frontiers: Vec::new(),
         completion_blocks: Vec::new(),
         resource_limited,

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use langmeld_core::{FieldKind, ValidatedLanguageSpec};
+use langmeld_core::{BlockSpec, FieldKind, ValidatedLanguageSpec};
 use langmeld_language::{
     PreparedLanguage, generate_tree_sitter, language_definition_source_paths, load_language,
     load_project, project_definition_source_paths,
@@ -50,6 +50,7 @@ pub(crate) fn constructs(language_path: &Path) -> Result<(), (u8, String)> {
                 "syntax": construct.syntax,
                 "field_count": construct.fields.len(),
                 "children": construct.block.as_ref().map(|block| &block.allowed),
+                "block": construct.block.as_ref().map(block_json),
             })
         })
         .collect();
@@ -61,13 +62,28 @@ pub(crate) fn describe(language_path: &Path, id: &str) -> Result<(), (u8, String
     let construct = language
         .construct(id)
         .ok_or_else(|| (2, format!("unknown construct '{id}'")))?;
-    let value = serde_json::to_value(construct).map_err(|error| {
+    let mut value = serde_json::to_value(construct).map_err(|error| {
         (
             2,
             format!("cannot serialize construct description: {error}"),
         )
     })?;
+    if let Some(block) = &construct.block
+        && let Some(object) = value.as_object_mut()
+    {
+        object.insert("block".to_owned(), block_json(block));
+    }
     print_json(&value, "construct description")
+}
+
+fn block_json(block: &BlockSpec) -> Value {
+    json!({
+        "allowed": block.allowed,
+        "open": block.open,
+        "close": block.close,
+        "separators": block.separators,
+        "separator_policy": block.separator_policy,
+    })
 }
 
 fn inspection(language: &ValidatedLanguageSpec, definition_sources: Vec<String>) -> Value {

@@ -12,7 +12,7 @@ pub use builder::{ConstructBuilder, LanguageBuilder, NamedEnum, NamedRecord, Syn
 pub use diagnostic::{Diagnostic, Severity};
 pub use source::{SourceDatabase, SourceDatabaseError, SourceFile, SourceId, Span};
 pub use spec::{
-    BehaviorSpec, BehaviorStage, BlockSpec, CategorySpec, ConstructSpec, EnumSpec,
-    FieldConstraints, FieldKind, FieldSpec, LanguageSpec, MapKeyKind, ScopeLookup, ScopeSpec,
-    SpecError, SymbolSpec, SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
+    BehaviorSpec, BehaviorStage, BlockSeparator, BlockSeparatorPolicy, BlockSpec, CategorySpec,
+    ConstructSpec, EnumSpec, FieldConstraints, FieldKind, FieldSpec, LanguageSpec, MapKeyKind,
+    ScopeLookup, ScopeSpec, SpecError, SymbolSpec, SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
 };

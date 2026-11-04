@@ -1,5 +1,6 @@
 use langmeld_core::{
-    ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind, SourceFile, SymbolSpec,
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder,
+    MapKeyKind, SourceFile, SymbolSpec,
 };
 use langmeld_language::{PreparedLanguage, generate_tree_sitter, langmeld_definition_language};
 use std::{env, fs, path::Path};
@@ -7,12 +8,18 @@ use std::{env, fs, path::Path};
 fn language() -> langmeld_core::ValidatedLanguageSpec {
     LanguageBuilder::new("Demo / Language")
         .version("0.2.0")
+        .schema_version(2)
         .root("program")
         .named_enum("Mode", ["fast", "safe"])
         .construct(
             ConstructBuilder::new("program")
-                .syntax_variant("root", "program {")
-                .block(["binding"]),
+                .syntax_variant("root", "program")
+                .block(["binding"])
+                .block_delimiters("begin block", "end block")
+                .block_separators(
+                    [BlockSeparator::literal(";")],
+                    BlockSeparatorPolicy::Required,
+                ),
         )
         .construct(
             ConstructBuilder::new("binding")
@@ -118,10 +125,10 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(grammar.contains("field(\"value\", $.lm_number)"));
     assert!(grammar.contains("field(\"owner\", $.lm_identifier)"));
     assert!(grammar.contains("field(\"attrs\", $.lm_type_"));
+    assert!(grammar.contains("repeat1($.lm_semicolon)"));
     assert!(grammar.contains(
-        "choice(repeat($.lm_separator), seq(repeat($.lm_separator), $.lm_construct_binding"
+        "repeat(seq(seq(repeat($.lm_newline), repeat1($.lm_semicolon), repeat($.lm_newline)), $.lm_construct_binding))"
     ));
-    assert!(grammar.contains("repeat(seq(repeat($.lm_separator), $.lm_construct_binding))"));
     assert!(grammar.contains("choice(repeat($.lm_newline), seq(repeat($.lm_newline), $.lm_string"));
     assert!(grammar.contains("field(\"note\", seq(\"note\", \":\", $.lm_string))"));
     assert!(
@@ -186,6 +193,34 @@ fn unsupported_custom_parsers_fail_without_returning_partial_artifacts() {
 }
 
 #[test]
+fn tree_sitter_export_preserves_schema_v2_block_delimiters_and_separator_policy() {
+    let language = LanguageBuilder::new("ConfiguredBlocks")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"])
+                .block_delimiters("begin block", "end block")
+                .block_separators(
+                    [BlockSeparator::literal("then do")],
+                    BlockSeparatorPolicy::Required,
+                ),
+        )
+        .construct(ConstructBuilder::new("statement").syntax("step"))
+        .build()
+        .expect("configured block fixture validates");
+
+    let grammar = generate_tree_sitter(&language).expect("configured block is representable");
+    let grammar = &grammar["tree-sitter/grammar.js"];
+    assert!(grammar.contains("seq(\"program\", seq(\"begin\", repeat($.lm_newline), \"block\"))"));
+    assert!(grammar.contains("repeat1(seq(\"then\", repeat($.lm_newline), \"do\"))"));
+    assert!(grammar.contains("seq(\"end\", repeat($.lm_newline), \"block\")"));
+    assert!(grammar.contains("conflicts: $ => [[$.lm_construct_program]]"));
+}
+
+#[test]
 #[ignore = "emits a complex grammar fixture for the pinned Tree-sitter CLI check"]
 fn write_tree_sitter_cli_validation_fixture() {
     let output = env::var_os("LANGMELD_TREE_SITTER_FIXTURE_DIR")
@@ -215,18 +250,18 @@ fn write_tree_sitter_cli_validation_fixture() {
     let samples = [
         (
             "complete.demo",
-            "program {\n  let fast demo -> 42 tags [\"one\", \"two\"] attrs {count: \"2\"} config {title: \"sample\"; note: \"optional\"} status draft owner root flags [on, off] labels {\"build target\": 3} history [{note: \"created\"}] metadata {}\n}\n",
+            "program begin block\n  let fast demo -> 42 tags [\"one\", \"two\"] attrs {count: \"2\"} config {title: \"sample\"; note: \"optional\"} status draft owner root flags [on, off] labels {\"build target\": 3} history [{note: \"created\"}] metadata {};\nend block\n",
         ),
         (
             "empty-collections.demo",
-            "program {\n  let safe empty -> 0 tags [] attrs {} config {title: \"empty\"} status published owner root flags [] labels {} history [] metadata {}\n}\n",
+            "program begin block\n  let safe empty -> 0 tags [] attrs {} config {title: \"empty\"} status published owner root flags [] labels {} history [] metadata {};\nend block\n",
         ),
         (
             "multiline-properties.demo",
-            "program {\n  let fast multiline -> 1 tags [\"one\",\n    \"two\",] attrs {\n    first: \"a\",\n    second: \"b\";\n  } config {\n    title: \"record\"\n    note: \"line separated\"\n  } status draft owner root flags [on] labels {\n    \"one\": 1,\n    \"two\": 2\n  } history [\n    {note: \"created\"},\n    {note: \"edited\"}\n  ] metadata {}\n}\n",
+            "program begin block\n  let fast multiline -> 1 tags [\"one\",\n    \"two\",] attrs {\n    first: \"a\",\n    second: \"b\";\n  } config {\n    title: \"record\"\n    note: \"line separated\"\n  } status draft owner root flags [on] labels {\n    \"one\": 1,\n    \"two\": 2\n  } history [\n    {note: \"created\"},\n    {note: \"edited\"}\n  ] metadata {};\nend block\n",
         ),
     ];
-    let escaped_crlf_source = "# unicode comment λ\nprogram {\n  let fast escaped -> 1 tags [] attrs {} config {title: \"quoted \\\"word\\\" and \\\\ path\"; note: \"line\\nnext\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n"
+    let escaped_crlf_source = "# unicode comment λ\nprogram begin block\n  let fast escaped -> 1 tags [] attrs {} config {title: \"quoted \\\"word\\\" and \\\\ path\"; note: \"line\\nnext\"} status draft owner root flags [] labels {} history [] metadata {};\nend block\n"
         .replace('\n', "\r\n");
     let parser = PreparedLanguage::new(language)
         .expect("fixture patterns compile")
@@ -250,13 +285,13 @@ fn write_tree_sitter_cli_validation_fixture() {
         );
         fs::write(samples_dir.join(name), source).expect("sample program is written");
     }
-    let invalid_source = "program {\n  let fast invalid -> 1 tags [] attrs {first: \"a\"\n    second: \"b\"} config {title: \"invalid\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n";
+    let invalid_source = "program begin block\n  let fast invalid -> 1 tags [] attrs {first: \"a\"\n    second: \"b\"} config {title: \"invalid\"} status draft owner root flags [] labels {} history [] metadata {};\nend block\n";
     let invalid = parser.parse(&SourceFile::new("invalid-map.demo", invalid_source));
     assert!(
         !invalid.diagnostics.is_empty(),
         "Langmeld rejects map entries separated by a newline without a comma or semicolon"
     );
-    let invalid_string_source = "program {\n  let fast invalid -> 1 tags [] attrs {} config {title: \"unsupported \\q escape\"} status draft owner root flags [] labels {} history [] metadata {}\n}\n";
+    let invalid_string_source = "program begin block\n  let fast invalid -> 1 tags [] attrs {} config {title: \"unsupported \\q escape\"} status draft owner root flags [] labels {} history [] metadata {};\nend block\n";
     let invalid_string = parser.parse(&SourceFile::new(
         "invalid-string-escape.demo",
         invalid_string_source,

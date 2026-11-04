@@ -42,7 +42,7 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
                 syntax: vec!["box {namespace} {".to_owned()],
                 syntax_ids: vec!["root".to_owned()],
                 fields: vec![langmeld_core::FieldSpec { name: "namespace".to_owned(), kind: langmeld_core::FieldKind::Identifier, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
-                block: Some(langmeld_core::BlockSpec { allowed: vec!["statement".to_owned()] }),
+                block: Some(langmeld_core::BlockSpec { allowed: vec!["statement".to_owned()], open: "{".to_owned(), close: "}".to_owned(), separators: vec![langmeld_core::BlockSeparator::Newline, langmeld_core::BlockSeparator::Literal(";".to_owned())], separator_policy: langmeld_core::BlockSeparatorPolicy::Optional }),
                 symbol: Some(langmeld_core::SymbolSpec { kind: "namespace".to_owned(), name_field: "namespace".to_owned(), scope: None }),
             },
             langmeld_core::ConstructSpec {

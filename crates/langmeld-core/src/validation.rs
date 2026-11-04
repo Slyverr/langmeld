@@ -233,11 +233,11 @@ impl LanguageSpec {
             }
         }
 
-        if self.schema_version != 1 {
+        if !matches!(self.schema_version, 1 | 2) {
             errors.push(SpecError {
                 code: "LM1001",
                 message: format!(
-                    "unsupported schema_version {}; expected 1",
+                    "unsupported schema_version {}; expected 1 or 2",
                     self.schema_version
                 ),
             });
@@ -474,6 +474,83 @@ impl LanguageSpec {
                 }
             }
 
+            if let Some(block) = &construct.block {
+                if self.schema_version == 1 && !block.uses_default_layout() {
+                    errors.push(SpecError {
+                        code: "LM1071",
+                        message: format!(
+                            "construct `{}` uses non-default block settings; set schema_version to 2",
+                            construct.id
+                        ),
+                    });
+                }
+                if self.schema_version == 2 {
+                    if block.open.trim().is_empty() || block.close.trim().is_empty() {
+                        errors.push(SpecError {
+                            code: "LM1072",
+                            message: format!(
+                                "block `{}` opener and closer must not be empty",
+                                construct.id
+                            ),
+                        });
+                    }
+                    if block.open == block.close {
+                        errors.push(SpecError {
+                            code: "LM1073",
+                            message: format!(
+                                "block `{}` opener and closer must differ",
+                                construct.id
+                            ),
+                        });
+                    }
+                    if block.separator_policy == crate::BlockSeparatorPolicy::Required
+                        && block.separators.is_empty()
+                    {
+                        errors.push(SpecError {
+                            code: "LM1074",
+                            message: format!(
+                                "block `{}` requires at least one separator declaration",
+                                construct.id
+                            ),
+                        });
+                    }
+                    let mut separators = Vec::new();
+                    for separator in &block.separators {
+                        if let crate::BlockSeparator::Literal(value) = separator {
+                            if value.trim().is_empty() {
+                                errors.push(SpecError {
+                                    code: "LM1075",
+                                    message: format!(
+                                        "block `{}` has an empty literal separator",
+                                        construct.id
+                                    ),
+                                });
+                            }
+                            if value == &block.open || value == &block.close {
+                                errors.push(SpecError {
+                                    code: "LM1076",
+                                    message: format!(
+                                        "block `{}` separator `{value}` conflicts with a delimiter",
+                                        construct.id
+                                    ),
+                                });
+                            }
+                        }
+                        if separators.contains(separator) {
+                            errors.push(SpecError {
+                                code: "LM1077",
+                                message: format!(
+                                    "block `{}` repeats a separator declaration",
+                                    construct.id
+                                ),
+                            });
+                        } else {
+                            separators.push(separator.clone());
+                        }
+                    }
+                }
+            }
+
             let mut patterns = BTreeSet::new();
             for pattern in &construct.syntax {
                 if !patterns.insert(pattern) {
@@ -614,17 +691,29 @@ impl LanguageSpec {
                 }
                 let custom_parser_owns_children = construct.custom_parser.is_some()
                     || is_custom_parser_owned_child(construct, &self.constructs, &categories);
-                if construct.block.is_some()
-                    && !pattern.trim_end().ends_with('{')
-                    && !custom_parser_owns_children
-                {
-                    errors.push(SpecError {
-                        code: "LM1011",
-                        message: format!(
-                            "block construct `{}` must end every pattern with `{{`",
-                            construct.id
-                        ),
-                    });
+                if let Some(block) = &construct.block {
+                    let inline_opener = match self.schema_version {
+                        1 => !pattern.trim_end().ends_with('{'),
+                        2 => pattern_ends_with_literal(pattern, &block.open),
+                        _ => false,
+                    };
+                    if inline_opener && !custom_parser_owns_children {
+                        let message = if self.schema_version == 1 {
+                            format!(
+                                "block construct `{}` must end every pattern with `{{`",
+                                construct.id
+                            )
+                        } else {
+                            format!(
+                                "block construct `{}` owns its opener; remove `{}` from the syntax pattern",
+                                construct.id, block.open
+                            )
+                        };
+                        errors.push(SpecError {
+                            code: "LM1011",
+                            message,
+                        });
+                    }
                 }
             }
 
@@ -785,7 +874,22 @@ impl LanguageSpec {
                     let Some(child) = constructs.get(*child_id) else {
                         continue;
                     };
-                    for pattern in &child.syntax {
+                    let effective_patterns = child
+                        .syntax
+                        .iter()
+                        .map(|pattern| {
+                            if self.schema_version == 2
+                                && let Some(block) = &child.block
+                            {
+                                return format!(
+                                    "{pattern} {}",
+                                    escape_pattern_literal(&block.open)
+                                );
+                            }
+                            pattern.clone()
+                        })
+                        .collect::<Vec<_>>();
+                    for pattern in &effective_patterns {
                         if candidate_count >= MAX_PATTERN_REALIZATIONS_PER_BLOCK {
                             break 'children;
                         }
@@ -796,7 +900,7 @@ impl LanguageSpec {
                             .is_some_and(|automaton| automaton.has_repetition);
                         if let Some(automaton) = automaton {
                             for previous in &automata {
-                                if previous.construct.id == child.id && previous.pattern == pattern
+                                if previous.construct.id == child.id && previous.pattern == *pattern
                                 {
                                     continue;
                                 }
@@ -810,7 +914,7 @@ impl LanguageSpec {
                                 }
                                 let key = pattern_conflict_key(
                                     previous.construct,
-                                    previous.pattern,
+                                    &previous.pattern,
                                     child,
                                     pattern,
                                 );
@@ -847,7 +951,7 @@ impl LanguageSpec {
                             }
                             automata.push(PatternAutomatonCandidate {
                                 construct: child,
-                                pattern,
+                                pattern: pattern.clone(),
                                 automaton,
                             });
                         }
@@ -895,7 +999,7 @@ impl LanguageSpec {
                             }
                             let candidate = PatternConflictCandidate {
                                 construct: child,
-                                pattern,
+                                pattern: pattern.clone(),
                                 captures,
                                 signature: signature.clone(),
                                 atoms,
@@ -906,7 +1010,7 @@ impl LanguageSpec {
                             for previous_candidate in previous.iter() {
                                 let pair_key = pattern_conflict_key(
                                     previous_candidate.construct,
-                                    previous_candidate.pattern,
+                                    &previous_candidate.pattern,
                                     child,
                                     pattern,
                                 );
@@ -923,7 +1027,7 @@ impl LanguageSpec {
                                 }
                                 same_shape_comparisons += 1;
                                 if previous_candidate.construct.id == child.id
-                                    && previous_candidate.pattern == pattern
+                                    && previous_candidate.pattern == *pattern
                                 {
                                     continue;
                                 }
@@ -955,7 +1059,7 @@ impl LanguageSpec {
                                 for previous_candidate in same_length.iter() {
                                     let pair_key = pattern_conflict_key(
                                         previous_candidate.construct,
-                                        previous_candidate.pattern,
+                                        &previous_candidate.pattern,
                                         child,
                                         pattern,
                                     );
@@ -974,7 +1078,7 @@ impl LanguageSpec {
                                     token_pattern_comparisons += 1;
                                     if previous_candidate.signature == candidate.signature
                                         || (previous_candidate.construct.id == child.id
-                                            && previous_candidate.pattern == pattern)
+                                            && previous_candidate.pattern == *pattern)
                                     {
                                         continue;
                                     }
@@ -1053,6 +1157,46 @@ fn is_custom_parser_owned_child(
         return false;
     };
     first.custom_parser.is_some() && parents.all(|parent| parent.custom_parser.is_some())
+}
+
+fn pattern_ends_with_literal(pattern: &str, literal: &str) -> bool {
+    let pattern = pattern
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    let literal = literal
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect::<String>();
+    let Some(prefix) = pattern.strip_suffix(&literal) else {
+        return false;
+    };
+    let Some(first) = literal.chars().next() else {
+        return false;
+    };
+    !identifier_character(first)
+        || prefix
+            .chars()
+            .next_back()
+            .is_none_or(|previous| !identifier_character(previous))
+}
+
+fn escape_pattern_literal(literal: &str) -> String {
+    let mut output = String::with_capacity(literal.len());
+    for character in literal.chars() {
+        if matches!(
+            character,
+            '[' | ']' | '(' | ')' | '|' | '{' | '}' | '\\' | '@'
+        ) {
+            output.push('\\');
+        }
+        output.push(character);
+    }
+    output
+}
+
+fn identifier_character(character: char) -> bool {
+    character == '_' || character.is_alphanumeric()
 }
 
 fn validate_reference_targets(
