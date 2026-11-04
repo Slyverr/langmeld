@@ -131,15 +131,26 @@ fn run_host(
     current_dir: &std::path::Path,
     arguments: &[&str],
 ) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_langmeld"))
+    host_command(manifest, current_dir, arguments)
+        .output()
+        .expect("langmeld host starts")
+}
+
+fn host_command(
+    manifest: &std::path::Path,
+    current_dir: &std::path::Path,
+    arguments: &[&str],
+) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
+    command
         .args(["host", "--project"])
         .arg(manifest)
         .arg("--")
         .args(arguments)
         .env("CARGO_NET_OFFLINE", "true")
-        .current_dir(current_dir)
-        .output()
-        .expect("langmeld host starts")
+        .env("CARGO_TARGET_DIR", shared_cargo_target_dir())
+        .current_dir(current_dir);
+    command
 }
 
 fn run_project_host(project: &std::path::Path, arguments: &[&str]) -> std::process::Output {
@@ -167,13 +178,7 @@ fn run_project_host_with_input(
     arguments: &[&str],
     input: &str,
 ) -> std::process::Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_langmeld"))
-        .args(["host", "--project"])
-        .arg(project.join("langmeld.json"))
-        .arg("--")
-        .args(arguments)
-        .env("CARGO_NET_OFFLINE", "true")
-        .current_dir(project)
+    let mut child = host_command(&project.join("langmeld.json"), project, arguments)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -336,6 +341,10 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         "generated CLI check failed:\n{}\n{}",
         String::from_utf8_lossy(&checked.stdout),
         String::from_utf8_lossy(&checked.stderr)
+    );
+    assert!(
+        !project.join("target").exists(),
+        "the host trampoline should use the shared integration-test target directory"
     );
     assert!(String::from_utf8_lossy(&checked.stdout).contains("checked 1 source file"));
 
