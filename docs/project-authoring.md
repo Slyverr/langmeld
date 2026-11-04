@@ -1,0 +1,89 @@
+# Project setup and authoring
+
+## Initialize a project
+
+Run the interactive initializer from a Langmeld checkout:
+
+```sh
+cargo run -p langmeld-cli -- init
+```
+
+Choose whether the project uses declarative `.lm` definitions, Rust-authored
+language definitions, or both. The initializer can also include a language
+CLI. For a non-interactive project scaffold:
+
+```sh
+cargo run -p langmeld-cli -- init \
+  --path ./my-language \
+  --name MyLanguage \
+  --no-interactive
+```
+
+The chosen options determine the generated files. A declarative project
+typically contains:
+
+```text
+my-language/
+├── langmeld.json
+├── language/
+│   ├── language.lm
+│   ├── constructs/
+│   └── extensions/
+├── src/
+│   └── host/
+└── .langmeld/
+    └── generated/
+```
+
+`language.lm` is the language entry point; construct and extension files keep
+definitions composable. Rust host modules live under `src/host/`. Files under
+`.langmeld/generated/` are derived outputs. The generated project's README
+describes the selected layout and its commands.
+
+## Develop the language
+
+Edit the project sources, then regenerate and check derived output:
+
+```sh
+langmeld generate --project-root ./my-language
+langmeld generate --project-root ./my-language --check
+```
+
+`--check` reports stale generated files without rewriting them. In generated
+Rust hosts, `langmeld generate --install-host` refreshes generated host modules
+while preserving the marked callback bodies. Review generated changes along
+with the language definition changes that produced them.
+
+Use `langmeld configure` to interactively adjust program source roots,
+individual files, or source extensions. The command validates the candidate
+language and source selection before updating `langmeld.json`.
+
+`langmeld check --project langmeld.json` checks the configured sources and
+generic workspace analysis. If a language requires callbacks implemented in
+Rust, use its generated host or another integration that registers those
+callbacks; the standalone check command does not load custom host code.
+
+## Extensions
+
+An extension adds declarative constructs to a language. Project manifests can
+refer to `.lm` files directly or to a local versioned package. Project sources
+and packages declare their required language version; `langmeld lock` records
+the resolved files and package data in `langmeld.lock`.
+
+For example, a local package can be added with:
+
+```sh
+langmeld extension add \
+  --id community.ui \
+  --version 1.0.0 \
+  --path ../ui-extension/language/ui.lm \
+  --language-version '^0.1.0'
+```
+
+Resolution is local and lockfile-based; Langmeld does not download packages.
+Declarative extensions add language definitions, not executable Rust code.
+Custom parsing, analysis, runtime, and backend behavior belongs in the
+language host.
+
+For an end-to-end modular definition and extension, see
+[`declarative-interpreter`](../examples/declarative-interpreter/README.md).

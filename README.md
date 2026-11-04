@@ -1,288 +1,47 @@
 # Langmeld
 
-Langmeld requires Rust 1.88 or newer (Edition 2024). The CI workflow runs on
-Linux, macOS, and Windows.
+Langmeld is a Rust-first framework for building programming languages and
+domain-specific languages. Describe language structure in modular `.lm`
+definitions or Rust, then use Langmeld's parser and editor tooling with a Rust
+host for language-specific behavior.
 
-Langmeld is an early-stage Rust language framework. The workspace currently
-contains the `langmeld` facade and `langmeld-core` for source snapshots, stable
-source identities, byte spans, structured diagnostics, and validated language
-definitions, plus
-`langmeld-expression` for configurable expression parsing and host-defined type
-and runtime rules, and `langmeld-language` for source-spanned tokens, the
-built-in lexer, custom lexer contracts (including opaque host-parsed regions),
-and a generic parser that builds typed ASTs, lossless syntax trees, and editor
-classifications. The readable `.lm`
-definition format uses the same generic parser, rebuilds its embedded grammar
-from modular sources, and supports in-memory modules and safe relative file
-imports. Prepared grammars compile declarative patterns once and provide
-token-based block-child candidate hints. Generic analysis resolves symbols and
-references across files and reports nested value-type facts. Checked host
-behavior registries provide semantic callbacks, replacement symbol resolvers,
-and workspace type-analysis passes. The Clap-based CLI provides `init`,
-`configure`, `check`, `format`, `lock`, `extension`, `host`, and
-`generate`, `inspect`, `constructs`, `describe`, and `language` commands
-for Rust hosts with modular `.lm` definitions. Generation rebuilds language
-tooling and emits Rust parser, lexer, and analysis callback scaffolds under
-`.langmeld/generated/host/`; callback bodies are declaration-driven and
-compile in a generated Rust project. `langmeld init` seeds the same host
-modules in `src/host/`, and `langmeld generate --install-host` safely refreshes
-them while preserving marked callback implementations. `langmeld init` also
-writes a strict `langmeld.json` project manifest,
-and the language API can load explicit or discovered program sources from it.
-Interactive setup can include a Clap-based language CLI with `check`, `build`,
-and `run` commands, or omit it with `--library-only`. The generated `build`
-command dispatches to host-registered single-file or workspace backends, uses
-project defaults from `langmeld.json`, and writes validated artifacts and
-optional source-map sidecars under `target/`. Authors implement and register
-their own backends in `src/host/backend.rs`; custom IR still needs a
-host-authored lowering pipeline. The generated `run` command passes a
-`RuntimeContext` with the validated language, source snapshots, parsed
-programs, and workspace analysis to the host's `run_sources` hook; language
-authors implement runtime behavior.
-Interactive project and backend configuration is available.
-The standalone `langmeld-lsp` crate provides initialize/shutdown and
-open-document diagnostics over LSP. Start it with
-`cargo run -p langmeld-lsp -- --language language/language.lm` (or
-`--project langmeld.json`). It supports versioned full/ranged document edits,
-diagnostics, global literal-keyword completion, parsed-construct document
-symbols, schema-based hover, and semantic tokens. Definition, references, and
-safe rename work across currently open documents when the language declares
-symbol metadata. Rename rejects unresolved references and same-scope name
-collisions, returns no partial edits when analysis is limited, and caps names
-and edits; callback-provided symbol resolution is not renameable. It also
-suggests enum values and in-scope symbols in captured fields,
-offers parser-context enum values, simple child-construct snippets, and
-parser-derived continuations for incomplete patterns with unambiguous literal
-and field sequences. For declarative languages using Langmeld's built-in
-lexer, it also returns source-formatting edits and a versioned format code
-action. Embedded Rust hosts can provide a formatter for custom syntax; Langmeld
-validates its result by reparsing and analyzing the edited open workspace before
-returning an edit. Embedded Rust hosts can also register bounded, typed
-completion providers. In project mode, clients that support dynamic watched-file
-registration receive watches for language definitions, the manifest, and the
-definition lock; valid changes reload the language and reparse open documents.
-Project-mode definition, references, and rename include configured source files
-that are not open in the editor. Open buffers override their disk snapshots;
-source-root and explicit-file changes refresh the index for clients that support
-dynamic watched-file registration. The index has aggregate parser and AST
-bounds and disables cross-file navigation if it cannot be built completely.
-The browser language adapter is described below; the LSP server itself does not
-run in WebAssembly.
-Rust hosts can embed the server with `langmeld_lsp::serve_configured`, passing
-a configured parser and registered analysis callbacks. The standalone LSP
-binary remains for declarative-only languages.
-To edit Langmeld definition files themselves, start
-`cargo run -p langmeld-lsp -- --definitions`; this mode uses the built-in `.lm`
-grammar for parser-backed diagnostics, completion, formatting, and semantic
-tokens for open files. Add `--root language/language.lm` to validate imports,
-conventional modules, and language-level constraints as files change; open
-buffers override their disk snapshots, and supported clients receive watches
-for `.lm` files under the root definition directory. The language crate exposes
-`parse_language_definition_project_with_overlays` for editor integrations that
-need the same bounded validation without writing unsaved text to disk. Its
-`parse_language_definition_project_with_overlays_and_diagnostics` companion
-includes the canonical source path when known and a parsed source snapshot for
-source-located parser diagnostics; project-level findings have no source path
-and must not be assigned to an arbitrary file. `langmeld check --project langmeld.json`
-and `langmeld generate --project-root .` remain available for explicit project
-validation and generation.
-`langmeld-language` generates deterministic Rust source for typed AST views and
-schema reconstruction, plus metadata,
-reference docs, lexical-only TextMate rules, and conventional editor
-configuration. A generic artifact pass pipeline plans lowering dependencies
-and runs only the passes needed for requested outputs; the host owns its IR
-values and pass context. Single-program backend contracts validate descriptors,
-settings, required IR, artifacts, and source maps. Workspace backends apply the
-same checks across multiple sources and require explicit source indexes for
-ambiguous mappings. The optional Tree-sitter exporter emits a grammar for
-compatible declarative syntax and reports when a definition cannot be
-represented. CI is configured to compile the generated Ledger grammar and a
-grammar fixture covering enums, references, typed lists and maps, nested
-properties, and empty collections. It parses four positive programs, including
-CRLF, comments, and escaped strings, rejects invalid map and string syntax, and
-runs highlight queries with the Tree-sitter CLI. CI also compiles a grammar
-emitted from the Rust-authored function-signature example, parses its
-zero-argument and multi-argument declarations, rejects a one-argument
-signature, and runs its highlight query.
-It also exports and compiles a grammar from Langmeld's built-in `.lm`
-metagrammar, parses the checked-in root and construct modules, runs their
-highlight queries, and rejects malformed definition syntax.
-These checks validate grammar and query syntax, not semantic equivalence with
-Langmeld. The library also exposes a structural formatter that preserves
-comments and strings, normalizes CRLF to LF, and supports space or tab
-indentation for valid programs.
+Langmeld is pre-1.0 and under active development. Its public APIs and generated
+project files may change between minor releases.
 
-## Compatibility
+## What it provides
 
-Langmeld is pre-1.0. Its version boundaries are independent:
+- A generic lexer, parser, syntax tree, typed AST generation, and reusable
+  semantic analysis.
+- A CLI to initialize language projects, validate definitions and sources, and
+  regenerate derived tooling.
+- Rust host hooks for custom parsing, semantic analysis, interpretation, and
+  compilation.
+- Editor support through an LSP server, plus optional Tree-sitter and browser
+  WebAssembly outputs.
 
-| Boundary | Current versioning | Upgrade behavior |
-| --- | --- | --- |
-| Rust crates, host callbacks, and generated Rust code | Crate SemVer; APIs may change in a minor release before 1.0 | Rebuild and compile-check the host after upgrading. There is no stable binary plugin ABI. |
-| Canonical language-model data | `schema_version: 1` describes the `LanguageSpec` data shape; `version` identifies the language release and must be SemVer when versioned extensions are used | Unsupported model schema versions are rejected. The language version does not version the Langmeld schema. |
-| `langmeld.json` | Manifest schema 1 supports declarative definitions; schema 2 supports declarative and Rust-host definitions | The loader rejects unsupported schemas and preserves the existing schema when writing. There is no automatic conversion between versions. |
-| `langmeld.lock` | Lock schema 1 records definition hashes, resolved extension metadata, and the effective language hash | Missing locks are allowed; stale locks stop project checks until refreshed with `langmeld lock`. Unsupported schemas are rejected. |
-| Local declarative extension packages | Each package declares its own SemVer, target-language version range, and package dependencies | Packages resolve only from declared local paths. The lock pins package metadata and definition bytes; the package does not add executable host code. |
-| `.langmeld/generated/` | Derived artifacts emitted by the installed Langmeld version | Regenerate from project sources with `langmeld generate`; generated artifact layouts are not a cross-version stability promise before 1.0. |
+See [current capabilities and boundaries](docs/overview.md) for details.
 
-These boundaries are covered independently: serialized language-model round
-trips and strict schema rejection, manifest v1/v2 preservation and validation,
-and lockfile hashing, stale-input detection, refresh, and unsupported-version
-errors. There is no automatic schema migration; back up project sources and
-review format changes when upgrading.
+## Try it
 
-## Bootstrap a language project
-
-Run `cargo run -p langmeld-cli -- init` in a terminal for interactive setup.
-For automation, pass the project details and disable prompts:
+To try the CLI from this checkout, use Rust 1.88 or newer:
 
 ```sh
-cargo run -p langmeld-cli -- init --path ./my-language --name MyLanguage --no-interactive
-cargo run -p langmeld-cli -- generate --project-root ./my-language --check
+cargo run -p langmeld-cli -- init
 ```
 
-The generated project's `README.md` describes its structure and commands.
-From a generated project, update source discovery interactively with
-`langmeld configure`, or pass options such as `--source-root`, `--source`, and
-`--source-extension`. Configuration resolves the proposed language and source
-set before atomically updating `langmeld.json`. The project can compose local,
-data-only `.lm` or JSON extensions; versioned packages declare SemVer language
-compatibility and package dependencies. Run `langmeld lock` to pin the resolved
-definition files. A changed language definition then requires refreshing the
-lock before project checks will proceed.
-Manage declarations with `langmeld extension list`, `add`, `update`, and
-`remove`. The list command shows manifest declarations; mutations validate the
-effective language and refresh `langmeld.lock` as part of the update. For
-example, add an unversioned path with `langmeld extension add --path-only
-language/extensions/ui.lm`, or a local package with `--id`, `--version`,
-`--path`, and `--language-version`. Package dependencies use repeated
-`--depends ID@VERSION-REQUIREMENT` options. Nothing is downloaded or executed.
-To use an extension shared by another author, keep its definition in the
-project checkout or a sibling directory and set `--path` relative to
-`langmeld.json`, for example:
+The interactive initializer creates a language project and its Rust host.
+Choose its options in the terminal, then follow the generated project's
+README. For a working example, see
+[`examples/declarative-interpreter`](examples/declarative-interpreter).
 
-```sh
-langmeld extension add \
-  --id community.ui \
-  --version 1.0.0 \
-  --path ../ui-extension/language/ui.lm \
-  --language-version '^0.1.0'
-```
+## Documentation
 
-Langmeld composes the extension's declarations into the effective language
-used by checking and generated tooling. The extension does not supply
-executable Rust behavior; custom parser, analysis, runtime, or backend
-callbacks remain part of the language host's trusted build.
-Generated Rust host projects expose an `ast` module built from that same
-effective model. Call `ast::from_program(&parsed.program)` to convert the
-generic parser result into typed Rust constructs, including constructs added
-by declarative extensions.
-`langmeld format --language language/language.lm --source examples/demo.lang`
-prints the formatted source. Add `--write` to update the file; invalid source
-is reported without writing.
-Use `langmeld inspect --language language/language.lm` to view language
-metadata and imported definition files. `constructs` lists declared
-constructs, and `describe --construct ID` prints one construct's details;
-these commands also have `langmeld language inspect|constructs|describe`
-aliases.
-Use `langmeld check --project langmeld.json` (or its `validate` alias) to parse
-the configured sources and run generic workspace analysis. This command cannot
-register a language's Rust callbacks; callback-dependent languages must use a
-host integration that binds those implementations.
-For a project with a Rust binary target, `langmeld host -- --help` forwards
-arguments to its `package.default-run` target (or its only binary target).
-After registering Rust backends in the generated host, run
-`langmeld host -- configure --interactive` to save backend defaults, or use
-`--backend`, `--format`, `--target`, and `--set KEY=VALUE` for scripted
-updates. These preferences are stored under `build` in `langmeld.json` and
-are consumed by the host's `build` command.
-
-## Browser and WebAssembly adapter
-
-`langmeld init --wasm` adds an optional browser adapter to a generated Rust
-language project; the interactive initializer also offers it. This runs the
-Langmeld parser and generic editor analysis inside WebAssembly. It is a runtime
-adapter, not a compiler backend that translates a user's language into
-WebAssembly.
-
-The generated `LanguageHost` can load an in-memory `.lm` root and module bundle
-or canonical `LanguageSpec` JSON for generic parsing and analysis. Its
-`fromProject()` constructor instead uses the generated project's compiled
-language model and Rust callbacks, including custom parser behavior. The
-adapter returns parse diagnostics, generic syntax data, editor classifications,
-completion context, and cross-file generic references from explicitly
-provided source text. It does not read files or resolve imports; the caller
-supplies all modules and workspace files. Source ranges are UTF-8 byte offsets,
-and opaque host values are not serialized. Generated projects include
-`README-wasm.md` with build and JavaScript binding instructions.
-
-The `langmeld` facade crate exposes the core schema, expression APIs, and
-language tooling under `langmeld::{core, expression, language}`. Its default
-feature set is empty; it does not advertise optional packages that are still
-planned.
-
-## Examples
-
-[`examples/declarative-interpreter`](examples/declarative-interpreter) is an
-independent consumer project. Its modular `.lm` definition declares a small
-arithmetic language with a separate subtraction extension, Langmeld resolves
-its variable references, and a Rust host interprets the parsed programs. Its
-generated editor and typed-AST artifacts track the extension. Run its tests and
-CLI from the example directory; the example README has the commands and output.
-
-[`examples/rust-functions`](examples/rust-functions) authors a language model
-with the Rust API, parses zero-argument and parameterized function signatures,
-and lowers them to compilable Rust from a library-only project.
-
-[`examples/rust-source`](examples/rust-source) delegates Rust file parsing to
-`syn`, maps top-level function signatures into Langmeld's generic and typed
-ASTs, and retains a thread-safe host-owned signature projection.
-
-[`examples/typescript-source`](examples/typescript-source) uses the official
-TypeScript compiler API through a persistent Bun worker, maps selected
-declarations and references into Langmeld's generic and typed ASTs, and
-demonstrates TypeScript source indexing over LSP.
-
-[`examples/python-source`](examples/python-source) uses CPython's standard
-library parser through a persistent isolated worker, maps top-level functions
-and direct relative sibling imports into Langmeld's generic and typed ASTs, and
-demonstrates Python source indexing over LSP. Python 3.11 or newer is required;
-the example README documents the indexed syntax subset.
-
-[`examples/combined-brief`](examples/combined-brief) combines a Rust-authored
-base model, a modular `.lm` extension, and a Rust host that renders Markdown.
-
-[`examples/c-signatures`](examples/c-signatures) declares a focused C prototype
-model in `.lm`, parses source through a host-registered Rust parser, and emits
-Rust FFI declarations.
-
-## Workspace checks
-
-On NixOS or a supported Nix system (x86_64 Linux, aarch64 Linux, or Apple
-Silicon macOS) with flakes enabled, enter the pinned development shell with
-`nix develop`. It provides Rustup, Bun, and `wasm-bindgen`; the
-workspace `rust-toolchain.toml` selects Rust 1.88, Clippy, rustfmt, and the
-WebAssembly target. With direnv installed, run `direnv allow` once in the
-repository to load the same shell automatically. The full Tree-sitter grammar
-check uses CLI 0.27.0, which can be installed with
-`cargo +stable install tree-sitter-cli --version 0.27.0 --locked` because that
-CLI requires a newer Rust compiler than the workspace's 1.88 minimum.
-Build the Langmeld CLI package with `nix build .#langmeld`; the executable is
-available at `./result/bin/langmeld`. The Nix package runs CLI binary-target
-tests; use the workspace commands below for the full Rust test and lint suites.
-
-```sh
-cargo test --workspace --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-```
-
-## Project guidance
-
-- [CHANGELOG.md](CHANGELOG.md) tracks notable user-facing changes.
-- [CONTRIBUTING.md](CONTRIBUTING.md) describes the development workflow,
-  verification, and commit conventions.
-- [AGENTS.md](AGENTS.md) gives coding agents the repository-specific rules and
-  links to the project-local Rust skills under `.agents/skills/`.
+- [Project setup and authoring](docs/project-authoring.md)
+- [Editor and generated tooling](docs/editor-tooling.md)
+- [Compatibility and versioning](docs/compatibility.md)
+- [Examples and what they demonstrate](docs/examples.md)
+- [Contributing and development checks](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
