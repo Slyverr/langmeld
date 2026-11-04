@@ -352,6 +352,19 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
             .contains("custom parser callbacks may accept syntax outside")
     );
     assert!(artifacts["README.md"].contains("custom parser callbacks may accept syntax outside"));
+    assert_eq!(
+        capabilities["features"]["lsp.semantic_tokens"]["status"],
+        "partial"
+    );
+    assert!(
+        capabilities["features"]["lsp.semantic_tokens"]["reason"]
+            .as_str()
+            .expect("semantic token limitation has a reason")
+            .contains("custom parser regions need classified host lexer tokens")
+    );
+    assert!(
+        artifacts["README.md"].contains("custom parser regions need classified host lexer tokens")
+    );
 }
 
 #[test]

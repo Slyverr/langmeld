@@ -15,7 +15,7 @@ is cut, changes belong under `Unreleased`.
 - **TextMate highlighting:** Match longer overlapping tokens first and use
   identifier boundaries that preserve hyphenated language tokens.
 - **Tooling capabilities:** Explain when custom parser callbacks can make
-  generated TextMate highlighting incomplete.
+  generated TextMate and LSP semantic highlighting incomplete.
 
 ## [0.1.0] - 2026-11-04
 

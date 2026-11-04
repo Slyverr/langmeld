@@ -235,7 +235,16 @@ fn capability_report(
             "lsp.ranged_document_changes".to_owned(),
             Capability::supported(),
         ),
-        ("lsp.semantic_tokens".to_owned(), Capability::supported()),
+        (
+            "lsp.semantic_tokens".to_owned(),
+            if has_custom_parsers {
+                Capability::partial(
+                    "Generic semantic tokens classify built-in syntax; custom parser regions need classified host lexer tokens for complete highlighting.",
+                )
+            } else {
+                Capability::supported()
+            },
+        ),
         (
             "lsp.parser_continuation_completion".to_owned(),
             Capability::partial(

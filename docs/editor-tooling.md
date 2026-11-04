@@ -82,6 +82,8 @@ Project-definition reload is partial because it depends on editor clients
 supporting dynamic watched-file registration. A language with custom parser
 callbacks reports source formatting as customized so hosts can provide a
 formatter for syntax outside the declarative grammar.
+The semantic-token capability is partial for those languages unless their
+custom lexer returns classifications for the host-parsed regions.
 
 ## Browser and WebAssembly
 
