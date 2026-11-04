@@ -13,40 +13,6 @@ is cut, changes belong under `Unreleased`.
   scopes, host type checks, typed-AST lowering, an optimization pass, an
   interpreter, a host-defined expression atom, and a separately implemented
   syntax extension.
-
-### Changed
-- Generated editor-configuration guidance now calls out host lexer and parser
-  behavior that cannot be inferred from a declarative language definition.
-- Generated TextMate and Tree-sitter capability reports now explain that
-  host-provided custom lexers can accept syntax beyond declarative exports.
-
-- **Tree-sitter capability:** Mark generated grammars as partial because
-  grammar parsing does not reproduce Langmeld semantic validation.
-- **Editor capabilities:** Report language configuration as partial when host
-  parser callbacks may add delimiter syntax outside the declared bracket model.
-- **Generated Rust AST:** Type references by symbol-kind marker instead of an
-  arbitrary construct that happens to declare that kind.
-- **Generated documentation:** Include artifact and language-service support
-  statuses from the validated capability report in the generated grammar
-  reference, and direct the generated Agent Skill to that source.
-- **TextMate highlighting:** Match longer overlapping tokens first and use
-  identifier boundaries that preserve hyphenated language tokens.
-- **Tooling capabilities:** Report host-provided custom lexer callbacks, and
-  explain when custom parser callbacks make generated TextMate and LSP semantic
-  highlighting incomplete.
-- **Highlighting classifications:** Map shared classifications to TextMate
-  scopes, Tree-sitter captures, and LSP token types in generated metadata.
-
-### Fixed
-
-- Generated TextMate string scopes now stay open across escaped quotes.
-- Generated TextMate number scopes now match signed numbers and trailing-dot
-  decimals accepted by Langmeld's built-in lexer.
-
-## [0.1.0] - 2026-11-04
-
-### Added
-
 - **Language framework:** Build languages from modular `.langmeld` definitions or
   Rust-authored models, resolved to one validated model. Generic lexing and
   parsing, typed AST generation, workspace analysis, source diagnostics,
@@ -103,6 +69,26 @@ is cut, changes belong under `Unreleased`.
 
 - **Definition files:** Use `.langmeld` for Langmeld language definitions.
   Languages built with Langmeld can still choose `.lm` as a program suffix.
+- **Generated editor guidance:** Call out host lexer and parser behavior that
+  cannot be inferred from a declarative language definition.
+- **Generated highlighting guidance:** Explain that host-provided custom
+  lexers can accept syntax beyond declarative exports.
+- **Tree-sitter capability:** Mark generated grammars as partial because
+  grammar parsing does not reproduce Langmeld semantic validation.
+- **Editor capabilities:** Report language configuration as partial when host
+  parser callbacks may add delimiter syntax outside the declared bracket model.
+- **Generated Rust AST:** Type references by symbol-kind marker instead of an
+  arbitrary construct that happens to declare that kind.
+- **Generated documentation:** Include artifact and language-service support
+  statuses from the validated capability report in the generated grammar
+  reference, and direct the generated Agent Skill to that source.
+- **TextMate highlighting:** Match longer overlapping tokens first and use
+  identifier boundaries that preserve hyphenated language tokens.
+- **Tooling capabilities:** Report host-provided custom lexer callbacks, and
+  explain when custom parser callbacks make generated TextMate and LSP semantic
+  highlighting incomplete.
+- **Highlighting classifications:** Map shared classifications to TextMate
+  scopes, Tree-sitter captures, and LSP token types in generated metadata.
 
 ### Fixed
 
@@ -114,6 +100,9 @@ is cut, changes belong under `Unreleased`.
   lockfiles stay stable across operating systems. Normalize CRLF to LF in
   definition hashes so Windows checkout conversion does not stale a lock.
 - **LSP paths:** Convert Windows drive and UNC paths to standard file URIs.
+- **TextMate strings:** Keep generated string scopes open across escaped quotes.
+- **TextMate numbers:** Match signed numbers and trailing-dot decimals accepted
+  by Langmeld's built-in lexer.
 
 [Keep a Changelog 1.1.0]: https://keepachangelog.com/en/1.1.0/
 [Semantic Versioning 2.0.0]: https://semver.org/spec/v2.0.0.html

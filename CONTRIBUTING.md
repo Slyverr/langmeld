@@ -48,10 +48,12 @@ composable, and reliable for language authors.
    If Cargo uses a custom target directory, set `CARGO_TARGET_DIR` when
    packaging as well. Set `LANGMELD_PACKAGE_ROOT` separately only when the
    archives are stored outside its default `target/package` subdirectory.
-   The packaged-consumer check keeps a reusable project at
-   `../langmeld-packaged-consumer` and uses the repository's `target/` cache by
-   default. Set `LANGMELD_PACKAGE_CONSUMER_PROJECT` to choose another dedicated
-   path. It refuses to take over an existing unmarked project.
+   Locally, the packaged-consumer check creates or reuses
+   `../langmeld-packaged-consumer`, a generated sibling of the checkout, and
+   uses the repository's `target/` cache by default. CI points the same check
+   at a fresh runner directory, so it does not depend on this local copy. Set
+   `LANGMELD_PACKAGE_CONSUMER_PROJECT` to choose another dedicated path. The
+   script refuses to take over a nonempty unmarked path.
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 
@@ -93,9 +95,27 @@ capabilities with their own Rust implementations.
   --format-version 1` and every `langmeld*` dependency in `crates/`, `examples/`,
   and `benchmarks/` to confirm versions and constraints agree. Run the full
   release checks after those edits; do not tag a failing or unverified state.
-- After the release commit passes, create the matching `vMAJOR.MINOR.PATCH` Git
-  tag. Prerelease package versions and tags must use the same suffix, such as
-  `0.2.0-alpha.1` and `v0.2.0-alpha.1`.
+- After the release commit's full CI passes, create and push the matching
+  `vMAJOR.MINOR.PATCH` Git tag. Wait for the tag-triggered validation to pass
+  before publishing. Prerelease package versions and tags must use the same
+  suffix, such as `0.2.0-alpha.1` and `v0.2.0-alpha.1`.
+- Pushing a version tag currently runs CI only; it does not publish crates.
+  Publish manually with Cargo credentials configured outside the repository,
+  never by committing a registry token. Publish dependencies before their
+  dependents, in this workspace order:
+
+  ```sh
+  cargo publish -p langmeld-core
+  cargo publish -p langmeld-expression
+  cargo publish -p langmeld-language
+  cargo publish -p langmeld
+  cargo publish -p langmeld-lsp
+  cargo publish -p langmeld-cli
+  ```
+
+  Confirm each published version is available from crates.io before publishing
+  the next crate. The package graph is checked from the workspace manifests;
+  if those dependencies change, review this order.
 - Follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) with
   this project's pre-1.0 policy: patch releases are for compatible fixes;
   minor releases add capabilities and may include breaking API changes while
