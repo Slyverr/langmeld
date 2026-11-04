@@ -2,7 +2,7 @@ use langmeld_core::{
     BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, ExpressionAtomKind, ExpressionSpec,
     FieldKind, FieldSpec, LanguageBuilder, LexicalSpec, MapKeyKind, SymbolSpec,
 };
-use langmeld_language::{generate_rust_ast, generate_tooling};
+use langmeld_language::{generate_rust_ast, generate_tooling, generate_tooling_capabilities};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
     LanguageBuilder::new("Demo / Language")
@@ -98,85 +98,58 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     let capabilities: serde_json::Value =
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
             .expect("capability metadata is JSON");
-    assert_eq!(capabilities["highlighting"]["lexical_only"], true);
-    assert!(
-        capabilities["available_language_apis"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|item| item == "source_formatter")
+    assert_eq!(
+        capabilities,
+        serde_json::to_value(
+            generate_tooling_capabilities(&language).expect("capabilities generate")
+        )
+        .expect("typed capabilities serialize")
+    );
+    assert_eq!(capabilities["schema_version"], 2);
+    assert_eq!(capabilities["language"], "Demo / Language");
+    assert_eq!(
+        capabilities["artifacts"]["textmate_grammar"]["status"],
+        "partial"
     );
     assert!(
-        capabilities["available_language_apis"]
-            .as_array()
+        capabilities["artifacts"]["textmate_grammar"]["reason"]
+            .as_str()
             .unwrap()
-            .iter()
-            .any(|item| item == "embedded_language_server")
+            .contains("lexical")
     );
     assert_eq!(
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "#"
     );
+    assert!(capabilities["artifacts"]["tree_sitter_grammar"]["status"] == "supported");
+    assert!(capabilities["features"]["lsp.ranged_document_changes"]["status"] == "supported");
+    assert!(capabilities["features"]["lsp.literal_keyword_completion"]["status"] == "supported");
+    assert!(capabilities["features"]["lsp.parser_continuation_completion"]["status"] == "partial");
     assert!(
-        capabilities["available_artifacts"]
-            .as_array()
+        capabilities["features"]["lsp.symbol_navigation"]["reason"]
+            .as_str()
             .unwrap()
-            .iter()
-            .any(|item| item == "language_configuration")
+            .contains("open documents")
     );
-    assert!(
-        capabilities["editor_support"]["lsp_ranged_document_changes"]
-            .as_bool()
-            .unwrap()
+    assert_eq!(
+        capabilities["features"]["host.execution"]["status"],
+        "customized"
     );
-    assert!(
-        capabilities["editor_support"]["lsp_literal_keyword_completion"]
-            .as_bool()
-            .unwrap()
+    assert_eq!(
+        capabilities["features"]["language.source_formatter"]["status"],
+        "supported"
     );
-    assert!(
-        capabilities["editor_support"]["lsp_parser_continuation_completion"]
-            .as_bool()
-            .unwrap()
+    assert_eq!(
+        capabilities["features"]["language.embedded_lsp_server"]["status"],
+        "supported"
     );
-    assert!(
-        capabilities["editor_support"]["lsp_document_symbols"]
-            .as_bool()
-            .unwrap()
+    assert_eq!(
+        capabilities["features"]["lsp.project_definition_reload"]["status"],
+        "partial"
     );
-    assert!(
-        capabilities["editor_support"]["lsp_navigation"]
-            .as_bool()
-            .unwrap()
-    );
-    assert!(
-        capabilities["editor_support"]["lsp_navigation_open_documents_only"]
-            .as_bool()
-            .unwrap()
-    );
-    assert!(
-        capabilities["editor_support"]["lsp_rename"]
-            .as_bool()
-            .unwrap()
-    );
-    assert!(
-        capabilities["not_yet_available"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|item| item == "unopened_project_file_navigation")
-    );
-    assert!(
-        capabilities["optional_artifacts"]["tree_sitter"]["available"]
-            .as_bool()
-            .unwrap()
-    );
-    assert!(
-        capabilities["not_yet_available"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|item| item == "wasm_adapter")
+    assert_eq!(
+        capabilities["features"]["parser.custom_construct_callbacks"]["status"],
+        "customized"
     );
     let skill = &artifacts["agent-skill/SKILL.md"];
     assert!(skill.contains("literal-keyword suggestions"));
@@ -241,11 +214,11 @@ fn generated_editor_artifacts_follow_the_declared_comment_policy() {
         "//"
     );
     assert_eq!(
-        capabilities["optional_artifacts"]["tree_sitter"]["available"],
-        false
+        capabilities["artifacts"]["tree_sitter_grammar"]["status"],
+        "unavailable"
     );
     assert_eq!(
-        capabilities["optional_artifacts"]["tree_sitter"]["reason"],
+        capabilities["artifacts"]["tree_sitter_grammar"]["reason"],
         "Tree-sitter export does not yet represent configured block comments"
     );
 }
@@ -279,16 +252,19 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
     let capabilities: serde_json::Value =
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
             .expect("capabilities are JSON");
-    assert!(
-        !capabilities["optional_artifacts"]["tree_sitter"]["available"]
-            .as_bool()
-            .unwrap()
+    assert_eq!(
+        capabilities["artifacts"]["tree_sitter_grammar"]["status"],
+        "unavailable"
     );
     assert!(
-        capabilities["optional_artifacts"]["tree_sitter"]["reason"]
+        capabilities["artifacts"]["tree_sitter_grammar"]["reason"]
             .as_str()
             .unwrap()
             .contains("custom parser `host-custom`")
+    );
+    assert_eq!(
+        capabilities["features"]["language.source_formatter"]["status"],
+        "customized"
     );
 }
 
@@ -404,7 +380,7 @@ fn generated_bracket_pairs_omit_unused_conventional_defaults() {
 }
 
 #[test]
-fn keyword_completion_capability_is_false_without_literal_keywords() {
+fn keyword_completion_is_unavailable_without_literal_keywords() {
     let language = LanguageBuilder::new("BareCapture")
         .version("0.1.0")
         .root("name")
@@ -426,7 +402,7 @@ fn keyword_completion_capability_is_false_without_literal_keywords() {
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
             .expect("capabilities are JSON");
     assert_eq!(
-        capabilities["editor_support"]["lsp_literal_keyword_completion"],
-        false
+        capabilities["features"]["lsp.literal_keyword_completion"]["status"],
+        "unavailable"
     );
 }

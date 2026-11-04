@@ -35,6 +35,10 @@ is cut, changes belong under `Unreleased`.
 - **Editor configuration:** Generated bracket pairs follow declared blocks and
   built-in list, map, property, and expression fields; unused conventional
   pairs are omitted.
+- **Tooling capabilities:** Generated language projects now receive a versioned
+  capability report with support levels and reasons for tooling artifacts and
+  generic editor features. Rust hosts can request the same typed report through
+  `generate_tooling_capabilities`.
 - **Expression tooling:** The lossless syntax tree exposes nested expression,
   operator, atom, group, call, member, and index nodes while retaining each
   source token exactly once. Generated browser adapters serialize expression

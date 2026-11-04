@@ -1,9 +1,13 @@
-use std::{collections::BTreeSet, fmt::Write};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write,
+};
 
 use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, ValidatedLanguageSpec};
 
 use crate::{
-    CLASSIFICATION_TYPES, PreparedLanguage, generate_tree_sitter, rust_codegen::generate_rust_ast,
+    CLASSIFICATION_TYPES, Capability, EditorConfigurationAssumptions, PatternCompileError,
+    PreparedLanguage, ToolingCapabilities, generate_tree_sitter, rust_codegen::generate_rust_ast,
 };
 
 /// Generated artifacts keyed by safe, relative destination paths.
@@ -20,39 +24,8 @@ pub fn generate_tooling(
     let spec = language.spec();
     let default_lexical = LexicalSpec::default();
     let lexical = spec.lexical.as_ref().unwrap_or(&default_lexical);
-    let lsp_navigation = spec
-        .constructs
-        .iter()
-        .any(|construct| construct.symbol.is_some());
-    let lsp_contextual_completion = spec
-        .constructs
-        .iter()
-        .flat_map(|construct| &construct.fields)
-        .any(|field| kind_has_enum(&field.kind));
-    let mut unavailable_editor_support =
-        vec!["lsp_project_reload", "wasm_adapter", "generic_execution"];
-    if !lsp_contextual_completion
-        && !spec
-            .constructs
-            .iter()
-            .flat_map(|construct| &construct.fields)
-            .any(|field| kind_has_reference(&field.kind))
-    {
-        unavailable_editor_support.push("contextual_lsp_completion");
-    }
-    unavailable_editor_support.push(if lsp_navigation {
-        "unopened_project_file_navigation"
-    } else {
-        "lsp_navigation"
-    });
-    let (tree_sitter_support, tree_sitter_artifacts) = match generate_tree_sitter(language) {
-        Ok(artifacts) => (serde_json::json!({ "available": true }), Some(artifacts)),
-        Err(reason) => (
-            serde_json::json!({ "available": false, "reason": reason }),
-            None,
-        ),
-    };
-    let prepared = PreparedLanguage::new(language.clone()).map_err(|error| {
+    let (tree_sitter_capability, tree_sitter_artifacts) = tree_sitter_output(language);
+    let prepared = prepare_language(language).map_err(|error| {
         serde_json::Error::io(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("cannot compile validated syntax for editor tooling: {error}"),
@@ -75,6 +48,7 @@ pub fn generate_tooling(
         }
     }
     let slug = safe_slug(&spec.name);
+    let capabilities = capability_report(language, &prepared, tree_sitter_capability);
     let mut artifacts = GeneratedArtifacts::new();
     artifacts.insert("metadata.json".to_owned(), json_file(spec)?);
     artifacts.insert(
@@ -111,59 +85,215 @@ pub fn generate_tooling(
     artifacts.insert("agent-skill/references/grammar.md".to_owned(), reference);
     artifacts.insert(
         "agent-skill/references/capabilities.json".to_owned(),
-        json_value(serde_json::json!({
-            "schema_version": 1,
-            "language": spec.name,
-            "language_version": spec.version,
-            "root": spec.root,
-            "source_extensions": spec.source_extensions,
-            "available_artifacts": [
-                "typed_rust_ast", "metadata", "reference_document", "language_configuration",
-                "textmate_lexical_highlighting", "agent_skill"
-            ],
-            "available_language_apis": [
-                "source_formatter", "embedded_language_server", "embedded_completion_providers"
-            ],
-            "optional_artifacts": { "tree_sitter": tree_sitter_support },
-            "available_cli_commands": [
-                "init", "check", "validate", "format", "inspect", "constructs",
-                "describe", "extension", "lock", "generate"
-            ],
-            "editor_support": {
-                "lsp_open_document_diagnostics": true,
-                "lsp_ranged_document_changes": true,
-                "lsp_literal_keyword_completion": prepared.keywords().next().is_some(),
-                "lsp_document_symbols": true,
-                "lsp_hover": spec.constructs.iter().any(|construct| {
-                    !construct.fields.is_empty() || construct.symbol.is_some()
-                }),
-                "lsp_semantic_tokens": true,
-                "lsp_contextual_completion": lsp_contextual_completion
-                    || spec.constructs.iter().flat_map(|construct| &construct.fields)
-                        .any(|field| kind_has_reference(&field.kind)),
-                "lsp_parser_continuation_completion": true,
-                "lsp_navigation": lsp_navigation,
-                "lsp_navigation_open_documents_only": lsp_navigation,
-                "lsp_rename": lsp_navigation,
-                "lsp_project_reload": false
-            },
-            "not_yet_available": unavailable_editor_support,
-            "parser_support": ["declarative_patterns", "registered_custom_construct_callbacks"],
-            "editor_configuration_assumptions": {
-                "line_comment": lexical.line_comment,
-                "block_comment": lexical.block_comment.as_ref().map(|comment| [&comment.open, &comment.close]),
-                "bracket_pairs": editor_bracket_pairs(spec),
-                "reason": "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields."
-            },
-            "highlighting": {"source": "TextMate regular expressions", "lexical_only": true},
-            "requires_host_implementation_for": ["execution", "domain_lowering", "custom_type_systems"]
-        }))?,
+        json_value(serde_json::to_value(capabilities)?)?,
     );
     if let Some(tree_sitter_artifacts) = tree_sitter_artifacts {
         artifacts.extend(tree_sitter_artifacts);
     }
 
     Ok(artifacts)
+}
+
+/// Describes the generated artifacts and generic editor features available for
+/// a validated language.
+///
+/// This is the same report serialized to
+/// `agent-skill/references/capabilities.json` by [`generate_tooling`].
+///
+/// # Errors
+/// Returns an error if the validated syntax cannot be compiled by the generic
+/// parser.
+pub fn generate_tooling_capabilities(
+    language: &ValidatedLanguageSpec,
+) -> Result<ToolingCapabilities, PatternCompileError> {
+    let prepared = prepare_language(language)?;
+    let (tree_sitter, _) = tree_sitter_output(language);
+    Ok(capability_report(language, &prepared, tree_sitter))
+}
+
+fn prepare_language(
+    language: &ValidatedLanguageSpec,
+) -> Result<PreparedLanguage, PatternCompileError> {
+    PreparedLanguage::new(language.clone())
+}
+
+fn tree_sitter_output(
+    language: &ValidatedLanguageSpec,
+) -> (Capability, Option<GeneratedArtifacts>) {
+    match generate_tree_sitter(language) {
+        Ok(artifacts) => (Capability::supported(), Some(artifacts)),
+        Err(reason) => (Capability::unavailable(reason), None),
+    }
+}
+
+fn capability_report(
+    language: &ValidatedLanguageSpec,
+    prepared: &PreparedLanguage,
+    tree_sitter: Capability,
+) -> ToolingCapabilities {
+    let spec = language.spec();
+    let default_lexical = LexicalSpec::default();
+    let lexical = spec.lexical.as_ref().unwrap_or(&default_lexical);
+    let has_symbols = spec
+        .constructs
+        .iter()
+        .any(|construct| construct.symbol.is_some());
+    let has_contextual_fields = spec
+        .constructs
+        .iter()
+        .flat_map(|construct| &construct.fields)
+        .any(|field| kind_has_enum(&field.kind) || kind_has_reference(&field.kind));
+    let has_hover = spec
+        .constructs
+        .iter()
+        .any(|construct| !construct.fields.is_empty() || construct.symbol.is_some());
+    let has_custom_parsers = spec
+        .constructs
+        .iter()
+        .any(|construct| construct.custom_parser.is_some());
+    let artifacts = BTreeMap::from([
+        ("agent_skill".to_owned(), Capability::supported()),
+        ("language_configuration".to_owned(), Capability::supported()),
+        ("language_metadata".to_owned(), Capability::supported()),
+        ("reference_document".to_owned(), Capability::supported()),
+        (
+            "textmate_grammar".to_owned(),
+            Capability::partial(
+                "TextMate highlighting is lexical and cannot provide parser-aware or semantic highlighting.",
+            ),
+        ),
+        ("tree_sitter_grammar".to_owned(), tree_sitter),
+        ("typed_rust_ast".to_owned(), Capability::supported()),
+    ]);
+    let mut features = BTreeMap::from([
+        (
+            "host.domain_lowering".to_owned(),
+            Capability::customized(
+                "Domain lowering is language-specific and must be implemented by the Rust host.",
+            ),
+        ),
+        (
+            "host.execution".to_owned(),
+            Capability::customized(
+                "Execution semantics and runtime state are owned by the Rust host.",
+            ),
+        ),
+        (
+            "host.type_system".to_owned(),
+            Capability::customized(
+                "Language-specific type rules require host-provided analysis callbacks.",
+            ),
+        ),
+        (
+            "language.embedded_completion_providers".to_owned(),
+            Capability::customized(
+                "Host applications can register typed completion providers for language-specific suggestions.",
+            ),
+        ),
+        (
+            "language.embedded_lsp_server".to_owned(),
+            Capability::supported(),
+        ),
+        (
+            "language.source_formatter".to_owned(),
+            if has_custom_parsers {
+                Capability::customized(
+                    "Custom parser syntax requires a host-provided formatter for complete formatting.",
+                )
+            } else {
+                Capability::supported()
+            },
+        ),
+        ("lsp.document_symbols".to_owned(), Capability::supported()),
+        (
+            "lsp.hover".to_owned(),
+            if has_hover {
+                Capability::supported()
+            } else {
+                Capability::unavailable(
+                    "The language declares no fields or symbols for schema-based hover information.",
+                )
+            },
+        ),
+        (
+            "lsp.open_document_diagnostics".to_owned(),
+            Capability::supported(),
+        ),
+        (
+            "lsp.ranged_document_changes".to_owned(),
+            Capability::supported(),
+        ),
+        ("lsp.semantic_tokens".to_owned(), Capability::supported()),
+        (
+            "lsp.parser_continuation_completion".to_owned(),
+            Capability::partial(
+                "Parser-derived continuations cover unambiguous literal and field sequences; optional, choice, and repeated patterns are not completed.",
+            ),
+        ),
+        (
+            "parser.custom_construct_callbacks".to_owned(),
+            Capability::customized(
+                "Host Rust callbacks can implement constructs that do not fit declarative syntax patterns.",
+            ),
+        ),
+        (
+            "parser.declarative_patterns".to_owned(),
+            Capability::supported(),
+        ),
+        (
+            "lsp.project_definition_reload".to_owned(),
+            Capability::partial(
+                "Project mode reloads valid definition changes when the editor client supports dynamic watched-file registration.",
+            ),
+        ),
+    ]);
+    features.insert(
+        "lsp.literal_keyword_completion".to_owned(),
+        if prepared.keywords().next().is_some() {
+            Capability::supported()
+        } else {
+            Capability::unavailable("The language has no literal syntax keywords to suggest.")
+        },
+    );
+    features.insert(
+        "lsp.contextual_completion".to_owned(),
+        if has_contextual_fields {
+            Capability::supported()
+        } else {
+            Capability::unavailable(
+                "The language declares no enum or reference fields for schema-based suggestions.",
+            )
+        },
+    );
+    features.insert(
+        "lsp.symbol_navigation".to_owned(),
+        if has_symbols {
+            Capability::partial(
+                "Generic navigation and rename cover resolved declarations in currently open documents.",
+            )
+        } else {
+            Capability::unavailable("The language declares no symbol metadata.")
+        },
+    );
+
+    ToolingCapabilities {
+        schema_version: 2,
+        language: spec.name.clone(),
+        language_version: spec.version.clone(),
+        root: spec.root.clone(),
+        source_extensions: spec.source_extensions.clone(),
+        artifacts,
+        features,
+        editor_configuration_assumptions: EditorConfigurationAssumptions {
+            line_comment: lexical.line_comment.clone(),
+            block_comment: lexical
+                .block_comment
+                .as_ref()
+                .map(|comment| [comment.open.clone(), comment.close.clone()]),
+            bracket_pairs: editor_bracket_pairs(spec),
+            reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields.",
+        },
+    }
 }
 
 fn json_file(spec: &LanguageSpec) -> Result<String, serde_json::Error> {

@@ -162,11 +162,11 @@ fn expression_tooling_reports_why_tree_sitter_is_unavailable() {
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
             .expect("capabilities are JSON");
     assert_eq!(
-        capabilities["optional_artifacts"]["tree_sitter"]["available"],
-        false
+        capabilities["artifacts"]["tree_sitter_grammar"]["status"],
+        "unavailable"
     );
     assert_eq!(
-        capabilities["optional_artifacts"]["tree_sitter"]["reason"],
+        capabilities["artifacts"]["tree_sitter_grammar"]["reason"],
         "Tree-sitter export does not yet represent expression field grammar `arithmetic`"
     );
 }

@@ -52,6 +52,23 @@ validation is separate from Langmeld's runtime parser and semantic checks.
 LSP semantic tokens supply semantic highlighting when the editor supports
 them. They complement lexical TextMate or Tree-sitter highlighting.
 
+## Capability report
+
+`langmeld generate` writes `agent-skill/references/capabilities.json` using
+schema version 2. The Rust API exposes the same report through
+`generate_tooling_capabilities`. It lists each generated artifact and generic
+language-service feature as `supported`, `partial`, `customized`, or
+`unavailable`; partial and unavailable entries include a reason. `customized`
+means a Rust host must supply the behavior, such as execution or domain
+lowering. The report describes Langmeld support for the validated language
+model. It does not claim that a particular editor client implements every LSP
+feature or that host behavior has been registered.
+
+Project-definition reload is partial because it depends on editor clients
+supporting dynamic watched-file registration. A language with custom parser
+callbacks reports source formatting as customized so hosts can provide a
+formatter for syntax outside the declarative grammar.
+
 ## Browser and WebAssembly
 
 The initializer can add a WebAssembly adapter to a generated language project.
