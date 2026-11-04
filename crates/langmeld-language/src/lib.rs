@@ -8,6 +8,7 @@ mod definition_import;
 mod definition_meta;
 mod definition_tree;
 mod formatting;
+mod generated_artifacts;
 mod lexer;
 mod lexing;
 mod model;
@@ -42,6 +43,9 @@ pub use definition::{
 pub use definition_extension::LANGUAGE_DEFINITION_EXTENSION;
 pub use definition_meta::{langmeld_definition_language, langmeld_definition_parser};
 pub use formatting::{FormatOptions, format_parsed_source, format_source};
+pub use generated_artifacts::{
+    GeneratedArtifactWrite, check_generated_artifacts, write_generated_artifacts,
+};
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
 };
