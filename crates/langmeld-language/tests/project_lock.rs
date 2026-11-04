@@ -64,7 +64,7 @@ const BASE: &str = r#"language Catalog {
 "#;
 
 fn starter_manifest() -> ProjectManifest {
-    let mut manifest = ProjectManifest::new("language.lm");
+    let mut manifest = ProjectManifest::new("language.langmeld");
     manifest.sources.push(PathBuf::from("source.calc"));
     manifest
 }
@@ -72,7 +72,7 @@ fn starter_manifest() -> ProjectManifest {
 #[test]
 fn lockfile_is_deterministic_and_ignores_non_language_manifest_settings() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo { item entry }\n");
     project.write("source-root/other.calc", "catalog other {}\n");
     let manifest_path = project.write_project(&starter_manifest());
@@ -91,7 +91,7 @@ fn lockfile_is_deterministic_and_ignores_non_language_manifest_settings() {
 
     let lock: Value = serde_json::from_slice(&first).expect("lockfile is JSON");
     assert_eq!(lock["schema_version"], 1);
-    assert_eq!(lock["definitions"][0]["path"], "language.lm");
+    assert_eq!(lock["definitions"][0]["path"], "language.langmeld");
     assert_eq!(lock["definitions"][0]["sha256"].as_str().unwrap().len(), 64);
 
     let mut manifest = load_project_manifest(&manifest_path).expect("manifest loads");
@@ -106,16 +106,16 @@ fn lockfile_is_deterministic_and_ignores_non_language_manifest_settings() {
 fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
     let project = TempProject::new();
     project.write(
-        "types/shared.lm",
+        "types/shared.langmeld",
         "types {\n  enum State {\n    ready\n    draft\n  }\n}\n",
     );
     project.write(
-        "language.lm",
+        "language.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
   source_extension: ".calc"
-  import: "types/shared.lm"
+  import: "types/shared.langmeld"
   category Item {}
   construct catalog {
     syntax { root: "catalog {name} {" }
@@ -131,7 +131,7 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
 "#,
     );
     project.write(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -146,7 +146,7 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
     project.write("source.calc", "catalog demo {}\n");
     let mut manifest = starter_manifest();
     manifest.extensions = vec![ManifestExtension::Path(PathBuf::from(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
     ))];
     let manifest_path = project.write_project(&manifest);
 
@@ -161,26 +161,30 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
         .collect();
     assert_eq!(
         paths,
-        ["types/shared.lm", "language.lm", "extensions/local.lm"]
+        [
+            "types/shared.langmeld",
+            "language.langmeld",
+            "extensions/local.langmeld"
+        ]
     );
     assert_eq!(
         lock["resolution_sha256"],
-        "b1157681325ca24adc949edaabe2c591b0cbd7233cb464216ef9ed6f7d3bcb01"
+        "577c5ac3371fe45b43cd32e4f82ce373d6aec95b5574233738193819b3186f9f"
     );
     load_project(&manifest_path).expect("matching lockfile loads");
 
     project.write(
-        "types/shared.lm",
+        "types/shared.langmeld",
         "types {\n  enum State {\n    ready\n    draft\n  }\n}\n# changed\n",
     );
     let error = load_project(&manifest_path).expect_err("changed imports stale the lock");
     assert!(error.contains("lockfile") && error.contains("stale"));
 
     write_project_lockfile(&manifest_path).expect("refreshed lock writes");
-    let mut base =
-        fs::read_to_string(project.0.join("language.lm")).expect("base language definition reads");
+    let mut base = fs::read_to_string(project.0.join("language.langmeld"))
+        .expect("base language definition reads");
     base.push_str("\n# base definition changed\n");
-    project.write("language.lm", &base);
+    project.write("language.langmeld", &base);
     let error = load_project(&manifest_path).expect_err("changed base bytes stale the lock");
     assert!(error.contains("lockfile") && error.contains("stale"));
 }
@@ -188,12 +192,12 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
 #[test]
 fn lockfile_accepts_crlf_checkout_of_locked_definition_sources() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     let manifest_path = project.write_project(&starter_manifest());
     let lock_path = write_project_lockfile(&manifest_path).expect("lockfile writes");
 
-    let language_path = project.0.join("language.lm");
+    let language_path = project.0.join("language.langmeld");
     let language = fs::read_to_string(&language_path).expect("language source reads");
     fs::write(&language_path, language.replace('\n', "\r\n"))
         .expect("language source is rewritten with CRLF endings");
@@ -201,13 +205,13 @@ fn lockfile_accepts_crlf_checkout_of_locked_definition_sources() {
     load_project(&manifest_path).expect("line-ending conversion does not stale the lock");
     let lock: Value = serde_json::from_slice(&fs::read(lock_path).expect("lock reads"))
         .expect("lockfile is JSON");
-    assert_eq!(lock["definitions"][0]["path"], "language.lm");
+    assert_eq!(lock["definitions"][0]["path"], "language.langmeld");
 }
 
 #[test]
 fn lockfile_tracks_package_metadata_and_definition_edits() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     let extension = r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -218,13 +222,13 @@ fn lockfile_tracks_package_metadata_and_definition_edits() {
   }
 }
 "#;
-    project.write("extensions/network.lm", extension);
+    project.write("extensions/network.langmeld", extension);
     project.write("source.calc", "catalog demo {}\n");
     let mut manifest = starter_manifest();
     manifest.extensions = vec![ManifestExtension::Package(ExtensionPackage {
         id: "network".to_owned(),
         version: "1.2.0".to_owned(),
-        path: PathBuf::from("extensions/network.lm"),
+        path: PathBuf::from("extensions/network.langmeld"),
         language_version: "^0.1".to_owned(),
         dependencies: Vec::new(),
     })];
@@ -234,7 +238,7 @@ fn lockfile_tracks_package_metadata_and_definition_edits() {
         .expect("lockfile is JSON");
     assert_eq!(
         lock["resolution_sha256"],
-        "f416b31b9848ac3c5d0606615c1e69a51865ab2174f94a90c0832cd8acf563e0"
+        "1ee1aa67a7f82c95d82b8e5e5422c35cffaeba4b05802500429eea190c8e9b09"
     );
 
     manifest.extensions[0] = ManifestExtension::Package(ExtensionPackage {
@@ -250,7 +254,7 @@ fn lockfile_tracks_package_metadata_and_definition_edits() {
 
     write_project_lockfile(&manifest_path).expect("updated lockfile writes");
     project.write(
-        "extensions/network.lm",
+        "extensions/network.langmeld",
         &format!("{extension}\n# changed\n"),
     );
     let error = load_project(&manifest_path).expect_err("extension bytes stale the lock");
@@ -260,7 +264,7 @@ fn lockfile_tracks_package_metadata_and_definition_edits() {
 #[test]
 fn lockfile_loader_rejects_unsupported_malformed_and_symlink_locks() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     let manifest_path = project.write_project(&starter_manifest());
     let lock_path = project.0.join("langmeld.lock");
@@ -343,9 +347,9 @@ fn lockfile_pins_standalone_json_language_definitions() {
 #[test]
 fn version_two_declarative_manifest_keeps_definition_lock_behavior() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
-    let mut manifest = ProjectManifest::new_declarative("language.lm");
+    let mut manifest = ProjectManifest::new_declarative("language.langmeld");
     manifest.sources.push(PathBuf::from("source.calc"));
     let manifest_path = project.write_project(&manifest);
 

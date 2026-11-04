@@ -23,12 +23,12 @@ impl TempProject {
         fs::create_dir_all(path.join("language/extensions"))
             .expect("definition project directories are created");
         fs::write(
-            path.join("language/language.lm"),
-            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  import: \"extensions/extra.lm\"\n}\n",
+            path.join("language/language.langmeld"),
+            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  import: \"extensions/extra.langmeld\"\n}\n",
         )
         .expect("root definition is written");
         fs::write(
-            path.join("language/extensions/extra.lm"),
+            path.join("language/extensions/extra.langmeld"),
             extension("0.1.0"),
         )
         .expect("extension definition is written");
@@ -36,11 +36,11 @@ impl TempProject {
     }
 
     fn root_definition(&self) -> PathBuf {
-        self.0.join("language/language.lm")
+        self.0.join("language/language.langmeld")
     }
 
     fn extension_definition(&self) -> PathBuf {
-        self.0.join("language/extensions/extra.lm")
+        self.0.join("language/extensions/extra.langmeld")
     }
 }
 

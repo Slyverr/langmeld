@@ -302,32 +302,32 @@ fn write_definition_meta_tree_sitter_validation_fixture() {
 
     let samples = [
         (
-            "language.lm",
-            include_str!("../src/definition_meta/language.lm"),
+            "language.langmeld",
+            include_str!("../src/definition_meta/language.langmeld"),
         ),
         (
-            "constructs/00_language.lm",
-            include_str!("../src/definition_meta/constructs/00_language.lm"),
+            "constructs/00_language.langmeld",
+            include_str!("../src/definition_meta/constructs/00_language.langmeld"),
         ),
         (
-            "constructs/01_types.lm",
-            include_str!("../src/definition_meta/constructs/01_types.lm"),
+            "constructs/01_types.langmeld",
+            include_str!("../src/definition_meta/constructs/01_types.langmeld"),
         ),
         (
-            "constructs/02_constructs.lm",
-            include_str!("../src/definition_meta/constructs/02_constructs.lm"),
+            "constructs/02_constructs.langmeld",
+            include_str!("../src/definition_meta/constructs/02_constructs.langmeld"),
         ),
         (
-            "constructs/03_fields.lm",
-            include_str!("../src/definition_meta/constructs/03_fields.lm"),
+            "constructs/03_fields.langmeld",
+            include_str!("../src/definition_meta/constructs/03_fields.langmeld"),
         ),
         (
-            "constructs/04_syntax.lm",
-            include_str!("../src/definition_meta/constructs/04_syntax.lm"),
+            "constructs/04_syntax.langmeld",
+            include_str!("../src/definition_meta/constructs/04_syntax.langmeld"),
         ),
         (
-            "constructs/05_symbols.lm",
-            include_str!("../src/definition_meta/constructs/05_symbols.lm"),
+            "constructs/05_symbols.langmeld",
+            include_str!("../src/definition_meta/constructs/05_symbols.langmeld"),
         ),
     ];
     for (relative, contents) in samples {
@@ -337,7 +337,7 @@ fn write_definition_meta_tree_sitter_validation_fixture() {
         }
         fs::write(destination, contents).expect("definition sample is written");
     }
-    let invalid = output.join("invalid/unknown-root.lm");
+    let invalid = output.join("invalid/unknown-root.langmeld");
     fs::create_dir_all(invalid.parent().expect("invalid fixture has a parent"))
         .expect("invalid fixture directory is created");
     fs::write(invalid, "this is not a language definition\n")

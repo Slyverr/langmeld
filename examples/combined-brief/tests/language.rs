@@ -48,7 +48,7 @@ fn starter_definition_and_example_parse() {
 }
 
 #[test]
-#[ignore = "emits a Tree-sitter fixture from the composed Rust and .lm language"]
+#[ignore = "emits a Tree-sitter fixture from the composed Rust and .langmeld language"]
 fn write_composed_tree_sitter_validation_fixture() {
     let output = env::var_os("LANGMELD_COMBINED_BRIEF_TREE_SITTER_FIXTURE_DIR")
         .expect("fixture output directory is configured");
@@ -56,7 +56,7 @@ fn write_composed_tree_sitter_validation_fixture() {
     fs::create_dir_all(&output).expect("fixture directory is created");
     let language = load_language_runtime().expect("effective extension language loads");
     for (path, contents) in langmeld::language::generate_tree_sitter(&language)
-        .expect("composed Rust and .lm language grammar exports")
+        .expect("composed Rust and .langmeld language grammar exports")
     {
         let relative = path
             .strip_prefix("tree-sitter/")

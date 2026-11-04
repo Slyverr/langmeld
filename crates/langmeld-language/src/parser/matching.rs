@@ -1028,7 +1028,7 @@ mod tests {
         }
     }
     fn lex(text: &str) -> (SourceFile, Vec<LanguageToken>) {
-        let source = SourceFile::new("test.lm", text);
+        let source = SourceFile::new("test.source", text);
         let mut tokens = lex_source(&source).tokens;
         tokens.push(LanguageToken::new(
             TokenKind::End,

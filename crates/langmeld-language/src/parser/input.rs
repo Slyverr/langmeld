@@ -198,7 +198,7 @@ mod tests {
             observed.store(true, std::sync::atomic::Ordering::Relaxed);
             LexedSource::default()
         }));
-        let source = SourceFile::new("large.lm", "root");
+        let source = SourceFile::new("large.source", "root");
         let result = parser.parse_with_limits(
             &source,
             ParseLimits {
@@ -223,7 +223,7 @@ mod tests {
                     [],
                 )
             }));
-            let source = SourceFile::new("unicode.lm", "é");
+            let source = SourceFile::new("unicode.source", "é");
             let result = parser.parse(&source);
             assert_eq!(result.diagnostics[0].code, "LM1303");
         }
@@ -236,7 +236,7 @@ mod tests {
             LexedSource::new([], [Diagnostic::error("HOST", "bad span", Span::new(1, 8))]),
         ] {
             let parser = parser().with_custom_lexer(CustomLexer::new(move |_| output.clone()));
-            let result = parser.parse(&SourceFile::new("test.lm", "root"));
+            let result = parser.parse(&SourceFile::new("test.source", "root"));
             assert_eq!(result.diagnostics[0].code, "LM1303");
         }
     }
@@ -254,7 +254,7 @@ mod tests {
         }));
         assert_eq!(
             overlapping
-                .parse(&SourceFile::new("overlap.lm", "ab"))
+                .parse(&SourceFile::new("overlap.source", "ab"))
                 .diagnostics[0]
                 .code,
             "LM1303"
@@ -270,7 +270,7 @@ mod tests {
             )
         }));
         let result = limited.parse_with_limits(
-            &SourceFile::new("tokens.lm", "root"),
+            &SourceFile::new("tokens.source", "root"),
             ParseLimits {
                 max_tokens: 1,
                 ..ParseLimits::default()

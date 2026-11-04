@@ -11,12 +11,13 @@ use langmeld_core::{BehaviorStage, Diagnostic, Severity, SourceFile, Span, Valid
 use langmeld_language::{
     AstNode, BehaviorRegistrationError, BehaviorRegistrationIssue, CompletionPart,
     ConfiguredLanguageParser, ConfiguredSemanticHook, ConfiguredSemanticHookRegistration,
-    DefinitionLimits, FormatOptions, ParseLimits, ParseResult, PreparedLanguage, Program,
-    ProjectSnapshot, SemanticHook, SemanticHookRegistration, SyntaxTokenKind, WorkspaceAnalysis,
-    WorkspaceSymbolResolverRegistration, WorkspaceSymbolResolverRegistry,
-    WorkspaceTypeAnalysisRegistration, WorkspaceTypeAnalysisRegistry,
-    analyze_workspace_with_host_callbacks, format_parsed_source, langmeld_definition_language,
-    load_project, parse_language_definition_project_with_overlays_and_diagnostics,
+    DefinitionLimits, FormatOptions, LANGUAGE_DEFINITION_EXTENSION, ParseLimits, ParseResult,
+    PreparedLanguage, Program, ProjectSnapshot, SemanticHook, SemanticHookRegistration,
+    SyntaxTokenKind, WorkspaceAnalysis, WorkspaceSymbolResolverRegistration,
+    WorkspaceSymbolResolverRegistry, WorkspaceTypeAnalysisRegistration,
+    WorkspaceTypeAnalysisRegistry, analyze_workspace_with_host_callbacks, format_parsed_source,
+    langmeld_definition_language, load_project,
+    parse_language_definition_project_with_overlays_and_diagnostics,
 };
 use serde_json::{Value, json};
 
@@ -369,10 +370,10 @@ impl LanguageServerConfig {
                 })?;
                 if root_path
                     .extension()
-                    .is_none_or(|extension| extension != "lm")
+                    .is_none_or(|extension| extension != LANGUAGE_DEFINITION_EXTENSION)
                 {
                     return Err(format!(
-                        "Langmeld definition root '{}' must have a `.lm` extension",
+                        "Langmeld definition root '{}' must have a `.{LANGUAGE_DEFINITION_EXTENSION}` extension",
                         root_path.display()
                     ));
                 }
@@ -484,9 +485,9 @@ pub fn serve<R: BufRead, W: Write>(
     serve_configured(input, output, LanguageServerConfig::new(parser))
 }
 
-/// Serves the built-in `.lm` definition grammar for editing language source.
+/// Serves the built-in `.langmeld` definition grammar for editing language source.
 ///
-/// This mode provides generic parser-backed LSP features for each open `.lm`
+/// This mode provides generic parser-backed LSP features for each open `.langmeld`
 /// file. Use [`serve_definitions_project`] to add imports and project-level
 /// definition validation.
 ///
@@ -504,11 +505,11 @@ pub fn serve_definitions<R: BufRead, W: Write>(input: R, output: W) -> Result<bo
     serve(input, output, language)
 }
 
-/// Serves the built-in `.lm` grammar with project-level definition validation.
+/// Serves the built-in `.langmeld` grammar with project-level definition validation.
 ///
 /// Open buffers inside the root definition directory override their disk
 /// snapshots during validation. Clients may receive bounded file watchers for
-/// changes to other `.lm` modules in the same directory tree.
+/// changes to other `.langmeld` modules in the same directory tree.
 ///
 /// # Errors
 /// Returns root-path, bootstrap grammar, parser configuration, framing, I/O,
@@ -985,7 +986,10 @@ impl Server {
                         "method": "workspace/didChangeWatchedFiles",
                         "registerOptions": {
                             "watchers": [{
-                                "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" },
+                                "globPattern": {
+                                    "baseUri": base_uri,
+                                    "pattern": format!("**/*.{LANGUAGE_DEFINITION_EXTENSION}")
+                                },
                                 "kind": 7
                             }]
                         }
@@ -1029,8 +1033,9 @@ impl Server {
             let source = source.to_string_lossy().replace('\\', "/");
             source_patterns.insert(escape_glob_literal(&source));
         }
+        let definition_pattern = format!("**/*.{LANGUAGE_DEFINITION_EXTENSION}");
         let mut watchers = vec![
-            json!({ "globPattern": { "baseUri": base_uri, "pattern": "**/*.lm" }, "kind": 7 }),
+            json!({ "globPattern": { "baseUri": base_uri, "pattern": definition_pattern }, "kind": 7 }),
             json!({ "globPattern": { "baseUri": base_uri, "pattern": "**/*.json" }, "kind": 7 }),
             json!({ "globPattern": { "baseUri": base_uri, "pattern": manifest_name }, "kind": 7 }),
             json!({ "globPattern": { "baseUri": base_uri, "pattern": "langmeld.lock" }, "kind": 7 }),
@@ -1229,7 +1234,7 @@ impl Server {
             if canonical_path.starts_with(root_directory)
                 && canonical_path
                     .extension()
-                    .is_some_and(|extension| extension == "lm")
+                    .is_some_and(|extension| extension == LANGUAGE_DEFINITION_EXTENSION)
             {
                 overlays.insert(path, document.source.text.clone());
             }
@@ -3216,11 +3221,11 @@ mod tests {
         fs::create_dir_all(root.join("src")).expect("project source directory is created");
         fs::write(
             root.join("langmeld.json"),
-            r#"{"schema_version":1,"language":"language/language.lm","source_roots":["src"]}"#,
+            r#"{"schema_version":1,"language":"language/language.langmeld","source_roots":["src"]}"#,
         )
         .expect("project manifest is written");
         fs::write(
-            root.join("language/language.lm"),
+            root.join("language/language.langmeld"),
             "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".demo\"\n}\n",
         )
         .expect("language definition is written");
@@ -3235,7 +3240,7 @@ mod tests {
 
     fn write_project_constructs(root: &Path, keyword: &str) {
         fs::write(
-            root.join("language/constructs/program.lm"),
+            root.join("language/constructs/program.langmeld"),
             format!(
                 "constructs {{\n  construct program {{\n    syntax {{ default: \"program {{\" }}\n    block: [statement]\n  }}\n  construct statement {{\n    syntax {{ default: \"{keyword} {{message}}\" }}\n    fields {{ message: text required }}\n  }}\n}}\n"
             ),
@@ -3254,7 +3259,7 @@ mod tests {
     }
 
     fn definition_project_server(root: &Path) -> Server {
-        let root_path = root.join("language/language.lm");
+        let root_path = root.join("language/language.langmeld");
         let language = langmeld_definition_language().expect("definition grammar validates");
         let parser = configure_language(language).expect("definition parser configures");
         LanguageServerConfig::new(parser)
@@ -3267,13 +3272,13 @@ mod tests {
         let definitions = root.join("language");
         fs::create_dir_all(definitions.join("extensions"))
             .expect("definition extension directory is created");
-        let root_path = definitions.join("language.lm");
+        let root_path = definitions.join("language.langmeld");
         fs::write(
             &root_path,
-            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".demo\"\n  import: \"extensions/extra.lm\"\n}\n",
+            "language ReloadDemo {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".demo\"\n  import: \"extensions/extra.langmeld\"\n}\n",
         )
         .expect("root definition imports its extension");
-        let extension_path = definitions.join("extensions/extra.lm");
+        let extension_path = definitions.join("extensions/extra.langmeld");
         fs::write(&extension_path, extension_definition(version))
             .expect("extension definition is written");
         extension_path
@@ -3341,7 +3346,7 @@ mod tests {
     #[test]
     fn file_uri_round_trips_spaces_and_unicode_paths() {
         let root = project_directory();
-        let path = root.join("language/constructs/café notes.lm");
+        let path = root.join("language/constructs/café notes.langmeld");
         fs::write(&path, "constructs {}\n").expect("test definition file is written");
         let uri = path_to_file_uri(&path).expect("path converts to a file URI");
         let canonical_path = path.canonicalize().expect("test path canonicalizes");
@@ -3351,8 +3356,8 @@ mod tests {
             file_uri_to_path(&uri).and_then(|path| path.canonicalize().ok()),
             Some(canonical_path)
         );
-        assert!(file_uri_to_path("https://example.test/file.lm").is_none());
-        assert!(file_uri_to_path("file:///tmp/bad%2Gpath.lm").is_none());
+        assert!(file_uri_to_path("https://example.test/file.langmeld").is_none());
+        assert!(file_uri_to_path("file:///tmp/bad%2Gpath.langmeld").is_none());
 
         fs::remove_dir_all(root).expect("temporary project is removed");
     }
@@ -3362,7 +3367,7 @@ mod tests {
         let root = project_directory();
         let extension_path = add_definition_import(&root, "0.1.0");
         let extension_uri = path_to_file_uri(&extension_path).unwrap();
-        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let root_uri = path_to_file_uri(&root.join("language/language.langmeld")).unwrap();
         let mut server = definition_project_server(&root);
 
         let notifications =
@@ -3417,7 +3422,7 @@ mod tests {
     fn definition_project_watches_imports_and_revalidates_closed_files() {
         let root = project_directory();
         let extension_path = add_definition_import(&root, "0.1.0");
-        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let root_uri = path_to_file_uri(&root.join("language/language.langmeld")).unwrap();
         let mut server = definition_project_server(&root);
         server.handle(&json!({
             "jsonrpc": "2.0",
@@ -3435,7 +3440,7 @@ mod tests {
         let watchers =
             &registrations[0]["params"]["registrations"][0]["registerOptions"]["watchers"];
         assert!(watchers.as_array().unwrap().iter().any(|watcher| {
-            watcher["globPattern"]["pattern"] == "**/*.lm"
+            watcher["globPattern"]["pattern"] == "**/*.langmeld"
                 && watcher["globPattern"]["baseUri"]
                     == path_to_file_uri(&root.join("language")).unwrap()
         }));
@@ -3470,12 +3475,12 @@ mod tests {
         let root = project_directory();
         let extension_path = add_definition_import(&root, "0.1.0");
         let extension_uri = path_to_file_uri(&extension_path).unwrap();
-        let root_uri = path_to_file_uri(&root.join("language/language.lm")).unwrap();
+        let root_uri = path_to_file_uri(&root.join("language/language.langmeld")).unwrap();
         let mut server = definition_project_server(&root);
 
         let cycle = extension_definition("0.1.0").replace(
             "  construct note {",
-            "  import: \"../language.lm\"\n  construct note {",
+            "  import: \"../language.langmeld\"\n  construct note {",
         );
         let notifications = server.handle(&open_document(&extension_uri, 1, &cycle));
         let root_diagnostics = diagnostics_for(&notifications, &root_uri)
@@ -3486,11 +3491,11 @@ mod tests {
                 .is_some_and(|message| message.contains("import cycle"))
         }));
 
-        let outside_path = root.join("outside.lm");
+        let outside_path = root.join("outside.langmeld");
         fs::write(&outside_path, "language Outside {}\n").expect("outside file is written");
         let escaped = extension_definition("0.1.0").replace(
             "  construct note {",
-            "  import: \"../../outside.lm\"\n  construct note {",
+            "  import: \"../../outside.langmeld\"\n  construct note {",
         );
         let notifications = server.handle(&change_document(&extension_uri, 2, &escaped));
         let root_diagnostics = diagnostics_for(&notifications, &root_uri)
@@ -3544,7 +3549,7 @@ mod tests {
     #[test]
     fn watched_project_reload_updates_open_documents_and_keeps_last_valid_snapshot() {
         let root = project_directory();
-        let construct_path = root.join("language/constructs/program.lm");
+        let construct_path = root.join("language/constructs/program.langmeld");
         let mut server = project_server(&root);
 
         let initialized = server.handle(&json!({
@@ -3573,7 +3578,7 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.lm" })
+                .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.langmeld" })
         );
         assert!(
             watchers
@@ -3650,7 +3655,7 @@ mod tests {
         .expect("replacement source is written");
         fs::write(
             root.join("langmeld.json"),
-            r#"{"schema_version":1,"language":"language/language.lm","source_roots":["programs"]}"#,
+            r#"{"schema_version":1,"language":"language/language.langmeld","source_roots":["programs"]}"#,
         )
         .expect("updated project roots are written");
         let root_change = server.handle(&watched_file(&root.join("langmeld.json")));

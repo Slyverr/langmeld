@@ -5,11 +5,14 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+#[path = "src/definition_extension.rs"]
+mod definition_extension;
+
 fn main() {
     let manifest_dir =
         PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"));
     let source_dir = manifest_dir.join("src/definition_meta");
-    let root = source_dir.join("language.lm");
+    let root = source_dir.join("language.langmeld");
     let modules_dir = source_dir.join("constructs");
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR"))
         .join("definition_meta_sources.rs");
@@ -72,7 +75,11 @@ fn discover_modules(directory: &Path, modules: &mut Vec<PathBuf>) -> io::Result<
         let file_type = entry.file_type()?;
         if file_type.is_dir() {
             discover_modules(&path, modules)?;
-        } else if file_type.is_file() && path.extension().is_some_and(|ext| ext == "lm") {
+        } else if file_type.is_file()
+            && path
+                .extension()
+                .is_some_and(|ext| ext == definition_extension::LANGUAGE_DEFINITION_EXTENSION)
+        {
             modules.push(path);
         }
     }

@@ -12,8 +12,8 @@ use langmeld_language::{
 
 use crate::{cli::AuthoringMode, generate::host::generate_host_scaffold};
 
-const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.lm");
-const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.lm");
+const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.langmeld");
+const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.langmeld");
 
 #[derive(Debug)]
 pub(crate) struct ProjectOptions {
@@ -79,9 +79,9 @@ fn validate_starter_definition(
     root: &str,
     constructs: &str,
 ) -> Result<ValidatedLanguageSpec, String> {
-    let root = SourceFile::new("language/language.lm", root);
+    let root = SourceFile::new("language/language.langmeld", root);
     let modules = [SourceFile::new(
-        "language/constructs/program.lm",
+        "language/constructs/program.langmeld",
         constructs,
     )];
     parse_language_definition_modules(&root, &modules).map_err(|diagnostics| {
@@ -223,7 +223,7 @@ fn starter_files(
         );
     }
     let mut manifest = match options.authoring {
-        AuthoringMode::Declarative => ProjectManifest::new("language/language.lm"),
+        AuthoringMode::Declarative => ProjectManifest::new("language/language.langmeld"),
         AuthoringMode::Rust | AuthoringMode::Combined => ProjectManifest::new_rust_host(),
     };
     manifest.source_roots.push(PathBuf::from("examples"));
@@ -231,18 +231,18 @@ fn starter_files(
         manifest
             .extensions
             .push(langmeld_language::ManifestExtension::Path(PathBuf::from(
-                "language/extensions/starter.lm",
+                "language/extensions/starter.langmeld",
             )));
         files.insert(
-            PathBuf::from("language/extensions/starter.lm"),
+            PathBuf::from("language/extensions/starter.langmeld"),
             extension_definition(&options.name),
         );
     }
     files.insert(PathBuf::from("langmeld.json"), manifest.to_json()?);
     if options.authoring == AuthoringMode::Declarative {
-        files.insert(PathBuf::from("language/language.lm"), root.to_owned());
+        files.insert(PathBuf::from("language/language.langmeld"), root.to_owned());
         files.insert(
-            PathBuf::from("language/constructs/program.lm"),
+            PathBuf::from("language/constructs/program.langmeld"),
             constructs.to_owned(),
         );
     }

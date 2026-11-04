@@ -19,10 +19,10 @@ references, and safe rename across project files. Formatting is available for
 languages using the built-in lexer. Rust hosts can register custom formatting,
 completion, parsing, and analysis behavior.
 
-Langmeld's own `.lm` files can be edited with its built-in definition grammar:
+Langmeld's own `.langmeld` files can be edited with its built-in definition grammar:
 
 ```sh
-cargo run -p langmeld-lsp -- --definitions --root language/language.lm
+cargo run -p langmeld-lsp -- --definitions --root language/language.langmeld
 ```
 
 Project mode reloads valid definition changes and reparses open documents.

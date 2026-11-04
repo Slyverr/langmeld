@@ -541,7 +541,7 @@ mod tests {
         let field = AstNode::new("typed_field", "recursive", Span::new(0, 1))
             .with_field("name", captured(Value::Identifier("count".to_owned())))
             .with_children([scalar_type()]);
-        let source = SourceFile::new("language.lm", "count: number");
+        let source = SourceFile::new("language.langmeld", "count: number");
 
         let diagnostics = convert_typed_field(
             &field,

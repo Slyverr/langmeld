@@ -1,7 +1,7 @@
 # Langmeld
 
 Langmeld is a Rust-first framework for building programming languages and
-domain-specific languages. Describe language structure in modular `.lm`
+domain-specific languages. Describe language structure in modular `.langmeld`
 definitions or Rust, then use Langmeld's parser and editor tooling with a Rust
 host for language-specific behavior.
 

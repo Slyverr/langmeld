@@ -1,7 +1,7 @@
 # Ledger language example
 
 Ledger is a small interpreted language project scaffolded with Langmeld. Its
-grammar lives in `language/constructs/program.lm`; its Rust host evaluates the
+grammar lives in `language/constructs/program.langmeld`; its Rust host evaluates the
 generic syntax tree in `src/lib.rs`.
 
 The example supports numeric variable declarations, addition, and printing:
@@ -18,7 +18,7 @@ program {
 ```
 
 The base definition declares a `statement` category and the `set`, `add`, and
-`print` constructs. `language/extensions/subtract.lm` adds the subtraction
+`print` constructs. `language/extensions/subtract.langmeld` adds the subtraction
 construct through that category, so the extension does not need to edit the
 root block. Langmeld parses the source and resolves references across the
 workspace. The host evaluates the AST, checks execution order, and prints

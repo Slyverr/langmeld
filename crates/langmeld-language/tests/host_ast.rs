@@ -39,7 +39,7 @@ fn custom_construct_parser_can_return_a_host_ast_projection() {
                 .with_host_data(NativeExpression { operator: "custom" })
         }))
     });
-    let source = SourceFile::new("custom.lm", "node value");
+    let source = SourceFile::new("custom.source", "node value");
 
     let matched = (parser.parse)(&source, 0)
         .expect("custom parser runs")

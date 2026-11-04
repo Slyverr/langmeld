@@ -2,7 +2,7 @@
 ## Browser/WASM adapter
 
 The optional `wasm` feature exposes `LanguageHost` for JavaScript. It accepts
-explicit in-memory `.lm` root/module sources or canonical `LanguageSpec` JSON.
+explicit in-memory `.langmeld` root/module sources or canonical `LanguageSpec` JSON.
 `LanguageHost.fromProject()` uses this project's compiled model and Rust
 callbacks. Parsing returns diagnostics, editor classifications, and
 parser-derived completion context; `analyzeWorkspace` accepts explicitly

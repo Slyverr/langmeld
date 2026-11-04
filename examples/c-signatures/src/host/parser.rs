@@ -3,7 +3,7 @@ use langmeld::{
     language::{AstNode, CapturedValue, CustomConstructMatch, CustomConstructParser, Value},
 };
 
-/// Registers the parser declared by `translation_unit` in the `.lm` model.
+/// Registers the parser declared by `translation_unit` in the `.langmeld` model.
 pub fn custom_parser_callbacks() -> Vec<CustomConstructParser> {
     vec![CustomConstructParser::new(
         "c_translation_unit",

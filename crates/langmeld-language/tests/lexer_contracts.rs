@@ -3,7 +3,7 @@ use langmeld_language::{LanguageTokenKind, ParseLimits, lex_source};
 
 #[test]
 fn built_in_lexer_preserves_utf8_crlf_comment_and_string_spans() {
-    let source = SourceFile::new("scene.lm", "node α -> \"hello\\nworld\" # keep\r\n");
+    let source = SourceFile::new("scene.source", "node α -> \"hello\\nworld\" # keep\r\n");
     let lexed = lex_source(&source);
 
     assert_eq!(
@@ -32,7 +32,7 @@ fn built_in_lexer_preserves_utf8_crlf_comment_and_string_spans() {
 
 #[test]
 fn malformed_lexemes_return_spanned_diagnostics_and_unknown_tokens() {
-    let source = SourceFile::new("broken.lm", "\"unfinished\n\"bad\\q\" §");
+    let source = SourceFile::new("broken.source", "\"unfinished\n\"bad\\q\" §");
     let lexed = lex_source(&source);
 
     assert!(

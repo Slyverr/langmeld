@@ -4,7 +4,7 @@ use langmeld::language::{FormatOptions, PreparedLanguage, format_source};
 
 #[test]
 fn consumer_uses_core_expression_and_language_through_the_facade() {
-    let source = SourceFile::new("sample.lm", "greeting {\nhello user\n}");
+    let source = SourceFile::new("sample.demo", "greeting {\nhello user\n}");
     let language = LanguageBuilder::new("Greeting")
         .version("0.1.0")
         .root("greeting")
@@ -32,7 +32,7 @@ fn consumer_uses_core_expression_and_language_through_the_facade() {
         "greeting {\n  hello user\n}"
     );
 
-    let expression_source = SourceFile::new("expression.lm", "1 + 2");
+    let expression_source = SourceFile::new("expression.demo", "1 + 2");
     let grammar =
         ExpressionGrammar::new([OperatorSpec::infix("+", 1)]).expect("operator table validates");
     let expression = parse_expression(

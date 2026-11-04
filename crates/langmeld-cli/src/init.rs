@@ -120,7 +120,7 @@ fn print_heading() {
         "\n  {}  {}\n  {}\n",
         style("◈").cyan().bold(),
         style("LANGMELD").bold(),
-        style("Build a language project with Rust and modular .lm definitions.").dim()
+        style("Build a language project with Rust and modular .langmeld definitions.").dim()
     );
 }
 
@@ -140,9 +140,9 @@ fn print_preview(options: &ProjectOptions) {
         "  {}  {}",
         style("Authoring").dim(),
         match options.authoring {
-            AuthoringMode::Declarative => "Rust host + declarative .lm definitions",
+            AuthoringMode::Declarative => "Rust host + declarative .langmeld definitions",
             AuthoringMode::Rust => "Rust-authored language model",
-            AuthoringMode::Combined => "Rust base model + local .lm extensions",
+            AuthoringMode::Combined => "Rust base model + local .langmeld extensions",
         }
     );
     println!("  {}", style("Structure").dim());
@@ -157,13 +157,13 @@ fn print_preview(options: &ProjectOptions) {
     ];
     match options.authoring {
         AuthoringMode::Declarative => {
-            entries.insert(1, "language/language.lm");
-            entries.insert(2, "language/constructs/program.lm");
+            entries.insert(1, "language/language.langmeld");
+            entries.insert(2, "language/constructs/program.langmeld");
         }
         AuthoringMode::Rust => entries.insert(1, "src/language/spec.rs"),
         AuthoringMode::Combined => {
             entries.insert(1, "src/language/spec.rs");
-            entries.insert(2, "language/extensions/starter.lm");
+            entries.insert(2, "language/extensions/starter.langmeld");
         }
     }
     if !options.library_only {
@@ -216,9 +216,9 @@ fn prompt_authoring_mode() -> Result<AuthoringMode, InitError> {
         };
     }
     let choices = [
-        "Declarative .lm files (recommended for most languages)",
+        "Declarative .langmeld files (recommended for most languages)",
         "Rust API (maximum host control)",
-        "Combined: Rust base model with local .lm extensions",
+        "Combined: Rust base model with local .langmeld extensions",
     ];
     let choice = Select::new(
         "How do you want to author the language model?",

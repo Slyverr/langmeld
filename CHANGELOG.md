@@ -9,7 +9,7 @@ is cut, changes belong under `Unreleased`.
 
 ### Added
 
-- **Language framework:** Build languages from modular `.lm` definitions or
+- **Language framework:** Build languages from modular `.langmeld` definitions or
   Rust-authored models, resolved to one validated model. Generic lexing and
   parsing, typed AST generation, workspace analysis, source diagnostics,
   formatting, custom Rust host hooks, and host-owned runtime/lowering/backend
@@ -27,6 +27,11 @@ is cut, changes belong under `Unreleased`.
 - **Consumer examples:** Independent projects cover an interpreted DSL,
   Rust-authored and combined language models, and focused C, Rust, TypeScript,
   and Python parser or source-indexing integrations.
+
+### Changed
+
+- **Definition files:** Use `.langmeld` for Langmeld language definitions.
+  Languages built with Langmeld can still choose `.lm` as a program suffix.
 
 ### Fixed
 

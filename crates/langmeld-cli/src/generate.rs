@@ -32,7 +32,7 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
             }
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            let definition = root.join("language/language.lm");
+            let definition = root.join("language/language.langmeld");
             parse_language_definition_project(&definition)
                 .map_err(|diagnostics| format_diagnostics(&definition, &diagnostics))?
         }

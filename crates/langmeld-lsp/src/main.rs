@@ -18,13 +18,13 @@ struct Cli {
 #[derive(Debug, Args)]
 #[command(group(clap::ArgGroup::new("language_input").required(true).multiple(false)))]
 struct LanguageInput {
-    /// Serve the built-in grammar for editing Langmeld `.lm` definitions.
+    /// Serve the built-in grammar for editing Langmeld `.langmeld` definitions.
     #[arg(long, group = "language_input")]
     definitions: bool,
-    /// Root `.lm` definition file whose imports and modules should be validated.
+    /// Root `.langmeld` definition file whose imports and modules should be validated.
     #[arg(long, requires = "definitions")]
     root: Option<PathBuf>,
-    /// Standalone .lm or JSON language definition.
+    /// Standalone .langmeld or JSON language definition.
     #[arg(long, group = "language_input")]
     language: Option<PathBuf>,
     /// Project manifest whose effective language should be served.

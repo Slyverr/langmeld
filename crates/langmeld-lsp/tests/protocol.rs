@@ -19,7 +19,7 @@ impl TempLanguage {
             std::env::temp_dir().join(format!("langmeld-lsp-protocol-{}-{id}", std::process::id()));
         fs::create_dir_all(&path).expect("temporary language directory is created");
         fs::write(
-            path.join("language.lm"),
+            path.join("language.langmeld"),
             r#"language Demo {
   version: "0.1.0"
   root: program
@@ -36,7 +36,7 @@ impl TempLanguage {
 "#,
         )
         .expect("language definition is written");
-        Self(path.join("language.lm"))
+        Self(path.join("language.langmeld"))
     }
 
     fn write_symbol_language(&self) {
@@ -202,7 +202,7 @@ impl TempLanguage {
         let manifest = root.join("langmeld.json");
         fs::write(
             &manifest,
-            r#"{"schema_version":1,"language":"language.lm","source_roots":["src"]}"#,
+            r#"{"schema_version":1,"language":"language.langmeld","source_roots":["src"]}"#,
         )
         .expect("project manifest is written");
         manifest
@@ -241,8 +241,8 @@ fn standalone_server_explains_that_rust_host_projects_need_host_injection() {
 
 #[test]
 fn definitions_mode_provides_lsp_support_for_modular_lm_sources() {
-    let root_uri = "file:///language/language.lm";
-    let module_uri = "file:///language/constructs/program.lm";
+    let root_uri = "file:///language/language.langmeld";
+    let module_uri = "file:///language/constructs/program.langmeld";
     let valid_root = "language Demo {\n  version: \"0.1.0\"\n  root: program\n}\n";
     let valid_module =
         "constructs {\n  construct program {\n    syntax { default: \"program {\" }\n  }\n}\n";
@@ -409,7 +409,7 @@ fn definition_project_mode_uses_the_explicit_root_and_reports_imported_file_erro
     .expect("project root definition is written");
     let constructs = root.parent().unwrap().join("constructs");
     fs::create_dir_all(&constructs).expect("constructs directory is created");
-    let module = constructs.join("program.lm");
+    let module = constructs.join("program.langmeld");
     fs::write(
         &module,
         "constructs {\n  construct program {\n    syntax { default: \"program {\" }\n  }\n}\n",
@@ -584,7 +584,7 @@ fn project_mode_registers_language_and_manifest_watchers() {
     assert!(
         watchers
             .iter()
-            .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.lm" })
+            .any(|watcher| { watcher["globPattern"]["pattern"] == "**/*.langmeld" })
     );
     assert!(
         watchers
@@ -1733,7 +1733,7 @@ fn project_navigation_includes_closed_files_and_returns_rename_edits_for_them() 
     let root = manifest.parent().expect("project root exists");
     fs::write(
         &manifest,
-        r#"{"schema_version":1,"language":"language.lm","source_roots":["src"],"source_extensions":["demo"]}"#,
+        r#"{"schema_version":1,"language":"language.langmeld","source_roots":["src"],"source_extensions":["demo"]}"#,
     )
     .expect("project source extension is configured");
     let declaration_path = root.join("src/declaration.demo");

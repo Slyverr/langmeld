@@ -7,6 +7,6 @@
     "examples"
   ],
   "extensions": [
-    "language/extensions/starter.lm"
+    "language/extensions/starter.langmeld"
   ]
 }

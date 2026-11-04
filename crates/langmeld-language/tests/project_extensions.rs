@@ -33,7 +33,7 @@ impl TempProject {
     }
 
     fn manifest(&self, extensions: Vec<ManifestExtension>) -> ProjectManifest {
-        let mut manifest = ProjectManifest::new("language.lm");
+        let mut manifest = ProjectManifest::new("language.langmeld");
         manifest.sources.push(PathBuf::from("source.calc"));
         manifest.extensions = extensions;
         manifest
@@ -69,9 +69,9 @@ const BASE: &str = r#"language Catalog {
 #[test]
 fn project_composes_extensions_in_stable_dependency_order() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write(
-        "extensions/first.lm",
+        "extensions/first.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -84,7 +84,7 @@ fn project_composes_extensions_in_stable_dependency_order() {
 "#,
     );
     project.write(
-        "extensions/second.lm",
+        "extensions/second.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -102,7 +102,7 @@ fn project_composes_extensions_in_stable_dependency_order() {
         ManifestExtension::Package(ExtensionPackage {
             id: "second".to_owned(),
             version: "1.0.0".to_owned(),
-            path: PathBuf::from("extensions/second.lm"),
+            path: PathBuf::from("extensions/second.langmeld"),
             language_version: "^0.1".to_owned(),
             dependencies: vec![ExtensionDependency {
                 id: "first".to_owned(),
@@ -112,7 +112,7 @@ fn project_composes_extensions_in_stable_dependency_order() {
         ManifestExtension::Package(ExtensionPackage {
             id: "first".to_owned(),
             version: "2.1.0".to_owned(),
-            path: PathBuf::from("extensions/first.lm"),
+            path: PathBuf::from("extensions/first.langmeld"),
             language_version: "^0.1".to_owned(),
             dependencies: Vec::new(),
         }),
@@ -139,13 +139,13 @@ fn project_composes_extensions_in_stable_dependency_order() {
 #[test]
 fn project_rejects_extension_cycles_and_unsatisfied_dependencies() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     let package = |id: &str, dependency: &str| {
         ManifestExtension::Package(ExtensionPackage {
             id: id.to_owned(),
             version: "1.0.0".to_owned(),
-            path: PathBuf::from(format!("extensions/{id}.lm")),
+            path: PathBuf::from(format!("extensions/{id}.langmeld")),
             language_version: "^0.1".to_owned(),
             dependencies: vec![ExtensionDependency {
                 id: dependency.to_owned(),
@@ -168,12 +168,12 @@ fn project_rejects_extension_cycles_and_unsatisfied_dependencies() {
 #[test]
 fn project_rejects_extension_language_version_mismatch_before_loading_definition() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     let manifest = project.manifest(vec![ManifestExtension::Package(ExtensionPackage {
         id: "compatibility".to_owned(),
         version: "1.0.0".to_owned(),
-        path: PathBuf::from("missing.lm"),
+        path: PathBuf::from("missing.langmeld"),
         language_version: "^2.0".to_owned(),
         dependencies: Vec::new(),
     })]);
@@ -186,9 +186,9 @@ fn project_rejects_extension_language_version_mismatch_before_loading_definition
 #[test]
 fn project_accepts_an_unversioned_local_definition_path() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -202,7 +202,7 @@ fn project_accepts_an_unversioned_local_definition_path() {
     );
     project.write("source.calc", "catalog demo {}\n");
     let manifest = project.manifest(vec![ManifestExtension::Path(PathBuf::from(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
     ))]);
 
     let loaded = load_project_with_manifest(&project.0.join("langmeld.json"), &manifest)
@@ -213,10 +213,10 @@ fn project_accepts_an_unversioned_local_definition_path() {
 #[test]
 fn extension_update_validates_and_refreshes_manifest_and_lock_together() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     project.write(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -235,7 +235,7 @@ fn extension_update_validates_and_refreshes_manifest_and_lock_together() {
     write_project_extensions(
         &manifest_path,
         vec![ManifestExtension::Path(PathBuf::from(
-            "extensions/local.lm",
+            "extensions/local.langmeld",
         ))],
     )
     .expect("valid extension update writes both files");
@@ -254,7 +254,7 @@ fn extension_update_validates_and_refreshes_manifest_and_lock_together() {
 #[test]
 fn invalid_extension_update_leaves_manifest_and_lock_unchanged() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     let manifest_path = project.0.join("langmeld.json");
     let manifest = project.manifest(Vec::new());
@@ -265,7 +265,7 @@ fn invalid_extension_update_leaves_manifest_and_lock_unchanged() {
 
     let error = write_project_extensions(
         &manifest_path,
-        vec![ManifestExtension::Path(PathBuf::from("missing.lm"))],
+        vec![ManifestExtension::Path(PathBuf::from("missing.langmeld"))],
     )
     .expect_err("missing extension is rejected before writing");
 
@@ -277,10 +277,10 @@ fn invalid_extension_update_leaves_manifest_and_lock_unchanged() {
 #[test]
 fn failed_lock_write_rolls_back_extension_manifest() {
     let project = TempProject::new();
-    project.write("language.lm", BASE);
+    project.write("language.langmeld", BASE);
     project.write("source.calc", "catalog demo {}\n");
     project.write(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -313,7 +313,7 @@ fn failed_lock_write_rolls_back_extension_manifest() {
     let error = write_project_extensions(
         &manifest_path,
         vec![ManifestExtension::Path(PathBuf::from(
-            "extensions/local.lm",
+            "extensions/local.langmeld",
         ))],
     )
     .expect_err("blocked lock replacement fails");
@@ -325,9 +325,9 @@ fn failed_lock_write_rolls_back_extension_manifest() {
 
 #[test]
 fn project_rejects_extension_lists_above_the_resource_limit() {
-    let mut manifest = ProjectManifest::new("language.lm");
+    let mut manifest = ProjectManifest::new("language.langmeld");
     manifest.extensions = (0..129)
-        .map(|index| ManifestExtension::Path(PathBuf::from(format!("extensions/{index}.lm"))))
+        .map(|index| ManifestExtension::Path(PathBuf::from(format!("extensions/{index}.langmeld"))))
         .collect();
 
     let error = manifest

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "language": "language/language.lm",
+  "language": "language/language.langmeld",
   "source_roots": [
     "examples"
   ]

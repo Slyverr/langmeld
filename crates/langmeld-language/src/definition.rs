@@ -48,7 +48,7 @@ impl Default for DefinitionLimits {
     }
 }
 
-/// Parses a readable `.lm` definition with the built-in Rust-seeded grammar.
+/// Parses a readable `.langmeld` definition with the built-in Rust-seeded grammar.
 ///
 /// The generic parser produces the definition AST; the converter then builds
 /// and validates the canonical language model.
@@ -61,7 +61,7 @@ pub fn parse_definition(
     parse_definition_with_limits(source, DefinitionLimits::default())
 }
 
-/// Parses a readable `.lm` definition with caller-selected source and token limits.
+/// Parses a readable `.langmeld` definition with caller-selected source and token limits.
 ///
 /// # Errors
 /// Returns source-located parser, conversion, or specification diagnostics.
@@ -87,7 +87,7 @@ pub fn parse_definition_with_limits(
     Ok(validated.spec().clone())
 }
 
-/// Parses a root `.lm` source and caller-supplied in-memory modules.
+/// Parses a root `.langmeld` source and caller-supplied in-memory modules.
 ///
 /// Modules are combined without filesystem discovery or import resolution.
 /// Include every source explicitly; the aggregate source size is bounded by
@@ -117,7 +117,7 @@ pub fn parse_language_definition_modules_with_limits(
     )
 }
 
-/// Loads and converts a file-based `.lm` definition project with the built-in grammar.
+/// Loads and converts a file-based `.langmeld` definition project with the built-in grammar.
 ///
 /// Imports are resolved relative to the root file. The root directory is the
 /// trust boundary for imported paths.
@@ -130,7 +130,7 @@ pub fn parse_language_definition_project(
     parse_language_definition_project_with_limits(root_path, DefinitionLimits::default())
 }
 
-/// Loads a file-based `.lm` project with caller-selected resource limits.
+/// Loads a file-based `.langmeld` project with caller-selected resource limits.
 ///
 /// # Errors
 /// Returns parser, conversion, import-resolution, or specification diagnostics.
@@ -141,10 +141,10 @@ pub fn parse_language_definition_project_with_limits(
     crate::definition_import::parse_project(root_path, prepared_definition_parser()?, limits)
 }
 
-/// Loads a file-based `.lm` project while replacing selected on-disk snapshots
+/// Loads a file-based `.langmeld` project while replacing selected on-disk snapshots
 /// with caller-provided source text.
 ///
-/// Overlay keys must identify existing `.lm` files inside the root definition
+/// Overlay keys must identify existing `.langmeld` files inside the root definition
 /// directory. Imported files not present in `overlays` are read from disk.
 /// Overlay text and loaded disk sources share the project source-byte limit.
 /// This supports editor validation without writing unsaved buffers to disk.
@@ -163,7 +163,7 @@ pub fn parse_language_definition_project_with_overlays(
     )
 }
 
-/// Loads a file-based `.lm` project with source overlays and caller-selected
+/// Loads a file-based `.langmeld` project with source overlays and caller-selected
 /// resource limits.
 ///
 /// # Errors
@@ -188,7 +188,7 @@ pub fn parse_language_definition_project_with_overlays_and_limits(
     })
 }
 
-/// Loads a file-based `.lm` project with source overlays and returns each
+/// Loads a file-based `.langmeld` project with source overlays and returns each
 /// diagnostic with the canonical file path that produced it when known.
 ///
 /// Project-level conversion and specification findings may have no source
@@ -270,7 +270,7 @@ pub fn language_definition_source_paths(
     )
 }
 
-/// Loads a file-based `.lm` project with a caller-supplied meta-language.
+/// Loads a file-based `.langmeld` project with a caller-supplied meta-language.
 ///
 /// # Errors
 /// Returns parser, conversion, import-resolution, or specification diagnostics.
@@ -285,7 +285,7 @@ pub fn parse_language_definition_project_with_meta(
     )
 }
 
-/// Loads a file-based `.lm` project with a supplied meta-language and limits.
+/// Loads a file-based `.langmeld` project with a supplied meta-language and limits.
 ///
 /// # Errors
 /// Returns parser, conversion, import-resolution, or specification diagnostics.
@@ -299,7 +299,7 @@ pub fn parse_language_definition_project_with_meta_and_limits(
     crate::definition_import::parse_project(root_path, &prepared, limits)
 }
 
-/// Parses a readable `.lm` source using a caller-supplied meta-language.
+/// Parses a readable `.langmeld` source using a caller-supplied meta-language.
 ///
 /// This is the bootstrap seam for alternate definition dialects. The built-in
 /// format should use [`parse_definition`] so its prepared parser can be reused.
@@ -350,7 +350,7 @@ pub fn parse_language_definition_modules_with_meta_and_limits(
     )
 }
 
-/// Parses a `.lm` source using a caller-supplied meta-language and limits.
+/// Parses a `.langmeld` source using a caller-supplied meta-language and limits.
 ///
 /// # Errors
 /// Returns source-located parser, conversion, or specification diagnostics.

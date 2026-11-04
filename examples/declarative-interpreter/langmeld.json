@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "language": "language/language.lm",
+  "language": "language/language.langmeld",
   "source_roots": [
     "examples"
   ],
   "extensions": [
-    "language/extensions/subtract.lm"
+    "language/extensions/subtract.langmeld"
   ]
 }

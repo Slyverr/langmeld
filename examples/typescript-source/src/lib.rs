@@ -248,8 +248,8 @@ fn parser_callbacks_with_frontend(
 /// Loads and validates the checked-in TypeScript source-index definition.
 pub fn validated_language_spec() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
     let definition = SourceFile::new(
-        "typescript-source.lm",
-        include_str!("../typescript-source.lm"),
+        "typescript-source.langmeld",
+        include_str!("../typescript-source.langmeld"),
     );
     parse_definition(&definition)?.validate().map_err(|errors| {
         errors

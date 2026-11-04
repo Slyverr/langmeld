@@ -40,7 +40,7 @@ project's `.py` files:
 cargo run --manifest-path examples/python-source/Cargo.toml --bin python-source-lsp -- --project-root examples/python-source/project
 ```
 
-The `.lm` file declares the indexed constructs and generated typed AST. The
+The `.langmeld` file declares the indexed constructs and generated typed AST. The
 Python parser supplies the source spans and generic nodes; Langmeld supplies
 workspace symbol resolution and the LSP navigation surface.
 
@@ -64,7 +64,7 @@ workspace symbol resolution and the LSP navigation surface.
 It does not resolve absolute or multi-level imports, package re-exports,
 dynamic imports, classes, methods, arbitrary incomplete statements, or Python
 types. It is a source index, not a type checker, interpreter, or compiler. The
-opaque `.lm` lexer treats each Python file as one host-parsed region, so the
+opaque `.langmeld` lexer treats each Python file as one host-parsed region, so the
 generic LSP does not emit Python semantic highlighting and the generated
 lexical editor grammar is not a Python syntax highlighter. A host lexer must
 emit real Python token spans to provide token-level highlighting.

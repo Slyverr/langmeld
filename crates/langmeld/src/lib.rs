@@ -28,7 +28,7 @@
 //!     .expect("language prepares")
 //!     .with_custom_parsers([])
 //!     .expect("declarative parser configures");
-//! let parsed = parser.parse(&SourceFile::new("hello.lm", "greeting { hello }"));
+//! let parsed = parser.parse(&SourceFile::new("hello.demo", "greeting { hello }"));
 //! assert!(parsed.diagnostics.is_empty());
 //! ```
 

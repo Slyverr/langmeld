@@ -3,6 +3,7 @@
 mod analysis;
 mod backend;
 mod definition;
+mod definition_extension;
 mod definition_import;
 mod definition_meta;
 mod definition_tree;
@@ -38,6 +39,7 @@ pub use definition::{
     parse_language_definition_project_with_overlays_and_limits,
     parse_language_definition_with_meta, parse_language_definition_with_meta_and_limits,
 };
+pub use definition_extension::LANGUAGE_DEFINITION_EXTENSION;
 pub use definition_meta::{langmeld_definition_language, langmeld_definition_parser};
 pub use formatting::{FormatOptions, format_parsed_source, format_source};
 pub use lexer::{

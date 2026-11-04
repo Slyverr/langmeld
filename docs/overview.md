@@ -7,7 +7,7 @@ language.
 ## Language definitions
 
 Authors can declare constructs, fields, syntax patterns, categories, symbols,
-and scopes in modular `.lm` files, or define the language model in Rust. A
+and scopes in modular `.langmeld` files, or define the language model in Rust. A
 project can combine Rust-authored definitions with declarative modules and
 extensions. Langmeld validates the definition, parses source into a generic
 syntax tree, and can generate typed Rust views of that tree.
@@ -32,7 +32,7 @@ runtime.
 
 ## Project boundaries
 
-- `.lm` definitions describe language structure and declarative composition.
+- `.langmeld` definitions describe language structure and declarative composition.
 - Rust host code supplies behavior that cannot be inferred from that structure.
 - Generated files under `.langmeld/generated/` are derived from project
   sources and can be rebuilt.

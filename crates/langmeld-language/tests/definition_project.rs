@@ -56,7 +56,7 @@ const COMMON: &str = r#"language Catalog {
 const ENTRIES: &str = r#"language Catalog {
   version: "0.1.0"
   root: catalog
-  import: "shared.lm"
+  import: "shared.langmeld"
 
   category Item {}
 
@@ -76,8 +76,8 @@ const ENTRIES: &str = r#"language Catalog {
 const ROOT: &str = r#"language Catalog {
   version: "0.1.0"
   root: catalog
-  import: "entries.lm"
-  import: "shared.lm"
+  import: "entries.langmeld"
+  import: "shared.langmeld"
 
   construct catalog {
     syntax {
@@ -94,9 +94,9 @@ const ROOT: &str = r#"language Catalog {
 #[test]
 fn project_loader_resolves_recursive_imports_and_deduplicates_shared_files() {
     let project = TempProject::new();
-    project.write("shared.lm", COMMON);
-    project.write("entries.lm", ENTRIES);
-    let root = project.write("catalog.lm", ROOT);
+    project.write("shared.langmeld", COMMON);
+    project.write("entries.langmeld", ENTRIES);
+    let root = project.write("catalog.langmeld", ROOT);
 
     let built_in = parse_language_definition_project(&root)
         .expect("the built-in project loader resolves recursive imports");
@@ -112,11 +112,38 @@ fn project_loader_resolves_recursive_imports_and_deduplicates_shared_files() {
 }
 
 #[test]
+fn file_loader_accepts_langmeld_and_rejects_legacy_lm_definition_suffix() {
+    let project = TempProject::new();
+    project.write("shared.langmeld", COMMON);
+    project.write("entries.langmeld", ENTRIES);
+    let root = project.write("catalog.langmeld", ROOT);
+
+    parse_language_definition_project(&root).expect("the canonical definition suffix is accepted");
+
+    let legacy = project.write("legacy.lm", ROOT);
+    let diagnostics = parse_language_definition_project(&legacy)
+        .expect_err("the old definition suffix is rejected after migration");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("legacy `.lm`") && diagnostic.message.contains("`.langmeld`")
+    }));
+
+    let legacy_import = project.write(
+        "legacy-import.langmeld",
+        &ROOT.replace("entries.langmeld", "entries.lm"),
+    );
+    let diagnostics = parse_language_definition_project(&legacy_import)
+        .expect_err("legacy import suffixes are rejected before file discovery");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("legacy `.lm`") && diagnostic.message.contains("`.langmeld`")
+    }));
+}
+
+#[test]
 fn project_loader_uses_unsaved_overlays_without_changing_disk_sources() {
     let project = TempProject::new();
-    project.write("shared.lm", COMMON);
-    let entries = project.write("entries.lm", ENTRIES);
-    let root = project.write("catalog.lm", ROOT);
+    project.write("shared.langmeld", COMMON);
+    let entries = project.write("entries.langmeld", ENTRIES);
+    let root = project.write("catalog.langmeld", ROOT);
     let changed_root = BTreeMap::from([(root.clone(), ROOT.replace("0.1.0", "0.2.0"))]);
     let changed_import = BTreeMap::from([(entries.clone(), ENTRIES.replace("0.1.0", "0.2.0"))]);
 
@@ -148,9 +175,9 @@ fn project_loader_uses_unsaved_overlays_without_changing_disk_sources() {
 #[test]
 fn project_loader_rejects_overlays_outside_the_root_and_bounds_overlay_text() {
     let project = TempProject::new();
-    let root = project.write("language.lm", ROOT);
+    let root = project.write("language.langmeld", ROOT);
     let outside_project = TempProject::new();
-    let outside = outside_project.write("outside.lm", ROOT);
+    let outside = outside_project.write("outside.langmeld", ROOT);
     let outside_overlays = BTreeMap::from([(outside.clone(), ROOT.to_owned())]);
 
     let diagnostics = parse_language_definition_project_with_overlays(&root, &outside_overlays)
@@ -181,8 +208,8 @@ fn project_loader_rejects_overlays_outside_the_root_and_bounds_overlay_text() {
 #[test]
 fn project_parser_retains_imported_file_identity_for_syntax_diagnostics() {
     let project = TempProject::new();
-    let entries = project.write("entries.lm", ENTRIES);
-    let root = project.write("catalog.lm", ROOT);
+    let entries = project.write("entries.langmeld", ENTRIES);
+    let root = project.write("catalog.langmeld", ROOT);
     let overlays = BTreeMap::from([(entries.clone(), "language Catalog {".to_owned())]);
 
     let diagnostics = parse_language_definition_project_with_overlays_and_diagnostics(
@@ -208,9 +235,9 @@ fn project_parser_retains_imported_file_identity_for_syntax_diagnostics() {
 #[test]
 fn project_parser_does_not_guess_a_file_for_cross_module_diagnostics() {
     let project = TempProject::new();
-    project.write("shared.lm", COMMON);
-    project.write("entries.lm", ENTRIES);
-    let root = project.write("catalog.lm", ROOT);
+    project.write("shared.langmeld", COMMON);
+    project.write("entries.langmeld", ENTRIES);
+    let root = project.write("catalog.langmeld", ROOT);
     let overlays = BTreeMap::from([(root.clone(), ROOT.replace("0.1.0", "0.2.0"))]);
 
     let diagnostics = parse_language_definition_project_with_overlays_and_diagnostics(
@@ -236,7 +263,7 @@ fn project_parser_does_not_guess_a_file_for_cross_module_diagnostics() {
 fn project_loader_discovers_types_before_conventional_constructs() {
     let project = TempProject::new();
     project.write(
-        "types/10_metadata.lm",
+        "types/10_metadata.langmeld",
         r#"types {
   type Metadata {
     label: string required
@@ -245,7 +272,7 @@ fn project_loader_discovers_types_before_conventional_constructs() {
 "#,
     );
     project.write(
-        "constructs/20_items.lm",
+        "constructs/20_items.langmeld",
         r#"constructs {
   construct item {
     syntax {
@@ -261,7 +288,7 @@ fn project_loader_discovers_types_before_conventional_constructs() {
 "#,
     );
     let root = project.write(
-        "language.lm",
+        "language.langmeld",
         r#"language Catalog {
   version: "0.1.0"
   root: catalog
@@ -291,12 +318,12 @@ fn project_loader_discovers_types_before_conventional_constructs() {
 fn project_loader_rejects_cycles_paths_outside_root_and_file_limit_overflow() {
     let project = TempProject::new();
     let root = project.write(
-        "cycle.lm",
-        "language Cycle {\n  version: \"0.1.0\"\n  root: program\n  import: \"part.lm\"\n}\n",
+        "cycle.langmeld",
+        "language Cycle {\n  version: \"0.1.0\"\n  root: program\n  import: \"part.langmeld\"\n}\n",
     );
     project.write(
-        "part.lm",
-        "language Cycle {\n  version: \"0.1.0\"\n  root: program\n  import: \"cycle.lm\"\n}\n",
+        "part.langmeld",
+        "language Cycle {\n  version: \"0.1.0\"\n  root: program\n  import: \"cycle.langmeld\"\n}\n",
     );
     let diagnostics =
         parse_language_definition_project(&root).expect_err("recursive imports must reject cycles");
@@ -304,21 +331,21 @@ fn project_loader_rejects_cycles_paths_outside_root_and_file_limit_overflow() {
 
     let outside_project = TempProject::new();
     let outside_root = outside_project.write(
-        "language/root.lm",
-        "language Escape {\n  version: \"0.1.0\"\n  root: program\n  import: \"../outside.lm\"\n}\n",
+        "language/root.langmeld",
+        "language Escape {\n  version: \"0.1.0\"\n  root: program\n  import: \"../outside.langmeld\"\n}\n",
     );
-    outside_project.write("outside.lm", "language Outside {}\n");
+    outside_project.write("outside.langmeld", "language Outside {}\n");
     let diagnostics = parse_language_definition_project(&outside_root)
         .expect_err("canonical imports cannot escape the root directory");
     assert!(diagnostics[0].message.contains("escapes"));
 
     let limited_project = TempProject::new();
     let limited_root = limited_project.write(
-        "language.lm",
-        "language Limited {\n  version: \"0.1.0\"\n  root: program\n  import: \"module.lm\"\n}\n",
+        "language.langmeld",
+        "language Limited {\n  version: \"0.1.0\"\n  root: program\n  import: \"module.langmeld\"\n}\n",
     );
     limited_project.write(
-        "module.lm",
+        "module.langmeld",
         "language Limited {\n  version: \"0.1.0\"\n  root: program\n}\n",
     );
     let diagnostics = parse_language_definition_project_with_limits(
@@ -345,14 +372,14 @@ fn project_loader_rejects_cycles_paths_outside_root_and_file_limit_overflow() {
 #[test]
 fn project_loader_rejects_non_files_and_caps_conversion_diagnostics() {
     let project = TempProject::new();
-    let non_file = project.0.join("not-a-file.lm");
+    let non_file = project.0.join("not-a-file.langmeld");
     fs::create_dir(&non_file).expect("a directory with an lm suffix is created");
     let diagnostics = parse_language_definition_project(&non_file)
         .expect_err("definition paths must point to regular files");
     assert!(diagnostics[0].message.contains("regular file"));
 
     let invalid = project.write(
-        "invalid.lm",
+        "invalid.langmeld",
         r#"language Invalid {
   version: "not-semver"
   root: missing

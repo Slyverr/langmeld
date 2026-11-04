@@ -72,7 +72,7 @@ pub fn load_project_manifest(path: &Path) -> Result<ProjectManifest, String> {
     Ok(manifest)
 }
 
-/// Loads one standalone readable `.lm` or canonical JSON language definition.
+/// Loads one standalone readable `.langmeld` or canonical JSON language definition.
 pub fn load_language(path: &Path) -> Result<ValidatedLanguageSpec, String> {
     if path
         .extension()
@@ -119,7 +119,7 @@ pub fn load_project_language(manifest_path: &Path) -> Result<ValidatedLanguageSp
     Ok(language)
 }
 
-/// Composes a Rust-host base model with its declared `.lm` extensions without loading sources.
+/// Composes a Rust-host base model with its declared `.langmeld` extensions without loading sources.
 pub fn load_project_language_with_base_language(
     manifest_path: &Path,
     base_language: &ValidatedLanguageSpec,

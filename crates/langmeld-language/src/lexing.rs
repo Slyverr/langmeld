@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn token_budget_includes_end_marker_and_zero_never_underflows() {
-        let source = SourceFile::new("limited.lm", "one two");
+        let source = SourceFile::new("limited.source", "one two");
         let (tokens, diagnostics, limited) = lex(&source, 2);
 
         assert!(limited);

@@ -8,7 +8,7 @@ fn main() {
 }
 
 fn generate_ast() -> Result<(), String> {
-    let definition_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("python-source.lm");
+    let definition_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("python-source.langmeld");
     let definition = fs::read_to_string(&definition_path)
         .map_err(|error| format!("cannot read '{}': {error}", definition_path.display()))?;
     println!("cargo:rerun-if-changed={}", definition_path.display());

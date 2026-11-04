@@ -41,17 +41,17 @@ impl TempProject {
 
     fn write_language(&self) {
         self.write(
-            "language/language.lm",
+            "language/language.langmeld",
             r#"language Sample {
   version: "0.1.0"
   root: program
   source_extension: ".calc"
-  import: "constructs/program.lm"
+  import: "constructs/program.langmeld"
 }
 "#,
         );
         self.write(
-            "language/constructs/program.lm",
+            "language/constructs/program.langmeld",
             r#"constructs {
   construct program {
     syntax { default: "program {" }
@@ -84,7 +84,7 @@ impl Drop for TempProject {
 
 #[test]
 fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
-    let mut manifest = ProjectManifest::new("language/main.lm");
+    let mut manifest = ProjectManifest::new("language/main.langmeld");
     manifest.source_roots.push(PathBuf::from("examples"));
     let json = manifest.to_json().expect("manifest serializes");
     let project = TempProject::new();
@@ -94,8 +94,8 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
         manifest
     );
 
-    let unknown =
-        project.manifest(r#"{"schema_version":1,"language":"language/main.lm","surprise":true}"#);
+    let unknown = project
+        .manifest(r#"{"schema_version":1,"language":"language/main.langmeld","surprise":true}"#);
     assert!(
         load_project_manifest(&unknown)
             .expect_err("unknown manifest fields are rejected")
@@ -103,11 +103,11 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
     );
 
     manifest.language_source = ProjectLanguageSource::Declarative {
-        path: PathBuf::from("/outside.lm"),
+        path: PathBuf::from("/outside.langmeld"),
     };
     assert!(manifest.to_json().is_err());
     manifest.language_source = ProjectLanguageSource::Declarative {
-        path: PathBuf::from("../shared/language.lm"),
+        path: PathBuf::from("../shared/language.langmeld"),
     };
     assert!(manifest.to_json().is_ok());
 }
@@ -115,7 +115,8 @@ fn manifest_round_trips_rejects_unknown_fields_and_allows_workspace_paths() {
 #[test]
 fn manifest_loader_rejects_unsupported_schema_versions() {
     let project = TempProject::new();
-    let manifest = project.manifest(r#"{"schema_version":3,"language":"language/language.lm"}"#);
+    let manifest =
+        project.manifest(r#"{"schema_version":3,"language":"language/language.langmeld"}"#);
 
     let error = load_project_manifest(&manifest)
         .expect_err("unsupported project manifest schema is rejected");
@@ -128,14 +129,14 @@ fn version_one_manifest_reads_and_writes_in_its_legacy_shape() {
     project.write_language();
     project.write("examples/main.calc", "print \"hello\"\n");
     let manifest_path = project.manifest(
-        r#"{"schema_version":1,"language":"language/language.lm","sources":["examples/main.calc"]}"#,
+        r#"{"schema_version":1,"language":"language/language.langmeld","sources":["examples/main.calc"]}"#,
     );
     let manifest = load_project_manifest(&manifest_path).expect("v1 manifest loads");
     assert_eq!(manifest.schema_version, 1);
     assert_eq!(
         manifest.language_source,
         ProjectLanguageSource::Declarative {
-            path: PathBuf::from("language/language.lm")
+            path: PathBuf::from("language/language.langmeld")
         }
     );
     write_project_manifest(&manifest_path, &manifest).expect("v1 manifest rewrites");
@@ -144,7 +145,7 @@ fn version_one_manifest_reads_and_writes_in_its_legacy_shape() {
     )
     .expect("rewritten manifest is JSON");
     assert_eq!(rewritten["schema_version"], 1);
-    assert_eq!(rewritten["language"], "language/language.lm");
+    assert_eq!(rewritten["language"], "language/language.langmeld");
     assert!(rewritten.get("language_source").is_none());
     assert!(load_project(&manifest_path).is_ok());
 }
@@ -152,7 +153,7 @@ fn version_one_manifest_reads_and_writes_in_its_legacy_shape() {
 #[test]
 fn version_two_manifest_source_modes_are_strict_and_round_trip() {
     let project = TempProject::new();
-    let declarative_manifest = ProjectManifest::new_declarative("language/main.lm");
+    let declarative_manifest = ProjectManifest::new_declarative("language/main.langmeld");
     let declarative_json = declarative_manifest
         .to_json()
         .expect("v2 declarative manifest serializes");
@@ -179,7 +180,7 @@ fn version_two_manifest_source_modes_are_strict_and_round_trip() {
     for (contents, expected) in [
         (r#"{"schema_version":1}"#, "missing field `language`"),
         (
-            r#"{"schema_version":2,"language":"legacy.lm"}"#,
+            r#"{"schema_version":2,"language":"legacy.langmeld"}"#,
             "unknown field `language`",
         ),
         (
@@ -195,11 +196,11 @@ fn version_two_manifest_source_modes_are_strict_and_round_trip() {
             "unknown variant",
         ),
         (
-            r#"{"schema_version":2,"language_source":{"kind":"declarative","path":"/outside.lm"}}"#,
+            r#"{"schema_version":2,"language_source":{"kind":"declarative","path":"/outside.langmeld"}}"#,
             "relative path",
         ),
         (
-            r#"{"schema_version":2,"language_source":{"kind":"rust_host","path":"fake.lm"}}"#,
+            r#"{"schema_version":2,"language_source":{"kind":"rust_host","path":"fake.langmeld"}}"#,
             "unknown field",
         ),
     ] {
@@ -217,7 +218,7 @@ fn version_two_manifest_source_modes_are_strict_and_round_trip() {
 fn project_language_can_compile_without_discovering_program_sources() {
     let project = TempProject::new();
     project.write_language();
-    let mut manifest = ProjectManifest::new_declarative("language/language.lm");
+    let mut manifest = ProjectManifest::new_declarative("language/language.langmeld");
     let manifest_path = project.manifest(&manifest.to_json().expect("manifest serializes"));
 
     let language = load_project_language(&manifest_path)
@@ -231,8 +232,8 @@ fn project_language_can_compile_without_discovering_program_sources() {
         project_definition_source_paths_for_manifest(&manifest_path, &manifest, &language)
             .expect("definition paths are available"),
         [
-            canonical_project.join("language/constructs/program.lm"),
-            canonical_project.join("language/language.lm")
+            canonical_project.join("language/constructs/program.langmeld"),
+            canonical_project.join("language/language.langmeld")
         ]
     );
 
@@ -287,7 +288,7 @@ fn rust_host_snapshot_uses_injected_base_model_and_rejects_generic_definition_op
 fn rust_host_snapshot_composes_extensions_once_before_source_discovery() {
     let project = TempProject::new();
     project.write(
-        "extensions/local.lm",
+        "extensions/local.langmeld",
         r#"language HostLanguage {
   version: "0.1.0"
   root: program
@@ -305,7 +306,7 @@ fn rust_host_snapshot_composes_extensions_once_before_source_discovery() {
     manifest
         .extensions
         .push(ManifestExtension::Path(PathBuf::from(
-            "extensions/local.lm",
+            "extensions/local.langmeld",
         )));
     let manifest_path =
         project.manifest(&manifest.to_json().expect("Rust-host manifest serializes"));
@@ -342,7 +343,7 @@ fn rust_host_snapshot_composes_extensions_once_before_source_discovery() {
 fn rust_host_snapshot_rejects_mode_mismatch_and_stale_declarative_lock() {
     let project = TempProject::new();
     project.write("source.calc", "source");
-    let declarative_manifest = ProjectManifest::new("language.lm");
+    let declarative_manifest = ProjectManifest::new("language.langmeld");
     let manifest_path = project.manifest(
         &declarative_manifest
             .to_json()
@@ -383,7 +384,7 @@ fn rust_host_snapshot_rejects_mode_mismatch_and_stale_declarative_lock() {
 
 #[test]
 fn project_build_defaults_round_trip_and_reject_invalid_nested_fields() {
-    let mut manifest = ProjectManifest::new("language/main.lm");
+    let mut manifest = ProjectManifest::new("language/main.langmeld");
     manifest.build = Some(ProjectBuildConfig {
         backend: "web-target".to_owned(),
         format: Some("module".to_owned()),
@@ -401,7 +402,7 @@ fn project_build_defaults_round_trip_and_reject_invalid_nested_fields() {
 
     let empty_backend = ProjectManifest {
         build: Some(ProjectBuildConfig::new("  ")),
-        ..ProjectManifest::new("language/main.lm")
+        ..ProjectManifest::new("language/main.langmeld")
     };
     assert!(
         empty_backend
@@ -411,7 +412,7 @@ fn project_build_defaults_round_trip_and_reject_invalid_nested_fields() {
     );
 
     let unknown = project.manifest(
-        r#"{"schema_version":1,"language":"language/main.lm","build":{"backend":"web-target","surprise":true}}"#,
+        r#"{"schema_version":1,"language":"language/main.langmeld","build":{"backend":"web-target","surprise":true}}"#,
     );
     assert!(
         load_project_manifest(&unknown)
@@ -430,7 +431,7 @@ fn source_loading_inherits_extensions_and_orders_discovered_paths() {
     let manifest = project.manifest(
         r#"{
   "schema_version": 1,
-  "language": "language/language.lm",
+  "language": "language/language.langmeld",
   "sources": ["examples/z.calc"],
   "source_roots": ["examples"]
 }
@@ -452,7 +453,7 @@ fn source_loading_inherits_extensions_and_orders_discovered_paths() {
     assert_eq!(
         snapshot.manifest.language_source,
         ProjectLanguageSource::Declarative {
-            path: PathBuf::from("language/language.lm")
+            path: PathBuf::from("language/language.langmeld")
         }
     );
 }
@@ -463,7 +464,7 @@ fn candidate_project_validation_and_manifest_write_are_separate() {
     project.write_language();
     project.write("examples/hello.calc", "print \"hello\"\n");
     let manifest_path = project.manifest(
-        r#"{"schema_version":1,"language":"language/language.lm","source_roots":["examples"]}"#,
+        r#"{"schema_version":1,"language":"language/language.langmeld","source_roots":["examples"]}"#,
     );
     let original = fs::read(&manifest_path).expect("original manifest bytes are readable");
     let mut candidate = load_project_manifest(&manifest_path).expect("manifest loads");
@@ -499,7 +500,7 @@ fn project_manifest_loader_and_writer_refuse_symlinks() {
 
     let project = TempProject::new();
     let target = project.manifest(
-        r#"{"schema_version":1,"language":"language/language.lm","sources":["source.calc"]}"#,
+        r#"{"schema_version":1,"language":"language/language.langmeld","sources":["source.calc"]}"#,
     );
     let link = project.0.join("linked.json");
     symlink(&target, &link).expect("manifest symlink is created");
@@ -508,7 +509,7 @@ fn project_manifest_loader_and_writer_refuse_symlinks() {
             .expect_err("manifest symlinks are rejected")
             .contains("not a regular file")
     );
-    let manifest = ProjectManifest::new("language/language.lm");
+    let manifest = ProjectManifest::new("language/language.langmeld");
     assert!(
         write_project_manifest(&link, &manifest)
             .expect_err("manifest writer refuses symlinks")
@@ -549,7 +550,7 @@ fn standalone_json_language_and_direct_sources_share_project_input_limits() {
 fn source_loading_rejects_empty_selection_missing_roots_and_invalid_files() {
     let project = TempProject::new();
     project.write_language();
-    let empty = project.manifest(r#"{"schema_version":1,"language":"language/language.lm"}"#);
+    let empty = project.manifest(r#"{"schema_version":1,"language":"language/language.langmeld"}"#);
     let empty_manifest = load_project_manifest(&empty).expect("manifest is valid");
     assert!(
         load_project_sources(&empty, &empty_manifest)
@@ -558,7 +559,7 @@ fn source_loading_rejects_empty_selection_missing_roots_and_invalid_files() {
     );
 
     let empty_root = project.manifest(
-        r#"{"schema_version":1,"language":"language/language.lm","source_roots":["examples"]}"#,
+        r#"{"schema_version":1,"language":"language/language.langmeld","source_roots":["examples"]}"#,
     );
     fs::create_dir(project.0.join("examples")).expect("source root is created");
     let empty_root_manifest = load_project_manifest(&empty_root).expect("manifest is valid");
@@ -570,7 +571,7 @@ fn source_loading_rejects_empty_selection_missing_roots_and_invalid_files() {
 
     project.write_bytes("bad.calc", &[0xff, 0xfe]);
     let invalid_utf8 = project.manifest(
-        r#"{"schema_version":1,"language":"language/language.lm","sources":["bad.calc"]}"#,
+        r#"{"schema_version":1,"language":"language/language.langmeld","sources":["bad.calc"]}"#,
     );
     let invalid_manifest = load_project_manifest(&invalid_utf8).expect("manifest is valid");
     assert!(

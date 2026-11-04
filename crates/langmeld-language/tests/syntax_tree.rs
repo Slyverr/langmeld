@@ -65,7 +65,7 @@ fn parser() -> ConfiguredLanguageParser {
 
 fn source_with_node() -> SourceFile {
     SourceFile::new(
-        "tree.lm",
+        "tree.source",
         "box {\r\n  # heading\r\n  item café -> café config { title: \"Café\", mode: fast, tags: [\"a\", \"b\"], attrs: {owner: \"me\"} }\r\n}\r\n",
     )
 }
@@ -226,7 +226,7 @@ fn custom_lexer_gaps_are_lossless_and_classification_uses_its_tokens() {
 fn incomplete_constructs_have_source_covering_tree_and_synthetic_closers() {
     let parser = parser();
     let source = SourceFile::new(
-        "incomplete.lm",
+        "incomplete.source",
         "box {\n  item a -> b config { title: \"x\", mode: fast, tags: [], attrs: {} }",
     );
     let result = parser.parse(&source);
@@ -254,7 +254,7 @@ fn incomplete_constructs_have_source_covering_tree_and_synthetic_closers() {
 #[test]
 fn rejected_input_still_returns_a_tree_covering_the_original_source() {
     let parser = parser();
-    let source = SourceFile::new("large.lm", "ééé");
+    let source = SourceFile::new("large.source", "ééé");
     let result = parser.parse_with_limits(
         &source,
         ParseLimits {
@@ -276,7 +276,7 @@ fn rejected_input_still_returns_a_tree_covering_the_original_source() {
 fn token_limited_tail_and_empty_input_keep_valid_tree_coverage() {
     let parser = parser();
     let source = SourceFile::new(
-        "limited.lm",
+        "limited.source",
         "box {\n item café -> café config { title: \"x\", mode: fast, tags: [], attrs: {} }\n}\n",
     );
     let limited = parser.parse_with_limits(
@@ -303,7 +303,7 @@ fn token_limited_tail_and_empty_input_keep_valid_tree_coverage() {
             .any(|token| token.kind == SyntaxTokenKind::Unknown)
     );
 
-    let empty = SourceFile::new("empty.lm", "");
+    let empty = SourceFile::new("empty.source", "");
     let empty_result = parser.parse(&empty);
     assert!(empty_result.syntax_tokens.is_empty());
     assert_eq!(empty_result.syntax_tree.span, Span::new(0, 0));
@@ -335,7 +335,7 @@ fn missing_list_bracket_has_a_zero_width_recovery_leaf() {
         .expect("patterns compile")
         .configure()
         .expect("language has no host callbacks");
-    let source = SourceFile::new("incomplete.lm", "root {\n  items [\"one\"");
+    let source = SourceFile::new("incomplete.source", "root {\n  items [\"one\"");
     let result = parser.parse(&source);
     assert!(result.diagnostics.iter().any(|item| item.code == "LM1219"));
     assert!(result.syntax_tokens.iter().any(|token| {
@@ -378,7 +378,7 @@ fn deeply_nested_values_keep_tokens_without_unbounded_editor_tree_recursion() {
         .configure()
         .expect("language has no host callbacks");
     let source = SourceFile::new(
-        "deep-values.lm",
+        "deep-values.source",
         format!("program {{\n nested {nested_source}\n}}\n"),
     );
     let parsed = parser.parse(&source);

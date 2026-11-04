@@ -1,4 +1,4 @@
-//! Generic-parser AST conversion for `.lm` language definitions.
+//! Generic-parser AST conversion for `.langmeld` language definitions.
 
 mod constructs;
 mod conversion;

@@ -54,7 +54,7 @@ const DEFINITION: &str = r#"language Demo {
 
 #[test]
 fn built_in_frontend_converts_to_the_canonical_language_model() {
-    let source = SourceFile::new("demo.lm", DEFINITION);
+    let source = SourceFile::new("demo.langmeld", DEFINITION);
     let parsed = parse_definition(&source).expect("the built-in grammar converts the definition");
     let position = NamedRecord::new(
         "Position",
@@ -97,7 +97,7 @@ fn built_in_frontend_converts_to_the_canonical_language_model() {
 
 #[test]
 fn supplied_meta_language_uses_the_same_parser_and_conversion_path() {
-    let source = SourceFile::new("demo.lm", DEFINITION);
+    let source = SourceFile::new("demo.langmeld", DEFINITION);
     let meta = langmeld_definition_language().expect("the Rust bootstrap grammar validates");
     let converted = parse_language_definition_with_meta(&source, &meta)
         .expect("caller-supplied meta-language parses and converts");
@@ -110,11 +110,11 @@ fn supplied_meta_language_uses_the_same_parser_and_conversion_path() {
 #[test]
 fn in_memory_modules_compose_without_filesystem_access() {
     let root = SourceFile::new(
-        "language/language.lm",
+        "language/language.langmeld",
         "language MemoryLanguage {\n  version: \"0.1.0\"\n  root: program\n  source_extension: \".mem\"\n}\n",
     );
     let modules = [SourceFile::new(
-        "language/constructs/program.lm",
+        "language/constructs/program.langmeld",
         "constructs {\n  construct program {\n    syntax {\n      default: \"program {\"\n    }\n    block: []\n  }\n}\n",
     )];
 
@@ -131,7 +131,7 @@ fn in_memory_modules_compose_without_filesystem_access() {
 
 #[test]
 fn definition_limits_and_import_boundary_return_diagnostics() {
-    let too_large = SourceFile::new("large.lm", DEFINITION);
+    let too_large = SourceFile::new("large.langmeld", DEFINITION);
     let diagnostics = parse_definition_with_limits(
         &too_large,
         DefinitionLimits {
@@ -143,10 +143,10 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
     assert_eq!(diagnostics[0].code, "LMDEF100");
 
     let root = SourceFile::new(
-        "language.lm",
+        "language.langmeld",
         "language MemoryLanguage { version: \"0.1.0\" root: program }",
     );
-    let module = SourceFile::new("constructs/program.lm", "constructs { } ");
+    let module = SourceFile::new("constructs/program.langmeld", "constructs { } ");
     let diagnostics = parse_language_definition_modules_with_limits(
         &root,
         std::slice::from_ref(&module),
@@ -179,17 +179,20 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
     .expect_err("token limit is enforced by the generic parser");
     assert_eq!(diagnostics[0].code, "LMDEF101");
 
-    let malformed = SourceFile::new("broken.lm", "language Broken {\n  version: \"0.1.0\"\n");
+    let malformed = SourceFile::new(
+        "broken.langmeld",
+        "language Broken {\n  version: \"0.1.0\"\n",
+    );
     let diagnostics = parse_definition(&malformed).expect_err("incomplete definitions fail");
     assert!(
         diagnostics
             .iter()
             .all(|diagnostic| diagnostic.span.is_some())
     );
-    assert!(diagnostics[0].message.contains("broken.lm"));
+    assert!(diagnostics[0].message.contains("broken.langmeld"));
 
     let malformed = SourceFile::new(
-        "noisy.lm",
+        "noisy.langmeld",
         "language Broken {\n  invalid one\n  invalid two\n  invalid three\n}\n",
     );
     let diagnostics = parse_definition_with_limits(
@@ -203,8 +206,8 @@ fn definition_limits_and_import_boundary_return_diagnostics() {
     assert!(diagnostics.len() <= 1, "{diagnostics:?}");
 
     let imported = SourceFile::new(
-        "imports.lm",
-        "language Demo {\n  version: \"0.1.0\"\n  root: program\n  import: \"parts/types.lm\"\n}\n",
+        "imports.langmeld",
+        "language Demo {\n  version: \"0.1.0\"\n  root: program\n  import: \"parts/types.langmeld\"\n}\n",
     );
     let diagnostics = parse_definition(&imported).expect_err("imports need a project loader");
     assert_eq!(diagnostics[0].code, "LMDEF045", "{diagnostics:?}");

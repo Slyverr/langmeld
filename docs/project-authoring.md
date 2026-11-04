@@ -8,7 +8,7 @@ Run the interactive initializer from a Langmeld checkout:
 cargo run -p langmeld-cli -- init
 ```
 
-Choose whether the project uses declarative `.lm` definitions, Rust-authored
+Choose whether the project uses declarative `.langmeld` definitions, Rust-authored
 language definitions, or both. The initializer can also include a language
 CLI. For a non-interactive project scaffold:
 
@@ -26,7 +26,7 @@ typically contains:
 my-language/
 ├── langmeld.json
 ├── language/
-│   ├── language.lm
+│   ├── language.langmeld
 │   ├── constructs/
 │   └── extensions/
 ├── src/
@@ -35,7 +35,7 @@ my-language/
     └── generated/
 ```
 
-`language.lm` is the language entry point; construct and extension files keep
+`language.langmeld` is the language entry point; construct and extension files keep
 definitions composable. Rust host modules live under `src/host/`. Files under
 `.langmeld/generated/` are derived outputs. The generated project's README
 describes the selected layout and its commands.
@@ -66,7 +66,7 @@ callbacks; the standalone check command does not load custom host code.
 ## Extensions
 
 An extension adds declarative constructs to a language. Project manifests can
-refer to `.lm` files directly or to a local versioned package. Project sources
+refer to `.langmeld` files directly or to a local versioned package. Project sources
 and packages declare their required language version; `langmeld lock` records
 the resolved files and package data in `langmeld.lock`.
 
@@ -76,7 +76,7 @@ For example, a local package can be added with:
 langmeld extension add \
   --id community.ui \
   --version 1.0.0 \
-  --path ../ui-extension/language/ui.lm \
+  --path ../ui-extension/language/ui.langmeld \
   --language-version '^0.1.0'
 ```
 

@@ -302,7 +302,7 @@ pub enum FieldKind {
         /// Symbol kind to resolve against, such as `node`.
         target: String,
     },
-    /// A delimited record of named fields, usually shared through an `.lm` properties bundle.
+    /// A delimited record of named fields, usually shared through an `.langmeld` properties bundle.
     Properties {
         /// Optional declared reusable record type name; inline property blocks omit it.
         #[serde(default, rename = "record", skip_serializing_if = "Option::is_none")]

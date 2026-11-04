@@ -1,4 +1,4 @@
-//! File discovery and safe import resolution for readable `.lm` projects.
+//! File discovery and safe import resolution for readable `.langmeld` projects.
 
 use langmeld_core::{Diagnostic, SourceFile, Span, ValidatedLanguageSpec};
 use std::{
@@ -9,7 +9,8 @@ use std::{
 };
 
 use crate::{
-    AstNode, DefinitionLimits, DefinitionProjectDiagnostic, PreparedLanguage,
+    AstNode, DefinitionLimits, DefinitionProjectDiagnostic, LANGUAGE_DEFINITION_EXTENSION,
+    PreparedLanguage,
     definition_tree::{
         convert_language_module_specs, error, limit_diagnostics, parse_definition_tree, text,
     },
@@ -153,7 +154,9 @@ fn load_project(
     {
         return Err(file_error_at(
             path,
-            "the readable definition loader accepts `.lm` files only",
+            format!(
+                "the readable definition loader accepts `.{LANGUAGE_DEFINITION_EXTENSION}` files only"
+            ),
         ));
     }
     let root_path = fs::canonicalize(path).map_err(|error| {
@@ -167,14 +170,11 @@ fn load_project(
     })?;
     if root_path
         .extension()
-        .is_none_or(|extension| extension != "lm")
+        .is_none_or(|extension| extension != LANGUAGE_DEFINITION_EXTENSION)
     {
         return Err(file_error_at(
             &root_path,
-            format!(
-                "language definition '{}' must have a `.lm` extension",
-                root_path.display()
-            ),
+            definition_extension_message(&root_path, "language definition"),
         ));
     }
     let root_directory = root_path.parent().ok_or_else(|| {
@@ -222,14 +222,11 @@ fn load_project(
         }
         if canonical_path
             .extension()
-            .is_none_or(|extension| extension != "lm")
+            .is_none_or(|extension| extension != LANGUAGE_DEFINITION_EXTENSION)
         {
             return Err(file_error_at(
                 &canonical_path,
-                format!(
-                    "language definition overlay '{}' must have a `.lm` extension",
-                    canonical_path.display()
-                ),
+                definition_extension_message(&canonical_path, "language definition overlay"),
             ));
         }
         let metadata = fs::metadata(&canonical_path).map_err(|error| {
@@ -328,14 +325,11 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), ProjectDiag
     }
     if canonical_path
         .extension()
-        .is_none_or(|extension| extension != "lm")
+        .is_none_or(|extension| extension != LANGUAGE_DEFINITION_EXTENSION)
     {
         return Err(file_error_at(
             &canonical_path,
-            format!(
-                "imported definition '{}' must be a `.lm` file",
-                canonical_path.display()
-            ),
+            definition_extension_message(&canonical_path, "imported definition"),
         ));
     }
 
@@ -442,14 +436,23 @@ fn load_imports(
         }
         if import_path
             .extension()
-            .is_none_or(|extension| extension != "lm")
+            .is_none_or(|extension| extension != LANGUAGE_DEFINITION_EXTENSION)
         {
+            let message = if import_path
+                .extension()
+                .is_some_and(|extension| extension == "lm")
+            {
+                format!(
+                    "definition import `{import_name}` uses the legacy `.lm` extension; rename it to `.{LANGUAGE_DEFINITION_EXTENSION}`"
+                )
+            } else {
+                format!(
+                    "definition import `{import_name}` must name a `.{LANGUAGE_DEFINITION_EXTENSION}` file"
+                )
+            };
             return Err(sourced_diagnostics(
                 canonical_path,
-                vec![error(
-                    import,
-                    format!("definition import `{import_name}` must name a `.lm` file"),
-                )],
+                vec![error(import, message)],
             ));
         }
         let resolved = canonical_path
@@ -459,6 +462,20 @@ fn load_imports(
         load_module(&resolved, state)?;
     }
     Ok(())
+}
+
+fn definition_extension_message(path: &Path, subject: &str) -> String {
+    if path.extension().is_some_and(|extension| extension == "lm") {
+        format!(
+            "{subject} '{}' uses the legacy `.lm` extension; rename it to `.{LANGUAGE_DEFINITION_EXTENSION}`",
+            path.display()
+        )
+    } else {
+        format!(
+            "{subject} '{}' must have a `.{LANGUAGE_DEFINITION_EXTENSION}` extension",
+            path.display()
+        )
+    }
 }
 
 fn check_conventional_section(
@@ -576,7 +593,9 @@ fn discover_directory(
             if metadata.is_dir() {
                 visit(&path, depth + 1, remaining_entries, remaining_files, files)?;
             } else if metadata.is_file()
-                && path.extension().is_some_and(|extension| extension == "lm")
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == LANGUAGE_DEFINITION_EXTENSION)
             {
                 if *remaining_files == 0 {
                     return Err("conventional language files exceed the file limit".to_owned());

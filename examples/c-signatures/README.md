@@ -1,6 +1,6 @@
 # C signature importer
 
-This independent Rust consumer uses a declarative `.lm` model for a focused C
+This independent Rust consumer uses a declarative `.langmeld` model for a focused C
 header grammar, then registers a host parser for C's declaration syntax. It
 accepts `void name(void);` and two-parameter `int name(int left, int right);`
 prototypes and emits Rust `extern "C"` declarations. The example demonstrates
@@ -18,7 +18,7 @@ cargo run --offline --locked --bin csignatures-host -- lsp
 
 The generic model provides construct metadata and relationships. The parser in
 `src/host/parser.rs` owns C tokenization and declaration parsing, while
-`src/lib.rs` owns the C-to-Rust output contract. Edit the `.lm` model and host
+`src/lib.rs` owns the C-to-Rust output contract. Edit the `.langmeld` model and host
 parser together when adding syntax.
 
 Because this language uses a host custom parser, it cannot be exported by the

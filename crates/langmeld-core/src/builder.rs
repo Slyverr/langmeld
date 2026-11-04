@@ -106,7 +106,7 @@ impl FieldSpec {
 /// A composable source-syntax template accepted by Langmeld's pattern parser.
 ///
 /// This offers a structured Rust authoring path while rendering to the canonical pattern
-/// string used by `.lm` definitions. Use [`Self::template`] for an existing pattern string.
+/// string used by `.langmeld` definitions. Use [`Self::template`] for an existing pattern string.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SyntaxPattern(String);
 
@@ -273,7 +273,7 @@ impl ConstructBuilder {
     /// Adds a syntax template with its stable variant identifier as one operation.
     ///
     /// Use [`Self::syntax`] for unnamed variants. A construct's variants must be
-    /// consistently named or unnamed, matching the declarative `.lm` frontend.
+    /// consistently named or unnamed, matching the declarative `.langmeld` frontend.
     #[must_use]
     pub fn syntax_variant(mut self, id: impl Into<String>, pattern: impl Into<String>) -> Self {
         self.0.syntax.push(pattern.into());
@@ -434,7 +434,7 @@ impl LanguageBuilder {
         self
     }
 
-    /// Adds a source filename suffix, such as `.lm` or `.d.ts`.
+    /// Adds a source filename suffix, such as `.calc` or `.d.ts`.
     #[must_use]
     pub fn source_extension(mut self, extension: impl Into<String>) -> Self {
         self.spec.source_extensions.push(extension.into());

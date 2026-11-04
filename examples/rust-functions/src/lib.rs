@@ -38,7 +38,7 @@ pub fn load_project() -> Result<ProjectSnapshot, String> {
     langmeld::language::load_project_with_compiled_language(Path::new("langmeld.json"), &language)
 }
 
-/// Loads the Rust base model and declared `.lm` extensions dynamically from disk.
+/// Loads the Rust base model and declared `.langmeld` extensions dynamically from disk.
 pub fn load_project_runtime() -> Result<ProjectSnapshot, String> {
     let language = load_language_runtime().map_err(format_language_errors)?;
     langmeld::language::load_project_with_compiled_language(Path::new("langmeld.json"), &language)

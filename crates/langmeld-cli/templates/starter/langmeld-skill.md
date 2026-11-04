@@ -6,7 +6,7 @@ description: Work on this Rust language project using its modular Langmeld defin
 # Langmeld project workflow
 
 - Read the project `README.md` and `AGENTS.md` first.
-- Put the language header in `language/language.lm` and constructs under
+- Put the language header in `language/language.langmeld` and constructs under
   `language/constructs/`.
 - Use Rust code under `src/` for behavior that does not fit declarative syntax,
   including custom lexers, parser callbacks, analysis, and output backends.

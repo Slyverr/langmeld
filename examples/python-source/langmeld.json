@@ -2,7 +2,7 @@
   "schema_version": 2,
   "language_source": {
     "kind": "declarative",
-    "path": "python-source.lm"
+    "path": "python-source.langmeld"
   },
   "sources": ["main.py"],
   "source_extensions": [".py"]

@@ -48,7 +48,7 @@ fn text_language() -> langmeld_core::ValidatedLanguageSpec {
 fn formatter_preserves_strings_and_comments_and_is_idempotent() {
     let language = text_language();
     let source = SourceFile::new(
-        "text-blocks.lm",
+        "text-blocks.source",
         "program {\ntext \"brace } { and # text\" # comment } {\n}\n",
     );
     let formatted =
@@ -71,7 +71,7 @@ fn formatter_preserves_strings_and_comments_and_is_idempotent() {
     assert_eq!(
         format_source(
             &language,
-            &SourceFile::new("text-blocks.lm", &formatted),
+            &SourceFile::new("text-blocks.source", &formatted),
             FormatOptions::default(),
         )
         .expect("formatted source remains valid"),
@@ -82,7 +82,7 @@ fn formatter_preserves_strings_and_comments_and_is_idempotent() {
 #[test]
 fn formatter_normalizes_crlf_and_supports_tabs() {
     let language = flow_language();
-    let source = SourceFile::new("flow.lm", "flow Demo {\r\nnode api\r\n}\r\n");
+    let source = SourceFile::new("flow.source", "flow Demo {\r\nnode api\r\n}\r\n");
     let formatted =
         format_source(&language, &source, FormatOptions::default()).expect("CRLF source formats");
     assert_eq!(formatted, "flow Demo {\n  node api\n}\n");
@@ -114,7 +114,7 @@ fn formatter_handles_empty_input_and_rejects_invalid_indentation_options() {
 
     let diagnostics = format_source(
         &language,
-        &SourceFile::new("flow.lm", "flow Demo {\nnode api\n}\n"),
+        &SourceFile::new("flow.source", "flow Demo {\nnode api\n}\n"),
         FormatOptions {
             tab_size: 0,
             insert_spaces: false,
@@ -126,7 +126,7 @@ fn formatter_handles_empty_input_and_rejects_invalid_indentation_options() {
 
 #[test]
 fn formatter_rejects_invalid_programs_without_rewriting_them() {
-    let source = SourceFile::new("flow.lm", "flow Demo {\nnode\n}\n");
+    let source = SourceFile::new("flow.source", "flow Demo {\nnode\n}\n");
     let diagnostics = format_source(&flow_language(), &source, FormatOptions::default())
         .expect_err("malformed programs are not formatted");
     assert!(

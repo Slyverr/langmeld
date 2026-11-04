@@ -160,7 +160,7 @@ impl RegisteredBackend {
 /// Returns the backends available to this language project.
 ///
 /// Add implementations here. Backend code is host-owned and is not described
-/// by `.lm` declarations.
+/// by `.langmeld` declarations.
 pub fn registered_backends() -> Vec<RegisteredBackend> {
     Vec::new()
 }

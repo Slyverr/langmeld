@@ -2,7 +2,7 @@
 
 A Rust language project using Langmeld. `langmeld init` lets you choose a
 declarative model in `language/`, a Rust model in `src/language/`, or a Rust
-base model with local `.lm` extensions. Rust host code lives in `src/`, and
+base model with local `.langmeld` extensions. Rust host code lives in `src/`, and
 runnable source examples live in `examples/`.
 
 ## Try it
@@ -20,7 +20,7 @@ The public `ast` module contains typed syntax-tree views generated from that
 effective model, including enabled extensions. Convert a parsed program with
 `ast::from_program(&parsed.program)`. The generic parser is prepared from the
 selected model. Use the host as the starting point for custom lexing, parsing,
-analysis, or output. Keep `.lm` definitions modular under `language/`.
+analysis, or output. Keep `.langmeld` definitions modular under `language/`.
 The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
 commands use `langmeld.json`; source paths can also be passed directly.
 `run` calls `run_sources` in `src/lib.rs` with a `RuntimeContext` containing

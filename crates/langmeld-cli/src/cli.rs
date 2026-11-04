@@ -296,18 +296,18 @@ pub(crate) struct InitArgs {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub(crate) enum AuthoringMode {
-    /// Author the language model in modular `.lm` files.
+    /// Author the language model in modular `.langmeld` files.
     #[default]
     Declarative,
     /// Author the canonical language model in Rust.
     Rust,
-    /// Author a Rust base model and extend it with local `.lm` files.
+    /// Author a Rust base model and extend it with local `.langmeld` files.
     Combined,
 }
 
 #[derive(Debug, Args)]
 pub(crate) struct GenerateArgs {
-    /// Project root containing language/language.lm.
+    /// Project root containing language/language.langmeld.
     #[arg(long, default_value = ".")]
     pub(crate) project_root: PathBuf,
     /// Verify generated files without writing them.
@@ -454,7 +454,7 @@ mod tests {
                 "langmeld",
                 "validate",
                 "--language",
-                "language.lm",
+                "language.langmeld",
                 "--source",
                 "input.calc"
             ])

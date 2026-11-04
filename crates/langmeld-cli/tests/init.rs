@@ -189,8 +189,12 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     );
     assert!(project.join("AGENTS.md").is_file());
     assert!(!project.join(".agents/skills/langmeld/SKILL.md").exists());
-    assert!(project.join("language/language.lm").is_file());
-    assert!(project.join("language/constructs/program.lm").is_file());
+    assert!(project.join("language/language.langmeld").is_file());
+    assert!(
+        project
+            .join("language/constructs/program.langmeld")
+            .is_file()
+    );
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("src/host/runtime.rs").is_file());
     assert!(
@@ -200,7 +204,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     );
     let manifest = fs::read_to_string(project.join("langmeld.json"))
         .expect("init writes the project manifest");
-    assert!(manifest.contains("\"language\": \"language/language.lm\""));
+    assert!(manifest.contains("\"language\": \"language/language.langmeld\""));
     assert!(manifest.contains("\"source_roots\": [\n    \"examples\"\n  ]"));
     assert!(project.join(".langmeld/generated/metadata.json").is_file());
     assert!(project.join(".langmeld/generated/rust/ast.rs").is_file());
@@ -222,7 +226,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&cargo.stderr)
     );
 
-    let definition_path = project.join("language/language.lm");
+    let definition_path = project.join("language/language.langmeld");
     let definition = fs::read_to_string(&definition_path).expect("language definition reads");
     fs::write(
         &definition_path,
@@ -396,7 +400,7 @@ fn init_supports_rust_and_combined_authoring_projects() {
             String::from_utf8_lossy(&initialized.stderr)
         );
         assert!(project.join("src/language/spec.rs").is_file());
-        assert!(!project.join("language/language.lm").exists());
+        assert!(!project.join("language/language.langmeld").exists());
         let manifest: serde_json::Value = serde_json::from_slice(
             &fs::read(project.join("langmeld.json")).expect("project manifest exists"),
         )
@@ -404,7 +408,11 @@ fn init_supports_rust_and_combined_authoring_projects() {
         assert_eq!(manifest["schema_version"], 2);
         assert_eq!(manifest["language_source"]["kind"], "rust_host");
         if has_extension {
-            assert!(project.join("language/extensions/starter.lm").is_file());
+            assert!(
+                project
+                    .join("language/extensions/starter.langmeld")
+                    .is_file()
+            );
             assert_eq!(manifest["extensions"].as_array().unwrap().len(), 1);
             let language_test_path = project.join("tests/language.rs");
             let mut language_test =
@@ -460,7 +468,7 @@ fn extension_construct_is_available_in_the_typed_ast() {
                 "combined extension example was not checked:\n{}",
                 String::from_utf8_lossy(&checked.stdout)
             );
-            let extension_path = project.join("language/extensions/starter.lm");
+            let extension_path = project.join("language/extensions/starter.langmeld");
             let mut extension =
                 fs::read_to_string(&extension_path).expect("combined authoring extension reads");
             let insertion = extension
@@ -659,13 +667,13 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
 
     let definitions = serde_json::json!({
         "root": {
-            "name": "language/language.lm",
-            "text": fs::read_to_string(project.join("language/language.lm"))
+            "name": "language/language.langmeld",
+            "text": fs::read_to_string(project.join("language/language.langmeld"))
                 .expect("root definition is readable"),
         },
         "modules": [{
-            "name": "language/constructs/program.lm",
-            "text": fs::read_to_string(project.join("language/constructs/program.lm"))
+            "name": "language/constructs/program.langmeld",
+            "text": fs::read_to_string(project.join("language/constructs/program.langmeld"))
                 .expect("construct definition is readable"),
         }],
     });
@@ -778,7 +786,7 @@ fn lock_command_pins_language_definitions_and_refreshes_stale_inputs() {
     let checked = run_check(&project, &["check", "--project", "langmeld.json"]);
     assert!(checked.status.success(), "matching lock should load");
 
-    let main_definition = project.join("language/language.lm");
+    let main_definition = project.join("language/language.langmeld");
     let mut contents = fs::read_to_string(&main_definition).expect("language definition reads");
     contents.push_str("\n# lock input changed\n");
     fs::write(&main_definition, contents).expect("language definition changes");
@@ -841,7 +849,10 @@ fn definition_only_commands_explain_rust_host_mode_without_loading_host_code() {
     assert!(!generate.status.success());
     assert!(String::from_utf8_lossy(&generate.stderr).contains("cannot load Rust-host models"));
 
-    let extension = run_extension(&project, &["add", "--path-only", "extensions/local.lm"]);
+    let extension = run_extension(
+        &project,
+        &["add", "--path-only", "extensions/local.langmeld"],
+    );
     assert!(!extension.status.success());
     assert!(String::from_utf8_lossy(&extension.stderr).contains("load_project_with_base_language"));
 }
@@ -855,13 +866,13 @@ fn generate_uses_the_v2_declarative_language_path() {
         project.join("langmeld.json"),
         r#"{
   "schema_version": 2,
-  "language_source": { "kind": "declarative", "path": "definitions/main.lm" }
+  "language_source": { "kind": "declarative", "path": "definitions/main.langmeld" }
 }
 "#,
     )
     .expect("v2 manifest is written");
     fs::write(
-        project.join("definitions/main.lm"),
+        project.join("definitions/main.langmeld"),
         r#"language CustomPath {
   version: "0.1.0"
   root: program
@@ -905,7 +916,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
     );
     fs::create_dir_all(project.join("extensions")).expect("extension directory is created");
     fs::write(
-        project.join("extensions/local.lm"),
+        project.join("extensions/local.langmeld"),
         r#"language ExtensionLanguage {
   version: "0.1.0"
   root: program
@@ -919,7 +930,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
     )
     .expect("extension definition is written");
     fs::write(
-        project.join("extensions/extra.lm"),
+        project.join("extensions/extra.langmeld"),
         r#"language ExtensionLanguage {
   version: "0.1.0"
   root: program
@@ -932,7 +943,10 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
     )
     .expect("dependent extension definition is written");
 
-    let added_path = run_extension(&project, &["add", "--path-only", "extensions/local.lm"]);
+    let added_path = run_extension(
+        &project,
+        &["add", "--path-only", "extensions/local.langmeld"],
+    );
     assert!(
         added_path.status.success(),
         "{}",
@@ -972,7 +986,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
         String::from_utf8_lossy(&up_to_date.stderr)
     );
 
-    let extension_path = project.join("extensions/local.lm");
+    let extension_path = project.join("extensions/local.langmeld");
     let extension = fs::read_to_string(&extension_path).expect("extension definition reads");
     let changed_extension = extension.replace("note {name}", "memo {name}");
     assert_ne!(changed_extension, extension, "fixture syntax changes");
@@ -1016,14 +1030,14 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
 
     let listed = run_extension(&project, &["list"]);
     assert!(listed.status.success());
-    assert!(String::from_utf8_lossy(&listed.stdout).contains("extensions/local.lm"));
+    assert!(String::from_utf8_lossy(&listed.stdout).contains("extensions/local.langmeld"));
     assert!(
         run_check(&project, &["check", "--project", "langmeld.json"])
             .status
             .success()
     );
 
-    let removed_path = run_extension(&project, &["remove", "--path", "extensions/local.lm"]);
+    let removed_path = run_extension(&project, &["remove", "--path", "extensions/local.langmeld"]);
     assert!(
         removed_path.status.success(),
         "{}",
@@ -1038,7 +1052,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
             "--version",
             "1.0.0",
             "--path",
-            "extensions/local.lm",
+            "extensions/local.langmeld",
             "--language-version",
             "^0.1",
         ],
@@ -1057,7 +1071,7 @@ fn extension_commands_manage_local_paths_and_versioned_packages() {
             "--version",
             "1.0.0",
             "--path",
-            "extensions/extra.lm",
+            "extensions/extra.langmeld",
             "--language-version",
             "^0.1",
             "--depends",
@@ -1126,7 +1140,7 @@ fn versioned_extension_can_be_shared_from_a_sibling_directory() {
     let extension_directory = workspace.0.join("shared-extension");
     fs::create_dir_all(&extension_directory).expect("shared extension directory is created");
     fs::write(
-        extension_directory.join("shared.lm"),
+        extension_directory.join("shared.langmeld"),
         r#"language SharedExtensionLanguage {
   version: "0.1.0"
   root: program
@@ -1148,7 +1162,7 @@ fn versioned_extension_can_be_shared_from_a_sibling_directory() {
             "--version",
             "1.2.0",
             "--path",
-            "../shared-extension/shared.lm",
+            "../shared-extension/shared.langmeld",
             "--language-version",
             "^0.1",
         ],
@@ -1187,7 +1201,7 @@ fn versioned_extension_can_be_shared_from_a_sibling_directory() {
     );
     let lock =
         fs::read_to_string(project.join("langmeld.lock")).expect("extension lockfile is readable");
-    assert!(lock.contains("../shared-extension/shared.lm"));
+    assert!(lock.contains("../shared-extension/shared.langmeld"));
     assert!(run_generate(&project, true).status.success());
 }
 
@@ -1207,7 +1221,7 @@ fn format_command_prints_by_default_writes_only_when_requested_and_preserves_inv
         "{}",
         String::from_utf8_lossy(&initialized.stderr)
     );
-    let language = project.join("language/language.lm");
+    let language = project.join("language/language.langmeld");
     let source = project.join("examples/format.lmprog");
     let original = "program {\n    print \"hello\"\n}\n";
     let expected = "program {\n  print \"hello\"\n}\n";
@@ -1253,7 +1267,7 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
         "{}",
         String::from_utf8_lossy(&initialized.stderr)
     );
-    let language = project.join("language/language.lm");
+    let language = project.join("language/language.langmeld");
     let manifest = project.join("langmeld.json");
 
     let inspected = run_language_tools(&["inspect", "--language", language.to_str().unwrap()]);
@@ -1303,7 +1317,10 @@ fn inspect_constructs_describe_and_language_aliases_report_loaded_language_data(
             .as_array()
             .unwrap()
             .iter()
-            .any(|path| path.as_str().unwrap().ends_with("constructs/program.lm"))
+            .any(|path| path
+                .as_str()
+                .unwrap()
+                .ends_with("constructs/program.langmeld"))
     );
 
     let project_inspection = run_language_tools(&[
@@ -1936,7 +1953,7 @@ fn check_and_validate_report_workspace_diagnostics_with_stable_exit_codes() {
         &[
             "check",
             "--language",
-            "language/language.lm",
+            "language/language.langmeld",
             "--source",
             "examples/hello.checked.lmprog",
         ],
@@ -1992,7 +2009,7 @@ path = "src/bin/other.rs"
     .expect("secondary host binary is written");
     fs::write(
         project.join("langmeld.json"),
-        r#"{"schema_version":1,"language":"language.lm","sources":["source.calc"]}"#,
+        r#"{"schema_version":1,"language":"language.langmeld","sources":["source.calc"]}"#,
     )
     .expect("project manifest is written");
 
@@ -2189,7 +2206,7 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
         String::from_utf8_lossy(&initialized.stderr)
     );
 
-    let definition_path = project.join("language/language.lm");
+    let definition_path = project.join("language/language.langmeld");
     let definition = fs::read_to_string(&definition_path)
         .expect("starter definition is written")
         .replace("\r\n", "\n");
@@ -2198,7 +2215,7 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
         "  root: program\n  behavior semantic_policy: semantic_analysis\n  behavior workspace_names: symbol_resolution\n  behavior workspace_types: workspace_type_analysis\n",
     );
     fs::write(&definition_path, definition).expect("analysis callbacks are declared");
-    let constructs_path = project.join("language/constructs/program.lm");
+    let constructs_path = project.join("language/constructs/program.langmeld");
     let constructs = fs::read_to_string(&constructs_path)
         .expect("starter constructs are written")
         .replace("\r\n", "\n");
