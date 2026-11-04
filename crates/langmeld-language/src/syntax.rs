@@ -345,7 +345,8 @@ impl ValueSpecContext<'_> {
                 | Value::Number(_)
                 | Value::Text(_)
                 | Value::Enum(_)
-                | Value::Reference(_) => Vec::new(),
+                | Value::Reference(_)
+                | Value::Expression(_) => Vec::new(),
             }
         };
         if role == SyntaxNodeRole::Property

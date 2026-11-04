@@ -45,6 +45,8 @@ pub enum ValueType {
     List,
     /// A key/value map.
     Map,
+    /// A source-spanned parsed expression tree.
+    Expression,
 }
 
 /// One segment in a path to a captured source value.
@@ -736,7 +738,11 @@ fn count_analysis_input(
                 Value::Reference(_) => {
                     metrics.references = metrics.references.saturating_add(1);
                 }
-                Value::Identifier(_) | Value::Number(_) | Value::Text(_) | Value::Enum(_) => {}
+                Value::Identifier(_)
+                | Value::Number(_)
+                | Value::Text(_)
+                | Value::Enum(_)
+                | Value::Expression(_) => {}
             },
             WorkItem::List(mut values, depth) => {
                 if let Some(value) = values.next() {

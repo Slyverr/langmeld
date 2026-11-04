@@ -93,6 +93,10 @@ fn convert_field(
                 }),
             }
         }
+        "expression" => FieldKind::Expression {
+            grammar: identifier(node, "grammar")?,
+            terminator: text(node, "terminator")?,
+        },
         "map" | "map_reference" | "map_list" | "list_map" => {
             let key = convert_map_key(node, &identifier(node, "key_kind")?)?;
             let item_kind = identifier(node, "item_kind")?;

@@ -1,7 +1,9 @@
 use langmeld_core::{
-    BehaviorStage, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind,
+    BehaviorStage, ConstructBuilder, ExpressionAssociativity, ExpressionAtomKind,
+    ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind,
     NamedRecord, ScopeLookup, ScopeSpec, SourceFile, SymbolSpec,
 };
+use langmeld_expression::Expression;
 use langmeld_language::generate_rust_ast;
 
 extern crate self as langmeld;
@@ -12,6 +14,10 @@ pub mod core {
 
 pub mod language {
     pub use langmeld_language::*;
+}
+
+pub mod expression {
+    pub use langmeld_expression::*;
 }
 
 #[allow(dead_code)]
@@ -37,12 +43,23 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
     };
 
     LanguageBuilder::new("GeneratedConsumer")
+        .schema_version(3)
         .version("0.1.0")
         .root("box")
         .source_extensions(["lm", "lmd"])
         .category("statement")
         .rule("item_pattern", "item {name} config {config}")
         .named_enum("Mode", ["fast", "safe"])
+        .expression(
+            ExpressionSpec::new("arithmetic")
+                .atom(ExpressionAtomKind::Number)
+                .atom(ExpressionAtomKind::Identifier)
+                .operator(ExpressionOperatorSpec::infix(
+                    "+",
+                    10,
+                    ExpressionAssociativity::Left,
+                )),
+        )
         .record_type(NamedRecord::new(
             "Coordinates",
             [
@@ -55,7 +72,7 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
         .behavior("type-check", BehaviorStage::WorkspaceTypeAnalysis)
         .construct(
             ConstructBuilder::new("box")
-                .syntax_variant("root", "box {namespace} {")
+                .syntax_variant("root", "box {namespace}")
                 .field(FieldSpec::required("namespace", FieldKind::Identifier))
                 .symbol(SymbolSpec::new("namespace", "namespace"))
                 .block(["statement"]),
@@ -68,6 +85,15 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
                 .field(FieldSpec::required("config", properties))
                 .symbol(SymbolSpec::new("item", "name").with_scope(
                     ScopeSpec::new("box", "namespace").lookup(ScopeLookup::LexicalParents),
+                )),
+        )
+        .construct(
+            ConstructBuilder::new("evaluate")
+                .implements(["statement"])
+                .syntax_variant("expression", "evaluate {result};")
+                .field(FieldSpec::required(
+                    "result",
+                    FieldKind::expression("arithmetic", ";"),
                 )),
         )
         .build()
@@ -84,15 +110,17 @@ fn generated_module_reconstructs_the_schema_and_converts_parsed_nodes() {
 
     let source = SourceFile::new(
         "generated.lm",
-        "box demo {\n  item sample config { title: \"hello\", mode: fast, tags: [\"one\", \"two\"], attrs: {owner: \"me\"} }\n}\n",
+        "box demo {\n  item sample config { title: \"hello\", mode: fast, tags: [\"one\", \"two\"], attrs: {owner: \"me\"} }\n  evaluate 1 + 2;\n}\n",
     );
     let (roots, diagnostics) =
         generated::parse_source(&source).expect("generated parser accepts the fixture program");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(roots.len(), 1);
-    assert_eq!(roots[0].children.len(), 1);
+    assert_eq!(roots[0].children.len(), 2);
 
-    let generated::BoxChild::Item(item) = &roots[0].children[0];
+    let generated::BoxChild::Item(item) = &roots[0].children[0] else {
+        panic!("first child is the item fixture");
+    };
     assert_eq!(item.name.value, "sample");
     assert_eq!(item.config.value.title.value, "hello");
     assert_eq!(item.config.value.mode.value, generated::Mode::Fast);
@@ -100,6 +128,13 @@ fn generated_module_reconstructs_the_schema_and_converts_parsed_nodes() {
     assert_eq!(item.config.value.tags.value.len(), 2);
     assert_eq!(item.config.value.tags.value[1].value, "two");
     assert_eq!(item.config.value.attrs.value["owner"].value, "me");
+    let generated::BoxChild::Evaluate(evaluate) = &roots[0].children[1] else {
+        panic!("second child is the expression fixture");
+    };
+    assert!(matches!(
+        evaluate.result.value,
+        Expression::Infix { ref operator, .. } if operator == "+"
+    ));
 }
 
 #[test]

@@ -2319,14 +2319,27 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
     .expect("user analysis callback body is edited");
 
     let definition = fs::read_to_string(&definition_path).expect("definition remains readable");
-    fs::write(
-        &definition_path,
-        definition.replace(
+    let definition = definition
+        .replace("  schema_version: 2\n", "  schema_version: 3\n")
+        .replace(
+            "  root: program\n",
+            "  root: program\n  expression object_reference {\n    host_atom_parser: canvas_reference\n  }\n",
+        )
+        .replace(
             "  behavior semantic_policy: semantic_analysis\n",
             "  behavior semantic_policy: semantic_analysis\n  behavior late_policy: semantic_analysis\n",
+        );
+    fs::write(&definition_path, definition)
+        .expect("a new behavior and expression callback are declared");
+    let constructs = fs::read_to_string(&constructs_path).expect("constructs remain readable");
+    fs::write(
+        &constructs_path,
+        constructs.replace(
+            "\n}\n",
+            "\n  construct evaluate {\n    implements: program_statement\n    syntax { default: \"evaluate {value};\" }\n    fields { value: expression<object_reference> until \";\" required }\n  }\n}\n",
         ),
     )
-    .expect("a new behavior callback is declared");
+    .expect("expression field is added");
     let refreshed = run_generate_install(&project);
     assert!(
         refreshed.status.success(),
@@ -2336,9 +2349,15 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
     );
     let parser = fs::read_to_string(&parser_path).expect("parser callback survives refresh");
     assert!(parser.contains("User-owned parser behavior."));
+    assert!(parser.contains("host_expression_atom_parser_canvas_reference"));
     let analysis = fs::read_to_string(&analysis_path).expect("analysis callbacks survive refresh");
     assert!(analysis.contains("User-owned semantic behavior."));
     assert!(analysis.contains("host_semantic_callback_late_policy"));
+    assert!(
+        fs::read_to_string(project.join("src/host/runtime.rs"))
+            .expect("runtime receives the expression callback registry")
+            .contains("with_custom_parsers_and_expression_atom_parsers")
+    );
     assert_eq!(
         fs::read_to_string(&library_path)
             .expect("library remains wired")

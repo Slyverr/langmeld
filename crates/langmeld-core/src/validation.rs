@@ -15,6 +15,80 @@ impl LanguageSpec {
     /// unvalidated definition.
     pub fn validate(mut self) -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
         let mut errors = Vec::new();
+        let mut expression_ids = BTreeSet::new();
+        for expression in &self.expressions {
+            if !valid_identifier(&expression.id) || !expression_ids.insert(expression.id.as_str()) {
+                errors.push(SpecError {
+                    code: "LM1081",
+                    message: format!(
+                        "expression grammar id `{}` is invalid or declared more than once",
+                        expression.id
+                    ),
+                });
+            }
+            let mut atoms = BTreeSet::new();
+            if expression.atoms.is_empty() && expression.host_atom_parser.is_none() {
+                errors.push(SpecError {
+                    code: "LM1089",
+                    message: format!(
+                        "expression grammar `{}` must enable a built-in atom kind or declare a host atom parser",
+                        expression.id
+                    ),
+                });
+            }
+            if expression
+                .host_atom_parser
+                .as_deref()
+                .is_some_and(|id| !valid_identifier(id))
+            {
+                errors.push(SpecError {
+                    code: "LM1090",
+                    message: format!(
+                        "host atom parser id in expression grammar `{}` must be an identifier",
+                        expression.id
+                    ),
+                });
+            }
+            for atom in &expression.atoms {
+                if !atoms.insert(*atom) {
+                    errors.push(SpecError {
+                        code: "LM1082",
+                        message: format!(
+                            "expression grammar `{}` repeats an atom kind",
+                            expression.id
+                        ),
+                    });
+                }
+            }
+            let mut operators = BTreeSet::new();
+            for operator in &expression.operators {
+                let valid_token = !operator.token.is_empty()
+                    && operator.token.chars().all(|character| {
+                        character.is_ascii_punctuation()
+                            && !matches!(character, '(' | ')' | ',' | '[' | ']' | '.')
+                    });
+                if !valid_token
+                    || (operator.prefix_precedence.is_none() && operator.infix.is_none())
+                {
+                    errors.push(SpecError {
+                        code: "LM1083",
+                        message: format!(
+                            "operator `{}` in expression grammar `{}` must have a valid punctuation spelling and at least one fixity",
+                            operator.token, expression.id
+                        ),
+                    });
+                }
+                if !operators.insert(operator.token.as_str()) {
+                    errors.push(SpecError {
+                        code: "LM1084",
+                        message: format!(
+                            "expression grammar `{}` repeats operator spelling `{}`",
+                            expression.id, operator.token
+                        ),
+                    });
+                }
+            }
+        }
         let mut behavior_ids = BTreeSet::new();
         for behavior in &self.behaviors {
             if !valid_identifier(&behavior.id) || !behavior_ids.insert(behavior.id.as_str()) {
@@ -210,12 +284,24 @@ impl LanguageSpec {
             .iter()
             .map(|enumeration| (enumeration.id.as_str(), enumeration.values.as_slice()))
             .collect();
+        let expression_grammars: BTreeMap<_, _> = self
+            .expressions
+            .iter()
+            .map(|expression| (expression.id.as_str(), expression))
+            .collect();
         for named_type in &self.types {
             for field in &named_type.fields {
                 validate_named_type_usage(
                     &field.kind,
                     &named_types,
                     &named_enums,
+                    &format!("{}.{}", named_type.id, field.name),
+                    &mut errors,
+                );
+                validate_expression_field(
+                    &field.kind,
+                    &expression_grammars,
+                    self.schema_version,
                     &format!("{}.{}", named_type.id, field.name),
                     &mut errors,
                 );
@@ -230,16 +316,29 @@ impl LanguageSpec {
                     &format!("{}.{}", construct.id, field.name),
                     &mut errors,
                 );
+                validate_expression_field(
+                    &field.kind,
+                    &expression_grammars,
+                    self.schema_version,
+                    &format!("{}.{}", construct.id, field.name),
+                    &mut errors,
+                );
             }
         }
 
-        if !matches!(self.schema_version, 1 | 2) {
+        if !matches!(self.schema_version, 1..=3) {
             errors.push(SpecError {
                 code: "LM1001",
                 message: format!(
-                    "unsupported schema_version {}; expected 1 or 2",
+                    "unsupported schema_version {}; expected 1, 2, or 3",
                     self.schema_version
                 ),
+            });
+        }
+        if self.schema_version < 3 && !self.expressions.is_empty() {
+            errors.push(SpecError {
+                code: "LM1085",
+                message: "expression grammars require schema_version 3".to_owned(),
             });
         }
         if self.name.trim().is_empty() || self.version.trim().is_empty() {
@@ -391,7 +490,8 @@ impl LanguageSpec {
                         FieldKind::Reference { .. }
                         | FieldKind::Properties { .. }
                         | FieldKind::List { .. }
-                        | FieldKind::Map { .. } => false,
+                        | FieldKind::Map { .. }
+                        | FieldKind::Expression { .. } => false,
                     };
                     if !valid_default {
                         errors.push(SpecError {
@@ -484,7 +584,7 @@ impl LanguageSpec {
                         ),
                     });
                 }
-                if self.schema_version == 2 {
+                if self.schema_version >= 2 {
                     if block.open.trim().is_empty() || block.close.trim().is_empty() {
                         errors.push(SpecError {
                             code: "LM1072",
@@ -694,7 +794,7 @@ impl LanguageSpec {
                 if let Some(block) = &construct.block {
                     let inline_opener = match self.schema_version {
                         1 => !pattern.trim_end().ends_with('{'),
-                        2 => pattern_ends_with_literal(pattern, &block.open),
+                        2 | 3 => pattern_ends_with_literal(pattern, &block.open),
                         _ => false,
                     };
                     if inline_opener && !custom_parser_owns_children {
@@ -878,7 +978,7 @@ impl LanguageSpec {
                         .syntax
                         .iter()
                         .map(|pattern| {
-                            if self.schema_version == 2
+                            if self.schema_version >= 2
                                 && let Some(block) = &child.block
                             {
                                 return format!(
@@ -1199,6 +1299,90 @@ fn identifier_character(character: char) -> bool {
     character == '_' || character.is_alphanumeric()
 }
 
+fn validate_expression_field(
+    kind: &FieldKind,
+    grammars: &BTreeMap<&str, &ExpressionSpec>,
+    schema_version: u32,
+    path: &str,
+    errors: &mut Vec<SpecError>,
+) {
+    match kind {
+        FieldKind::Expression {
+            grammar,
+            terminator,
+        } => {
+            if schema_version < 3 {
+                errors.push(SpecError {
+                    code: "LM1085",
+                    message: format!("expression field `{path}` requires schema_version 3"),
+                });
+            }
+            let valid_terminator = !terminator.is_empty()
+                && terminator.chars().all(|character| {
+                    character.is_ascii_punctuation() && !matches!(character, '\\' | '"' | '\'')
+                });
+            if !valid_terminator {
+                errors.push(SpecError {
+                    code: "LM1086",
+                    message: format!(
+                        "expression field `{path}` must use a non-empty punctuation terminator without quotes or backslashes"
+                    ),
+                });
+            }
+            match grammars.get(grammar.as_str()) {
+                Some(declaration) => {
+                    if declaration.operators.iter().any(|operator| {
+                        operator.token.starts_with(terminator.as_str())
+                            || terminator.starts_with(&operator.token)
+                    }) {
+                        errors.push(SpecError {
+                            code: "LM1087",
+                            message: format!(
+                                "expression terminator `{terminator}` in `{path}` overlaps an operator in grammar `{grammar}`"
+                            ),
+                        });
+                    }
+                }
+                None => errors.push(SpecError {
+                    code: "LM1088",
+                    message: format!(
+                        "expression field `{path}` refers to unknown grammar `{grammar}`"
+                    ),
+                }),
+            }
+        }
+        FieldKind::Properties { fields, .. } => {
+            for field in fields {
+                validate_expression_field(
+                    &field.kind,
+                    grammars,
+                    schema_version,
+                    &format!("{path}.{}", field.name),
+                    errors,
+                );
+            }
+        }
+        FieldKind::List { item } => {
+            validate_expression_field(item, grammars, schema_version, &format!("{path}[]"), errors);
+        }
+        FieldKind::Map { value, .. } => {
+            validate_expression_field(
+                value,
+                grammars,
+                schema_version,
+                &format!("{path}{{}}"),
+                errors,
+            );
+        }
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Enum { .. }
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Reference { .. } => {}
+    }
+}
+
 fn validate_reference_targets(
     kind: &FieldKind,
     path: &str,
@@ -1241,7 +1425,8 @@ fn validate_reference_targets(
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Enum { .. }
-        | FieldKind::NamedEnum { .. } => {}
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Expression { .. } => {}
     }
 }
 
@@ -1526,7 +1711,8 @@ fn default_satisfies_constraints(
         | FieldKind::Reference { .. }
         | FieldKind::Properties { .. }
         | FieldKind::List { .. }
-        | FieldKind::Map { .. } => true,
+        | FieldKind::Map { .. }
+        | FieldKind::Expression { .. } => true,
     }
 }
 
@@ -1558,7 +1744,8 @@ fn validate_property_fields(fields: &[FieldSpec], owner: &str, errors: &mut Vec<
                 FieldKind::Reference { .. }
                 | FieldKind::Properties { .. }
                 | FieldKind::List { .. }
-                | FieldKind::Map { .. } => false,
+                | FieldKind::Map { .. }
+                | FieldKind::Expression { .. } => false,
             };
             if !valid {
                 errors.push(SpecError {
@@ -1662,7 +1849,8 @@ fn validate_named_type_usage(
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Enum { .. }
-        | FieldKind::Reference { .. } => {}
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => {}
     }
 }
 
@@ -1676,7 +1864,8 @@ fn validate_map(_key: &MapKeyKind, value: &FieldKind, path: &str, errors: &mut V
         | FieldKind::Text
         | FieldKind::Enum { .. }
         | FieldKind::NamedEnum { .. }
-        | FieldKind::Reference { .. } => {}
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => {}
     }
     if let FieldKind::Enum { values } = value {
         if values.is_empty() {
@@ -1707,7 +1896,8 @@ fn validate_list_item(kind: &FieldKind, path: &str, errors: &mut Vec<SpecError>)
         | FieldKind::Text
         | FieldKind::Enum { .. }
         | FieldKind::NamedEnum { .. }
-        | FieldKind::Reference { .. } => {}
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => {}
     }
     if let FieldKind::Enum { values } = kind {
         if values.is_empty() {

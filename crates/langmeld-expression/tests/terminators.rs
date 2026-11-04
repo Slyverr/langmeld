@@ -10,6 +10,24 @@ fn grammar() -> ExpressionGrammar {
 }
 
 #[test]
+fn atom_policy_can_reserve_booleans_or_treat_them_as_identifiers() {
+    let grammar =
+        ExpressionGrammar::with_atoms([], [langmeld_core::ExpressionAtomKind::Identifier])
+            .expect("identifier-only atom policy is valid");
+    let text = "true;";
+    let source = SourceFile::new("expression.calc", text);
+    let (expression, _) = parse_expression_until(&source, Span::new(0, text.len()), &grammar, ";")
+        .expect("true is an identifier when boolean literals are disabled");
+    assert!(matches!(expression, Expression::Atom(Atom::Name(name), _) if name == "true"));
+
+    let text = "4;";
+    let source = SourceFile::new("expression.calc", text);
+    let error = parse_expression_until(&source, Span::new(0, text.len()), &grammar, ";")
+        .expect_err("numeric literals are disabled");
+    assert_eq!(error[0].code, "LE1015");
+}
+
+#[test]
 fn parses_only_through_a_top_level_terminator() {
     let prefix = "let total = ";
     let expression_text = "1 + (2 * 3); next statement";

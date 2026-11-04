@@ -1,5 +1,6 @@
 use langmeld_core::{
-    BehaviorStage, Diagnostic, FieldSpec, LanguageBuilder, LanguageSpec, SourceFile, Span,
+    BehaviorStage, Diagnostic, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
+    ExpressionSpec, FieldSpec, InfixOperatorSpec, LanguageBuilder, LanguageSpec, SourceFile, Span,
     ValidatedLanguageSpec,
 };
 use std::collections::{BTreeMap, VecDeque};
@@ -90,6 +91,17 @@ pub(crate) fn convert_language_module_specs<'a>(
             }
             continue;
         }
+        if module.syntax_variant == "expressions" {
+            if let Some(declaration) = module.children.iter().find(|child| {
+                !matches!(child.construct.as_str(), "expression_decl" | "import_decl")
+            }) {
+                return Err(vec![error(
+                    declaration,
+                    "expressions modules may contain only `expression` declarations and imports",
+                )]);
+            }
+            continue;
+        }
         if identifier(module, "name")? != identifier(root, "name")?
             || text(child(module, "language_version")?, "value")?
                 != text(child(root, "language_version")?, "value")?
@@ -115,6 +127,7 @@ pub(crate) fn convert_language_module_specs<'a>(
     let mut source_extensions = Vec::new();
     let mut behaviors = Vec::new();
     let mut types = Vec::new();
+    let mut expressions = Vec::new();
     let mut constructs = Vec::new();
     let declarations: Vec<_> = modules
         .iter()
@@ -252,6 +265,7 @@ pub(crate) fn convert_language_module_specs<'a>(
                 "behavior_decl" => behaviors.push(convert_behavior(declaration)?),
                 "rule_decl" => rules.push(convert_rule(declaration)?),
                 "enum_decl" | "record_type" | "properties_bundle" => {}
+                "expression_decl" => expressions.push(convert_expression(declaration, source)?),
                 "construct" => constructs.push(convert_construct(
                     declaration,
                     &enums,
@@ -288,6 +302,9 @@ pub(crate) fn convert_language_module_specs<'a>(
     for (id, fields) in types {
         language = language.named_type(id, fields);
     }
+    for expression in expressions {
+        language = language.expression(expression);
+    }
     for (id, stage) in behaviors {
         language = language.behavior(id, stage);
     }
@@ -295,6 +312,95 @@ pub(crate) fn convert_language_module_specs<'a>(
         language = language.construct(construct);
     }
     Ok(language.into_spec())
+}
+
+fn convert_expression(
+    node: &AstNode,
+    source: &SourceFile,
+) -> Result<ExpressionSpec, Vec<Diagnostic>> {
+    let mut expression = ExpressionSpec::new(identifier(node, "id")?);
+    for declaration in &node.children {
+        match declaration.construct.as_str() {
+            "expression_atom" => {
+                let atom_kind =
+                    optional_identifier_or_enum(declaration, "kind")?.ok_or_else(|| {
+                        vec![error(declaration, "expression atom is missing its kind")]
+                    })?;
+                let atom = match atom_kind {
+                    "number" => ExpressionAtomKind::Number,
+                    "boolean" => ExpressionAtomKind::Boolean,
+                    "identifier" => ExpressionAtomKind::Identifier,
+                    other => {
+                        return Err(vec![error(
+                            declaration,
+                            format!("unknown expression atom `{other}`"),
+                        )]);
+                    }
+                };
+                expression.atoms.push(atom);
+            }
+            "expression_operator" => {
+                expression
+                    .operators
+                    .push(convert_expression_operator(declaration, source)?);
+            }
+            "expression_host_atom_parser" => {
+                if expression.host_atom_parser.is_some() {
+                    return Err(vec![error(
+                        declaration,
+                        "expression grammar declares more than one host atom parser",
+                    )]);
+                }
+                expression.host_atom_parser = Some(identifier(declaration, "id")?);
+            }
+            unsupported => {
+                return Err(vec![error(
+                    declaration,
+                    format!("unsupported expression declaration `{unsupported}`"),
+                )]);
+            }
+        }
+    }
+    Ok(expression)
+}
+
+fn convert_expression_operator(
+    node: &AstNode,
+    source: &SourceFile,
+) -> Result<ExpressionOperatorSpec, Vec<Diagnostic>> {
+    let token = text(node, "token")?;
+    let prefix_precedence = optional_integer(node, "prefix_precedence", source)?
+        .map(u8::try_from)
+        .transpose()
+        .map_err(|_| vec![error(node, "prefix precedence must be between 0 and 255")])?;
+    let infix_precedence = optional_integer(node, "infix_precedence", source)?
+        .map(u8::try_from)
+        .transpose()
+        .map_err(|_| vec![error(node, "infix precedence must be between 0 and 255")])?;
+    let infix = infix_precedence
+        .map(|precedence| {
+            let associativity = match optional_identifier_or_enum(node, "associativity")? {
+                Some("left") => ExpressionAssociativity::Left,
+                Some("right") => ExpressionAssociativity::Right,
+                Some(other) => {
+                    return Err(vec![error(
+                        node,
+                        format!("unsupported expression associativity `{other}`"),
+                    )]);
+                }
+                None => return Err(vec![error(node, "infix operator requires associativity")]),
+            };
+            Ok(InfixOperatorSpec {
+                precedence,
+                associativity,
+            })
+        })
+        .transpose()?;
+    Ok(ExpressionOperatorSpec {
+        token,
+        prefix_precedence,
+        infix,
+    })
 }
 
 fn unresolved_declared_type<'a>(

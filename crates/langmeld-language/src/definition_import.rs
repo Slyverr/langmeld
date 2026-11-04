@@ -142,6 +142,12 @@ struct LoadState<'a> {
     paths: Vec<PathBuf>,
 }
 
+struct ConventionalModules {
+    types: Vec<PathBuf>,
+    expressions: Vec<PathBuf>,
+    constructs: Vec<PathBuf>,
+}
+
 fn load_project(
     path: &Path,
     prepared: &PreparedLanguage,
@@ -386,14 +392,17 @@ fn load_module(path: &Path, state: &mut LoadState<'_>) -> Result<(), ProjectDiag
     state.visiting.push(canonical_path.clone());
     let result = (|| {
         if canonical_path == state.root_path {
-            let (types, constructs) =
+            let modules =
                 discover_conventional_modules(&state.root_directory, state.limits.max_files)
                     .map_err(file_error)?;
-            for path in types {
+            for path in modules.types {
+                load_module(&path, state)?;
+            }
+            for path in modules.expressions {
                 load_module(&path, state)?;
             }
             load_imports(&module, &canonical_path, state)?;
-            for path in constructs {
+            for path in modules.constructs {
                 load_module(&path, state)?;
             }
         } else {
@@ -491,6 +500,7 @@ fn check_conventional_section(
         .and_then(|component| component.as_os_str().to_str())
         .and_then(|folder| match folder {
             "types" => Some("types"),
+            "expressions" => Some("expressions"),
             "constructs" => Some("constructs"),
             _ => None,
         });
@@ -510,11 +520,16 @@ fn check_conventional_section(
 fn discover_conventional_modules(
     root_directory: &Path,
     max_files: usize,
-) -> Result<(Vec<PathBuf>, Vec<PathBuf>), String> {
+) -> Result<ConventionalModules, String> {
     let mut remaining_entries = MAX_DIRECTORY_ENTRIES;
     let mut remaining_files = max_files;
     let types = discover_directory(
         &root_directory.join("types"),
+        &mut remaining_entries,
+        &mut remaining_files,
+    )?;
+    let expressions = discover_directory(
+        &root_directory.join("expressions"),
         &mut remaining_entries,
         &mut remaining_files,
     )?;
@@ -523,7 +538,11 @@ fn discover_conventional_modules(
         &mut remaining_entries,
         &mut remaining_files,
     )?;
-    Ok((types, constructs))
+    Ok(ConventionalModules {
+        types,
+        expressions,
+        constructs,
+    })
 }
 
 fn discover_directory(

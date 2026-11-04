@@ -26,6 +26,9 @@ pub struct LanguageSpec {
     /// Reusable enumerations that fields can reference by name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub enums: Vec<EnumSpec>,
+    /// Reusable operator grammars referenced by expression fields.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub expressions: Vec<ExpressionSpec>,
     /// Named record schemas that definitions can reuse as field types.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub types: Vec<TypeSpec>,
@@ -57,6 +60,69 @@ pub struct EnumSpec {
     pub id: String,
     /// Allowed values in their declared order.
     pub values: Vec<String>,
+}
+
+/// A reusable operator table for expression-valued fields.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExpressionSpec {
+    /// Stable identifier referenced by expression fields.
+    pub id: String,
+    /// Built-in atom forms accepted by this grammar, in no semantic order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub atoms: Vec<ExpressionAtomKind>,
+    /// Optional host parser registration for additional atom forms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_atom_parser: Option<String>,
+    /// Operators accepted by this grammar.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operators: Vec<ExpressionOperatorSpec>,
+}
+
+/// A built-in atom category available in a declarative expression grammar.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpressionAtomKind {
+    /// Decimal numeric literals.
+    Number,
+    /// The `true` and `false` literals.
+    Boolean,
+    /// Identifier names.
+    Identifier,
+}
+
+/// An operator spelling with one or both supported fixities.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExpressionOperatorSpec {
+    /// Punctuation spelling, such as `+` or `**`.
+    pub token: String,
+    /// Prefix binding power, when this operator has prefix fixity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prefix_precedence: Option<u8>,
+    /// Infix binding power and associativity, when this operator has infix fixity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub infix: Option<InfixOperatorSpec>,
+}
+
+/// Infix binding behavior for one declared operator spelling.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct InfixOperatorSpec {
+    /// Binding power used by the Pratt parser.
+    pub precedence: u8,
+    /// How equal-precedence operators group.
+    pub associativity: ExpressionAssociativity,
+}
+
+/// Associativity for an infix expression operator.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpressionAssociativity {
+    /// Operators of the same precedence group from left to right.
+    Left,
+    /// Operators of the same precedence group from right to left.
+    Right,
 }
 
 /// A reusable syntax fragment referenced as `@id` from a construct pattern.
@@ -322,6 +388,13 @@ pub enum FieldKind {
         /// Type of every value in the map.
         value: Box<FieldKind>,
     },
+    /// A source expression parsed with a declared operator table to a boundary token.
+    Expression {
+        /// Stable ID of the expression grammar declaration.
+        grammar: String,
+        /// Required punctuation token ending this expression capture.
+        terminator: String,
+    },
 }
 
 #[derive(Default)]
@@ -335,6 +408,8 @@ struct FieldKindFields {
     item: Option<Box<FieldKind>>,
     key: Option<MapKeyKind>,
     value: Option<Box<FieldKind>>,
+    grammar: Option<String>,
+    terminator: Option<String>,
 }
 
 impl FieldKindFields {
@@ -368,6 +443,8 @@ impl FieldKindFields {
             "item" => read_once!(item, "item", Box<FieldKind>),
             "key" => read_once!(key, "key", MapKeyKind),
             "value" => read_once!(value, "value", Box<FieldKind>),
+            "grammar" => read_once!(grammar, "grammar", String),
+            "terminator" => read_once!(terminator, "terminator", String),
             _ => return Err(A::Error::unknown_field(field, expected)),
         }
         Ok(())
@@ -387,6 +464,7 @@ impl FieldKindFields {
             "properties",
             "list",
             "map",
+            "expression",
         ];
 
         let kind_name = self.kind.ok_or_else(|| E::missing_field("kind"))?;
@@ -398,6 +476,7 @@ impl FieldKindFields {
             "properties" => &["kind", "record", "fields"],
             "list" => &["kind", "item"],
             "map" => &["kind", "key", "value"],
+            "expression" => &["kind", "grammar", "terminator"],
             _ => return Err(E::unknown_variant(&kind_name, VARIANTS)),
         };
 
@@ -410,6 +489,8 @@ impl FieldKindFields {
             ("item", self.item.is_some()),
             ("key", self.key.is_some()),
             ("value", self.value.is_some()),
+            ("grammar", self.grammar.is_some()),
+            ("terminator", self.terminator.is_some()),
         ] {
             if present && !variant_fields.contains(&field) {
                 return Err(E::custom(format!(
@@ -445,6 +526,12 @@ impl FieldKindFields {
                 key: self.key.ok_or_else(|| E::missing_field("key"))?,
                 value: self.value.ok_or_else(|| E::missing_field("value"))?,
             }),
+            "expression" => Ok(FieldKind::Expression {
+                grammar: self.grammar.ok_or_else(|| E::missing_field("grammar"))?,
+                terminator: self
+                    .terminator
+                    .ok_or_else(|| E::missing_field("terminator"))?,
+            }),
             _ => Err(E::unknown_variant(&kind_name, VARIANTS)),
         }
     }
@@ -468,6 +555,8 @@ impl<'de> Deserialize<'de> for FieldKind {
             "item",
             "key",
             "value",
+            "grammar",
+            "terminator",
         ];
 
         struct FieldKindVisitor;

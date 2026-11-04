@@ -160,6 +160,7 @@ fn value_type(value: &Value) -> ValueType {
         Value::Properties(_) => ValueType::Properties,
         Value::List(_) => ValueType::List,
         Value::Map(_) => ValueType::Map,
+        Value::Expression(_) => ValueType::Expression,
     }
 }
 
@@ -170,7 +171,8 @@ fn value_matches_kind(kind: &FieldKind, value: &Value) -> bool {
         | (FieldKind::Reference { .. }, Value::Reference(_))
         | (FieldKind::Properties { .. }, Value::Properties(_))
         | (FieldKind::List { .. }, Value::List(_))
-        | (FieldKind::Map { .. }, Value::Map(_)) => true,
+        | (FieldKind::Map { .. }, Value::Map(_))
+        | (FieldKind::Expression { .. }, Value::Expression(_)) => true,
         (FieldKind::Number, Value::Number(value)) => value.is_finite(),
         (FieldKind::Enum { values } | FieldKind::NamedEnum { values, .. }, Value::Enum(value)) => {
             values.contains(value)
@@ -189,6 +191,7 @@ fn field_kind_name(kind: &FieldKind) -> &'static str {
         FieldKind::Properties { .. } => "properties",
         FieldKind::List { .. } => "list",
         FieldKind::Map { .. } => "map",
+        FieldKind::Expression { .. } => "expression",
     }
 }
 
@@ -202,6 +205,7 @@ fn value_type_name(kind: ValueType) -> &'static str {
         ValueType::Properties => "properties",
         ValueType::List => "list",
         ValueType::Map => "map",
+        ValueType::Expression => "expression",
     }
 }
 

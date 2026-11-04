@@ -6,7 +6,8 @@
 //! atom parsing or own a broader expression grammar when this shared subset
 //! does not fit their language.
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, ExpressionAtomKind, SourceFile, Span};
+use std::collections::BTreeSet;
 
 mod runtime;
 mod typing;
@@ -90,6 +91,7 @@ impl OperatorSpec {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpressionGrammar {
     operators: Vec<OperatorSpec>,
+    atoms: Option<BTreeSet<ExpressionAtomKind>>,
 }
 
 impl ExpressionGrammar {
@@ -123,7 +125,35 @@ impl ExpressionGrammar {
         {
             return Err("expression grammar repeats an operator spelling".to_owned());
         }
-        Ok(Self { operators })
+        Ok(Self {
+            operators,
+            atoms: None,
+        })
+    }
+
+    /// Builds an operator table restricted to the listed built-in atom forms.
+    ///
+    /// Host-defined atoms remain available through [`ExpressionAtomParser`].
+    /// Unlike [`Self::new`], an empty atom list accepts no built-in atoms.
+    pub fn with_atoms(
+        operators: impl IntoIterator<Item = OperatorSpec>,
+        atoms: impl IntoIterator<Item = ExpressionAtomKind>,
+    ) -> Result<Self, String> {
+        let mut grammar = Self::new(operators)?;
+        let mut allowed = BTreeSet::new();
+        for atom in atoms {
+            if !allowed.insert(atom) {
+                return Err("expression grammar repeats a built-in atom kind".to_owned());
+            }
+        }
+        grammar.atoms = Some(allowed);
+        Ok(grammar)
+    }
+
+    fn allows_atom(&self, atom: ExpressionAtomKind) -> bool {
+        self.atoms
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(&atom))
     }
 
     fn operator(&self, token: &str) -> Option<&OperatorSpec> {
@@ -456,6 +486,16 @@ fn lex<P: ExpressionAtomParser>(
             offset += character.len_utf8();
             continue;
         }
+        if character == '#' {
+            offset += character.len_utf8();
+            while let Some(next) = fragment[offset..].chars().next() {
+                if matches!(next, '\r' | '\n') {
+                    break;
+                }
+                offset += next.len_utf8();
+            }
+            continue;
+        }
         if delimiters.is_empty()
             && terminator.is_some_and(|terminator| rest.starts_with(terminator))
         {
@@ -513,6 +553,13 @@ fn lex<P: ExpressionAtomParser>(
                     break;
                 }
             }
+            if !grammar.allows_atom(ExpressionAtomKind::Number) {
+                diagnostics.push(Diagnostic::error(
+                    "LE1015",
+                    "numeric literals are not enabled in this expression grammar",
+                    Span::new(range.start + start, range.start + offset),
+                ));
+            }
             tokens.push(Token {
                 kind: TokenKind::Number(fragment[start..offset].to_owned()),
                 span: Span::new(range.start + start, range.start + offset),
@@ -528,10 +575,30 @@ fn lex<P: ExpressionAtomParser>(
             }
             let name = &fragment[start..offset];
             let kind = match name {
+                "true" if grammar.allows_atom(ExpressionAtomKind::Boolean) => {
+                    TokenKind::Boolean(true)
+                }
+                "false" if grammar.allows_atom(ExpressionAtomKind::Boolean) => {
+                    TokenKind::Boolean(false)
+                }
+                "true" | "false" if grammar.allows_atom(ExpressionAtomKind::Identifier) => {
+                    TokenKind::Identifier(name.to_owned())
+                }
                 "true" => TokenKind::Boolean(true),
                 "false" => TokenKind::Boolean(false),
                 _ => TokenKind::Identifier(name.to_owned()),
             };
+            let atom_kind = match &kind {
+                TokenKind::Boolean(_) => ExpressionAtomKind::Boolean,
+                _ => ExpressionAtomKind::Identifier,
+            };
+            if !grammar.allows_atom(atom_kind) {
+                diagnostics.push(Diagnostic::error(
+                    "LE1016",
+                    "this atom kind is not enabled in the expression grammar",
+                    Span::new(range.start + start, range.start + offset),
+                ));
+            }
             tokens.push(Token {
                 kind,
                 span: Span::new(range.start + start, range.start + offset),

@@ -1,14 +1,14 @@
 //! Ordered matching and typed captures for prepared syntax patterns.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use langmeld_core::{
     ConstructSpec, Diagnostic, FieldKind, FieldSpec, MapKeyKind, SourceFile, Span,
 };
 
 use crate::{
-    CapturedValue, CompletionPart, LanguageToken, LanguageTokenKind as TokenKind, MapEntry, Value,
-    ValueType,
+    CapturedValue, CompletionPart, ExpressionAtomParserRegistration, LanguageToken,
+    LanguageTokenKind as TokenKind, MapEntry, Value, ValueType,
 };
 
 use super::pattern::PatternPart;
@@ -215,6 +215,9 @@ fn record_expected_part(progress: &mut PatternProgress, part: Option<&PatternPar
 pub(super) struct PatternMatcher<'source, 'tokens, 'budget> {
     source: &'source SourceFile,
     tokens: &'tokens [LanguageToken],
+    expressions: Option<&'source HashMap<String, langmeld_expression::ExpressionGrammar>>,
+    expression_atom_parser_ids: Option<&'source HashMap<String, String>>,
+    expression_atom_parsers: Option<&'source BTreeMap<String, ExpressionAtomParserRegistration>>,
     remaining_steps: &'budget mut usize,
     best_error: Option<Diagnostic>,
     progress: Option<PatternProgress>,
@@ -229,10 +232,31 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
         Self {
             source,
             tokens,
+            expressions: None,
+            expression_atom_parser_ids: None,
+            expression_atom_parsers: None,
             remaining_steps,
             best_error: None,
             progress: None,
         }
+    }
+
+    pub(super) fn with_expressions(
+        mut self,
+        expressions: &'source HashMap<String, langmeld_expression::ExpressionGrammar>,
+    ) -> Self {
+        self.expressions = Some(expressions);
+        self
+    }
+
+    pub(super) fn with_expression_atom_parsers(
+        mut self,
+        parser_ids: &'source HashMap<String, String>,
+        parsers: &'source BTreeMap<String, ExpressionAtomParserRegistration>,
+    ) -> Self {
+        self.expression_atom_parser_ids = Some(parser_ids);
+        self.expression_atom_parsers = Some(parsers);
+        self
     }
 
     pub(super) fn match_pattern(
@@ -514,6 +538,64 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
             return Ok(None);
         };
         match kind {
+            FieldKind::Expression {
+                grammar,
+                terminator,
+            } => {
+                let Some(expression_grammar) =
+                    self.expressions.and_then(|grammars| grammars.get(grammar))
+                else {
+                    return Err(Diagnostic::error(
+                        "LM1214",
+                        format!("expression grammar `{grammar}` is not prepared"),
+                        token.span,
+                    ));
+                };
+                let range = Span::new(token.span.start, self.source.text.len());
+                let custom_parser = self
+                    .expression_atom_parser_ids
+                    .and_then(|ids| ids.get(grammar))
+                    .and_then(|id| self.expression_atom_parsers?.get(id));
+                let parsed = if let Some(custom_parser) = custom_parser {
+                    let mut parse_atom = |source: &SourceFile, range: Span, offset: usize| {
+                        (custom_parser.parse)(source, range, offset)
+                    };
+                    langmeld_expression::parse_expression_until_with_atoms(
+                        self.source,
+                        range,
+                        expression_grammar,
+                        terminator,
+                        &mut parse_atom,
+                    )
+                } else {
+                    langmeld_expression::parse_expression_until(
+                        self.source,
+                        range,
+                        expression_grammar,
+                        terminator,
+                    )
+                };
+                let (expression, consumed) = match parsed {
+                    Ok(result) => result,
+                    Err(mut diagnostics) => {
+                        for diagnostic in diagnostics.drain(..) {
+                            self.record_error(diagnostic);
+                        }
+                        return Ok(None);
+                    }
+                };
+                let end = self
+                    .tokens
+                    .partition_point(|candidate| candidate.span.start < consumed.end);
+                if end <= position {
+                    return Ok(None);
+                }
+                let expression_span = expression.span();
+                Ok(Some(FieldMatch {
+                    value: CapturedValue::new(Value::Expression(expression), expression_span),
+                    end,
+                }))
+            }
             FieldKind::Properties { fields, .. } => {
                 self.match_properties(position, fields, field).map(|value| {
                     value.map(|(value, end)| FieldMatch {

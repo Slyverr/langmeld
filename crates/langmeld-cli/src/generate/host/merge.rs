@@ -130,6 +130,7 @@ fn normalized_callback(
 fn registry_constructor(key: &str) -> Option<&'static str> {
     match key {
         "registry:parser" => Some("CustomConstructParser::new("),
+        "registry:expression_atom_parser" => Some("ExpressionAtomParserRegistration::new("),
         "registry:semantic" => Some("ConfiguredSemanticHookRegistration::new("),
         "registry:resolver" => Some("WorkspaceSymbolResolverRegistration::new("),
         "registry:workspace" => Some("WorkspaceTypeAnalysisRegistration::new("),
@@ -195,31 +196,39 @@ fn validate_registries(
         .filter(|(key, block)| key.starts_with("registry:") && block.parent.is_none())
         .map(|(key, _)| key)
         .collect::<Vec<_>>();
-    if old_registry_keys != new_registry_keys {
-        return Err("host registry layout changed; migrate it manually".to_owned());
+    if old_registry_keys
+        .iter()
+        .any(|registry| !new_registry_keys.contains(registry))
+    {
+        return Err("host registry was removed; migrate it manually".to_owned());
     }
 
-    for key in old_registry_keys {
+    for key in new_registry_keys {
         let constructor =
             registry_constructor(key).ok_or_else(|| format!("unknown host registry `{key}`"))?;
-        let old_block = &existing[key];
         let new_block = &generated[key];
-        let (old_shell, old_entries) = registry_parts(
-            &existing_source[old_block.content_start..old_block.content_end],
-            constructor,
-        )?;
         let (new_shell, new_entries) = registry_parts(
             &generated_source[new_block.content_start..new_block.content_end],
             constructor,
         )?;
-        if old_shell != new_shell {
-            return Err(format!(
-                "host registry `{key}` was edited; restore its generated structure before updating"
-            ));
-        }
+        let old_entries = if let Some(old_block) = existing.get(key) {
+            let (old_shell, old_entries) = registry_parts(
+                &existing_source[old_block.content_start..old_block.content_end],
+                constructor,
+            )?;
+            if old_shell != new_shell {
+                return Err(format!(
+                    "host registry `{key}` was edited; restore its generated structure before updating"
+                ));
+            }
+            old_entries
+        } else {
+            BTreeMap::new()
+        };
 
         let prefix = match key.as_str() {
             "registry:parser" => "callback:parser:",
+            "registry:expression_atom_parser" => "callback:expression_atom_parser:",
             "registry:semantic" => "callback:semantic:",
             "registry:resolver" => "callback:resolver:",
             "registry:workspace" => "callback:workspace:",
@@ -330,12 +339,22 @@ mod tests {
 
     const OLD: &str = "head\n// <langmeld:registry:parser>\nvec![\n CustomConstructParser::new(\"one\", callback_one),\n]\n// </langmeld:registry:parser>\n// <langmeld:callback:parser:one>\nfn callback_one() {\n    // <langmeld:body:parser:one>\n    customized();\n    // </langmeld:body:parser:one>\n}\n// </langmeld:callback:parser:one>\n";
     const NEW: &str = "head\n// <langmeld:registry:parser>\nvec![\n CustomConstructParser::new(\"one\", callback_one),\n CustomConstructParser::new(\"two\", callback_two),\n]\n// </langmeld:registry:parser>\n// <langmeld:callback:parser:one>\nfn callback_one() {\n    // <langmeld:body:parser:one>\n    Ok(None)\n    // </langmeld:body:parser:one>\n}\n// </langmeld:callback:parser:one>\n// <langmeld:callback:parser:two>\nfn callback_two() {\n    // <langmeld:body:parser:two>\n    Ok(None)\n    // </langmeld:body:parser:two>\n}\n// </langmeld:callback:parser:two>\n";
+    const NEW_WITH_EXPRESSION_ATOM: &str = "head\n// <langmeld:registry:parser>\nvec![\n CustomConstructParser::new(\"one\", callback_one),\n]\n// </langmeld:registry:parser>\n// <langmeld:registry:expression_atom_parser>\nvec![\n ExpressionAtomParserRegistration::new(\"canvas_reference\", host_expression_atom_parser_canvas_reference),\n]\n// </langmeld:registry:expression_atom_parser>\n// <langmeld:callback:parser:one>\nfn callback_one() {\n    // <langmeld:body:parser:one>\n    Ok(None)\n    // </langmeld:body:parser:one>\n}\n// </langmeld:callback:parser:one>\n// <langmeld:callback:expression_atom_parser:canvas_reference>\nfn host_expression_atom_parser_canvas_reference() {\n    // <langmeld:body:expression_atom_parser:canvas_reference>\n    Ok(None)\n    // </langmeld:body:expression_atom_parser:canvas_reference>\n}\n// </langmeld:callback:expression_atom_parser:canvas_reference>\n";
 
     #[test]
     fn merge_preserves_existing_body_and_adds_new_callback() {
         let merged = merge_host_scaffold(OLD, NEW).expect("compatible scaffold merges");
         assert!(merged.contains("customized();"));
         assert!(merged.contains("callback_two"));
+    }
+
+    #[test]
+    fn merge_adds_a_new_expression_atom_registry_without_losing_existing_callbacks() {
+        let merged = merge_host_scaffold(OLD, NEW_WITH_EXPRESSION_ATOM)
+            .expect("new callback registry can be added without a manual scaffold reset");
+        assert!(merged.contains("customized();"));
+        assert!(merged.contains("ExpressionAtomParserRegistration::new(\"canvas_reference\""));
+        assert!(merged.contains("callback:expression_atom_parser:canvas_reference"));
     }
 
     #[test]

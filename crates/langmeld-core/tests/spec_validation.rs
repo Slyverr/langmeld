@@ -14,6 +14,7 @@ fn valid_spec() -> LanguageSpec {
         categories: Vec::new(),
         rules: Vec::new(),
         enums: Vec::new(),
+        expressions: Vec::new(),
         types: Vec::new(),
         behaviors: Vec::new(),
         constructs: vec![
@@ -69,13 +70,13 @@ fn valid_language_definition_has_a_validated_state() {
 #[test]
 fn validation_rejects_unsupported_language_model_schema_versions() {
     let mut spec = valid_spec();
-    spec.schema_version = 3;
+    spec.schema_version = 4;
 
     let errors = spec
         .validate()
         .expect_err("unsupported language model schema is rejected");
     assert!(errors.iter().any(|error| {
-        error.code == "LM1001" && error.message.contains("unsupported schema_version 3")
+        error.code == "LM1001" && error.message.contains("unsupported schema_version 4")
     }));
 }
 

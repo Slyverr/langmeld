@@ -96,10 +96,13 @@ construct field {
     scalar_text_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_text}"
     scalar_number_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_number}"
     scalar_identifier_default: "{name}: {kind}[ {requirement}][ min {min}][ max {max}][ min_length {min_length}][ max_length {max_length}][ min_items {min_items}][ max_items {max_items}] = {default_identifier}"
+    expression: "{name}: expression<{grammar}> until {terminator}[ {requirement}]"
   }
   fields {
     name: identifier required
     kind: identifier optional
+    grammar: identifier optional
+    terminator: string optional
     item_kind: identifier optional
     key_kind: identifier optional
     enum_values: list<identifier> optional

@@ -283,7 +283,8 @@ fn collect_kind_values(kind: &FieldKind, output: &mut BTreeSet<String>) {
         FieldKind::Identifier
         | FieldKind::Number
         | FieldKind::Text
-        | FieldKind::Reference { .. } => {}
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => {}
     }
 }
 
@@ -298,7 +299,8 @@ fn kind_has_enum(kind: &FieldKind) -> bool {
         FieldKind::Identifier
         | FieldKind::Number
         | FieldKind::Text
-        | FieldKind::Reference { .. } => false,
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }
 
@@ -314,7 +316,8 @@ fn kind_has_reference(kind: &FieldKind) -> bool {
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Enum { .. }
-        | FieldKind::NamedEnum { .. } => false,
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }
 
@@ -333,7 +336,8 @@ fn collect_property_keywords(kind: &FieldKind, output: &mut BTreeSet<String>) {
         | FieldKind::Text
         | FieldKind::Enum { .. }
         | FieldKind::NamedEnum { .. }
-        | FieldKind::Reference { .. } => {}
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => {}
     }
 }
 
@@ -346,6 +350,14 @@ fn collect_operators(spec: &LanguageSpec) -> BTreeSet<String> {
     }
     for rule in &spec.rules {
         collect_pattern_operators(&rule.pattern, &mut operators);
+    }
+    for expression in &spec.expressions {
+        operators.extend(
+            expression
+                .operators
+                .iter()
+                .map(|operator| operator.token.clone()),
+        );
     }
     operators
 }
@@ -641,6 +653,14 @@ fn field_type_description(kind: &FieldKind) -> String {
             "map keyed by {} with {} values",
             map_key_kind_name(key),
             field_type_description(value)
+        ),
+        FieldKind::Expression {
+            grammar,
+            terminator,
+        } => format!(
+            "expression using {} through {}",
+            code_span(grammar),
+            code_span(terminator)
         ),
     }
 }

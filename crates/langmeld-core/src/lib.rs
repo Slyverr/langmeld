@@ -13,6 +13,8 @@ pub use diagnostic::{Diagnostic, Severity};
 pub use source::{SourceDatabase, SourceDatabaseError, SourceFile, SourceId, Span};
 pub use spec::{
     BehaviorSpec, BehaviorStage, BlockSeparator, BlockSeparatorPolicy, BlockSpec, CategorySpec,
-    ConstructSpec, EnumSpec, FieldConstraints, FieldKind, FieldSpec, LanguageSpec, MapKeyKind,
-    ScopeLookup, ScopeSpec, SpecError, SymbolSpec, SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
+    ConstructSpec, EnumSpec, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
+    ExpressionSpec, FieldConstraints, FieldKind, FieldSpec, InfixOperatorSpec, LanguageSpec,
+    MapKeyKind, ScopeLookup, ScopeSpec, SpecError, SymbolSpec, SyntaxRuleSpec, TypeSpec,
+    ValidatedLanguageSpec,
 };

@@ -1,0 +1,31 @@
+constructs {
+construct expression_decl {
+  syntax { root: "expression {id} {" }
+  fields { id: identifier required }
+  block: [expression_atom, expression_operator, expression_host_atom_parser]
+}
+
+construct expression_host_atom_parser {
+  syntax { default: "host_atom_parser: {id}" }
+  fields { id: identifier required }
+}
+
+construct expression_atom {
+  syntax { default: "atom: {kind}" }
+  fields { kind: enum [number, boolean, identifier] required }
+}
+
+construct expression_operator {
+  syntax {
+    prefix: "operator {token} prefix {prefix_precedence}"
+    infix: "operator {token} infix {infix_precedence} {associativity}"
+    prefix_infix: "operator {token} prefix {prefix_precedence} infix {infix_precedence} {associativity}"
+  }
+  fields {
+    token: string required
+    prefix_precedence: number optional
+    infix_precedence: number optional
+    associativity: enum [left, right] optional
+  }
+}
+}

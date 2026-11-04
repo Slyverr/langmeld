@@ -1,6 +1,7 @@
 //! Rust builder definition for Langmeld's self-describing language format.
 
 mod constructs;
+mod expressions;
 mod language;
 mod syntax;
 mod types;
@@ -18,5 +19,6 @@ pub(super) fn build() -> Result<ValidatedLanguageSpec, Vec<langmeld_core::SpecEr
         .constructs(types::definitions())
         .constructs(constructs::definitions())
         .constructs(syntax::definitions())
+        .constructs(expressions::definitions())
         .build()
 }

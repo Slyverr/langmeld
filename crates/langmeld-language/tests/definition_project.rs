@@ -315,6 +315,59 @@ fn project_loader_discovers_types_before_conventional_constructs() {
 }
 
 #[test]
+fn project_loader_discovers_modular_expression_grammars() {
+    let project = TempProject::new();
+    project.write(
+        "expressions/arithmetic.langmeld",
+        r#"expressions {
+  expression arithmetic {
+    atom: number
+    atom: identifier
+    operator "+" infix 10 left
+  }
+}
+"#,
+    );
+    project.write(
+        "constructs/evaluate.langmeld",
+        r#"constructs {
+  construct evaluate {
+    syntax { default: "eval {value};" }
+    fields { value: expression<arithmetic> until ";" required }
+  }
+}
+"#,
+    );
+    let root = project.write(
+        "language.langmeld",
+        r#"language Calc {
+  version: "0.1.0"
+  schema_version: 3
+  root: program
+
+  construct program {
+    syntax { root: "program" }
+    block: [evaluate]
+  }
+}
+"#,
+    );
+
+    let loaded = parse_language_definition_project(&root)
+        .expect("conventional expression and construct modules are discovered");
+    assert_eq!(loaded.spec().expressions[0].id, "arithmetic");
+    let result = langmeld_language::PreparedLanguage::new(loaded)
+        .expect("project expression grammar compiles")
+        .configure()
+        .expect("declarative expression grammar has no custom callbacks")
+        .parse(&langmeld_core::SourceFile::new(
+            "program.calc",
+            "program {\neval 1 + 2;\n}",
+        ));
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+}
+
+#[test]
 fn project_loader_rejects_cycles_paths_outside_root_and_file_limit_overflow() {
     let project = TempProject::new();
     let root = project.write(

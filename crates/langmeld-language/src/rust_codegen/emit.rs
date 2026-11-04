@@ -592,6 +592,13 @@ fn write_value_reader(
                 reader.field
             );
         }
+        FieldKind::Expression { .. } => {
+            let _ = writeln!(
+                output,
+                "    let value = match &captured.value {{ langmeld_language::Value::Expression(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind({:?})) }};",
+                reader.field
+            );
+        }
     }
     output.push_str("    Ok(Spanned { value, span: captured.span })\n}\n\n");
 }
@@ -656,6 +663,59 @@ fn write_language_spec(output: &mut String, spec: &langmeld_core::LanguageSpec) 
             "            langmeld_core::EnumSpec {{ id: {:?}.to_owned(), values: {} }},",
             enumeration.id,
             string_vector(&enumeration.values)
+        );
+    }
+    output.push_str("        ],\n        expressions: vec![\n");
+    for expression in &spec.expressions {
+        let atoms = expression
+            .atoms
+            .iter()
+            .map(|atom| {
+                let name = match atom {
+                    langmeld_core::ExpressionAtomKind::Number => "Number",
+                    langmeld_core::ExpressionAtomKind::Boolean => "Boolean",
+                    langmeld_core::ExpressionAtomKind::Identifier => "Identifier",
+                };
+                format!("langmeld_core::ExpressionAtomKind::{name}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let operators = expression
+            .operators
+            .iter()
+            .map(|operator| {
+                let prefix = operator.prefix_precedence.map_or_else(
+                    || "None".to_owned(),
+                    |precedence| format!("Some({precedence})"),
+                );
+                let infix = operator.infix.map_or_else(
+                    || "None".to_owned(),
+                    |infix| {
+                        let associativity = match infix.associativity {
+                            langmeld_core::ExpressionAssociativity::Left => "Left",
+                            langmeld_core::ExpressionAssociativity::Right => "Right",
+                        };
+                        format!(
+                            "Some(langmeld_core::InfixOperatorSpec {{ precedence: {}, associativity: langmeld_core::ExpressionAssociativity::{associativity} }})",
+                            infix.precedence
+                        )
+                    },
+                );
+                format!(
+                    "langmeld_core::ExpressionOperatorSpec {{ token: {:?}.to_owned(), prefix_precedence: {prefix}, infix: {infix} }}",
+                    operator.token
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let _ = writeln!(
+            output,
+            "            langmeld_core::ExpressionSpec {{ id: {:?}.to_owned(), atoms: vec![{atoms}], host_atom_parser: {}, operators: vec![{operators}] }},",
+            expression.id,
+            expression.host_atom_parser.as_ref().map_or_else(
+                || "None".to_owned(),
+                |id| format!("Some({id:?}.to_owned())")
+            ),
         );
     }
     output.push_str("        ],\n        types: vec![\n");
@@ -830,6 +890,12 @@ fn field_kind_expression(kind: &FieldKind) -> String {
                 MapKeyKind::Text => "Text",
             },
             field_kind_expression(value)
+        ),
+        FieldKind::Expression {
+            grammar,
+            terminator,
+        } => format!(
+            "langmeld_core::FieldKind::Expression {{ grammar: {grammar:?}.to_owned(), terminator: {terminator:?}.to_owned() }}"
         ),
     }
 }

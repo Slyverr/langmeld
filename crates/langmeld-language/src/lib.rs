@@ -48,7 +48,8 @@ pub use lexer::{
 pub use model::{
     AstNode, BlockDelimiterSpan, CapturedValue, CompletionBlockContext, CompletionFrontier,
     CompletionPart, CustomConstructMatch, CustomConstructParser, CustomConstructParserFn,
-    ExpectedCapture, HostData, MapEntry, ParseResult, Program, Value,
+    CustomExpressionAtomParserFn, ExpectedCapture, ExpressionAtomParserRegistration, HostData,
+    MapEntry, ParseResult, Program, Value,
 };
 pub use parser::{
     ConfiguredLanguageParser, ParserRegistrationError, ParserRegistrationIssue,

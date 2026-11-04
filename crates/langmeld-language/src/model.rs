@@ -315,6 +315,50 @@ impl CustomConstructMatch {
 pub type CustomConstructParserFn =
     dyn Fn(&SourceFile, usize) -> Result<Option<CustomConstructMatch>, Diagnostic> + Send + Sync;
 
+/// Host callback used to recognize atoms in a declared expression grammar.
+pub type CustomExpressionAtomParserFn = dyn Fn(&SourceFile, Span, usize) -> Result<Option<langmeld_expression::CustomAtomToken>, Diagnostic>
+    + Send
+    + Sync;
+
+/// Registers a host expression atom parser under the ID declared by a grammar.
+#[derive(Clone)]
+pub struct ExpressionAtomParserRegistration {
+    /// Registration name referenced by `ExpressionSpec::host_atom_parser`.
+    pub id: String,
+    /// Parses one custom atom at the supplied UTF-8 byte offset.
+    pub parse: Arc<CustomExpressionAtomParserFn>,
+}
+
+impl ExpressionAtomParserRegistration {
+    /// Creates a registration backed by a function or configured closure.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        parse: impl Fn(
+            &SourceFile,
+            Span,
+            usize,
+        ) -> Result<Option<langmeld_expression::CustomAtomToken>, Diagnostic>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            parse: Arc::new(parse),
+        }
+    }
+}
+
+impl fmt::Debug for ExpressionAtomParserRegistration {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ExpressionAtomParserRegistration")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
 /// Registers a host parser callback under the name used in a language definition.
 #[derive(Clone)]
 pub struct CustomConstructParser {
@@ -372,4 +416,6 @@ pub enum Value {
     List(Vec<CapturedValue>),
     /// Typed key/value pairs parsed from a brace-delimited map.
     Map(Vec<MapEntry>),
+    /// Parsed expression structure with source spans retained on every node.
+    Expression(langmeld_expression::Expression),
 }

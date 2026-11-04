@@ -8,15 +8,19 @@ use std::{
 };
 
 use langmeld_core::{
-    BlockSeparator, BlockSeparatorPolicy, ConstructSpec, FieldKind, SourceFile,
-    ValidatedLanguageSpec,
+    BlockSeparator, BlockSeparatorPolicy, ConstructSpec, ExpressionAssociativity,
+    ExpressionOperatorSpec, FieldKind, SourceFile, ValidatedLanguageSpec,
 };
+use langmeld_expression::{Associativity, ExpressionGrammar, OperatorSpec};
 
 use super::{
     candidates::BlockCandidateIndex,
     pattern::{self, PatternPart},
 };
-use crate::{CustomConstructParser, CustomLexer, LanguageTokenKind, ParseLimits, ParseResult};
+use crate::{
+    CustomConstructParser, CustomLexer, ExpressionAtomParserRegistration, LanguageTokenKind,
+    ParseLimits, ParseResult,
+};
 
 #[derive(Clone, Debug)]
 pub(super) struct CompiledPattern {
@@ -73,8 +77,34 @@ pub struct PreparedLanguage {
     pub(super) spec: ValidatedLanguageSpec,
     pub(super) compiled: HashMap<String, CompiledConstruct>,
     pub(super) blocks: HashMap<String, CompiledBlock>,
+    pub(super) expressions: HashMap<String, ExpressionGrammar>,
+    pub(super) expression_atom_parser_ids: HashMap<String, String>,
     pub(super) block_candidates: HashMap<String, Arc<BlockCandidateIndex>>,
     keywords: BTreeSet<String>,
+}
+
+fn compile_expression_operator(operator: &ExpressionOperatorSpec) -> OperatorSpec {
+    match (operator.prefix_precedence, operator.infix) {
+        (Some(prefix), Some(infix)) => OperatorSpec::prefix_infix(
+            operator.token.clone(),
+            prefix,
+            infix.precedence,
+            match infix.associativity {
+                ExpressionAssociativity::Left => Associativity::Left,
+                ExpressionAssociativity::Right => Associativity::Right,
+            },
+        ),
+        (Some(prefix), None) => OperatorSpec::prefix(operator.token.clone(), prefix),
+        (None, Some(infix)) => OperatorSpec::infix_with(
+            operator.token.clone(),
+            infix.precedence,
+            match infix.associativity {
+                ExpressionAssociativity::Left => Associativity::Left,
+                ExpressionAssociativity::Right => Associativity::Right,
+            },
+        ),
+        (None, None) => unreachable!("validated expression operators have at least one fixity"),
+    }
 }
 
 impl PreparedLanguage {
@@ -86,8 +116,24 @@ impl PreparedLanguage {
     pub fn new(spec: ValidatedLanguageSpec) -> Result<Self, PatternCompileError> {
         let mut compiled = HashMap::new();
         let mut blocks = HashMap::new();
+        let mut expressions = HashMap::new();
+        let mut expression_atom_parser_ids = HashMap::new();
         let mut block_candidates = HashMap::new();
         let mut keywords = BTreeSet::new();
+
+        for expression in &spec.spec().expressions {
+            let operators = expression.operators.iter().map(compile_expression_operator);
+            let grammar =
+                ExpressionGrammar::with_atoms(operators, expression.atoms.iter().copied())
+                    .map_err(|message| PatternCompileError {
+                        construct: expression.id.clone(),
+                        pattern: format!("expression grammar: {message}"),
+                    })?;
+            expressions.insert(expression.id.clone(), grammar);
+            if let Some(parser_id) = &expression.host_atom_parser {
+                expression_atom_parser_ids.insert(expression.id.clone(), parser_id.clone());
+            }
+        }
 
         for (construct_index, construct) in spec.spec().constructs.iter().enumerate() {
             let block = construct
@@ -134,7 +180,7 @@ impl PreparedLanguage {
                         pattern: source_pattern.clone(),
                     });
                 };
-                if spec.spec().schema_version == 2
+                if spec.spec().schema_version >= 2
                     && let Some(block) = blocks.get(&construct.id)
                 {
                     parts.extend(
@@ -229,6 +275,8 @@ impl PreparedLanguage {
             spec,
             compiled,
             blocks,
+            expressions,
+            expression_atom_parser_ids,
             block_candidates,
             keywords,
         })
@@ -241,6 +289,17 @@ impl PreparedLanguage {
     pub fn with_custom_parsers(
         self,
         parsers: impl IntoIterator<Item = CustomConstructParser>,
+    ) -> Result<ConfiguredLanguageParser, ParserRegistrationError> {
+        self.with_custom_parsers_and_expression_atom_parsers(parsers, std::iter::empty())
+    }
+
+    /// Binds custom construct parsers and expression atom parsers declared by this language.
+    ///
+    /// Both callback registries are validated before the configured parser is returned.
+    pub fn with_custom_parsers_and_expression_atom_parsers(
+        self,
+        parsers: impl IntoIterator<Item = CustomConstructParser>,
+        expression_atom_parsers: impl IntoIterator<Item = ExpressionAtomParserRegistration>,
     ) -> Result<ConfiguredLanguageParser, ParserRegistrationError> {
         let mut registered = BTreeMap::new();
         let mut issues = Vec::new();
@@ -267,6 +326,34 @@ impl PreparedLanguage {
                 issues.push(ParserRegistrationIssue::Unused(id.clone()));
             }
         }
+        let mut registered_atoms = BTreeMap::new();
+        for parser in expression_atom_parsers {
+            let id = parser.id.clone();
+            if registered_atoms.insert(id.clone(), parser).is_some() {
+                issues.push(ParserRegistrationIssue::DuplicateExpressionAtomParser(id));
+            }
+        }
+        let declared_atoms = self
+            .spec
+            .spec()
+            .expressions
+            .iter()
+            .filter_map(|expression| expression.host_atom_parser.as_deref())
+            .collect::<BTreeSet<_>>();
+        for id in &declared_atoms {
+            if !registered_atoms.contains_key(*id) {
+                issues.push(ParserRegistrationIssue::MissingExpressionAtomParser(
+                    (*id).to_owned(),
+                ));
+            }
+        }
+        for id in registered_atoms.keys() {
+            if !declared_atoms.contains(id.as_str()) {
+                issues.push(ParserRegistrationIssue::UnusedExpressionAtomParser(
+                    id.clone(),
+                ));
+            }
+        }
         if !issues.is_empty() {
             issues.sort();
             return Err(ParserRegistrationError { issues });
@@ -274,6 +361,7 @@ impl PreparedLanguage {
         Ok(ConfiguredLanguageParser {
             language: self,
             parsers: registered.into_values().collect(),
+            expression_atom_parsers: registered_atoms,
             lexer: None,
         })
     }
@@ -352,6 +440,12 @@ pub enum ParserRegistrationIssue {
     Missing(String),
     /// The host registered a callback ID that the language does not declare.
     Unused(String),
+    /// The same expression atom parser ID was registered more than once.
+    DuplicateExpressionAtomParser(String),
+    /// An expression declares a host atom parser that the host did not register.
+    MissingExpressionAtomParser(String),
+    /// The host registered an expression atom parser ID that no grammar declares.
+    UnusedExpressionAtomParser(String),
 }
 
 impl fmt::Display for ParserRegistrationIssue {
@@ -368,6 +462,18 @@ impl fmt::Display for ParserRegistrationIssue {
             Self::Unused(id) => write!(
                 formatter,
                 "host registered custom parser `{id}` but the language does not declare it"
+            ),
+            Self::DuplicateExpressionAtomParser(id) => write!(
+                formatter,
+                "expression atom parser `{id}` is registered more than once"
+            ),
+            Self::MissingExpressionAtomParser(id) => write!(
+                formatter,
+                "language requires expression atom parser `{id}` but the host did not register it"
+            ),
+            Self::UnusedExpressionAtomParser(id) => write!(
+                formatter,
+                "host registered expression atom parser `{id}` but no language grammar declares it"
             ),
         }
     }
@@ -399,6 +505,7 @@ impl Error for ParserRegistrationError {}
 pub struct ConfiguredLanguageParser {
     pub(super) language: PreparedLanguage,
     pub(super) parsers: Vec<CustomConstructParser>,
+    pub(super) expression_atom_parsers: BTreeMap<String, ExpressionAtomParserRegistration>,
     pub(super) lexer: Option<CustomLexer>,
 }
 

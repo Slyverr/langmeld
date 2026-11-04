@@ -12,7 +12,7 @@ pub const LANGUAGE_VERSION: &str = "0.1.0";
 /// Reconstructs this module's canonical language definition.
 pub fn language_spec() -> langmeld_core::LanguageSpec {
     langmeld_core::LanguageSpec {
-        schema_version: 1,
+        schema_version: 3,
         name: "GeneratedConsumer".to_owned(),
         version: "0.1.0".to_owned(),
         root: "box".to_owned(),
@@ -25,6 +25,9 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
         ],
         enums: vec![
             langmeld_core::EnumSpec { id: "Mode".to_owned(), values: vec!["fast".to_owned(), "safe".to_owned()] },
+        ],
+        expressions: vec![
+            langmeld_core::ExpressionSpec { id: "arithmetic".to_owned(), atoms: vec![langmeld_core::ExpressionAtomKind::Number, langmeld_core::ExpressionAtomKind::Identifier], host_atom_parser: None, operators: vec![langmeld_core::ExpressionOperatorSpec { token: "+".to_owned(), prefix_precedence: None, infix: Some(langmeld_core::InfixOperatorSpec { precedence: 10, associativity: langmeld_core::ExpressionAssociativity::Left }) }] },
         ],
         types: vec![
             langmeld_core::TypeSpec { id: "Coordinates".to_owned(), fields: vec![langmeld_core::FieldSpec { name: "x".to_owned(), kind: langmeld_core::FieldKind::Number, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }, langmeld_core::FieldSpec { name: "y".to_owned(), kind: langmeld_core::FieldKind::Number, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }] },
@@ -39,7 +42,7 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
                 id: "box".to_owned(),
                 implements: vec![],
                 custom_parser: None,
-                syntax: vec!["box {namespace} {".to_owned()],
+                syntax: vec!["box {namespace}".to_owned()],
                 syntax_ids: vec!["root".to_owned()],
                 fields: vec![langmeld_core::FieldSpec { name: "namespace".to_owned(), kind: langmeld_core::FieldKind::Identifier, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
                 block: Some(langmeld_core::BlockSpec { allowed: vec!["statement".to_owned()], open: "{".to_owned(), close: "}".to_owned(), separators: vec![langmeld_core::BlockSeparator::Newline, langmeld_core::BlockSeparator::Literal(";".to_owned())], separator_policy: langmeld_core::BlockSeparatorPolicy::Optional }),
@@ -54,6 +57,16 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
                 fields: vec![langmeld_core::FieldSpec { name: "name".to_owned(), kind: langmeld_core::FieldKind::Identifier, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }, langmeld_core::FieldSpec { name: "config".to_owned(), kind: langmeld_core::FieldKind::Properties { name: None, fields: vec![langmeld_core::FieldSpec { name: "title".to_owned(), kind: langmeld_core::FieldKind::Text, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }, langmeld_core::FieldSpec { name: "mode".to_owned(), kind: langmeld_core::FieldKind::NamedEnum { name: "Mode".to_owned(), values: vec!["fast".to_owned(), "safe".to_owned()] }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }, langmeld_core::FieldSpec { name: "tags".to_owned(), kind: langmeld_core::FieldKind::List { item: std::boxed::Box::new(langmeld_core::FieldKind::Text) }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }, langmeld_core::FieldSpec { name: "attrs".to_owned(), kind: langmeld_core::FieldKind::Map { key: langmeld_core::MapKeyKind::Identifier, value: std::boxed::Box::new(langmeld_core::FieldKind::Text) }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }] }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
                 block: None,
                 symbol: Some(langmeld_core::SymbolSpec { kind: "item".to_owned(), name_field: "name".to_owned(), scope: Some(langmeld_core::ScopeSpec { construct: "box".to_owned(), name_field: "namespace".to_owned(), lookup: langmeld_core::ScopeLookup::LexicalParents }) }),
+            },
+            langmeld_core::ConstructSpec {
+                id: "evaluate".to_owned(),
+                implements: vec!["statement".to_owned()],
+                custom_parser: None,
+                syntax: vec!["evaluate {result};".to_owned()],
+                syntax_ids: vec!["expression".to_owned()],
+                fields: vec![langmeld_core::FieldSpec { name: "result".to_owned(), kind: langmeld_core::FieldKind::Expression { grammar: "arithmetic".to_owned(), terminator: ";".to_owned() }, required: true, default: None, constraints: langmeld_core::FieldConstraints { min: None, max: None, min_length: None, max_length: None, min_items: None, max_items: None } }],
+                block: None,
+                symbol: None,
             },
         ],
     }
@@ -145,8 +158,8 @@ pub struct Coordinates {
 impl TryFrom<&PropertyMap> for Coordinates {
     type Error = ConversionError;
     fn try_from(values: &PropertyMap) -> Result<Self, Self::Error> {
-        let x = read_value_3(values.get("x").ok_or(ConversionError::MissingField("x"))?)?;
-        let y = read_value_4(values.get("y").ok_or(ConversionError::MissingField("y"))?)?;
+        let x = read_value_4(values.get("x").ok_or(ConversionError::MissingField("x"))?)?;
+        let y = read_value_5(values.get("y").ok_or(ConversionError::MissingField("y"))?)?;
         Ok(Self {
             x,
             y,
@@ -166,10 +179,10 @@ pub struct ItemConfig {
 impl TryFrom<&PropertyMap> for ItemConfig {
     type Error = ConversionError;
     fn try_from(values: &PropertyMap) -> Result<Self, Self::Error> {
-        let title = read_value_5(values.get("title").ok_or(ConversionError::MissingField("title"))?)?;
-        let mode = read_value_6(values.get("mode").ok_or(ConversionError::MissingField("mode"))?)?;
-        let tags = read_value_7(values.get("tags").ok_or(ConversionError::MissingField("tags"))?)?;
-        let attrs = read_value_9(values.get("attrs").ok_or(ConversionError::MissingField("attrs"))?)?;
+        let title = read_value_6(values.get("title").ok_or(ConversionError::MissingField("title"))?)?;
+        let mode = read_value_7(values.get("mode").ok_or(ConversionError::MissingField("mode"))?)?;
+        let tags = read_value_8(values.get("tags").ok_or(ConversionError::MissingField("tags"))?)?;
+        let attrs = read_value_10(values.get("attrs").ok_or(ConversionError::MissingField("attrs"))?)?;
         Ok(Self {
             title,
             mode,
@@ -183,6 +196,7 @@ impl TryFrom<&PropertyMap> for ItemConfig {
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoxChild {
     Item(Item),
+    Evaluate(Evaluate),
 }
 
 fn read_value_0(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
@@ -201,22 +215,27 @@ fn read_value_2(captured: &langmeld_language::CapturedValue) -> Result<Spanned<I
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_3(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
-    let value = match &captured.value { langmeld_language::Value::Number(value) => *value, _ => return Err(ConversionError::WrongFieldKind("x")) };
+fn read_value_3(captured: &langmeld_language::CapturedValue) -> Result<Spanned<langmeld::expression::Expression>, ConversionError> {
+    let value = match &captured.value { langmeld_language::Value::Expression(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("result")) };
     Ok(Spanned { value, span: captured.span })
 }
 
 fn read_value_4(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
+    let value = match &captured.value { langmeld_language::Value::Number(value) => *value, _ => return Err(ConversionError::WrongFieldKind("x")) };
+    Ok(Spanned { value, span: captured.span })
+}
+
+fn read_value_5(captured: &langmeld_language::CapturedValue) -> Result<Spanned<f64>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Number(value) => *value, _ => return Err(ConversionError::WrongFieldKind("y")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_5(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+fn read_value_6(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("title")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_6(captured: &langmeld_language::CapturedValue) -> Result<Spanned<Mode>, ConversionError> {
+fn read_value_7(captured: &langmeld_language::CapturedValue) -> Result<Spanned<Mode>, ConversionError> {
     let value = match &captured.value {
         langmeld_language::Value::Enum(value) => match value.as_str() {
             "fast" => Mode::Fast,
@@ -228,24 +247,24 @@ fn read_value_6(captured: &langmeld_language::CapturedValue) -> Result<Spanned<M
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_7(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigTagsCollection>, ConversionError> {
+fn read_value_8(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigTagsCollection>, ConversionError> {
     let values = match &captured.value { langmeld_language::Value::List(values) => values, _ => return Err(ConversionError::WrongFieldKind("tags")) };
-    let value = values.iter().map(read_value_8).collect::<Result<Vec<_>, ConversionError>>()?;
+    let value = values.iter().map(read_value_9).collect::<Result<Vec<_>, ConversionError>>()?;
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_8(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+fn read_value_9(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("tags")) };
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_9(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigAttrsCollection>, ConversionError> {
+fn read_value_10(captured: &langmeld_language::CapturedValue) -> Result<Spanned<ItemConfigAttrsCollection>, ConversionError> {
     let entries = match &captured.value { langmeld_language::Value::Map(entries) => entries, _ => return Err(ConversionError::WrongFieldKind("attrs")) };
-    let value = entries.iter().map(|entry| Ok((entry.key.clone(), read_value_10(&entry.value)?))).collect::<Result<BTreeMap<_, _>, ConversionError>>()?;
+    let value = entries.iter().map(|entry| Ok((entry.key.clone(), read_value_11(&entry.value)?))).collect::<Result<BTreeMap<_, _>, ConversionError>>()?;
     Ok(Spanned { value, span: captured.span })
 }
 
-fn read_value_10(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
+fn read_value_11(captured: &langmeld_language::CapturedValue) -> Result<Spanned<String>, ConversionError> {
     let value = match &captured.value { langmeld_language::Value::Text(value) => value.clone(), _ => return Err(ConversionError::WrongFieldKind("attrs")) };
     Ok(Spanned { value, span: captured.span })
 }
@@ -267,6 +286,7 @@ impl TryFrom<&AstNode> for Box {
         let namespace = read_value_0(node.fields.get("namespace").ok_or(ConversionError::MissingField("namespace"))?)?;
         let children = node.children.iter().map(|child| match child.construct.as_str() {
             "item" => Ok(BoxChild::Item(Item::try_from(child)?)),
+            "evaluate" => Ok(BoxChild::Evaluate(Evaluate::try_from(child)?)),
             child => Err(ConversionError::UnknownChild { parent: "box", child: child.to_owned() }),
         }).collect::<Result<Vec<_>, ConversionError>>()?;
         Ok(Self {
@@ -298,6 +318,29 @@ impl TryFrom<&AstNode> for Item {
         Ok(Self {
             name,
             config,
+            syntax_variant: node.syntax_variant.clone(),
+            span: node.span,
+        })
+    }
+}
+
+/// Typed form of the `evaluate` construct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Evaluate {
+    pub result: Spanned<langmeld::expression::Expression>,
+    pub syntax_variant: String,
+    pub span: Span,
+}
+
+impl TryFrom<&AstNode> for Evaluate {
+    type Error = ConversionError;
+    fn try_from(node: &AstNode) -> Result<Self, Self::Error> {
+        if node.construct != "evaluate" { return Err(ConversionError::WrongConstruct { expected: "evaluate", actual: node.construct.clone() }); }
+        if !matches!(node.syntax_variant.as_str(), "expression") { return Err(ConversionError::InvalidSyntaxVariant { construct: "evaluate", variant: node.syntax_variant.clone() }); }
+        let result = read_value_3(node.fields.get("result").ok_or(ConversionError::MissingField("result"))?)?;
+        if !node.children.is_empty() { return Err(ConversionError::UnexpectedChildren { parent: "evaluate" }); }
+        Ok(Self {
+            result,
             syntax_variant: node.syntax_variant.clone(),
             span: node.span,
         })

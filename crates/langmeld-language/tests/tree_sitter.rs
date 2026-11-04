@@ -169,6 +169,28 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
 }
 
 #[test]
+fn optional_default_block_separators_generate_without_duplicate_newline_rules() {
+    let language = LanguageBuilder::new("DefaultBlocks")
+        .version("0.1.0")
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["statement"]),
+        )
+        .construct(ConstructBuilder::new("statement").syntax("step"))
+        .build()
+        .expect("default block language is valid");
+    let grammar = generate_tree_sitter(&language).expect("default block grammar exports");
+    let grammar = &grammar["tree-sitter/grammar.js"];
+
+    assert!(grammar.contains("lm_construct_program: $ => seq(seq(\"program\", \"{\"), choice(repeat($.lm_separator), seq(repeat($.lm_separator), $.lm_construct_statement, repeat(seq(repeat($.lm_separator), $.lm_construct_statement)), repeat($.lm_separator))), \"}\")"));
+    assert!(
+        !grammar.contains("repeat($.lm_newline), repeat($.lm_separator), repeat($.lm_newline)")
+    );
+}
+
+#[test]
 fn unsupported_custom_parsers_fail_without_returning_partial_artifacts() {
     let language = LanguageBuilder::new("CustomParserLanguage")
         .version("0.1.0")
@@ -363,6 +385,10 @@ fn write_definition_meta_tree_sitter_validation_fixture() {
         (
             "constructs/05_symbols.langmeld",
             include_str!("../src/definition_meta/constructs/05_symbols.langmeld"),
+        ),
+        (
+            "constructs/06_expressions.langmeld",
+            include_str!("../src/definition_meta/constructs/06_expressions.langmeld"),
         ),
     ];
     for (relative, contents) in samples {

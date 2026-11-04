@@ -232,6 +232,7 @@ impl TypeRegistry {
                     )
                 })
             }
+            FieldKind::Expression { .. } => "langmeld::expression::Expression".to_owned(),
         }
     }
 

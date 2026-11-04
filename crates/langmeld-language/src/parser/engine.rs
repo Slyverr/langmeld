@@ -9,8 +9,8 @@ use langmeld_core::{
 
 use crate::{
     AstNode, BlockDelimiterSpan, CapturedValue, CompletionBlockContext, CompletionFrontier,
-    CustomConstructMatch, CustomConstructParser, ExpectedCapture, LanguageToken,
-    LanguageTokenKind as TokenKind, ParseLimits, Program, Value, ValueType,
+    CustomConstructMatch, CustomConstructParser, ExpectedCapture, ExpressionAtomParserRegistration,
+    LanguageToken, LanguageTokenKind as TokenKind, ParseLimits, Program, Value, ValueType,
 };
 
 use super::{
@@ -44,6 +44,7 @@ pub(super) fn parse_tokens(
         source,
         tokens,
         custom_parsers: &parser.parsers,
+        expression_atom_parsers: &parser.expression_atom_parsers,
         position: 0,
         diagnostics: Vec::new(),
         custom_parser_spans: Vec::new(),
@@ -64,6 +65,7 @@ struct Parser<'a> {
     source: &'a SourceFile,
     tokens: Vec<LanguageToken>,
     custom_parsers: &'a [CustomConstructParser],
+    expression_atom_parsers: &'a BTreeMap<String, ExpressionAtomParserRegistration>,
     position: usize,
     diagnostics: Vec<Diagnostic>,
     custom_parser_spans: Vec<Span>,
@@ -182,6 +184,11 @@ impl Parser<'_> {
                     self.source,
                     &self.tokens,
                     &mut self.remaining_pattern_steps,
+                )
+                .with_expressions(&self.language.expressions)
+                .with_expression_atom_parsers(
+                    &self.language.expression_atom_parser_ids,
+                    self.expression_atom_parsers,
                 );
                 let matched = matcher.match_pattern(&pattern.parts, start_position);
                 let pattern_progress = matcher.progress().cloned();
@@ -222,7 +229,7 @@ impl Parser<'_> {
                     continue;
                 }
                 let block_opener = construct.block.is_some()
-                    && (self.language.spec.spec().schema_version == 2
+                    && (self.language.spec.spec().schema_version >= 2
                         || (matched.end_position > start_position
                             && is_punct(&self.tokens[matched.end_position - 1].kind, '{')));
                 if !is_line_end(&self.tokens, matched.end_position) && !block_opener {
@@ -299,7 +306,7 @@ impl Parser<'_> {
         let construct = &self.language.spec.spec().constructs[candidate.construct_index];
         self.validate_constraints(construct, &candidate.fields);
         let block_opener = construct.block.is_some()
-            && (self.language.spec.spec().schema_version == 2
+            && (self.language.spec.spec().schema_version >= 2
                 || (candidate.end_position > start_position
                     && is_punct(&self.tokens[candidate.end_position - 1].kind, '{')));
         if is_root && !is_line_end(&self.tokens, candidate.end_position) && !block_opener {
@@ -1344,6 +1351,7 @@ fn value_matches(value: &Value, kind: &FieldKind) -> bool {
                     && value_matches(&entry.value.value, value)
             })
         }
+        (Value::Expression(_), FieldKind::Expression { .. }) => true,
         _ => false,
     }
 }
@@ -1377,11 +1385,76 @@ fn custom_value_spans_valid(source: &SourceFile, value: &Value, envelope: Span) 
                 valid_entry
             })
         }
+        Value::Expression(expression) => expression_spans_valid(expression, &contained),
         Value::Identifier(_)
         | Value::Number(_)
         | Value::Text(_)
         | Value::Enum(_)
         | Value::Reference(_) => true,
+    }
+}
+
+fn expression_spans_valid(
+    expression: &langmeld_expression::Expression,
+    contained: &impl Fn(Span) -> bool,
+) -> bool {
+    use langmeld_expression::Expression;
+
+    match expression {
+        Expression::Atom(_, span) => contained(*span),
+        Expression::Prefix {
+            operator_span,
+            operand,
+            span,
+            ..
+        } => {
+            contained(*span)
+                && contained(*operator_span)
+                && expression_spans_valid(operand, contained)
+        }
+        Expression::Infix {
+            left,
+            operator_span,
+            right,
+            span,
+            ..
+        } => {
+            contained(*span)
+                && contained(*operator_span)
+                && expression_spans_valid(left, contained)
+                && expression_spans_valid(right, contained)
+        }
+        Expression::Group {
+            expression, span, ..
+        } => contained(*span) && expression_spans_valid(expression, contained),
+        Expression::Call {
+            callee,
+            arguments,
+            span,
+        } => {
+            contained(*span)
+                && expression_spans_valid(callee, contained)
+                && arguments
+                    .iter()
+                    .all(|argument| expression_spans_valid(argument, contained))
+        }
+        Expression::Member {
+            receiver,
+            name_span,
+            span,
+            ..
+        } => {
+            contained(*span) && contained(*name_span) && expression_spans_valid(receiver, contained)
+        }
+        Expression::Index {
+            receiver,
+            index,
+            span,
+        } => {
+            contained(*span)
+                && expression_spans_valid(receiver, contained)
+                && expression_spans_valid(index, contained)
+        }
     }
 }
 

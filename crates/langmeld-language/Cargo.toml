@@ -9,6 +9,7 @@ documentation = "https://docs.rs/langmeld-language"
 
 [dependencies]
 langmeld-core = { version = "0.1.0", path = "../langmeld-core" }
+langmeld-expression = { version = "0.1.0", path = "../langmeld-expression" }
 serde.workspace = true
 serde_json.workspace = true
 semver.workspace = true

@@ -234,7 +234,13 @@ fn construct_rule_definition(
                     "".to_owned()
                 } else {
                     let separator = block_separator_expression(block, &construct.id)?;
-                    format!("seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))")
+                    if block_has_newline_separator(block) {
+                        format!("repeat({separator})")
+                    } else {
+                        format!(
+                            "seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))"
+                        )
+                    }
                 }
             } else if block.separators.is_empty() {
                 let child = choice_expr(children);
@@ -242,20 +248,33 @@ fn construct_rule_definition(
             } else {
                 let child = choice_expr(children);
                 let separator = block_separator_expression(block, &construct.id)?;
-                let empty_body =
-                    format!("seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))");
-                let leading =
-                    format!("seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))");
-                let between = match block.separator_policy {
-                    BlockSeparatorPolicy::Optional => format!(
-                        "seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))"
-                    ),
-                    BlockSeparatorPolicy::Required => format!(
-                        "seq(repeat($.lm_newline), repeat1({separator}), repeat($.lm_newline))"
-                    ),
+                let layout_separator = block_has_newline_separator(block);
+                let repeated_separator = format!("repeat({separator})");
+                let (empty_body, leading, trailing) = if layout_separator {
+                    (
+                        repeated_separator.clone(),
+                        repeated_separator.clone(),
+                        repeated_separator,
+                    )
+                } else {
+                    let layout = |inner: &str| {
+                        format!("seq(repeat($.lm_newline), {inner}, repeat($.lm_newline))")
+                    };
+                    (
+                        layout(&format!("repeat({separator})")),
+                        layout(&format!("repeat({separator})")),
+                        layout(&format!("repeat({separator})")),
+                    )
                 };
-                let trailing =
-                    format!("seq(repeat($.lm_newline), repeat({separator}), repeat($.lm_newline))");
+                let between = match block.separator_policy {
+                    BlockSeparatorPolicy::Optional => format!("repeat({separator})"),
+                    BlockSeparatorPolicy::Required => format!("repeat1({separator})"),
+                };
+                let between = if layout_separator {
+                    between
+                } else {
+                    format!("seq(repeat($.lm_newline), {between}, repeat($.lm_newline))")
+                };
                 format!(
                     "choice({empty_body}, seq({leading}, {child}, repeat(seq({between}, {child})), {trailing}))"
                 )
@@ -310,6 +329,14 @@ fn block_separator_expression(
         1 => Ok(separators.into_iter().next().unwrap_or_default()),
         _ => Ok(choice_expr(separators)),
     }
+}
+
+fn block_has_newline_separator(block: &langmeld_core::BlockSpec) -> bool {
+    block.uses_default_layout()
+        || block
+            .separators
+            .iter()
+            .any(|separator| matches!(separator, BlockSeparator::Newline))
 }
 
 fn is_single_punctuation(value: &str, expected: char) -> bool {
@@ -505,6 +532,9 @@ impl TypeRuleBuilder {
             | FieldKind::List { .. }
             | FieldKind::Properties { .. }
             | FieldKind::Map { .. } => self.named_expression(kind),
+            FieldKind::Expression { grammar, .. } => Err(format!(
+                "Tree-sitter export does not yet represent expression field grammar `{grammar}`"
+            )),
         }
     }
 
@@ -569,7 +599,8 @@ impl TypeRuleBuilder {
             FieldKind::Identifier
             | FieldKind::Number
             | FieldKind::Text
-            | FieldKind::Reference { .. } => unreachable!("primitive types are not named"),
+            | FieldKind::Reference { .. }
+            | FieldKind::Expression { .. } => unreachable!("primitive types are not named"),
         };
         self.definitions.push(format!("{name}: $ => {expression}"));
         Ok(format!("$.{name}"))

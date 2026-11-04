@@ -181,7 +181,8 @@ fn language_kind_has_enum(kind: &FieldKind) -> bool {
         FieldKind::Identifier
         | FieldKind::Number
         | FieldKind::Text
-        | FieldKind::Reference { .. } => false,
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }
 
@@ -197,6 +198,7 @@ fn language_kind_has_reference(kind: &FieldKind) -> bool {
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Enum { .. }
-        | FieldKind::NamedEnum { .. } => false,
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }

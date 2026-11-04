@@ -14,20 +14,23 @@ syntax tree, and can generate typed Rust views of that tree.
 
 New declarative projects use language-model schema 2. A block owns its opening
 and closing token sequences and can require separators between child
-constructs; schema 1 keeps its existing inline-brace syntax. The generic parser,
-formatter, editor configuration, and browser adapter expose configured block
-layout. Tree-sitter export handles the exact representable subset and reports
-unsupported delimiter tokens instead of emitting a misleading grammar.
+constructs; schema 1 keeps its existing inline-brace syntax. Schema 3 adds
+reusable expression grammars and expression-valued fields with explicit
+terminators. The generic parser, formatter, editor configuration, and browser
+adapter expose configured block layout. Tree-sitter export handles the exact
+representable subset and reports unsupported constructs instead of emitting a
+misleading grammar.
 
 The built-in parser handles compatible declarative syntax. A Rust host can
 provide a custom parser when a language's grammar needs different parsing
 behavior. The generic analyzer provides symbol and reference resolution and
 workspace type facts; hosts can register language-specific analysis callbacks.
 
-The separate `langmeld-expression` crate provides precedence-aware expressions
-with host-defined atoms, typing, and runtime rules. Its parser can stop at an
-explicit punctuation terminator while retaining source ranges, so hosts can
-parse an expression inside a larger construct without guessing its boundary.
+The `langmeld-expression` crate provides precedence-aware expression parsing
+with explicit source ranges and punctuation boundaries. Language definitions
+can declare built-in number, boolean, and identifier atoms, configure prefix
+and infix operators, or require a typed host callback for custom atoms. The
+standalone crate also exposes host hooks for typing and runtime rules.
 
 ## Rust host and execution
 

@@ -187,8 +187,14 @@ fn field_definition() -> ConstructBuilder {
             "scalar_identifier_default",
             field_pattern("{name}: {kind}", Some("default_identifier")),
         )
+        .syntax_variant(
+            "expression",
+            "{name}: expression<{grammar}> until {terminator}[ {requirement}]",
+        )
         .field(FieldSpec::required("name", FieldKind::Identifier))
         .field(FieldSpec::optional("kind", FieldKind::Identifier))
+        .field(FieldSpec::optional("grammar", FieldKind::Identifier))
+        .field(FieldSpec::optional("terminator", FieldKind::Text))
         .field(FieldSpec::optional("item_kind", FieldKind::Identifier))
         .field(FieldSpec::optional("key_kind", FieldKind::Identifier))
         .field(FieldSpec::optional(

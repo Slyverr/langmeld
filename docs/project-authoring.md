@@ -28,6 +28,7 @@ my-language/
 ├── language/
 │   ├── language.langmeld
 │   ├── constructs/
+│   ├── expressions/  # optional
 │   └── extensions/
 ├── src/
 │   └── host/
@@ -60,6 +61,44 @@ construct program {
 Schema 2 defaults to `{` and `}` with optional newline or semicolon separators.
 Configured blocks can declare `open`, `close`, `separator`, and
 `separator_policy` entries when a language needs different layout.
+
+Expression grammars and fields require schema 3. They can be declared in the
+root file or split into the conventional `language/expressions/` directory:
+
+```langmeld
+language Example {
+  version: "0.1.0"
+  schema_version: 3
+  root: program
+
+  expression arithmetic {
+    atom: number
+    atom: identifier
+    operator "-" prefix 30
+    operator "+" infix 10 left
+    operator "*" infix 20 left
+  }
+
+  construct program {
+    syntax { root: "program" }
+    block: [evaluate]
+  }
+
+  construct evaluate {
+    syntax { default: "evaluate {value};" }
+    fields { value: expression<arithmetic> until ";" required }
+  }
+}
+```
+
+The expression field stores a structured expression tree and consumes through
+its declared top-level punctuation terminator. Nested parentheses and brackets
+do not end the expression. Expression parsing supplies syntax only; a Rust host
+still defines name resolution, types, evaluation, and lowering where needed.
+For language-specific atom syntax, add `host_atom_parser: callback_id` to the
+expression declaration and implement the generated callback in `src/host/parser.rs`.
+The optional Tree-sitter exporter currently declines grammars with expression
+fields instead of emitting a partial grammar.
 
 ## Develop the language
 

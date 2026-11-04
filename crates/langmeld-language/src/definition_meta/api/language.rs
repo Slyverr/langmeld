@@ -5,6 +5,7 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
         ConstructBuilder::new("language")
             .syntax_variant("root", "language {name} {")
             .syntax_variant("constructs", "constructs {")
+            .syntax_variant("expressions", "expressions {")
             .syntax_variant("types", "types {")
             .field(FieldSpec::optional("name", FieldKind::Identifier))
             .block([
@@ -20,6 +21,7 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
                 "enum_decl",
                 "record_type",
                 "properties_bundle",
+                "expression_decl",
             ]),
         ConstructBuilder::new("language_version")
             .syntax_variant("default", "version: {value}")

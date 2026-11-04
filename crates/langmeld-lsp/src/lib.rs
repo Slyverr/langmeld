@@ -2484,6 +2484,12 @@ fn describe_field_kind(kind: &langmeld_core::FieldKind) -> String {
             },
             describe_field_kind(value)
         ),
+        FieldKind::Expression {
+            grammar,
+            terminator,
+        } => {
+            format!("expression using {grammar} through {terminator}")
+        }
     }
 }
 
@@ -2498,6 +2504,7 @@ fn describe_value_type(kind: langmeld_language::ValueType) -> &'static str {
         ValueType::Properties => "property record",
         ValueType::List => "list",
         ValueType::Map => "map",
+        ValueType::Expression => "expression",
     }
 }
 
@@ -2553,7 +2560,8 @@ fn field_kind_has_enum(kind: &langmeld_core::FieldKind) -> bool {
         FieldKind::Identifier
         | FieldKind::Number
         | FieldKind::Text
-        | FieldKind::Reference { .. } => false,
+        | FieldKind::Reference { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }
 
@@ -2570,7 +2578,8 @@ fn field_kind_has_reference(kind: &langmeld_core::FieldKind) -> bool {
         | FieldKind::Number
         | FieldKind::Text
         | FieldKind::Enum { .. }
-        | FieldKind::NamedEnum { .. } => false,
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Expression { .. } => false,
     }
 }
 

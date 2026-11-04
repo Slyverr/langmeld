@@ -430,6 +430,7 @@ impl LanguageBuilder {
                 categories: Vec::new(),
                 rules: Vec::new(),
                 enums: Vec::new(),
+                expressions: Vec::new(),
                 types: Vec::new(),
                 behaviors: Vec::new(),
                 constructs: Vec::new(),
@@ -605,6 +606,26 @@ impl LanguageBuilder {
         self
     }
 
+    /// Registers a reusable expression operator grammar.
+    #[must_use]
+    pub fn expression(mut self, expression: ExpressionSpec) -> Self {
+        self.spec.expressions.push(expression);
+        self
+    }
+
+    /// Adds ordered expression operator grammars.
+    #[must_use]
+    pub fn expressions<I, E>(mut self, expressions: I) -> Self
+    where
+        I: IntoIterator<Item = E>,
+        E: Into<ExpressionSpec>,
+    {
+        self.spec
+            .expressions
+            .extend(expressions.into_iter().map(Into::into));
+        self
+    }
+
     /// Registers a reusable record declaration created with [`NamedRecord`].
     #[must_use]
     pub fn record_type(mut self, record: NamedRecord) -> Self {
@@ -670,6 +691,14 @@ impl LanguageBuilder {
 }
 
 impl FieldKind {
+    /// Captures an expression using a named grammar and explicit punctuation terminator.
+    #[must_use]
+    pub fn expression(grammar: impl Into<String>, terminator: impl Into<String>) -> Self {
+        Self::Expression {
+            grammar: grammar.into(),
+            terminator: terminator.into(),
+        }
+    }
     /// Constrains an identifier to one of the declared values.
     #[must_use]
     pub fn enumeration(values: impl IntoIterator<Item = impl Into<String>>) -> Self {
@@ -733,6 +762,87 @@ impl FieldKind {
         Self::Properties {
             name: Some(id.into()),
             fields: fields.into_iter().collect(),
+        }
+    }
+}
+
+impl ExpressionSpec {
+    /// Starts a reusable expression grammar with no atoms or operators.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            atoms: Vec::new(),
+            host_atom_parser: None,
+            operators: Vec::new(),
+        }
+    }
+
+    /// Enables one built-in expression atom category.
+    #[must_use]
+    pub fn atom(mut self, atom: ExpressionAtomKind) -> Self {
+        self.atoms.push(atom);
+        self
+    }
+
+    /// Requires a host callback for syntax forms outside the built-in atoms.
+    #[must_use]
+    pub fn host_atom_parser(mut self, id: impl Into<String>) -> Self {
+        self.host_atom_parser = Some(id.into());
+        self
+    }
+
+    /// Adds an expression operator declaration.
+    #[must_use]
+    pub fn operator(mut self, operator: ExpressionOperatorSpec) -> Self {
+        self.operators.push(operator);
+        self
+    }
+}
+
+impl ExpressionOperatorSpec {
+    /// Declares a prefix operator.
+    #[must_use]
+    pub fn prefix(token: impl Into<String>, precedence: u8) -> Self {
+        Self {
+            token: token.into(),
+            prefix_precedence: Some(precedence),
+            infix: None,
+        }
+    }
+
+    /// Declares an infix operator.
+    #[must_use]
+    pub fn infix(
+        token: impl Into<String>,
+        precedence: u8,
+        associativity: ExpressionAssociativity,
+    ) -> Self {
+        Self {
+            token: token.into(),
+            prefix_precedence: None,
+            infix: Some(InfixOperatorSpec {
+                precedence,
+                associativity,
+            }),
+        }
+    }
+
+    /// Declares one token as both prefix and infix.
+    #[must_use]
+    pub fn prefix_infix(
+        token: impl Into<String>,
+        prefix_precedence: u8,
+        infix_precedence: u8,
+        associativity: ExpressionAssociativity,
+    ) -> Self {
+        Self {
+            token: token.into(),
+            prefix_precedence: Some(prefix_precedence),
+            infix: Some(InfixOperatorSpec {
+                precedence: infix_precedence,
+                associativity,
+            }),
         }
     }
 }

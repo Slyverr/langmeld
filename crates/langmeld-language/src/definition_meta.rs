@@ -52,7 +52,7 @@ fn build_language() -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
     })?;
     if rebuilt.spec() != seed.spec() {
         return Err(vec![SpecError {
-            code: "LM1081",
+            code: "LMBOOT002",
             message:
                 "the embedded `.langmeld` grammar differs from its Rust API bootstrap definition"
                     .to_owned(),

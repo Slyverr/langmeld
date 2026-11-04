@@ -79,6 +79,36 @@ pub(crate) fn generate_host_scaffold(
         ));
     }
 
+    let expression_atom_parsers = spec
+        .expressions
+        .iter()
+        .filter_map(|expression| expression.host_atom_parser.as_deref())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut expression_registry = String::from(
+        "/// Callbacks required by expression grammars using host-defined atoms.\npub fn expression_atom_parser_callbacks() -> Vec<langmeld::language::ExpressionAtomParserRegistration> {\n    vec![\n",
+    );
+    for id in &expression_atom_parsers {
+        let _ = writeln!(
+            expression_registry,
+            "        langmeld::language::ExpressionAtomParserRegistration::new({id:?}, host_expression_atom_parser_{id}),"
+        );
+    }
+    expression_registry.push_str("    ]\n}\n");
+    parser_source.push_str(&marked_host_block(
+        "registry:expression_atom_parser",
+        &expression_registry,
+    ));
+    for id in &expression_atom_parsers {
+        let body_key = format!("body:expression_atom_parser:{id}");
+        let callback = format!(
+            "/// TODO: Recognize one custom atom for expression grammars that use `{id}`.\nfn host_expression_atom_parser_{id}(\n    _source: &langmeld::core::SourceFile,\n    _range: langmeld::core::Span,\n    _offset: usize,\n) -> Result<Option<langmeld::expression::CustomAtomToken>, langmeld::core::Diagnostic> {{\n    // <langmeld:{body_key}>\n    Ok(None)\n    // </langmeld:{body_key}>\n}}\n"
+        );
+        parser_source.push_str(&marked_host_block(
+            &format!("callback:expression_atom_parser:{id}"),
+            &callback,
+        ));
+    }
+
     let mut analysis_source = String::from(
         "// Semantic callbacks derived from the language definition.\n\
          // Replace each TODO with language-specific validation or analysis.\n\n",
@@ -208,7 +238,7 @@ pub(crate) fn generate_host_scaffold(
         ("host/lexer.rs".to_owned(), lexer_source),
         (
             "host/runtime.rs".to_owned(),
-            "use langmeld::core::ValidatedLanguageSpec;\nuse langmeld::language::{ConfiguredLanguageParser, PreparedLanguage};\n\n/// Binds the callbacks generated for this language to its validated model.\npub fn configured_parser(spec: ValidatedLanguageSpec) -> Result<ConfiguredLanguageParser, String> {\n    let prepared = PreparedLanguage::new(spec).map_err(|error| error.to_string())?;\n    let parser = prepared\n        .with_custom_parsers(crate::host::parser::custom_parser_callbacks())\n        .map_err(|error| error.to_string())?;\n    Ok(match crate::host::lexer::custom_lexer() {\n        Some(lexer) => parser.with_custom_lexer(lexer),\n        None => parser,\n    })\n}\n".to_owned(),
+            "use langmeld::core::ValidatedLanguageSpec;\nuse langmeld::language::{ConfiguredLanguageParser, PreparedLanguage};\n\n/// Binds the callbacks generated for this language to its validated model.\npub fn configured_parser(spec: ValidatedLanguageSpec) -> Result<ConfiguredLanguageParser, String> {\n    let prepared = PreparedLanguage::new(spec).map_err(|error| error.to_string())?;\n    let parser = prepared\n        .with_custom_parsers_and_expression_atom_parsers(\n            crate::host::parser::custom_parser_callbacks(),\n            crate::host::parser::expression_atom_parser_callbacks(),\n        )\n        .map_err(|error| error.to_string())?;\n    Ok(match crate::host::lexer::custom_lexer() {\n        Some(lexer) => parser.with_custom_lexer(lexer),\n        None => parser,\n    })\n}\n".to_owned(),
         ),
         (
             "host/README.md".to_owned(),
@@ -216,11 +246,11 @@ pub(crate) fn generate_host_scaffold(
 
 This generated module tree follows the language definition and Langmeld's extension APIs:
 
-- `parser.rs` contains one stub per declared custom parser. Return source-spanned generic fields for shared Langmeld services, and attach a native Rust AST with `CustomConstructMatch::with_host_data(...)` when your language needs its own representation.
+- `parser.rs` contains stubs for declared custom construct parsers and expression atom parsers. Return source-spanned generic fields or `CustomAtomToken` values that identify the host-owned syntax.
 - `lexer.rs` is the host's optional custom-lexer implementation. Start from `langmeld::language::lex_source(source)` when only some lexical rules need adapting.
 - `analysis.rs` contains semantic, symbol-resolution, and workspace behavior stubs plus checked registries.
 - `backend.rs` registers the project's Rust-defined single-file and workspace backends. This host-owned module is not generated from `.langmeld` declarations.
-- `runtime.rs` binds parser callbacks and an optional custom lexer to a validated language.
+- `runtime.rs` binds parser and expression callbacks plus an optional custom lexer to a validated language.
 - `mod.rs` connects the Rust modules.
 
 At a custom parser's byte offset, return `Ok(None)` only when the input does not
