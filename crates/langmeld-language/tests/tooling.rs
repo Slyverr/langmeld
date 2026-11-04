@@ -79,6 +79,7 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
 
     let highlighting: serde_json::Value =
         serde_json::from_str(&artifacts["highlighting.json"]).expect("highlighting is JSON");
+    assert_eq!(highlighting["schema_version"], 2);
     assert_eq!(highlighting["lexical_only"], true);
     assert_eq!(
         highlighting["semantic_token_types"],
@@ -88,6 +89,36 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         highlighting["semantic_token_modifiers"],
         serde_json::json!(langmeld_language::SEMANTIC_TOKEN_MODIFIERS)
     );
+    let mappings = highlighting["classification_mappings"]
+        .as_array()
+        .expect("classification mappings are an array");
+    assert_eq!(
+        mappings.len(),
+        langmeld_language::CLASSIFICATION_TYPES.len()
+    );
+    let mapping = |kind: &str| {
+        mappings
+            .iter()
+            .find(|mapping| mapping["kind"] == kind)
+            .expect("classification mapping exists")
+    };
+    assert_eq!(mapping("declaration")["semantic_token_type"], "variable");
+    assert_eq!(
+        mapping("declaration")["semantic_token_modifier"],
+        "declaration"
+    );
+    assert_eq!(mapping("reference")["semantic_token_modifier"], "reference");
+    assert_eq!(
+        mapping("enumMember")["textmate_scope"],
+        "constant.language.enum"
+    );
+    assert_eq!(
+        mapping("enumMember")["tree_sitter_capture"],
+        "constant.builtin"
+    );
+    assert_eq!(mapping("property")["semantic_token_type"], "property");
+    assert!(mapping("property")["textmate_scope"].is_null());
+    assert!(mapping("property")["tree_sitter_capture"].is_null());
     assert!(
         highlighting["keywords"]
             .as_array()
@@ -109,6 +140,33 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .iter()
             .any(|item| item == "fast")
     );
+
+    let textmate: serde_json::Value =
+        serde_json::from_str(&artifacts["syntaxes/demo-language.tmLanguage.json"])
+            .expect("TextMate grammar is JSON");
+    let textmate_patterns = textmate["patterns"].as_array().expect("patterns array");
+    for kind in [
+        "keyword",
+        "operator",
+        "string",
+        "number",
+        "comment",
+        "identifier",
+        "enumMember",
+    ] {
+        let scope = mapping(kind)["textmate_scope"]
+            .as_str()
+            .expect("generated TextMate classification has a scope");
+        assert!(
+            textmate_patterns.iter().any(|pattern| {
+                pattern["name"] == scope
+                    || pattern["name"]
+                        .as_str()
+                        .is_some_and(|name| name.starts_with(&format!("{scope}.")))
+            }),
+            "TextMate grammar should use the shared scope for {kind}"
+        );
+    }
 
     let capabilities: serde_json::Value =
         serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])

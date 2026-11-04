@@ -9,6 +9,8 @@ use crate::{
     CLASSIFICATION_TYPES, Capability, CapabilityStatus, EditorConfigurationAssumptions,
     PatternCompileError, PreparedLanguage, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
     ToolingCapabilities, generate_tree_sitter, rust_codegen::generate_rust_ast,
+    semantic_token_modifier_for_classification, semantic_token_type_for_classification,
+    textmate_scope_for_classification, tree_sitter_capture_for_classification,
 };
 
 /// Generated artifacts keyed by safe, relative destination paths.
@@ -50,17 +52,30 @@ pub fn generate_tooling(
     }
     let slug = safe_slug(&spec.name);
     let capabilities = capability_report(language, &prepared, tree_sitter_capability);
+    let classification_mappings = CLASSIFICATION_TYPES
+        .iter()
+        .map(|kind| {
+            serde_json::json!({
+                "kind": kind,
+                "semantic_token_type": semantic_token_type_for_classification(kind),
+                "semantic_token_modifier": semantic_token_modifier_for_classification(kind),
+                "textmate_scope": textmate_scope_for_classification(kind),
+                "tree_sitter_capture": tree_sitter_capture_for_classification(kind)
+            })
+        })
+        .collect::<Vec<_>>();
     let mut artifacts = GeneratedArtifacts::new();
     artifacts.insert("metadata.json".to_owned(), json_file(spec)?);
     artifacts.insert(
         "highlighting.json".to_owned(),
         json_value(serde_json::json!({
-            "schema_version": 1,
+            "schema_version": 2,
             "language": spec.name,
             "version": spec.version,
             "legend": CLASSIFICATION_TYPES,
             "semantic_token_types": SEMANTIC_TOKEN_TYPES,
             "semantic_token_modifiers": SEMANTIC_TOKEN_MODIFIERS,
+            "classification_mappings": classification_mappings,
             "keywords": keywords,
             "operators": operators,
             "enum_values": enum_values,
@@ -1039,34 +1054,49 @@ fn textmate_grammar(
 ) -> serde_json::Value {
     let mut patterns = Vec::new();
     if let Some(line_comment) = &lexical.line_comment {
-        patterns.push(serde_json::json!({
-            "name": "comment.line",
-            "match": format!("{}[^\\r\\n]*", regex_escape(line_comment))
-        }));
+        if let Some(scope) = textmate_scope_for_classification("comment") {
+            patterns.push(serde_json::json!({
+                "name": format!("{scope}.line"),
+                "match": format!("{}[^\\r\\n]*", regex_escape(line_comment))
+            }));
+        }
     }
     if let Some(block_comment) = &lexical.block_comment {
-        patterns.push(serde_json::json!({
-            "name": "comment.block",
-            "begin": regex_escape(&block_comment.open),
-            "end": regex_escape(&block_comment.close)
-        }));
+        if let Some(scope) = textmate_scope_for_classification("comment") {
+            patterns.push(serde_json::json!({
+                "name": format!("{scope}.block"),
+                "begin": regex_escape(&block_comment.open),
+                "end": regex_escape(&block_comment.close)
+            }));
+        }
     }
+    let string_scope = textmate_scope_for_classification("string").unwrap_or("string");
+    let number_scope = textmate_scope_for_classification("number").unwrap_or("constant.numeric");
     patterns.extend([
-        serde_json::json!({"name": "string.quoted.double", "begin": "\\\"", "end": "\\\""}),
-        serde_json::json!({"name": "constant.numeric", "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"}),
+        serde_json::json!({"name": string_scope, "begin": "\\\"", "end": "\\\""}),
+        serde_json::json!({"name": number_scope, "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"}),
     ]);
     if !keywords.is_empty() {
-        patterns.push(
-            serde_json::json!({"name": "keyword.control.langmeld", "match": word_regex(keywords)}),
-        );
+        if let Some(scope) = textmate_scope_for_classification("keyword") {
+            patterns.push(serde_json::json!({"name": scope, "match": word_regex(keywords)}));
+        }
     }
     if !operators.is_empty() {
-        patterns.push(serde_json::json!({"name": "keyword.operator.langmeld", "match": alternative_regex(operators)}));
+        if let Some(scope) = textmate_scope_for_classification("operator") {
+            patterns
+                .push(serde_json::json!({"name": scope, "match": alternative_regex(operators)}));
+        }
     }
     if !enum_values.is_empty() {
-        patterns.push(
-            serde_json::json!({"name": "constant.language.enum", "match": word_regex(enum_values)}),
-        );
+        if let Some(scope) = textmate_scope_for_classification("enumMember") {
+            patterns.push(serde_json::json!({"name": scope, "match": word_regex(enum_values)}));
+        }
+    }
+    if let Some(scope) = textmate_scope_for_classification("identifier") {
+        patterns.push(serde_json::json!({
+            "name": scope,
+            "match": "[_\\p{L}][_\\p{L}\\p{N}-]*"
+        }));
     }
     serde_json::json!({"scopeName": format!("source.{slug}"), "patterns": patterns})
 }

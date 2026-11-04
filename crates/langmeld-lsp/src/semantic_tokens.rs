@@ -1,6 +1,9 @@
 //! LSP semantic-token encoding for shared syntax classifications.
 
-use langmeld_language::{Classification, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES};
+use langmeld_language::{
+    Classification, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
+    semantic_token_modifier_for_classification, semantic_token_type_for_classification,
+};
 
 pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u32> {
     let mut pieces = Vec::new();
@@ -11,9 +14,12 @@ pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u3
         let Some(span) = source.get(classification.span.start..classification.span.end) else {
             continue;
         };
-        let modifier = SEMANTIC_TOKEN_MODIFIERS
-            .iter()
-            .position(|modifier| *modifier == classification.kind)
+        let modifier = semantic_token_modifier_for_classification(classification.kind)
+            .and_then(|modifier| {
+                SEMANTIC_TOKEN_MODIFIERS
+                    .iter()
+                    .position(|item| *item == modifier)
+            })
             .map_or(0, |index| 1 << index);
         let mut start = classification.span.start;
         for (relative, character) in span.char_indices() {
@@ -61,10 +67,7 @@ pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u3
 }
 
 fn token_type(kind: &str) -> Option<u32> {
-    let kind = match kind {
-        "identifier" | "declaration" | "reference" => "variable",
-        kind => kind,
-    };
+    let kind = semantic_token_type_for_classification(kind)?;
     u32::try_from(
         SEMANTIC_TOKEN_TYPES
             .iter()

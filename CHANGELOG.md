@@ -16,6 +16,8 @@ is cut, changes belong under `Unreleased`.
   identifier boundaries that preserve hyphenated language tokens.
 - **Tooling capabilities:** Explain when custom parser callbacks can make
   generated TextMate and LSP semantic highlighting incomplete.
+- **Highlighting classifications:** Map shared classifications to TextMate
+  scopes, Tree-sitter captures, and LSP token types in generated metadata.
 
 ## [0.1.0] - 2026-11-04
 

@@ -155,6 +155,58 @@ pub const SEMANTIC_TOKEN_TYPES: [&str; 8] = [
 /// Semantic-token modifiers exposed by the generic language server.
 pub const SEMANTIC_TOKEN_MODIFIERS: [&str; 2] = ["declaration", "reference"];
 
+/// Maps a generic classification to its LSP semantic-token type.
+pub fn semantic_token_type_for_classification(kind: &str) -> Option<&'static str> {
+    match kind {
+        "keyword" => Some("keyword"),
+        "operator" => Some("operator"),
+        "string" => Some("string"),
+        "number" => Some("number"),
+        "comment" => Some("comment"),
+        "enumMember" => Some("enumMember"),
+        "property" => Some("property"),
+        "identifier" | "declaration" | "reference" => Some("variable"),
+        _ => None,
+    }
+}
+
+/// Maps declaration/reference classifications to their LSP semantic-token modifier.
+pub fn semantic_token_modifier_for_classification(kind: &str) -> Option<&'static str> {
+    match kind {
+        "declaration" => Some("declaration"),
+        "reference" => Some("reference"),
+        _ => None,
+    }
+}
+
+/// Maps a lexical classification to its TextMate scope, when generated lexically.
+pub fn textmate_scope_for_classification(kind: &str) -> Option<&'static str> {
+    match kind {
+        "keyword" => Some("keyword.control.langmeld"),
+        "operator" => Some("keyword.operator.langmeld"),
+        "string" => Some("string.quoted.double"),
+        "number" => Some("constant.numeric"),
+        "comment" => Some("comment"),
+        "identifier" => Some("variable.other.langmeld"),
+        "enumMember" => Some("constant.language.enum"),
+        _ => None,
+    }
+}
+
+/// Maps a syntax classification to its Tree-sitter highlight capture.
+pub fn tree_sitter_capture_for_classification(kind: &str) -> Option<&'static str> {
+    match kind {
+        "keyword" => Some("keyword"),
+        "operator" => Some("operator"),
+        "string" => Some("string"),
+        "number" => Some("number"),
+        "comment" => Some("comment"),
+        "identifier" => Some("variable"),
+        "enumMember" => Some("constant.builtin"),
+        _ => None,
+    }
+}
+
 pub(super) fn lossless_syntax_tokens(
     source: &SourceFile,
     tokens: &[LanguageToken],

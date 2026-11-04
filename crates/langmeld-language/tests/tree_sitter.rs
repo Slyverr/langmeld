@@ -3,7 +3,10 @@ use langmeld_core::{
     ExpressionAtomKind, ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec,
     LanguageBuilder, LexicalSpec, MapKeyKind, SourceFile, SymbolSpec,
 };
-use langmeld_language::{PreparedLanguage, generate_tree_sitter, langmeld_definition_language};
+use langmeld_language::{
+    PreparedLanguage, generate_tree_sitter, langmeld_definition_language,
+    tree_sitter_capture_for_classification,
+};
 use std::{env, fs, path::Path};
 
 fn language() -> langmeld_core::ValidatedLanguageSpec {
@@ -205,6 +208,21 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(highlights.contains("(lm_type_6) @constant.builtin"));
     assert!(!highlights.contains("\"fast\" @constant.builtin"));
     assert!(!highlights.contains("\"draft\" @constant.builtin"));
+    for kind in [
+        "keyword",
+        "operator",
+        "number",
+        "comment",
+        "identifier",
+        "enumMember",
+    ] {
+        let capture = tree_sitter_capture_for_classification(kind)
+            .expect("generated Tree-sitter classification has a capture");
+        assert!(
+            highlights.contains(&format!("@{capture}")),
+            "Tree-sitter query should use the shared capture for {kind}"
+        );
+    }
 }
 
 #[test]

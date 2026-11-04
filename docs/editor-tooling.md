@@ -74,9 +74,11 @@ Skill uses the same comment and bracket assumptions and points authors to the
 reference and machine-readable report instead of maintaining a second list of
 editor capabilities.
 
-The generated `highlighting.json` and LSP initialization response use the same
-semantic-token type and modifier legends. Their token indices therefore stay
-aligned with the shared Langmeld classifications.
+The generated `highlighting.json` (schema version 2) maps the shared
+classifications to TextMate scopes, Tree-sitter captures, and LSP semantic-token
+types and modifiers. The TextMate generator, Tree-sitter query exporter, and
+LSP encoder use these same mappings; the LSP initialization response advertises
+the corresponding token legends.
 
 Project-definition reload is partial because it depends on editor clients
 supporting dynamic watched-file registration. A language with custom parser

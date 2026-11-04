@@ -80,7 +80,9 @@ pub use rust_codegen::{generate_rust_ast, generate_rust_language_spec};
 pub use syntax::{
     CLASSIFICATION_TYPES, Classification, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
     SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken, SyntaxTokenKind, classify,
-    classify_parse_result_prepared, classify_prepared,
+    classify_parse_result_prepared, classify_prepared, semantic_token_modifier_for_classification,
+    semantic_token_type_for_classification, textmate_scope_for_classification,
+    tree_sitter_capture_for_classification,
 };
 pub use tooling::{GeneratedArtifacts, generate_tooling, generate_tooling_capabilities};
 pub use tooling_capabilities::{

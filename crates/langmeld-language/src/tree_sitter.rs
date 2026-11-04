@@ -7,7 +7,7 @@ use langmeld_core::{
     MapKeyKind, ValidatedLanguageSpec,
 };
 
-use crate::{GeneratedArtifacts, LanguageTokenKind};
+use crate::{GeneratedArtifacts, LanguageTokenKind, tree_sitter_capture_for_classification};
 
 /// Generate a Tree-sitter grammar and its editor metadata for a language.
 ///
@@ -709,27 +709,37 @@ fn highlighting_query(
     let default_lexical = LexicalSpec::default();
     let lexical = language.lexical.as_ref().unwrap_or(&default_lexical);
     let mut query = if lexical.line_comment.is_some() {
-        String::from("(comment) @comment\n")
+        tree_sitter_capture_for_classification("comment")
+            .map(|capture| format!("(comment) @{capture}\n"))
+            .unwrap_or_default()
     } else {
         String::new()
     };
-    for (node, capture) in [
-        ("lm_identifier", "variable"),
+    for (node, classification) in [
+        ("lm_identifier", "identifier"),
         ("lm_number", "number"),
         ("lm_string", "string"),
     ] {
-        if used_builtin_nodes.contains(node) {
+        if used_builtin_nodes.contains(node)
+            && let Some(capture) = tree_sitter_capture_for_classification(classification)
+        {
             query.push_str(&format!("({node}) @{capture}\n"));
         }
     }
     for keyword in keywords {
-        query.push_str(&format!("{} @keyword\n", js_string(&keyword)));
+        if let Some(capture) = tree_sitter_capture_for_classification("keyword") {
+            query.push_str(&format!("{} @{capture}\n", js_string(&keyword)));
+        }
     }
     for operator in operators {
-        query.push_str(&format!("{} @operator\n", js_string(&operator)));
+        if let Some(capture) = tree_sitter_capture_for_classification("operator") {
+            query.push_str(&format!("{} @{capture}\n", js_string(&operator)));
+        }
     }
     for rule in enum_rule_names {
-        query.push_str(&format!("({rule}) @constant.builtin\n"));
+        if let Some(capture) = tree_sitter_capture_for_classification("enumMember") {
+            query.push_str(&format!("({rule}) @{capture}\n"));
+        }
     }
     query
 }
