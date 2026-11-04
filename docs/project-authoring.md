@@ -5,7 +5,7 @@
 Run the interactive initializer from a Langmeld checkout:
 
 ```sh
-cargo run -p langmeld-cli -- init
+cargo run -p langmeld-cli -- init --path ../my-language
 ```
 
 Choose whether the project uses declarative `.langmeld` definitions, Rust-authored
@@ -14,7 +14,7 @@ CLI. For a non-interactive project scaffold:
 
 ```sh
 cargo run -p langmeld-cli -- init \
-  --path ./my-language \
+  --path ../my-language \
   --name MyLanguage \
   --no-interactive
 ```

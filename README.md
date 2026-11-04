@@ -26,7 +26,7 @@ See [current capabilities and boundaries](docs/overview.md) for details.
 To try the CLI from this checkout, use Rust 1.88 or newer:
 
 ```sh
-cargo run -p langmeld-cli -- init
+cargo run -p langmeld-cli -- init --path ../my-language
 ```
 
 The interactive initializer creates a language project and its Rust host.
