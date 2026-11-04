@@ -10,6 +10,7 @@ language Aster {
   behavior aster_numeric_types: workspace_type_analysis
 
   expression arithmetic {
+    host_atom_parser: aster_prefixed_number
     atom: number
     atom: identifier
     operator "+" infix 10 left

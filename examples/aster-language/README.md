@@ -10,6 +10,8 @@ Langmeld parses source and resolves declared symbols. Aster adds numeric-name
 and function-arity checks, lowers the typed AST into a host-owned IR, runs an
 ordered constant-folding pass, and interprets the result. Numeric semantics,
 the IR, optimization, and runtime behavior remain Aster code.
+The host parser recognizes `@<digits>` as a custom expression atom, which the
+compiler lowers into Aster's numeric IR.
 
 The project was initialized with the Langmeld CLI. Definitions are split among
 `language/language.langmeld`, `language/constructs/`, and

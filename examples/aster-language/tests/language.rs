@@ -147,6 +147,34 @@ fn expressions_follow_precedence_associativity_and_nested_groups() {
 }
 
 #[test]
+fn host_defined_numeric_atoms_flow_through_analysis_and_execution() {
+    let language = load_language().expect("compiled language model loads");
+    let source = SourceFile::new(
+        "host-atom.aster.lmprog",
+        "program {\n  fn main {\n    let total = @42 + 1;\n    print total\n    return total;\n  }\n}",
+    );
+    let parsed = parse_source(&source).expect("parser prepares");
+    assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+    let programs = vec![parsed.program];
+    let analysis = analyze_sources(&language, std::slice::from_ref(&source), &[&programs[0]])
+        .expect("host analysis runs");
+    assert!(
+        analysis.diagnostics.is_empty(),
+        "{:#?}",
+        analysis.diagnostics
+    );
+
+    let output = evaluate(&RuntimeContext {
+        language: &language,
+        sources: &[source],
+        programs: &programs,
+        analysis: &analysis,
+    })
+    .expect("host atom lowers into Aster's numeric IR");
+    assert_eq!(output, ["total = 43"]);
+}
+
+#[test]
 fn host_type_analysis_checks_expression_names_call_arity_and_return_values() {
     let language = load_language().expect("compiled language model loads");
     let source = SourceFile::new(

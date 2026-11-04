@@ -16,7 +16,7 @@
     },
     {
       "path": "language/language.langmeld",
-      "sha256": "e4b313c0952b226f0c187e74d884c953b6aa8b490e3198f199fde4ff8f1df46f"
+      "sha256": "64bd01ecfaed8721788e01d5598de5cf7eb800c12aab16f0df72d010897bf336"
     },
     {
       "path": "language/extensions/assertion.langmeld",
@@ -24,5 +24,5 @@
     }
   ],
   "extensions": [],
-  "effective_language_sha256": "8957c5bb1e5311f82a18a01fda3aaff234a37891f673c64504a0a4694ac81cb6"
+  "effective_language_sha256": "924baf2ad32d3329eb8a9983261710572efffc2b7ebc4f5ecf499384de74f65f"
 }

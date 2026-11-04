@@ -197,15 +197,12 @@ fn lower_assert(value: ast::Assert) -> Result<Instruction, String> {
 
 fn lower_expression(expression: &Expression) -> Result<Expr, String> {
     match expression {
-        Expression::Atom(Atom::Number(value), _) => {
-            let value = value
-                .parse::<f64>()
-                .map_err(|_| format!("`{value}` is not a valid number"))?;
-            if value.is_finite() {
-                Ok(Expr::Number(value))
-            } else {
-                Err("numeric literal must be finite".to_owned())
-            }
+        Expression::Atom(Atom::Number(value), _) => lower_number(value),
+        Expression::Atom(Atom::Custom { kind, text }, _) if kind == "aster_number" => {
+            let value = text
+                .strip_prefix('@')
+                .ok_or_else(|| format!("`{text}` is not an Aster numeric atom"))?;
+            lower_number(value)
         }
         Expression::Atom(Atom::Name(name), _) => Ok(Expr::Variable(name.clone())),
         Expression::Atom(Atom::Boolean(_) | Atom::Custom { .. }, _) => {
@@ -231,6 +228,17 @@ fn lower_expression(expression: &Expression) -> Result<Expr, String> {
         Expression::Call { .. } | Expression::Member { .. } | Expression::Index { .. } => {
             Err("Aster arithmetic does not support call or member expressions".to_owned())
         }
+    }
+}
+
+fn lower_number(value: &str) -> Result<Expr, String> {
+    let value = value
+        .parse::<f64>()
+        .map_err(|_| format!("`{value}` is not a valid number"))?;
+    if value.is_finite() {
+        Ok(Expr::Number(value))
+    } else {
+        Err("numeric literal must be finite".to_owned())
     }
 }
 

@@ -11,7 +11,8 @@ is cut, changes belong under `Unreleased`.
 
 - **Aster example:** Demonstrate a modular language project with function-local
   scopes, host type checks, typed-AST lowering, an optimization pass, an
-  interpreter, and a separately implemented syntax extension.
+  interpreter, a host-defined expression atom, and a separately implemented
+  syntax extension.
 
 ### Changed
 
