@@ -173,6 +173,9 @@ fn generated_editor_artifacts_follow_the_declared_comment_policy() {
     );
     let language = spec.validate().expect("comment policy is valid");
     let artifacts = generate_tooling(&language).expect("tooling still generates");
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capabilities are JSON");
 
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
         .expect("editor configuration is JSON");
@@ -180,6 +183,14 @@ fn generated_editor_artifacts_follow_the_declared_comment_policy() {
     assert_eq!(
         config["comments"]["blockComment"],
         serde_json::json!(["/*", "*/"])
+    );
+    assert_eq!(
+        config["comments"]["blockComment"],
+        capabilities["editor_configuration_assumptions"]["block_comment"]
+    );
+    assert_eq!(
+        config["comments"]["lineComment"],
+        capabilities["editor_configuration_assumptions"]["line_comment"]
     );
 
     let textmate: serde_json::Value =
@@ -206,9 +217,6 @@ fn generated_editor_artifacts_follow_the_declared_comment_policy() {
             })
     );
 
-    let capabilities: serde_json::Value =
-        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
-            .expect("capabilities are JSON");
     assert_eq!(
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "//"

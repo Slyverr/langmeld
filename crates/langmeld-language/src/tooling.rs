@@ -79,7 +79,9 @@ pub fn generate_tooling(
     );
     artifacts.insert(
         "language-configuration.json".to_owned(),
-        json_value(language_configuration(spec))?,
+        json_value(language_configuration(
+            &capabilities.editor_configuration_assumptions,
+        ))?,
     );
     artifacts.insert("agent-skill/SKILL.md".to_owned(), agent_skill(spec, &slug));
     artifacts.insert("agent-skill/references/grammar.md".to_owned(), reference);
@@ -284,15 +286,7 @@ fn capability_report(
         source_extensions: spec.source_extensions.clone(),
         artifacts,
         features,
-        editor_configuration_assumptions: EditorConfigurationAssumptions {
-            line_comment: lexical.line_comment.clone(),
-            block_comment: lexical
-                .block_comment
-                .as_ref()
-                .map(|comment| [comment.open.clone(), comment.close.clone()]),
-            bracket_pairs: editor_bracket_pairs(spec),
-            reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields.",
-        },
+        editor_configuration_assumptions: editor_configuration_assumptions(spec, lexical),
     }
 }
 
@@ -304,25 +298,34 @@ fn json_value(value: serde_json::Value) -> Result<String, serde_json::Error> {
     Ok(serde_json::to_string_pretty(&value)? + "\n")
 }
 
-fn language_configuration(spec: &LanguageSpec) -> serde_json::Value {
-    let brackets = editor_bracket_pairs(spec);
-    let mut auto_closing_pairs = brackets.clone();
+fn editor_configuration_assumptions(
+    spec: &LanguageSpec,
+    lexical: &LexicalSpec,
+) -> EditorConfigurationAssumptions {
+    EditorConfigurationAssumptions {
+        line_comment: lexical.line_comment.clone(),
+        block_comment: lexical
+            .block_comment
+            .as_ref()
+            .map(|comment| [comment.open.clone(), comment.close.clone()]),
+        bracket_pairs: editor_bracket_pairs(spec),
+        reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields.",
+    }
+}
+
+fn language_configuration(assumptions: &EditorConfigurationAssumptions) -> serde_json::Value {
+    let mut auto_closing_pairs = assumptions.bracket_pairs.clone();
     auto_closing_pairs.insert(("\"".to_owned(), "\"".to_owned()));
-    let default_lexical = LexicalSpec::default();
-    let lexical = spec.lexical.as_ref().unwrap_or(&default_lexical);
     let mut comments = serde_json::Map::new();
-    if let Some(line_comment) = &lexical.line_comment {
+    if let Some(line_comment) = &assumptions.line_comment {
         comments.insert("lineComment".to_owned(), serde_json::json!(line_comment));
     }
-    if let Some(block_comment) = &lexical.block_comment {
-        comments.insert(
-            "blockComment".to_owned(),
-            serde_json::json!([block_comment.open, block_comment.close]),
-        );
+    if let Some(block_comment) = &assumptions.block_comment {
+        comments.insert("blockComment".to_owned(), serde_json::json!(block_comment));
     }
     serde_json::json!({
         "comments": comments,
-        "brackets": brackets,
+        "brackets": assumptions.bracket_pairs,
         "autoClosingPairs": auto_closing_pairs
     })
 }
