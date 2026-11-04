@@ -28,6 +28,10 @@ is cut, changes belong under `Unreleased`.
 - **Symbol analysis:** Schema 5 can configure declaration order, duplicate-name
   handling, and shadowing once per symbol kind. Ambiguous references produce
   diagnostics without navigation targets; defaults preserve existing behavior.
+- **Definition validation:** Bounded syntax-conflict analysis reports a warning
+  when it cannot inspect every candidate. Rust hosts can read these findings
+  from the validated language, and `langmeld check` includes them separately
+  from source diagnostics.
 - **Editor configuration:** Generated bracket pairs follow declared blocks and
   built-in list, map, property, and expression fields; unused conventional
   pairs are omitted.

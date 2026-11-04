@@ -895,7 +895,7 @@ impl ScopeLookup {
 
 /// A language definition that passed structural validation.
 #[derive(Clone, Debug)]
-pub struct ValidatedLanguageSpec(pub(super) LanguageSpec);
+pub struct ValidatedLanguageSpec(pub(super) LanguageSpec, pub(super) Vec<SpecWarning>);
 
 impl ValidatedLanguageSpec {
     /// Returns the immutable canonical definition.
@@ -912,6 +912,21 @@ impl ValidatedLanguageSpec {
             .iter()
             .find(|construct| construct.id == id)
     }
+
+    /// Returns non-fatal findings produced while validating this definition.
+    #[must_use]
+    pub fn warnings(&self) -> &[SpecWarning] {
+        &self.1
+    }
+}
+
+/// A non-fatal finding about a language definition.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SpecWarning {
+    /// Stable validation code.
+    pub code: &'static str,
+    /// Explanation of the condition that limited validation.
+    pub message: String,
 }
 
 /// A problem found while validating a language definition.

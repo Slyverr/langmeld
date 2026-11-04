@@ -189,7 +189,12 @@ language and source selection before updating `langmeld.json`.
 `langmeld check --project langmeld.json` checks the configured sources and
 generic workspace analysis. If a language requires callbacks implemented in
 Rust, use its generated host or another integration that registers those
-callbacks; the standalone check command does not load custom host code.
+callbacks; the standalone check command does not load custom host code. The
+command also reports definition-level warnings when static syntax-conflict
+analysis reaches a work limit. These warnings do not fail the check: source
+parsing still diagnoses actual ambiguous constructs. JSON output includes
+`validation_warnings` separately from source diagnostics. Rust integrations can
+inspect the same findings with `ValidatedLanguageSpec::warnings()`.
 
 ## Extensions
 

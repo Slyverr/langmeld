@@ -29,7 +29,13 @@ pub(crate) fn check_workspace(arguments: ValidationArgs) -> Result<(), (u8, Stri
         .with_custom_parsers(std::iter::empty())
         .map_err(|error| (2, error.to_string()))?;
     let diagnostics = validate_sources(&language, &parser, &sources);
-    print_diagnostics(&sources, &diagnostics, arguments.format).map_err(|error| (2, error))?;
+    print_diagnostics(
+        &sources,
+        &diagnostics,
+        language.warnings(),
+        arguments.format,
+    )
+    .map_err(|error| (2, error))?;
     if diagnostics
         .iter()
         .flatten()
@@ -76,15 +82,17 @@ fn validate_sources(
 fn print_diagnostics(
     sources: &[SourceFile],
     diagnostics: &[Vec<Diagnostic>],
+    validation_warnings: &[langmeld_core::SpecWarning],
     format: OutputFormat,
 ) -> Result<(), String> {
     if sources.len() == 1 {
-        return print_one_source(&sources[0], &diagnostics[0], format);
+        return print_one_source(&sources[0], &diagnostics[0], validation_warnings, format);
     }
     match format {
         OutputFormat::Text => {
+            print_validation_warnings(validation_warnings);
             for (source, findings) in sources.iter().zip(diagnostics) {
-                print_one_source(source, findings, OutputFormat::Text)?;
+                print_one_source(source, findings, &[], OutputFormat::Text)?;
             }
         }
         OutputFormat::Json => {
@@ -97,7 +105,11 @@ fn print_diagnostics(
                 .iter()
                 .flatten()
                 .all(|diagnostic| diagnostic.severity != Severity::Error);
-            print_json(&json!({"valid": valid, "files": files}))?;
+            print_json(&json!({
+                "valid": valid,
+                "validation_warnings": validation_warnings_json(validation_warnings),
+                "files": files
+            }))?;
         }
     }
     Ok(())
@@ -106,10 +118,12 @@ fn print_diagnostics(
 fn print_one_source(
     source: &SourceFile,
     diagnostics: &[Diagnostic],
+    validation_warnings: &[langmeld_core::SpecWarning],
     format: OutputFormat,
 ) -> Result<(), String> {
     match format {
         OutputFormat::Text => {
+            print_validation_warnings(validation_warnings);
             if diagnostics.is_empty() {
                 println!("{}: no issues found", source.name);
             } else {
@@ -125,11 +139,29 @@ fn print_one_source(
             print_json(&json!({
                 "valid": valid,
                 "source": source.name,
-                "diagnostics": diagnostics
+                "diagnostics": diagnostics,
+                "validation_warnings": validation_warnings_json(validation_warnings)
             }))?;
         }
     }
     Ok(())
+}
+
+fn print_validation_warnings(warnings: &[langmeld_core::SpecWarning]) {
+    for warning in warnings {
+        println!("{}", format_validation_warning(warning));
+    }
+}
+
+fn format_validation_warning(warning: &langmeld_core::SpecWarning) -> String {
+    format!(
+        "language definition: warning[{}]: {}",
+        warning.code, warning.message
+    )
+}
+
+fn validation_warnings_json(warnings: &[langmeld_core::SpecWarning]) -> Value {
+    json!(warnings)
 }
 
 fn print_json(value: &Value) -> Result<(), String> {
@@ -162,7 +194,7 @@ pub(crate) fn format_diagnostic(source: &SourceFile, diagnostic: &Diagnostic) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use langmeld_core::{ConstructBuilder, LanguageBuilder};
+    use langmeld_core::{ConstructBuilder, LanguageBuilder, SpecWarning};
     use langmeld_language::CustomConstructParser;
 
     #[test]
@@ -193,6 +225,26 @@ mod tests {
         assert_eq!(
             format_diagnostic(&source, &diagnostic),
             "sample.calc:2:1: error[LM1202]: unknown syntax"
+        );
+    }
+
+    #[test]
+    fn validation_warnings_remain_definition_level_in_text_and_json() {
+        let warning = SpecWarning {
+            code: "LM1096",
+            message: "syntax conflict analysis for block `program` was incomplete".to_owned(),
+        };
+
+        assert_eq!(
+            format_validation_warning(&warning),
+            "language definition: warning[LM1096]: syntax conflict analysis for block `program` was incomplete"
+        );
+        assert_eq!(
+            validation_warnings_json(std::slice::from_ref(&warning)),
+            json!([{
+                "code": "LM1096",
+                "message": "syntax conflict analysis for block `program` was incomplete"
+            }])
         );
     }
 }

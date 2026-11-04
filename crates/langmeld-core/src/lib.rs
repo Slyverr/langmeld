@@ -16,6 +16,6 @@ pub use spec::{
     CategorySpec, ConstructSpec, DeclarationOrder, DuplicatePolicy, EnumSpec,
     ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec, ExpressionSpec,
     FieldConstraints, FieldKind, FieldSpec, InfixOperatorSpec, LanguageSpec, LexicalSpec,
-    MapKeyKind, ScopeLookup, ScopeSpec, ShadowingPolicy, SpecError, SymbolPolicySpec, SymbolSpec,
-    SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
+    MapKeyKind, ScopeLookup, ScopeSpec, ShadowingPolicy, SpecError, SpecWarning, SymbolPolicySpec,
+    SymbolSpec, SyntaxRuleSpec, TypeSpec, ValidatedLanguageSpec,
 };

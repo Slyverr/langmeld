@@ -907,6 +907,146 @@ fn validation_checks_repeated_pattern_overlaps_beyond_representative_lengths() {
 }
 
 #[test]
+fn validation_reports_when_pattern_conflict_candidate_limit_is_reached() {
+    let mut spec = valid_spec();
+    spec.constructs[1].syntax = (0..1025)
+        .map(|value| format!("item {{name}} {value}"))
+        .collect();
+
+    let validated = spec
+        .validate()
+        .expect("candidate limits do not make an otherwise valid grammar invalid");
+    let warnings = validated.warnings();
+
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].code, "LM1096");
+    assert!(warnings[0].message.contains("candidate realization limit"));
+    assert!(
+        warnings[0]
+            .message
+            .contains("token-pattern comparison limit")
+    );
+}
+
+#[test]
+fn validation_reports_when_same_shape_comparison_limit_is_reached() {
+    let mut spec = valid_spec();
+    spec.constructs[1].symbol = None;
+    spec.constructs[1].syntax = (0..100)
+        .map(|value| format!("item {{kind{value}}}"))
+        .collect();
+    spec.constructs[1].fields = (0..100)
+        .map(|value| {
+            FieldSpec::optional(
+                format!("kind{value}"),
+                FieldKind::Enum {
+                    values: vec![format!("value{value}")],
+                },
+            )
+        })
+        .collect();
+
+    let validated = spec
+        .validate()
+        .expect("disjoint enum captures remain valid across alternatives");
+    let warning = validated
+        .warnings()
+        .first()
+        .expect("the same-shape comparison limit is reported");
+
+    assert_eq!(warning.code, "LM1096");
+    assert!(warning.message.contains("same-shape comparison limit"));
+}
+
+#[test]
+fn validation_reports_when_repeated_pattern_automaton_work_limit_is_reached() {
+    let mut spec = valid_spec();
+    spec.constructs[1].symbol = None;
+    spec.constructs[1].syntax = (0..100)
+        .map(|value| format!("many ({{items}}[,])* tail {value}"))
+        .collect();
+    spec.constructs[1].fields = vec![FieldSpec::optional(
+        "items",
+        FieldKind::List {
+            item: Box::new(FieldKind::Identifier),
+        },
+    )];
+
+    let validated = spec
+        .validate()
+        .expect("reaching an automaton work limit is non-fatal");
+    let warning = validated
+        .warnings()
+        .first()
+        .expect("the automaton work limit is reported");
+
+    assert_eq!(warning.code, "LM1096");
+    assert!(warning.message.contains("automaton work limit"));
+}
+
+#[test]
+fn validation_reports_when_repeated_pattern_pair_limit_is_reached() {
+    let mut spec = valid_spec();
+    spec.constructs[1].symbol = None;
+    spec.constructs[1].syntax = (0..130)
+        .map(|value| format!("kind{value} ({{items}})*"))
+        .collect();
+    spec.constructs[1].fields = vec![FieldSpec::optional(
+        "items",
+        FieldKind::List {
+            item: Box::new(FieldKind::Identifier),
+        },
+    )];
+
+    let validated = spec
+        .validate()
+        .expect("reaching a pair limit does not invalidate the grammar");
+    let warning = validated
+        .warnings()
+        .first()
+        .expect("the pair limit is reported");
+
+    assert_eq!(warning.code, "LM1096");
+    assert!(
+        warning
+            .message
+            .contains("repeated-pattern comparison limit"),
+        "{}",
+        warning.message
+    );
+}
+
+#[test]
+fn validation_reports_when_pattern_realization_expansion_is_bounded() {
+    let mut spec = valid_spec();
+    spec.constructs[1].syntax = vec!["item {name}[ a][ b][ c][ d][ e][ f][ g]".to_owned()];
+
+    let validated = spec
+        .validate()
+        .expect("a bounded realization expansion does not invalidate the grammar");
+    let warning = validated
+        .warnings()
+        .first()
+        .expect("the expansion fallback is reported");
+
+    assert_eq!(warning.code, "LM1096");
+    assert!(
+        warning
+            .message
+            .contains("pattern realization expansion exceeded")
+    );
+}
+
+#[test]
+fn validation_has_no_conflict_analysis_warning_when_checks_are_complete() {
+    let validated = valid_spec()
+        .validate()
+        .expect("the standard test language is valid");
+
+    assert!(validated.warnings().is_empty());
+}
+
+#[test]
 fn validation_models_repeated_comma_separators_when_checking_ambiguity() {
     let mut spec = valid_spec();
     spec.constructs[1].symbol = None;

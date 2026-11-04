@@ -12,9 +12,11 @@ impl LanguageSpec {
     ///
     /// # Errors
     /// Returns every detected definition error. No parser or semantic service accepts an
-    /// unvalidated definition.
+    /// unvalidated definition. Non-fatal limits on static syntax-conflict analysis are
+    /// available on the returned [`ValidatedLanguageSpec`].
     pub fn validate(mut self) -> Result<ValidatedLanguageSpec, Vec<SpecError>> {
         let mut errors = Vec::new();
+        let mut warnings = Vec::new();
         let mut expression_ids = BTreeSet::new();
         for expression in &self.expressions {
             if !valid_identifier(&expression.id) || !expression_ids.insert(expression.id.as_str()) {
@@ -1012,6 +1014,7 @@ impl LanguageSpec {
                 let mut automata_work = 0;
                 let mut automata_analyzed_pairs = BTreeSet::new();
                 let mut automata_conflicts = BTreeSet::new();
+                let mut incomplete_analysis = BTreeSet::new();
                 'children: for child_id in &expanded_children {
                     let Some(child) = constructs.get(*child_id) else {
                         continue;
@@ -1033,6 +1036,7 @@ impl LanguageSpec {
                         .collect::<Vec<_>>();
                     for pattern in &effective_patterns {
                         if candidate_count >= MAX_PATTERN_REALIZATIONS_PER_BLOCK {
+                            incomplete_analysis.insert("candidate realization limit reached");
                             break 'children;
                         }
                         let automaton = pattern_token_automaton(pattern, child);
@@ -1049,9 +1053,13 @@ impl LanguageSpec {
                                 if !automaton.has_repetition && !previous.automaton.has_repetition {
                                     continue;
                                 }
-                                if automata_pairs >= MAX_PATTERN_CONFLICT_COMPARISONS
-                                    || automata_work >= MAX_PATTERN_AUTOMATON_WORK_PER_BLOCK
-                                {
+                                if automata_pairs >= MAX_PATTERN_CONFLICT_COMPARISONS {
+                                    incomplete_analysis
+                                        .insert("repeated-pattern comparison limit reached");
+                                    break;
+                                }
+                                if automata_work >= MAX_PATTERN_AUTOMATON_WORK_PER_BLOCK {
+                                    incomplete_analysis.insert("automaton work limit reached");
                                     break;
                                 }
                                 let key = pattern_conflict_key(
@@ -1087,6 +1095,7 @@ impl LanguageSpec {
                                         });
                                     }
                                 } else {
+                                    incomplete_analysis.insert("automaton work limit reached");
                                     automata_work = MAX_PATTERN_AUTOMATON_WORK_PER_BLOCK;
                                     break;
                                 }
@@ -1110,10 +1119,19 @@ impl LanguageSpec {
                                     fields
                                 },
                             );
-                        let realizations = pattern_realizations(pattern)
-                            .unwrap_or_else(|| vec![normalize_pattern_whitespace(pattern)]);
+                        if !repeated_fields.is_empty() && !automaton_supported {
+                            incomplete_analysis
+                                .insert("repeated-pattern analysis used representative lengths");
+                        }
+                        let realizations = pattern_realizations(pattern).unwrap_or_else(|| {
+                            incomplete_analysis.insert(
+                                "pattern realization expansion exceeded its supported limit",
+                            );
+                            vec![normalize_pattern_whitespace(pattern)]
+                        });
                         for realization in realizations {
                             if candidate_count >= MAX_PATTERN_REALIZATIONS_PER_BLOCK {
+                                incomplete_analysis.insert("candidate realization limit reached");
                                 break 'children;
                             }
                             candidate_count += 1;
@@ -1165,6 +1183,8 @@ impl LanguageSpec {
                                     continue;
                                 }
                                 if same_shape_comparisons >= MAX_PATTERN_CONFLICT_COMPARISONS {
+                                    incomplete_analysis
+                                        .insert("same-shape comparison limit reached");
                                     break;
                                 }
                                 same_shape_comparisons += 1;
@@ -1194,9 +1214,7 @@ impl LanguageSpec {
                             }
                             previous.push(candidate.clone());
 
-                            if token_pattern_comparisons < MAX_PATTERN_CONFLICT_COMPARISONS
-                                && let Some(atoms) = &candidate.atoms
-                            {
+                            if let Some(atoms) = &candidate.atoms {
                                 let same_length = token_patterns.entry(atoms.len()).or_default();
                                 for previous_candidate in same_length.iter() {
                                     let pair_key = pattern_conflict_key(
@@ -1215,6 +1233,8 @@ impl LanguageSpec {
                                     }
                                     if token_pattern_comparisons >= MAX_PATTERN_CONFLICT_COMPARISONS
                                     {
+                                        incomplete_analysis
+                                            .insert("token-pattern comparison limit reached");
                                         break;
                                     }
                                     token_pattern_comparisons += 1;
@@ -1254,6 +1274,19 @@ impl LanguageSpec {
                         }
                     }
                 }
+                if !incomplete_analysis.is_empty() {
+                    warnings.push(SpecWarning {
+                        code: "LM1096",
+                        message: format!(
+                            "syntax conflict analysis for block `{}` was incomplete: {}",
+                            construct.id,
+                            incomplete_analysis
+                                .into_iter()
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    });
+                }
             }
             for field in &construct.fields {
                 validate_reference_targets(
@@ -1270,7 +1303,7 @@ impl LanguageSpec {
             // authoring frontends before exposing the validated canonical specification.
             self.enums.sort_by(|left, right| left.id.cmp(&right.id));
             self.types.sort_by(|left, right| left.id.cmp(&right.id));
-            Ok(ValidatedLanguageSpec(self))
+            Ok(ValidatedLanguageSpec(self, warnings))
         } else {
             Err(errors)
         }
