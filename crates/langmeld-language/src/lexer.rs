@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, LexicalSpec, SourceFile, Span};
 
 /// Lexical category understood by Langmeld's generic parser and editor model.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,8 +86,17 @@ impl LexedSource {
 /// end-of-input sentinel because the parser adds it after validating host tokens.
 #[must_use]
 pub fn lex_source(source: &SourceFile) -> LexedSource {
-    let (mut tokens, diagnostics, _) =
-        crate::lexing::lex(source, crate::ParseLimits::default().max_tokens);
+    lex_source_with_lexical_spec(source, &LexicalSpec::default())
+}
+
+/// Tokenizes source with an explicit built-in comment policy and default token limit.
+#[must_use]
+pub fn lex_source_with_lexical_spec(source: &SourceFile, lexical: &LexicalSpec) -> LexedSource {
+    let (mut tokens, diagnostics, _) = crate::lexing::lex_with_spec(
+        source,
+        crate::ParseLimits::default().max_tokens,
+        Some(lexical),
+    );
     if matches!(
         tokens.last().map(|token| &token.kind),
         Some(LanguageTokenKind::End)

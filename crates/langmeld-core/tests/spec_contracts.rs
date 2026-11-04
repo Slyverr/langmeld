@@ -1,4 +1,4 @@
-use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, MapKeyKind};
+use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, MapKeyKind};
 
 #[test]
 fn language_spec_round_trips_nested_types_and_flattened_field_kinds() {
@@ -41,6 +41,41 @@ fn language_spec_round_trips_nested_types_and_flattened_field_kinds() {
         serde_json::from_value::<LanguageSpec>(serialized).expect("round trip deserializes"),
         spec
     );
+}
+
+#[test]
+fn lexical_policy_round_trips_and_absent_policy_keeps_the_legacy_shape() {
+    let mut spec: LanguageSpec = serde_json::from_value(serde_json::json!({
+        "schema_version": 4,
+        "name": "Comment Language",
+        "version": "0.1.0",
+        "root": "program",
+        "constructs": [{"id": "program", "syntax": ["program"]}],
+        "lexical": {
+            "line_comment": "//",
+            "block_comment": {"open": "/*", "close": "*/"}
+        }
+    }))
+    .expect("lexical policy deserializes");
+    assert_eq!(
+        spec.lexical
+            .as_ref()
+            .and_then(|lexical| lexical.line_comment.as_deref()),
+        Some("//")
+    );
+
+    let serialized = serde_json::to_value(&spec).expect("lexical policy serializes");
+    assert_eq!(serialized["lexical"]["line_comment"], "//");
+    assert_eq!(serialized["lexical"]["block_comment"]["open"], "/*");
+    assert_eq!(
+        serde_json::from_value::<LanguageSpec>(serialized).expect("round-trip deserializes"),
+        spec
+    );
+
+    spec.lexical = None;
+    let legacy = serde_json::to_value(spec).expect("absent policy serializes");
+    assert!(legacy.get("lexical").is_none());
+    assert_eq!(LexicalSpec::default().line_comment.as_deref(), Some("#"));
 }
 
 #[test]

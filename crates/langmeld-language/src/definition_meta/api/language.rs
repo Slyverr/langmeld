@@ -14,6 +14,7 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
                 "schema_version_decl",
                 "source_extension_decl",
                 "import_decl",
+                "lexical_decl",
                 "category_decl",
                 "behavior_decl",
                 "rule_decl",
@@ -38,6 +39,16 @@ pub(super) fn definitions() -> Vec<ConstructBuilder> {
         ConstructBuilder::new("import_decl")
             .syntax_variant("default", "import: {path}")
             .field(FieldSpec::required("path", FieldKind::Text)),
+        ConstructBuilder::new("lexical_decl")
+            .syntax_variant("root", "lexical {")
+            .block(["line_comment_decl", "block_comment_decl"]),
+        ConstructBuilder::new("line_comment_decl")
+            .syntax_variant("default", "line_comment: {marker}")
+            .field(FieldSpec::required("marker", FieldKind::Text)),
+        ConstructBuilder::new("block_comment_decl")
+            .syntax_variant("default", "block_comment: {open} {close}")
+            .field(FieldSpec::required("open", FieldKind::Text))
+            .field(FieldSpec::required("close", FieldKind::Text)),
         ConstructBuilder::new("category_decl")
             .syntax_variant("root", "category {id} {")
             .field(FieldSpec::required("id", FieldKind::Identifier))

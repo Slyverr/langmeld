@@ -1,7 +1,7 @@
 use langmeld_core::{
     BehaviorStage, Diagnostic, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
-    ExpressionSpec, FieldSpec, InfixOperatorSpec, LanguageBuilder, LanguageSpec, SourceFile, Span,
-    ValidatedLanguageSpec,
+    ExpressionSpec, FieldSpec, InfixOperatorSpec, LanguageBuilder, LanguageSpec, LexicalSpec,
+    SourceFile, Span, ValidatedLanguageSpec,
 };
 use std::collections::{BTreeMap, VecDeque};
 
@@ -129,6 +129,7 @@ pub(crate) fn convert_language_module_specs<'a>(
     let mut types = Vec::new();
     let mut expressions = Vec::new();
     let mut constructs = Vec::new();
+    let mut lexical = None;
     let declarations: Vec<_> = modules
         .iter()
         .flat_map(|(module, source)| module.children.iter().map(move |node| (node, *source)))
@@ -258,6 +259,21 @@ pub(crate) fn convert_language_module_specs<'a>(
         for declaration in &module.children {
             match declaration.construct.as_str() {
                 "language_version" | "language_root" | "schema_version_decl" | "import_decl" => {}
+                "lexical_decl" => {
+                    if module.syntax_variant != "root" {
+                        return Err(vec![error(
+                            declaration,
+                            "lexical settings must be declared in the root language file",
+                        )]);
+                    }
+                    if lexical.is_some() {
+                        return Err(vec![error(
+                            declaration,
+                            "language declares more than one lexical settings block",
+                        )]);
+                    }
+                    lexical = Some(convert_lexical_spec(declaration)?);
+                }
                 "source_extension_decl" => {
                     source_extensions.push(text(declaration, "value")?);
                 }
@@ -287,6 +303,9 @@ pub(crate) fn convert_language_module_specs<'a>(
         .schema_version(schema_version)
         .version(version)
         .root(root_id);
+    if let Some(lexical) = lexical {
+        language = language.lexical(lexical);
+    }
     for extension in source_extensions {
         language = language.source_extension(extension);
     }
@@ -312,6 +331,44 @@ pub(crate) fn convert_language_module_specs<'a>(
         language = language.construct(construct);
     }
     Ok(language.into_spec())
+}
+
+fn convert_lexical_spec(node: &AstNode) -> Result<LexicalSpec, Vec<Diagnostic>> {
+    let mut lexical = LexicalSpec::new();
+    let mut has_line_comment = false;
+    let mut has_block_comment = false;
+    for declaration in &node.children {
+        match declaration.construct.as_str() {
+            "line_comment_decl" => {
+                if has_line_comment {
+                    return Err(vec![error(
+                        declaration,
+                        "lexical settings declare more than one line comment delimiter",
+                    )]);
+                }
+                has_line_comment = true;
+                lexical = lexical.line_comment(text(declaration, "marker")?);
+            }
+            "block_comment_decl" => {
+                if has_block_comment {
+                    return Err(vec![error(
+                        declaration,
+                        "lexical settings declare more than one block comment pair",
+                    )]);
+                }
+                has_block_comment = true;
+                lexical =
+                    lexical.block_comment(text(declaration, "open")?, text(declaration, "close")?);
+            }
+            unsupported => {
+                return Err(vec![error(
+                    declaration,
+                    format!("unsupported lexical declaration `{unsupported}`"),
+                )]);
+            }
+        }
+    }
+    Ok(lexical)
 }
 
 fn convert_expression(

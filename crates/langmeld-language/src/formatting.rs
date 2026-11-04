@@ -24,9 +24,9 @@ impl Default for FormatOptions {
 
 /// Normalizes block indentation while preserving source text, comments, and strings.
 ///
-/// Line endings are normalized to LF. The formatter uses Langmeld's built-in
-/// lexer, so languages with host-specific lexical rules should provide a host
-/// formatter instead.
+/// Line endings are normalized to LF. The formatter uses the language's
+/// configured built-in lexer; languages with host-specific lexical rules should
+/// provide a host formatter instead.
 ///
 /// # Errors
 /// Returns parser and generic semantic diagnostics instead of formatting invalid input.

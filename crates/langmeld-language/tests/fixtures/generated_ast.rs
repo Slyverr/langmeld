@@ -12,11 +12,12 @@ pub const LANGUAGE_VERSION: &str = "0.1.0";
 /// Reconstructs this module's canonical language definition.
 pub fn language_spec() -> langmeld_core::LanguageSpec {
     langmeld_core::LanguageSpec {
-        schema_version: 3,
+        schema_version: 4,
         name: "GeneratedConsumer".to_owned(),
         version: "0.1.0".to_owned(),
         root: "box".to_owned(),
         source_extensions: vec![".lm".to_owned(), ".lmd".to_owned()],
+        lexical: Some(langmeld_core::LexicalSpec { line_comment: Some("//".to_owned()), block_comment: Some(langmeld_core::BlockCommentSpec { open: "/*".to_owned(), close: "*/".to_owned() }) }),
         categories: vec![
             langmeld_core::CategorySpec { id: "statement".to_owned() },
         ],

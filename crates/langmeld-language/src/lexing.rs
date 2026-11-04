@@ -1,14 +1,24 @@
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, LexicalSpec, SourceFile, Span};
 
 use crate::lexer::{LanguageToken as Token, LanguageTokenKind as TokenKind};
 
 pub(super) fn lex(source: &SourceFile, max_tokens: usize) -> (Vec<Token>, Vec<Diagnostic>, bool) {
+    lex_with_spec(source, max_tokens, None)
+}
+
+pub(super) fn lex_with_spec(
+    source: &SourceFile,
+    max_tokens: usize,
+    lexical: Option<&LexicalSpec>,
+) -> (Vec<Token>, Vec<Diagnostic>, bool) {
+    let default_lexical = LexicalSpec::default();
+    let lexical = lexical.unwrap_or(&default_lexical);
     let mut chars = source.text.char_indices().peekable();
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut resource_limited = false;
 
-    while let Some((start, character)) = chars.next() {
+    'source: while let Some((start, character)) = chars.next() {
         if tokens.len() >= max_tokens.saturating_sub(1) {
             diagnostics.push(Diagnostic::error(
                 "LM1301",
@@ -39,8 +49,17 @@ pub(super) fn lex(source: &SourceFile, max_tokens: usize) -> (Vec<Token>, Vec<Di
         if character.is_whitespace() {
             continue;
         }
-        if character == '#' {
-            let mut end = start + character.len_utf8();
+        if lexical
+            .line_comment
+            .as_deref()
+            .is_some_and(|marker| source.text[start..].starts_with(marker))
+        {
+            let marker = lexical.line_comment.as_deref().unwrap_or_default();
+            let marker_end = start + marker.len();
+            while chars.peek().is_some_and(|(offset, _)| *offset < marker_end) {
+                chars.next();
+            }
+            let mut end = marker_end;
             while let Some((offset, next)) = chars.peek().copied() {
                 if next == '\n' || next == '\r' {
                     break;
@@ -52,6 +71,107 @@ pub(super) fn lex(source: &SourceFile, max_tokens: usize) -> (Vec<Token>, Vec<Di
                 kind: TokenKind::Comment,
                 span: Span::new(start, end),
             });
+            continue;
+        }
+        if let Some(block_comment) = &lexical.block_comment
+            && source.text[start..].starts_with(&block_comment.open)
+        {
+            let open_end = start + block_comment.open.len();
+            while chars.peek().is_some_and(|(offset, _)| *offset < open_end) {
+                chars.next();
+            }
+            let mut segment_start = start;
+            let mut end = open_end;
+            let mut terminated = false;
+            while let Some((offset, next)) = chars.next() {
+                if source.text[offset..].starts_with(&block_comment.close) {
+                    end = offset + block_comment.close.len();
+                    while chars
+                        .peek()
+                        .is_some_and(|(next_offset, _)| *next_offset < end)
+                    {
+                        chars.next();
+                    }
+                    if !push_limited_token(
+                        &mut tokens,
+                        &mut diagnostics,
+                        &mut resource_limited,
+                        Token {
+                            kind: TokenKind::Comment,
+                            span: Span::new(segment_start, end),
+                        },
+                        max_tokens,
+                    ) {
+                        break 'source;
+                    }
+                    terminated = true;
+                    break;
+                }
+                if next == '\n' || next == '\r' {
+                    let newline_end = if next == '\r'
+                        && chars
+                            .peek()
+                            .is_some_and(|(_, following)| *following == '\n')
+                    {
+                        chars
+                            .next()
+                            .map_or(offset + 1, |(newline_start, _)| newline_start + 1)
+                    } else {
+                        offset + next.len_utf8()
+                    };
+                    if segment_start < offset
+                        && !push_limited_token(
+                            &mut tokens,
+                            &mut diagnostics,
+                            &mut resource_limited,
+                            Token {
+                                kind: TokenKind::Comment,
+                                span: Span::new(segment_start, offset),
+                            },
+                            max_tokens,
+                        )
+                    {
+                        break 'source;
+                    }
+                    if !push_limited_token(
+                        &mut tokens,
+                        &mut diagnostics,
+                        &mut resource_limited,
+                        Token {
+                            kind: TokenKind::Newline,
+                            span: Span::new(offset, newline_end),
+                        },
+                        max_tokens,
+                    ) {
+                        break 'source;
+                    }
+                    segment_start = newline_end;
+                    end = newline_end;
+                } else {
+                    end = offset + next.len_utf8();
+                }
+            }
+            if !terminated {
+                if segment_start < end
+                    && !push_limited_token(
+                        &mut tokens,
+                        &mut diagnostics,
+                        &mut resource_limited,
+                        Token {
+                            kind: TokenKind::Comment,
+                            span: Span::new(segment_start, end),
+                        },
+                        max_tokens,
+                    )
+                {
+                    break 'source;
+                }
+                diagnostics.push(Diagnostic::error(
+                    "LM1103",
+                    "unterminated block comment",
+                    Span::new(start, end),
+                ));
+            }
             continue;
         }
         if character == '"' {
@@ -210,6 +330,26 @@ pub(super) fn lex(source: &SourceFile, max_tokens: usize) -> (Vec<Token>, Vec<Di
     (tokens, diagnostics, resource_limited)
 }
 
+fn push_limited_token(
+    tokens: &mut Vec<Token>,
+    diagnostics: &mut Vec<Diagnostic>,
+    resource_limited: &mut bool,
+    token: Token,
+    max_tokens: usize,
+) -> bool {
+    if tokens.len() >= max_tokens.saturating_sub(1) {
+        diagnostics.push(Diagnostic::error(
+            "LM1301",
+            format!("token count exceeds the limit of {max_tokens}"),
+            token.span,
+        ));
+        *resource_limited = true;
+        return false;
+    }
+    tokens.push(token);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,5 +370,19 @@ mod tests {
         assert_eq!(zero_tokens.len(), 1);
         assert_eq!(zero_tokens[0].kind, TokenKind::End);
         assert_eq!(zero_diagnostics[0].code, "LM1301");
+    }
+
+    #[test]
+    fn multiline_block_comments_obey_the_token_budget_incrementally() {
+        let source = SourceFile::new("limited.source", "/* first\nsecond\nthird */");
+        let lexical = LexicalSpec::new().block_comment("/*", "*/");
+        let (tokens, diagnostics, limited) = lex_with_spec(&source, 3, Some(&lexical));
+
+        assert!(limited);
+        assert_eq!(tokens.len(), 3);
+        assert_eq!(tokens[0].kind, TokenKind::Comment);
+        assert_eq!(tokens[1].kind, TokenKind::Newline);
+        assert_eq!(tokens[2].kind, TokenKind::End);
+        assert_eq!(diagnostics[0].code, "LM1301");
     }
 }

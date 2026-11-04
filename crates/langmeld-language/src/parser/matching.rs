@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use langmeld_core::{
-    ConstructSpec, Diagnostic, FieldKind, FieldSpec, MapKeyKind, SourceFile, Span,
+    ConstructSpec, Diagnostic, FieldKind, FieldSpec, LexicalSpec, MapKeyKind, SourceFile, Span,
 };
 
 use crate::{
@@ -216,6 +216,7 @@ pub(super) struct PatternMatcher<'source, 'tokens, 'budget> {
     source: &'source SourceFile,
     tokens: &'tokens [LanguageToken],
     expressions: Option<&'source HashMap<String, langmeld_expression::ExpressionGrammar>>,
+    lexical: Option<&'source LexicalSpec>,
     expression_atom_parser_ids: Option<&'source HashMap<String, String>>,
     expression_atom_parsers: Option<&'source BTreeMap<String, ExpressionAtomParserRegistration>>,
     remaining_steps: &'budget mut usize,
@@ -233,6 +234,7 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
             source,
             tokens,
             expressions: None,
+            lexical: None,
             expression_atom_parser_ids: None,
             expression_atom_parsers: None,
             remaining_steps,
@@ -246,6 +248,11 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
         expressions: &'source HashMap<String, langmeld_expression::ExpressionGrammar>,
     ) -> Self {
         self.expressions = Some(expressions);
+        self
+    }
+
+    pub(super) fn with_lexical_spec(mut self, lexical: Option<&'source LexicalSpec>) -> Self {
+        self.lexical = lexical;
         self
     }
 
@@ -556,23 +563,27 @@ impl<'source, 'tokens, 'budget> PatternMatcher<'source, 'tokens, 'budget> {
                     .expression_atom_parser_ids
                     .and_then(|ids| ids.get(grammar))
                     .and_then(|id| self.expression_atom_parsers?.get(id));
+                let default_lexical = LexicalSpec::default();
+                let lexical = self.lexical.unwrap_or(&default_lexical);
                 let parsed = if let Some(custom_parser) = custom_parser {
                     let mut parse_atom = |source: &SourceFile, range: Span, offset: usize| {
                         (custom_parser.parse)(source, range, offset)
                     };
-                    langmeld_expression::parse_expression_until_with_atoms(
+                    langmeld_expression::parse_expression_until_with_atoms_and_lexical_spec(
                         self.source,
                         range,
                         expression_grammar,
                         terminator,
                         &mut parse_atom,
+                        lexical,
                     )
                 } else {
-                    langmeld_expression::parse_expression_until(
+                    langmeld_expression::parse_expression_until_with_lexical_spec(
                         self.source,
                         range,
                         expression_grammar,
                         terminator,
+                        lexical,
                     )
                 };
                 let (expression, consumed) = match parsed {

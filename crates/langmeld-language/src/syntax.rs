@@ -9,7 +9,7 @@ use langmeld_core::{ConstructSpec, FieldKind, SourceFile, Span, ValidatedLanguag
 
 use crate::{
     AstNode, LanguageToken, LanguageTokenKind, ParseResult, PreparedLanguage, Program, Value,
-    lexer::lex_source,
+    lexer::lex_source_with_lexical_spec,
 };
 
 /// A source-file or language construct node in the parent-aware syntax tree.
@@ -620,7 +620,7 @@ fn build_node(spec: &NodeSpec, tokens: &[SyntaxToken], range: Range<usize>) -> S
 
 /// Classifies significant source tokens and declaration/reference roles.
 ///
-/// This convenience API lexes with Langmeld's built-in lexer. Use
+/// This convenience API lexes with the language's configured built-in lexer. Use
 /// [`classify_parse_result_prepared`] to classify the exact token stream used by
 /// a parse, including a host-provided lexer.
 #[must_use]
@@ -629,7 +629,14 @@ pub fn classify_prepared(
     source: &SourceFile,
     program: &Program,
 ) -> Vec<Classification> {
-    let lexed = lex_source(source);
+    let default_lexical = langmeld_core::LexicalSpec::default();
+    let lexical = language
+        .spec()
+        .spec()
+        .lexical
+        .as_ref()
+        .unwrap_or(&default_lexical);
+    let lexed = lex_source_with_lexical_spec(source, lexical);
     classify_tokens(language, source, program, &lexed.tokens)
 }
 

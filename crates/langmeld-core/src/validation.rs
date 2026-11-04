@@ -326,11 +326,11 @@ impl LanguageSpec {
             }
         }
 
-        if !matches!(self.schema_version, 1..=3) {
+        if !matches!(self.schema_version, 1..=4) {
             errors.push(SpecError {
                 code: "LM1001",
                 message: format!(
-                    "unsupported schema_version {}; expected 1, 2, or 3",
+                    "unsupported schema_version {}; expected 1, 2, 3, or 4",
                     self.schema_version
                 ),
             });
@@ -340,6 +340,15 @@ impl LanguageSpec {
                 code: "LM1085",
                 message: "expression grammars require schema_version 3".to_owned(),
             });
+        }
+        if let Some(lexical) = &self.lexical {
+            if self.schema_version < 4 {
+                errors.push(SpecError {
+                    code: "LM1091",
+                    message: "lexical comment settings require schema_version 4".to_owned(),
+                });
+            }
+            validate_lexical_spec(lexical, &self.expressions, &mut errors);
         }
         if self.name.trim().is_empty() || self.version.trim().is_empty() {
             errors.push(SpecError {
@@ -1297,6 +1306,69 @@ fn escape_pattern_literal(literal: &str) -> String {
 
 fn identifier_character(character: char) -> bool {
     character == '_' || character.is_alphanumeric()
+}
+
+fn validate_lexical_spec(
+    lexical: &LexicalSpec,
+    expressions: &[ExpressionSpec],
+    errors: &mut Vec<SpecError>,
+) {
+    let mut delimiters = Vec::new();
+    let mut token_starters = Vec::new();
+    if let Some(line_comment) = &lexical.line_comment {
+        delimiters.push(("line comment", line_comment.as_str()));
+        token_starters.push(line_comment.as_str());
+    }
+    if let Some(block_comment) = &lexical.block_comment {
+        delimiters.push(("block comment opener", block_comment.open.as_str()));
+        delimiters.push(("block comment closer", block_comment.close.as_str()));
+        token_starters.push(block_comment.open.as_str());
+        if block_comment.open == block_comment.close {
+            errors.push(SpecError {
+                code: "LM1092",
+                message: "block comment opener and closer must differ".to_owned(),
+            });
+        }
+    }
+    for (kind, delimiter) in &delimiters {
+        if delimiter.is_empty()
+            || !delimiter.chars().all(|character| {
+                character.is_ascii_punctuation() && !matches!(character, '"' | '\'' | '\\')
+            })
+        {
+            errors.push(SpecError {
+                code: "LM1092",
+                message: format!(
+                    "{kind} must be non-empty ASCII punctuation without quotes or backslashes"
+                ),
+            });
+        }
+    }
+    for (index, left) in token_starters.iter().enumerate() {
+        for right in token_starters.iter().skip(index + 1) {
+            if left.starts_with(right) || right.starts_with(left) {
+                errors.push(SpecError {
+                    code: "LM1092",
+                    message: format!("comment delimiters `{left}` and `{right}` overlap by prefix"),
+                });
+            }
+        }
+    }
+    for expression in expressions {
+        for operator in &expression.operators {
+            for delimiter in &token_starters {
+                if operator.token.starts_with(delimiter) {
+                    errors.push(SpecError {
+                        code: "LM1092",
+                        message: format!(
+                            "comment delimiter `{delimiter}` makes expression operator `{}` unreachable",
+                            operator.token
+                        ),
+                    });
+                }
+            }
+        }
+    }
 }
 
 fn validate_expression_field(

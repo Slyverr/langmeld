@@ -10,6 +10,7 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
         version: "0.1.0".to_owned(),
         root: "program".to_owned(),
         source_extensions: vec![".brief.lmprog".to_owned()],
+        lexical: None,
         categories: vec![langmeld_core::CategorySpec {
             id: "program_statement".to_owned(),
         }],

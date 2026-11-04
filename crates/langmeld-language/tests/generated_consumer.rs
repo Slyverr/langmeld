@@ -1,7 +1,7 @@
 use langmeld_core::{
     BehaviorStage, ConstructBuilder, ExpressionAssociativity, ExpressionAtomKind,
-    ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec, LanguageBuilder, MapKeyKind,
-    NamedRecord, ScopeLookup, ScopeSpec, SourceFile, SymbolSpec,
+    ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec, LanguageBuilder, LexicalSpec,
+    MapKeyKind, NamedRecord, ScopeLookup, ScopeSpec, SourceFile, SymbolSpec,
 };
 use langmeld_expression::Expression;
 use langmeld_language::generate_rust_ast;
@@ -43,10 +43,15 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
     };
 
     LanguageBuilder::new("GeneratedConsumer")
-        .schema_version(3)
+        .schema_version(4)
         .version("0.1.0")
         .root("box")
         .source_extensions(["lm", "lmd"])
+        .lexical(
+            LexicalSpec::new()
+                .line_comment("//")
+                .block_comment("/*", "*/"),
+        )
         .category("statement")
         .rule("item_pattern", "item {name} config {config}")
         .named_enum("Mode", ["fast", "safe"])
@@ -110,7 +115,7 @@ fn generated_module_reconstructs_the_schema_and_converts_parsed_nodes() {
 
     let source = SourceFile::new(
         "generated.lm",
-        "box demo {\n  item sample config { title: \"hello\", mode: fast, tags: [\"one\", \"two\"], attrs: {owner: \"me\"} }\n  evaluate 1 + 2;\n}\n",
+        "box demo {\n  item sample config { title: \"hello\", mode: fast, tags: [\"one\", \"two\"], attrs: {owner: \"me\"} }\n  evaluate 1 /* block */ + // line comment\n    2;\n}\n",
     );
     let (roots, diagnostics) =
         generated::parse_source(&source).expect("generated parser accepts the fixture program");

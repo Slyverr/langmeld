@@ -186,6 +186,7 @@ impl Parser<'_> {
                     &mut self.remaining_pattern_steps,
                 )
                 .with_expressions(&self.language.expressions)
+                .with_lexical_spec(self.language.spec.spec().lexical.as_ref())
                 .with_expression_atom_parsers(
                     &self.language.expression_atom_parser_ids,
                     self.expression_atom_parsers,

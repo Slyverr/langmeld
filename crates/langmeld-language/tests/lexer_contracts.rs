@@ -1,5 +1,5 @@
-use langmeld_core::SourceFile;
-use langmeld_language::{LanguageTokenKind, ParseLimits, lex_source};
+use langmeld_core::{LexicalSpec, SourceFile};
+use langmeld_language::{LanguageTokenKind, ParseLimits, lex_source, lex_source_with_lexical_spec};
 
 #[test]
 fn built_in_lexer_preserves_utf8_crlf_comment_and_string_spans() {
@@ -65,6 +65,73 @@ fn malformed_lexemes_return_spanned_diagnostics_and_unknown_tokens() {
         assert!(source.text.is_char_boundary(span.end));
         assert!(span.start <= span.end);
     }
+}
+
+#[test]
+fn configured_comment_rules_preserve_line_breaks_inside_block_comments() {
+    let source = SourceFile::new("scene.source", "root /* first\r\n second */ end // tail\n");
+    let lexical = LexicalSpec::new()
+        .line_comment("//")
+        .block_comment("/*", "*/");
+    let lexed = lex_source_with_lexical_spec(&source, &lexical);
+
+    assert_eq!(
+        lexed
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect::<Vec<_>>(),
+        [
+            LanguageTokenKind::Identifier("root".into()),
+            LanguageTokenKind::Comment,
+            LanguageTokenKind::Newline,
+            LanguageTokenKind::Comment,
+            LanguageTokenKind::Identifier("end".into()),
+            LanguageTokenKind::Comment,
+            LanguageTokenKind::Newline,
+        ]
+    );
+    let newline = &lexed.tokens[2];
+    assert_eq!(&source.text[newline.span.start..newline.span.end], "\r\n");
+    assert!(lexed.diagnostics.is_empty());
+}
+
+#[test]
+fn comment_markers_inside_strings_are_not_lexed_as_comments() {
+    let source = SourceFile::new("scene.source", "text \"// /* literal */\"\n");
+    let lexical = LexicalSpec::new()
+        .line_comment("//")
+        .block_comment("/*", "*/");
+    let lexed = lex_source_with_lexical_spec(&source, &lexical);
+
+    assert_eq!(
+        lexed
+            .tokens
+            .iter()
+            .map(|token| token.kind.clone())
+            .collect::<Vec<_>>(),
+        [
+            LanguageTokenKind::Identifier("text".into()),
+            LanguageTokenKind::Text("// /* literal */".into()),
+            LanguageTokenKind::Newline,
+        ]
+    );
+    assert!(lexed.diagnostics.is_empty());
+}
+
+#[test]
+fn an_explicit_policy_can_disable_the_legacy_line_comment() {
+    let source = SourceFile::new("scene.source", "# is punctuation\n");
+    let lexed = lex_source_with_lexical_spec(&source, &LexicalSpec::new());
+
+    assert_eq!(lexed.tokens[0].kind, LanguageTokenKind::Punctuation('#'));
+    assert!(
+        !lexed
+            .tokens
+            .iter()
+            .any(|token| token.kind == LanguageTokenKind::Comment)
+    );
+    assert!(lexed.diagnostics.is_empty());
 }
 
 #[test]

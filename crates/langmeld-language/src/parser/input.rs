@@ -49,7 +49,11 @@ pub(super) fn parse_configured(
             Err((diagnostic, limited)) => return failure(source, diagnostic, limited),
         }
     } else {
-        crate::lexing::lex(source, limits.max_tokens)
+        crate::lexing::lex_with_spec(
+            source,
+            limits.max_tokens,
+            parser.language.spec().spec().lexical.as_ref(),
+        )
     };
     let mut syntax_tokens = lossless_syntax_tokens(source, &tokens);
     let super::engine::ParsedTokens {

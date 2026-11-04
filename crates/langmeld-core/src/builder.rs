@@ -427,6 +427,7 @@ impl LanguageBuilder {
                 version: String::new(),
                 root: String::new(),
                 source_extensions: Vec::new(),
+                lexical: None,
                 categories: Vec::new(),
                 rules: Vec::new(),
                 enums: Vec::new(),
@@ -476,6 +477,46 @@ impl LanguageBuilder {
         self.spec
             .source_extensions
             .extend(extensions.into_iter().map(Into::into));
+        self
+    }
+
+    /// Replaces the built-in lexical comment policy.
+    #[must_use]
+    pub fn lexical(mut self, lexical: LexicalSpec) -> Self {
+        self.spec.lexical = Some(lexical);
+        self
+    }
+
+    /// Sets one line-comment marker while preserving any block-comment rule.
+    #[must_use]
+    pub fn line_comment(mut self, marker: impl Into<String>) -> Self {
+        self.spec
+            .lexical
+            .get_or_insert_with(LexicalSpec::default)
+            .line_comment = Some(marker.into());
+        self
+    }
+
+    /// Disables line comments while preserving any block-comment rule.
+    #[must_use]
+    pub fn without_line_comment(mut self) -> Self {
+        self.spec
+            .lexical
+            .get_or_insert_with(LexicalSpec::default)
+            .line_comment = None;
+        self
+    }
+
+    /// Sets the non-nested block-comment delimiters.
+    #[must_use]
+    pub fn block_comment(mut self, open: impl Into<String>, close: impl Into<String>) -> Self {
+        self.spec
+            .lexical
+            .get_or_insert_with(LexicalSpec::default)
+            .block_comment = Some(BlockCommentSpec {
+            open: open.into(),
+            close: close.into(),
+        });
         self
     }
 

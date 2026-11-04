@@ -1,7 +1,7 @@
 use langmeld_core::{
     ConstructBuilder, Diagnostic, ExpressionAssociativity, ExpressionAtomKind,
-    ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec, LanguageBuilder, SourceFile,
-    Span,
+    ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec, LanguageBuilder, LexicalSpec,
+    SourceFile, Span,
 };
 use langmeld_expression::{Atom, CustomAtomToken, Expression};
 use langmeld_language::parse_definition;
@@ -11,8 +11,14 @@ use langmeld_language::{
 };
 
 fn parser() -> langmeld_language::ConfiguredLanguageParser {
-    let language = LanguageBuilder::new("Calc")
-        .schema_version(3)
+    parser_with_lexical(None)
+}
+
+fn parser_with_lexical(
+    lexical: Option<LexicalSpec>,
+) -> langmeld_language::ConfiguredLanguageParser {
+    let mut language = LanguageBuilder::new("Calc")
+        .schema_version(if lexical.is_some() { 4 } else { 3 })
         .version("0.1.0")
         .root("program")
         .expression(
@@ -42,7 +48,11 @@ fn parser() -> langmeld_language::ConfiguredLanguageParser {
                     "value",
                     FieldKind::expression("arithmetic", ";"),
                 )),
-        )
+        );
+    if let Some(lexical) = lexical {
+        language = language.lexical(lexical);
+    }
+    let language = language
         .build()
         .expect("expression language definition is valid");
     PreparedLanguage::new(language)
@@ -190,8 +200,79 @@ fn expression_comments_do_not_terminate_expression_capture() {
 
     assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
     assert!(matches!(
-        result.program.nodes[0].children[0].fields["value"].value,
+        &result.program.nodes[0].children[0].fields["value"].value,
         Value::Expression(Expression::Infix { .. })
+    ));
+}
+
+#[test]
+fn configured_comments_are_shared_with_expression_field_parsing() {
+    let source = SourceFile::new(
+        "program.calc",
+        "program {\neval 1 /* inline */ + // line comment\n 2;\n}",
+    );
+    let lexical = LexicalSpec::new()
+        .line_comment("//")
+        .block_comment("/*", "*/");
+    let result = parser_with_lexical(Some(lexical)).parse(&source);
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(matches!(
+        &result.program.nodes[0].children[0].fields["value"].value,
+        Value::Expression(Expression::Infix { operator, .. }) if operator == "+"
+    ));
+}
+
+#[test]
+fn declarative_lexical_policy_bootstraps_and_drives_expression_parsing() {
+    let definition = SourceFile::new(
+        "language.langmeld",
+        r#"language Calc {
+  version: "0.1.0"
+  schema_version: 4
+  root: program
+
+  lexical {
+    line_comment: "//"
+    block_comment: "/*" "*/"
+  }
+
+  expression arithmetic {
+    atom: number
+    operator "+" infix 10 left
+    operator "*" infix 20 left
+  }
+
+  construct program {
+    syntax { root: "program" }
+    block: [statement]
+  }
+
+  construct statement {
+    syntax { default: "eval {value};" }
+    fields { value: expression<arithmetic> until ";" required }
+  }
+}
+"#,
+    );
+    let model = parse_definition(&definition)
+        .expect("the built-in definition grammar parses lexical settings")
+        .validate()
+        .expect("the lexical policy is valid");
+    let source = SourceFile::new(
+        "program.calc",
+        "program {\neval 1 /* block */ * 2 // line comment\n;\n}",
+    );
+    let result = PreparedLanguage::new(model)
+        .expect("expression grammar compiles")
+        .configure()
+        .expect("language has no host callbacks")
+        .parse(&source);
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(matches!(
+        &result.program.nodes[0].children[0].fields["value"].value,
+        Value::Expression(Expression::Infix { operator, .. }) if operator == "*"
     ));
 }
 

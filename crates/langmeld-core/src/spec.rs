@@ -17,6 +17,10 @@ pub struct LanguageSpec {
     /// Source filename suffixes accepted by the language, including the leading dot.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_extensions: Vec<String>,
+    /// Optional built-in lexical rules. When absent, Langmeld keeps the legacy
+    /// hash line-comment behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lexical: Option<LexicalSpec>,
     /// Reusable kinds that constructs may implement and blocks may accept.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<CategorySpec>,
@@ -37,6 +41,77 @@ pub struct LanguageSpec {
     pub behaviors: Vec<BehaviorSpec>,
     /// Constructs available in this language.
     pub constructs: Vec<ConstructSpec>,
+}
+
+/// Comment delimiters recognized by Langmeld's built-in lexer.
+///
+/// An absent lexical section keeps the legacy `#` line comment. An authored
+/// section replaces that default; `None` explicitly disables line comments.
+/// Block comments are non-nested. Languages that need nesting or other lexical
+/// state can register a custom lexer through the language crate.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LexicalSpec {
+    /// Prefix that begins a line comment, or `None` to disable line comments.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_comment: Option<String>,
+    /// Non-nested block-comment delimiters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_comment: Option<BlockCommentSpec>,
+}
+
+impl LexicalSpec {
+    /// Creates an explicit lexical policy with no comment delimiters.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            line_comment: None,
+            block_comment: None,
+        }
+    }
+
+    /// Sets the line-comment prefix.
+    #[must_use]
+    pub fn line_comment(mut self, marker: impl Into<String>) -> Self {
+        self.line_comment = Some(marker.into());
+        self
+    }
+
+    /// Disables line comments in this explicit policy.
+    #[must_use]
+    pub fn without_line_comment(mut self) -> Self {
+        self.line_comment = None;
+        self
+    }
+
+    /// Sets the non-nested block-comment delimiters.
+    #[must_use]
+    pub fn block_comment(mut self, open: impl Into<String>, close: impl Into<String>) -> Self {
+        self.block_comment = Some(BlockCommentSpec {
+            open: open.into(),
+            close: close.into(),
+        });
+        self
+    }
+}
+
+impl Default for LexicalSpec {
+    fn default() -> Self {
+        Self {
+            line_comment: Some("#".to_owned()),
+            block_comment: None,
+        }
+    }
+}
+
+/// Opening and closing source delimiters for one non-nested block comment.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BlockCommentSpec {
+    /// Source sequence that opens a block comment.
+    pub open: String,
+    /// Source sequence that closes a block comment.
+    pub close: String,
 }
 
 /// A reusable record schema for values captured from source syntax.

@@ -638,6 +638,28 @@ fn write_language_spec(output: &mut String, spec: &langmeld_core::LanguageSpec) 
     let _ = writeln!(output, "        version: {:?}.to_owned(),", spec.version);
     let _ = writeln!(output, "        root: {:?}.to_owned(),", spec.root);
     write_string_vector(output, "source_extensions", &spec.source_extensions, 8);
+    match &spec.lexical {
+        Some(lexical) => {
+            let line_comment = lexical.line_comment.as_ref().map_or_else(
+                || "None".to_owned(),
+                |value| format!("Some({value:?}.to_owned())"),
+            );
+            let block_comment = lexical.block_comment.as_ref().map_or_else(
+                || "None".to_owned(),
+                |comment| {
+                    format!(
+                        "Some(langmeld_core::BlockCommentSpec {{ open: {:?}.to_owned(), close: {:?}.to_owned() }})",
+                        comment.open, comment.close
+                    )
+                },
+            );
+            let _ = writeln!(
+                output,
+                "        lexical: Some(langmeld_core::LexicalSpec {{ line_comment: {line_comment}, block_comment: {block_comment} }}),"
+            );
+        }
+        None => output.push_str("        lexical: None,\n"),
+    }
     output.push_str("        categories: vec![\n");
     for category in &spec.categories {
         let _ = writeln!(

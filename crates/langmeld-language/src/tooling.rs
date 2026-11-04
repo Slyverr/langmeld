@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, fmt::Write};
 
-use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, ValidatedLanguageSpec};
+use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, ValidatedLanguageSpec};
 
 use crate::{
     CLASSIFICATION_TYPES, PreparedLanguage, generate_tree_sitter, rust_codegen::generate_rust_ast,
@@ -11,13 +11,15 @@ pub type GeneratedArtifacts = std::collections::BTreeMap<String, String>;
 
 /// Builds deterministic metadata, documentation, and baseline editor artifacts.
 ///
-/// TextMate rules are lexical only. The editor configuration uses conventional
-/// `#` comments and common bracket pairs because the current schema has no
-/// language-specific comment or bracket settings.
+/// TextMate rules are lexical only. The editor configuration follows the
+/// language's lexical comment policy and derives bracket pairs from declared
+/// blocks and structured field types.
 pub fn generate_tooling(
     language: &ValidatedLanguageSpec,
 ) -> Result<GeneratedArtifacts, serde_json::Error> {
     let spec = language.spec();
+    let default_lexical = LexicalSpec::default();
+    let lexical = spec.lexical.as_ref().unwrap_or(&default_lexical);
     let lsp_navigation = spec
         .constructs
         .iter()
@@ -93,7 +95,13 @@ pub fn generate_tooling(
     artifacts.insert("rust/ast.rs".to_owned(), generate_rust_ast(language));
     artifacts.insert(
         format!("syntaxes/{slug}.tmLanguage.json"),
-        json_value(textmate_grammar(&slug, &keywords, &operators, &enum_values))?,
+        json_value(textmate_grammar(
+            &slug,
+            &keywords,
+            &operators,
+            &enum_values,
+            lexical,
+        ))?,
     );
     artifacts.insert(
         "language-configuration.json".to_owned(),
@@ -142,9 +150,10 @@ pub fn generate_tooling(
             "not_yet_available": unavailable_editor_support,
             "parser_support": ["declarative_patterns", "registered_custom_construct_callbacks"],
             "editor_configuration_assumptions": {
-                "line_comment": "#",
-                "bracket_pairs": [["{", "}"], ["[", "]"], ["(", ")"]],
-                "reason": "The language schema does not currently declare comment syntax or bracket pairs."
+                "line_comment": lexical.line_comment,
+                "block_comment": lexical.block_comment.as_ref().map(|comment| [&comment.open, &comment.close]),
+                "bracket_pairs": editor_bracket_pairs(spec),
+                "reason": "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields."
             },
             "highlighting": {"source": "TextMate regular expressions", "lexical_only": true},
             "requires_host_implementation_for": ["execution", "domain_lowering", "custom_type_systems"]
@@ -166,23 +175,72 @@ fn json_value(value: serde_json::Value) -> Result<String, serde_json::Error> {
 }
 
 fn language_configuration(spec: &LanguageSpec) -> serde_json::Value {
-    let mut brackets = BTreeSet::from([
-        ("{".to_owned(), "}".to_owned()),
-        ("[".to_owned(), "]".to_owned()),
-        ("(".to_owned(), ")".to_owned()),
-    ]);
+    let brackets = editor_bracket_pairs(spec);
+    let mut auto_closing_pairs = brackets.clone();
+    auto_closing_pairs.insert(("\"".to_owned(), "\"".to_owned()));
+    let default_lexical = LexicalSpec::default();
+    let lexical = spec.lexical.as_ref().unwrap_or(&default_lexical);
+    let mut comments = serde_json::Map::new();
+    if let Some(line_comment) = &lexical.line_comment {
+        comments.insert("lineComment".to_owned(), serde_json::json!(line_comment));
+    }
+    if let Some(block_comment) = &lexical.block_comment {
+        comments.insert(
+            "blockComment".to_owned(),
+            serde_json::json!([block_comment.open, block_comment.close]),
+        );
+    }
+    serde_json::json!({
+        "comments": comments,
+        "brackets": brackets,
+        "autoClosingPairs": auto_closing_pairs
+    })
+}
+
+fn editor_bracket_pairs(spec: &LanguageSpec) -> BTreeSet<(String, String)> {
+    let mut brackets = BTreeSet::new();
     for construct in &spec.constructs {
         if let Some(block) = &construct.block {
             brackets.insert((block.open.clone(), block.close.clone()));
         }
+        for field in &construct.fields {
+            collect_field_bracket_pairs(&field.kind, &mut brackets);
+        }
     }
-    let mut auto_closing_pairs = brackets.clone();
-    auto_closing_pairs.insert(("\"".to_owned(), "\"".to_owned()));
-    serde_json::json!({
-        "comments": { "lineComment": "#" },
-        "brackets": brackets,
-        "autoClosingPairs": auto_closing_pairs
-    })
+    for record in &spec.types {
+        for field in &record.fields {
+            collect_field_bracket_pairs(&field.kind, &mut brackets);
+        }
+    }
+    brackets
+}
+
+fn collect_field_bracket_pairs(kind: &FieldKind, output: &mut BTreeSet<(String, String)>) {
+    match kind {
+        FieldKind::Properties { fields, .. } => {
+            output.insert(("{".to_owned(), "}".to_owned()));
+            for field in fields {
+                collect_field_bracket_pairs(&field.kind, output);
+            }
+        }
+        FieldKind::List { item } => {
+            output.insert(("[".to_owned(), "]".to_owned()));
+            collect_field_bracket_pairs(item, output);
+        }
+        FieldKind::Map { value, .. } => {
+            output.insert(("{".to_owned(), "}".to_owned()));
+            collect_field_bracket_pairs(value, output);
+        }
+        FieldKind::Expression { .. } => {
+            output.insert(("(".to_owned(), ")".to_owned()));
+        }
+        FieldKind::Identifier
+        | FieldKind::Number
+        | FieldKind::Text
+        | FieldKind::Enum { .. }
+        | FieldKind::NamedEnum { .. }
+        | FieldKind::Reference { .. } => {}
+    }
 }
 
 fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
@@ -201,7 +259,7 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
         )
     };
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, schema-based enum and in-scope reference suggestions, parser-derived continuations for simple missing-field patterns, document symbols, schema-based hover, semantic tokens, generic definition/references, and safe rename for resolved declarations across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser, analysis, and typed completion callbacks; host-owned symbol resolvers do not expose generic rename. The standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration uses documented conventional comment and bracket assumptions. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, captured-value enum/reference suggestions, parser-derived continuations for simple literal/capture patterns, simple child-construct snippets, document symbols, schema-based hover, generic definition/references, and safe rename for resolved symbols across open documents; it does not load unopened project source files or infer host-specific semantics. Patterns with optional, choice, or repeated sections do not receive continuation snippets.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, schema-based enum and in-scope reference suggestions, parser-derived continuations for simple missing-field patterns, document symbols, schema-based hover, semantic tokens, generic definition/references, and safe rename for resolved declarations across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser, analysis, and typed completion callbacks; host-owned symbol resolvers do not expose generic rename. The standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration mirrors declared comment delimiters while retaining documented conventional bracket defaults. Neither provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, captured-value enum/reference suggestions, parser-derived continuations for simple literal/capture patterns, simple child-construct snippets, document symbols, schema-based hover, generic definition/references, and safe rename for resolved symbols across open documents; it does not load unopened project source files or infer host-specific semantics. Patterns with optional, choice, or repeated sections do not receive continuation snippets.\n",
         code_span(&version)
     )
 }
@@ -743,12 +801,26 @@ fn textmate_grammar(
     keywords: &BTreeSet<String>,
     operators: &BTreeSet<String>,
     enum_values: &BTreeSet<String>,
+    lexical: &LexicalSpec,
 ) -> serde_json::Value {
-    let mut patterns = vec![
-        serde_json::json!({"name": "comment.line.number-sign", "match": "#.*$"}),
+    let mut patterns = Vec::new();
+    if let Some(line_comment) = &lexical.line_comment {
+        patterns.push(serde_json::json!({
+            "name": "comment.line",
+            "match": format!("{}[^\\r\\n]*", regex_escape(line_comment))
+        }));
+    }
+    if let Some(block_comment) = &lexical.block_comment {
+        patterns.push(serde_json::json!({
+            "name": "comment.block",
+            "begin": regex_escape(&block_comment.open),
+            "end": regex_escape(&block_comment.close)
+        }));
+    }
+    patterns.extend([
         serde_json::json!({"name": "string.quoted.double", "begin": "\\\"", "end": "\\\""}),
         serde_json::json!({"name": "constant.numeric", "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"}),
-    ];
+    ]);
     if !keywords.is_empty() {
         patterns.push(
             serde_json::json!({"name": "keyword.control.langmeld", "match": word_regex(keywords)}),

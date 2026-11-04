@@ -1,13 +1,16 @@
 use langmeld_core::{
     BehaviorSpec, BehaviorStage, BlockSeparator, BlockSeparatorPolicy, BlockSpec, ConstructBuilder,
-    ConstructSpec, FieldConstraints, FieldKind, FieldSpec, LanguageBuilder, LanguageSpec,
-    NamedEnum, NamedRecord, ScopeLookup, ScopeSpec, SymbolSpec, SyntaxPattern, SyntaxRuleSpec,
+    ConstructSpec, ExpressionAssociativity, ExpressionAtomKind, ExpressionOperatorSpec,
+    ExpressionSpec, FieldConstraints, FieldKind, FieldSpec, LanguageBuilder, LanguageSpec,
+    LexicalSpec, NamedEnum, NamedRecord, ScopeLookup, ScopeSpec, SymbolSpec, SyntaxPattern,
+    SyntaxRuleSpec,
 };
 
 fn valid_spec() -> LanguageSpec {
     LanguageSpec {
         schema_version: 1,
         source_extensions: Vec::new(),
+        lexical: None,
         name: "Flow".to_owned(),
         version: "0.1.0".to_owned(),
         root: "flow".to_owned(),
@@ -70,14 +73,99 @@ fn valid_language_definition_has_a_validated_state() {
 #[test]
 fn validation_rejects_unsupported_language_model_schema_versions() {
     let mut spec = valid_spec();
-    spec.schema_version = 4;
+    spec.schema_version = 5;
 
     let errors = spec
         .validate()
         .expect_err("unsupported language model schema is rejected");
     assert!(errors.iter().any(|error| {
-        error.code == "LM1001" && error.message.contains("unsupported schema_version 4")
+        error.code == "LM1001" && error.message.contains("unsupported schema_version 5")
     }));
+}
+
+#[test]
+fn schema_v4_accepts_and_validates_custom_comment_delimiters() {
+    let mut spec = valid_spec();
+    spec.schema_version = 4;
+    spec.lexical = Some(
+        LexicalSpec::new()
+            .line_comment("//")
+            .block_comment("/*", "*/"),
+    );
+    assert!(spec.clone().validate().is_ok());
+
+    spec.schema_version = 3;
+    assert!(
+        spec.validate()
+            .expect_err("custom comments require schema v4")
+            .iter()
+            .any(|error| error.code == "LM1091")
+    );
+}
+
+#[test]
+fn line_comments_can_share_a_prefix_with_a_shorter_operator() {
+    let mut spec = valid_spec();
+    spec.schema_version = 4;
+    spec.lexical = Some(LexicalSpec::new().line_comment("//"));
+    spec.expressions.push(
+        ExpressionSpec::new("arithmetic")
+            .atom(ExpressionAtomKind::Identifier)
+            .operator(ExpressionOperatorSpec::infix(
+                "/",
+                10,
+                ExpressionAssociativity::Left,
+            )),
+    );
+
+    assert!(spec.validate().is_ok());
+}
+
+#[test]
+fn comment_delimiters_reject_operators_that_they_would_hide() {
+    let mut spec = valid_spec();
+    spec.schema_version = 4;
+    spec.lexical = Some(LexicalSpec::new().line_comment("//"));
+    spec.expressions
+        .push(
+            ExpressionSpec::new("arithmetic").operator(ExpressionOperatorSpec::infix(
+                "//=",
+                10,
+                ExpressionAssociativity::Left,
+            )),
+        );
+
+    let errors = spec
+        .validate()
+        .expect_err("an operator beginning with the comment marker is unreachable");
+    assert!(errors.iter().any(|error| {
+        error.code == "LM1092"
+            && error
+                .message
+                .contains("makes expression operator `//=` unreachable")
+    }));
+}
+
+#[test]
+fn lexical_comment_delimiters_must_be_unambiguous_punctuation() {
+    for lexical in [
+        LexicalSpec::new().line_comment(""),
+        LexicalSpec::new().line_comment("line comment"),
+        LexicalSpec::new().block_comment("/*", "/*"),
+        LexicalSpec::new()
+            .line_comment("//")
+            .block_comment("/", "*/"),
+    ] {
+        let mut spec = valid_spec();
+        spec.schema_version = 4;
+        spec.lexical = Some(lexical);
+        assert!(
+            spec.validate()
+                .expect_err("ambiguous comment policy is invalid")
+                .iter()
+                .any(|error| error.code == "LM1092")
+        );
+    }
 }
 
 #[test]

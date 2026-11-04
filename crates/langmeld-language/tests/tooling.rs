@@ -1,6 +1,6 @@
 use langmeld_core::{
-    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder,
-    SymbolSpec,
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, ExpressionAtomKind, ExpressionSpec,
+    FieldKind, FieldSpec, LanguageBuilder, LexicalSpec, MapKeyKind, SymbolSpec,
 };
 use langmeld_language::{generate_rust_ast, generate_tooling};
 
@@ -190,6 +190,67 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
 }
 
 #[test]
+fn generated_editor_artifacts_follow_the_declared_comment_policy() {
+    let mut spec = language().spec().clone();
+    spec.schema_version = 4;
+    spec.lexical = Some(
+        LexicalSpec::new()
+            .line_comment("//")
+            .block_comment("/*", "*/"),
+    );
+    let language = spec.validate().expect("comment policy is valid");
+    let artifacts = generate_tooling(&language).expect("tooling still generates");
+
+    let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
+        .expect("editor configuration is JSON");
+    assert_eq!(config["comments"]["lineComment"], "//");
+    assert_eq!(
+        config["comments"]["blockComment"],
+        serde_json::json!(["/*", "*/"])
+    );
+
+    let textmate: serde_json::Value =
+        serde_json::from_str(&artifacts["syntaxes/demo-language.tmLanguage.json"])
+            .expect("TextMate grammar is JSON");
+    assert!(
+        textmate["patterns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pattern| {
+                pattern["name"] == "comment.line" && pattern["match"] == "//[^\\r\\n]*"
+            })
+    );
+    assert!(
+        textmate["patterns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pattern| {
+                pattern["name"] == "comment.block"
+                    && pattern["begin"] == "/\\*"
+                    && pattern["end"] == "\\*/"
+            })
+    );
+
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capabilities are JSON");
+    assert_eq!(
+        capabilities["editor_configuration_assumptions"]["line_comment"],
+        "//"
+    );
+    assert_eq!(
+        capabilities["optional_artifacts"]["tree_sitter"]["available"],
+        false
+    );
+    assert_eq!(
+        capabilities["optional_artifacts"]["tree_sitter"]["reason"],
+        "Tree-sitter export does not yet represent configured block comments"
+    );
+}
+
+#[test]
 fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
     let language = LanguageBuilder::new("CustomParserLanguage")
         .version("0.1.0")
@@ -263,6 +324,83 @@ fn generated_editor_configuration_and_reference_include_configured_blocks() {
     );
     assert!(artifacts["README.md"].contains("Block delimiters: `begin` and `end`"));
     assert!(artifacts["README.md"].contains("Child separators: `;` (required)"));
+}
+
+#[test]
+fn generated_bracket_pairs_follow_declared_structural_fields() {
+    let language = LanguageBuilder::new("StructuralPairs")
+        .version("0.1.0")
+        .schema_version(3)
+        .root("program")
+        .expression(ExpressionSpec::new("value").atom(ExpressionAtomKind::Identifier))
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"])
+                .block_delimiters("begin", "end"),
+        )
+        .construct(
+            ConstructBuilder::new("statement")
+                .syntax("statement {items} {attributes} {config} {value};")
+                .field(FieldSpec::required(
+                    "items",
+                    FieldKind::list(FieldKind::Number),
+                ))
+                .field(FieldSpec::required(
+                    "attributes",
+                    FieldKind::map(MapKeyKind::Identifier, FieldKind::Number),
+                ))
+                .field(FieldSpec::required(
+                    "config",
+                    FieldKind::properties([FieldSpec::required("label", FieldKind::Text)]),
+                ))
+                .field(FieldSpec::required(
+                    "value",
+                    FieldKind::expression("value", ";"),
+                )),
+        )
+        .build()
+        .expect("structural field declarations validate");
+    let artifacts = generate_tooling(&language).expect("tooling generation succeeds");
+    let configuration: serde_json::Value =
+        serde_json::from_str(&artifacts["language-configuration.json"])
+            .expect("editor configuration is valid JSON");
+    let expected_pairs = serde_json::json!([["(", ")"], ["[", "]"], ["begin", "end"], ["{", "}"]]);
+
+    assert_eq!(configuration["brackets"], expected_pairs);
+    let capabilities: serde_json::Value =
+        serde_json::from_str(&artifacts["agent-skill/references/capabilities.json"])
+            .expect("capability metadata is valid JSON");
+    assert_eq!(
+        capabilities["editor_configuration_assumptions"]["bracket_pairs"],
+        expected_pairs
+    );
+}
+
+#[test]
+fn generated_bracket_pairs_omit_unused_conventional_defaults() {
+    let language = LanguageBuilder::new("NoStructuralPairs")
+        .version("0.1.0")
+        .schema_version(2)
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"])
+                .block_delimiters("begin", "end"),
+        )
+        .construct(ConstructBuilder::new("statement").syntax("statement"))
+        .build()
+        .expect("minimal language validates");
+    let artifacts = generate_tooling(&language).expect("tooling generation succeeds");
+    let configuration: serde_json::Value =
+        serde_json::from_str(&artifacts["language-configuration.json"])
+            .expect("editor configuration is valid JSON");
+
+    assert_eq!(
+        configuration["brackets"],
+        serde_json::json!([["begin", "end"]])
+    );
 }
 
 #[test]

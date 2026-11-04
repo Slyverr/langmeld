@@ -1,7 +1,7 @@
 use langmeld_core::{
     BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, ExpressionAssociativity,
     ExpressionAtomKind, ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec,
-    LanguageBuilder, MapKeyKind, SourceFile, SymbolSpec,
+    LanguageBuilder, LexicalSpec, MapKeyKind, SourceFile, SymbolSpec,
 };
 use langmeld_language::{PreparedLanguage, generate_tree_sitter, langmeld_definition_language};
 use std::{env, fs, path::Path};
@@ -176,7 +176,7 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(grammar.contains("field(\"key\", $.lm_string), \":\", field(\"value\", $.lm_number)"));
     assert!(grammar.contains("seq(\"{\", repeat(choice(\",\", \";\", $.lm_newline)), \"}\")"));
     assert!(!grammar.contains("choice(\",\", $.lm_newline)"));
-    assert!(artifacts["tree-sitter/README.md"].contains("conventional `#` line comments"));
+    assert!(artifacts["tree-sitter/README.md"].contains("declared `#` line-comment delimiter"));
     assert!(artifacts["tree-sitter/README.md"].contains("Langmeld validation"));
     assert!(
         artifacts["tree-sitter/README.md"].contains("langmeld generate --project-root <project>")
@@ -205,6 +205,21 @@ fn tree_sitter_export_is_deterministic_and_returns_a_complete_relative_artifact_
     assert!(highlights.contains("(lm_type_6) @constant.builtin"));
     assert!(!highlights.contains("\"fast\" @constant.builtin"));
     assert!(!highlights.contains("\"draft\" @constant.builtin"));
+}
+
+#[test]
+fn tree_sitter_export_uses_the_declared_line_comment_delimiter() {
+    let mut spec = language().spec().clone();
+    spec.schema_version = 4;
+    spec.lexical = Some(LexicalSpec::new().line_comment("//"));
+    let language = spec.validate().expect("line-comment policy validates");
+    let artifacts = generate_tree_sitter(&language).expect("line comments are representable");
+
+    let grammar = &artifacts["tree-sitter/grammar.js"];
+    assert!(grammar.contains("comment: $ => token(seq(\"//\", /[^\\r\\n]*/))"));
+    assert!(grammar.contains("extras: $ => [/[ \\t\\r]/, $.comment]"));
+    assert!(!grammar.contains("seq(\"#\""));
+    assert!(artifacts["tree-sitter/README.md"].contains("declared `//` line-comment delimiter"));
 }
 
 #[test]
@@ -374,6 +389,50 @@ fn write_tree_sitter_cli_validation_fixture() {
         invalid_string_source,
     )
     .expect("invalid string sample is written");
+}
+
+#[test]
+#[ignore = "emits a custom line-comment grammar for the pinned Tree-sitter CLI check"]
+fn write_custom_comment_tree_sitter_validation_fixture() {
+    let output = env::var_os("LANGMELD_CUSTOM_COMMENT_TREE_SITTER_FIXTURE_DIR")
+        .map(std::path::PathBuf::from)
+        .expect("LANGMELD_CUSTOM_COMMENT_TREE_SITTER_FIXTURE_DIR must name a temporary directory");
+    fs::create_dir_all(&output).expect("fixture output directory is created");
+
+    let language = LanguageBuilder::new("Comment Language")
+        .schema_version(4)
+        .version("0.1.0")
+        .root("program")
+        .lexical(LexicalSpec::new().line_comment("//"))
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"]),
+        )
+        .construct(
+            ConstructBuilder::new("statement")
+                .syntax("let {name}")
+                .field(FieldSpec::required("name", FieldKind::Identifier)),
+        )
+        .build()
+        .expect("custom-comment fixture language validates");
+    for (path, contents) in generate_tree_sitter(&language).expect("fixture exports") {
+        let relative = path
+            .strip_prefix("tree-sitter/")
+            .expect("generated artifact is under tree-sitter/");
+        let destination = output.join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).expect("artifact parent directory is created");
+        }
+        fs::write(destination, contents).expect("artifact is written");
+    }
+    let samples = output.join("samples");
+    fs::create_dir_all(&samples).expect("sample directory is created");
+    fs::write(
+        samples.join("comment.lang"),
+        "// comments use the declared marker\nprogram {\n  let value\n}\n",
+    )
+    .expect("sample program is written");
 }
 
 #[test]

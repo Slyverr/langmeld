@@ -230,7 +230,7 @@ pub fn generate_host_scaffold(
 
     let lexer_source = marked_host_block(
         "callback:lexer:custom_lexer",
-        "/// Extend Langmeld's lexer with `langmeld::language::lex_source(source)`, or return `None` to use it unchanged.\n/// Custom tokens must have ordered, non-overlapping UTF-8 byte spans. Omit the EOF sentinel.\npub fn custom_lexer() -> Option<langmeld::language::CustomLexer> {\n    // <langmeld:body:lexer:custom_lexer>\n    None\n    // </langmeld:body:lexer:custom_lexer>\n}",
+        "/// Extend Langmeld's built-in lexer, or return `None` to use the language's configured lexer.\n/// Use `lex_source_with_lexical_spec` when adapting a declared comment policy.\n/// Custom tokens must have ordered, non-overlapping UTF-8 byte spans. Omit the EOF sentinel.\npub fn custom_lexer() -> Option<langmeld::language::CustomLexer> {\n    // <langmeld:body:lexer:custom_lexer>\n    None\n    // </langmeld:body:lexer:custom_lexer>\n}",
     );
 
     std::collections::BTreeMap::from([
@@ -252,7 +252,7 @@ pub fn generate_host_scaffold(
 This generated module tree follows the language definition and Langmeld's extension APIs:
 
 - `parser.rs` contains stubs for declared custom construct parsers and expression atom parsers. Return source-spanned generic fields or `CustomAtomToken` values that identify the host-owned syntax.
-- `lexer.rs` is the host's optional custom-lexer implementation. Start from `langmeld::language::lex_source(source)` when only some lexical rules need adapting.
+- `lexer.rs` is the host's optional custom-lexer implementation. Use `lex_source(source)` for the legacy `#` policy or `lex_source_with_lexical_spec(source, &policy)` when adapting declared comment rules.
 - `analysis.rs` contains semantic, symbol-resolution, and workspace behavior stubs plus checked registries.
 - `backend.rs` registers the project's Rust-defined single-file and workspace backends. This host-owned module is not generated from `.langmeld` declarations.
 - `runtime.rs` binds parser and expression callbacks plus an optional custom lexer to a validated language.

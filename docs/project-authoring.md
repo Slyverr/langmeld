@@ -100,6 +100,31 @@ expression declaration and implement the generated callback in `src/host/parser.
 The optional Tree-sitter exporter currently declines grammars with expression
 fields instead of emitting a partial grammar.
 
+Schema 4 adds an optional lexical policy for comments. If omitted, the built-in
+lexer retains its legacy `#` line comments. An authored `lexical` section
+replaces that policy; it can set one line-comment delimiter and one non-nested
+block-comment pair. Omitting `line_comment` inside the section disables line
+comments:
+
+```langmeld
+language Example {
+  version: "0.1.0"
+  schema_version: 4
+  root: program
+
+  lexical {
+    line_comment: "//"
+    block_comment: "/*" "*/"
+  }
+}
+```
+
+The built-in source and expression lexers, TextMate grammar, and editor comment
+configuration share these delimiters. The Tree-sitter exporter supports a
+declared line-comment delimiter; it reports configured block comments as
+unavailable until it can represent them exactly. Languages needing nested or
+stateful comments can provide a custom Rust lexer.
+
 ## Develop the language
 
 Edit the project sources, then regenerate and check derived output:

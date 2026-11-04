@@ -21,6 +21,13 @@ is cut, changes belong under `Unreleased`.
   expression-valued fields in schema 3. Parsing honors operator precedence,
   nested groups, explicit punctuation terminators, and source spans. The
   standalone expression crate also provides a host-defined atom API.
+- **Lexical policy:** Schema 4 can declare line and non-nested block comments.
+  Built-in parsing, expression parsing, TextMate, editor comment settings, and
+  generated Rust models share the configured policy; unsupported Tree-sitter
+  block-comment export is reported explicitly.
+- **Editor configuration:** Generated bracket pairs follow declared blocks and
+  built-in list, map, property, and expression fields; unused conventional
+  pairs are omitted.
 - **Expression tooling:** The lossless syntax tree exposes nested expression,
   operator, atom, group, call, member, and index nodes while retaining each
   source token exactly once. Generated browser adapters serialize expression

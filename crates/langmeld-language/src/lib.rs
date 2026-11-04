@@ -50,6 +50,7 @@ pub use generated_artifacts::{
 pub use host_scaffold::generate_host_scaffold;
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
+    lex_source_with_lexical_spec,
 };
 pub use model::{
     AstNode, BlockDelimiterSpan, CapturedValue, CompletionBlockContext, CompletionFrontier,

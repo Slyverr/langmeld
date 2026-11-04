@@ -6,7 +6,7 @@
 //! atom parsing or own a broader expression grammar when this shared subset
 //! does not fit their language.
 
-use langmeld_core::{Diagnostic, ExpressionAtomKind, SourceFile, Span};
+use langmeld_core::{Diagnostic, ExpressionAtomKind, LexicalSpec, SourceFile, Span};
 use std::collections::BTreeSet;
 
 mod runtime;
@@ -306,7 +306,33 @@ pub fn parse_expression(
     range: Span,
     grammar: &ExpressionGrammar,
 ) -> Result<Expression, Vec<Diagnostic>> {
-    parse_expression_with_atoms(source, range, grammar, &mut NoCustomAtoms)
+    parse_expression_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        &mut NoCustomAtoms,
+        &LexicalSpec::default(),
+    )
+}
+
+/// Parses one expression using the language's configured comment delimiters.
+///
+/// # Errors
+/// Returns diagnostics when the source range or expression is invalid, or a
+/// configured block comment is unterminated.
+pub fn parse_expression_with_lexical_spec(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    lexical: &LexicalSpec,
+) -> Result<Expression, Vec<Diagnostic>> {
+    parse_expression_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        &mut NoCustomAtoms,
+        lexical,
+    )
 }
 
 /// Parses an expression with additional host-defined atom forms.
@@ -316,7 +342,28 @@ pub fn parse_expression_with_atoms<P: ExpressionAtomParser>(
     grammar: &ExpressionGrammar,
     atom_parser: &mut P,
 ) -> Result<Expression, Vec<Diagnostic>> {
-    parse_expression_range(source, range, grammar, atom_parser, None)
+    parse_expression_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        atom_parser,
+        &LexicalSpec::default(),
+    )
+}
+
+/// Parses one expression with host-defined atoms and explicit comment rules.
+///
+/// # Errors
+/// Returns diagnostics when the range or expression is invalid, an atom parser
+/// fails, or a configured block comment is unterminated.
+pub fn parse_expression_with_atoms_and_lexical_spec<P: ExpressionAtomParser>(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    atom_parser: &mut P,
+    lexical: &LexicalSpec,
+) -> Result<Expression, Vec<Diagnostic>> {
+    parse_expression_range(source, range, grammar, atom_parser, None, lexical)
         .map(|(expression, _)| expression)
 }
 
@@ -338,7 +385,36 @@ pub fn parse_expression_until(
     grammar: &ExpressionGrammar,
     terminator: &str,
 ) -> Result<(Expression, Span), Vec<Diagnostic>> {
-    parse_expression_until_with_atoms(source, range, grammar, terminator, &mut NoCustomAtoms)
+    parse_expression_until_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        terminator,
+        &mut NoCustomAtoms,
+        &LexicalSpec::default(),
+    )
+}
+
+/// Parses one expression through a terminator using explicit comment rules.
+///
+/// # Errors
+/// Returns diagnostics when the range, terminator, or expression is invalid,
+/// or a configured block comment is unterminated.
+pub fn parse_expression_until_with_lexical_spec(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    terminator: &str,
+    lexical: &LexicalSpec,
+) -> Result<(Expression, Span), Vec<Diagnostic>> {
+    parse_expression_until_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        terminator,
+        &mut NoCustomAtoms,
+        lexical,
+    )
 }
 
 /// Parses one expression through a required terminator with host-defined atoms.
@@ -353,6 +429,29 @@ pub fn parse_expression_until_with_atoms<P: ExpressionAtomParser>(
     grammar: &ExpressionGrammar,
     terminator: &str,
     atom_parser: &mut P,
+) -> Result<(Expression, Span), Vec<Diagnostic>> {
+    parse_expression_until_with_atoms_and_lexical_spec(
+        source,
+        range,
+        grammar,
+        terminator,
+        atom_parser,
+        &LexicalSpec::default(),
+    )
+}
+
+/// Parses one expression through a terminator with host atoms and comment rules.
+///
+/// # Errors
+/// Returns diagnostics when the range or terminator is invalid, the terminator
+/// is missing, an atom parser fails, or a configured block comment is unterminated.
+pub fn parse_expression_until_with_atoms_and_lexical_spec<P: ExpressionAtomParser>(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    terminator: &str,
+    atom_parser: &mut P,
+    lexical: &LexicalSpec,
 ) -> Result<(Expression, Span), Vec<Diagnostic>> {
     if terminator.is_empty()
         || !terminator.chars().all(|character| {
@@ -369,7 +468,14 @@ pub fn parse_expression_until_with_atoms<P: ExpressionAtomParser>(
             Span::new(offset, offset),
         )]);
     }
-    parse_expression_range(source, range, grammar, atom_parser, Some(terminator))
+    parse_expression_range(
+        source,
+        range,
+        grammar,
+        atom_parser,
+        Some(terminator),
+        lexical,
+    )
 }
 
 fn parse_expression_range<P: ExpressionAtomParser>(
@@ -378,7 +484,9 @@ fn parse_expression_range<P: ExpressionAtomParser>(
     grammar: &ExpressionGrammar,
     atom_parser: &mut P,
     terminator: Option<&str>,
+    lexical: &LexicalSpec,
 ) -> Result<(Expression, Span), Vec<Diagnostic>> {
+    validate_lexical_spec(lexical, grammar)?;
     if range.start > range.end
         || range.end > source.text.len()
         || !source.text.is_char_boundary(range.start)
@@ -392,7 +500,7 @@ fn parse_expression_range<P: ExpressionAtomParser>(
         )]);
     }
     let (tokens, consumed_end, found_terminator) =
-        lex(source, range, grammar, atom_parser, terminator)?;
+        lex(source, range, grammar, atom_parser, terminator, lexical)?;
     let mut parser = Parser {
         tokens,
         position: 0,
@@ -429,6 +537,71 @@ fn parse_expression_range<P: ExpressionAtomParser>(
         )]
     })?;
     Ok((expression, Span::new(range.start, consumed_end)))
+}
+
+fn validate_lexical_spec(
+    lexical: &LexicalSpec,
+    grammar: &ExpressionGrammar,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut delimiters = Vec::new();
+    let mut token_starters = Vec::new();
+    if let Some(line_comment) = &lexical.line_comment {
+        delimiters.push(line_comment.as_str());
+        token_starters.push(line_comment.as_str());
+    }
+    if let Some(block_comment) = &lexical.block_comment {
+        delimiters.push(block_comment.open.as_str());
+        delimiters.push(block_comment.close.as_str());
+        token_starters.push(block_comment.open.as_str());
+        if block_comment.open == block_comment.close {
+            return Err(vec![Diagnostic::error(
+                "LE1016",
+                "block comment opener and closer must differ",
+                Span::new(0, 0),
+            )]);
+        }
+    }
+    for delimiter in &delimiters {
+        if delimiter.is_empty()
+            || !delimiter.chars().all(|character| {
+                character.is_ascii_punctuation() && !matches!(character, '"' | '\'' | '\\')
+            })
+        {
+            return Err(vec![Diagnostic::error(
+                "LE1016",
+                "comment delimiters must be non-empty ASCII punctuation without quotes or backslashes",
+                Span::new(0, 0),
+            )]);
+        }
+    }
+    for (index, left) in token_starters.iter().enumerate() {
+        for right in token_starters.iter().skip(index + 1) {
+            if left.starts_with(right) || right.starts_with(left) {
+                return Err(vec![Diagnostic::error(
+                    "LE1016",
+                    format!("comment delimiters `{left}` and `{right}` overlap by prefix"),
+                    Span::new(0, 0),
+                )]);
+            }
+        }
+    }
+    for left in token_starters {
+        if let Some(operator) = grammar
+            .operators
+            .iter()
+            .find(|operator| operator.token.starts_with(left))
+        {
+            return Err(vec![Diagnostic::error(
+                "LE1016",
+                format!(
+                    "comment delimiter `{left}` makes expression operator `{}` unreachable",
+                    operator.token
+                ),
+                Span::new(0, 0),
+            )]);
+        }
+    }
+    Ok(())
 }
 
 struct NoCustomAtoms;
@@ -472,6 +645,7 @@ fn lex<P: ExpressionAtomParser>(
     grammar: &ExpressionGrammar,
     atom_parser: &mut P,
     terminator: Option<&str>,
+    lexical: &LexicalSpec,
 ) -> Result<(Vec<Token>, usize, bool), Vec<Diagnostic>> {
     let fragment = &source.text[range.start..range.end];
     let mut tokens = Vec::new();
@@ -486,13 +660,45 @@ fn lex<P: ExpressionAtomParser>(
             offset += character.len_utf8();
             continue;
         }
-        if character == '#' {
-            offset += character.len_utf8();
+        if lexical
+            .line_comment
+            .as_deref()
+            .is_some_and(|marker| rest.starts_with(marker))
+        {
+            let marker = lexical.line_comment.as_deref().unwrap_or_default();
+            offset += marker.len();
             while let Some(next) = fragment[offset..].chars().next() {
                 if matches!(next, '\r' | '\n') {
                     break;
                 }
                 offset += next.len_utf8();
+            }
+            continue;
+        }
+        if let Some(block_comment) = &lexical.block_comment
+            && rest.starts_with(&block_comment.open)
+        {
+            let comment_start = offset;
+            offset += block_comment.open.len();
+            let mut terminated = false;
+            while offset < fragment.len() {
+                if fragment[offset..].starts_with(&block_comment.close) {
+                    offset += block_comment.close.len();
+                    terminated = true;
+                    break;
+                }
+                let next = fragment[offset..]
+                    .chars()
+                    .next()
+                    .expect("offset is a character boundary");
+                offset += next.len_utf8();
+            }
+            if !terminated {
+                return Err(vec![Diagnostic::error(
+                    "LE1015",
+                    "unterminated block comment",
+                    Span::new(range.start + comment_start, range.end),
+                )]);
             }
             continue;
         }
