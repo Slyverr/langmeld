@@ -190,6 +190,12 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .unwrap()
             .contains("lexical")
     );
+    assert!(
+        capabilities["artifacts"]["textmate_grammar"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("host-provided custom lexer")
+    );
     assert_eq!(
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "#"
@@ -203,6 +209,12 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
             .as_str()
             .expect("Tree-sitter limitation has a reason")
             .contains("semantic validation")
+    );
+    assert!(
+        capabilities["artifacts"]["tree_sitter_grammar"]["reason"]
+            .as_str()
+            .expect("Tree-sitter limitation has a reason")
+            .contains("Host-provided custom lexers")
     );
     assert!(artifacts.contains_key("tree-sitter/grammar.js"));
     assert!(artifacts["README.md"].contains("`tree_sitter_grammar` | partial"));
@@ -434,6 +446,12 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
             .as_str()
             .expect("TextMate limitation has a reason")
             .contains("custom parser callbacks may accept syntax outside")
+    );
+    assert!(
+        capabilities["artifacts"]["textmate_grammar"]["reason"]
+            .as_str()
+            .expect("TextMate limitation has a reason")
+            .contains("host-provided custom lexer")
     );
     assert!(artifacts["README.md"].contains("custom parser callbacks may accept syntax outside"));
     assert_eq!(

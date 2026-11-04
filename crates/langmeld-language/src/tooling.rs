@@ -149,7 +149,7 @@ fn tree_sitter_output(
     match generate_tree_sitter(language) {
         Ok(artifacts) => (
             Capability::partial(
-                "The generated grammar models declared syntax but does not reproduce semantic validation, such as required-field and duplicate-key checks; Langmeld remains authoritative.",
+                "The generated grammar models declared syntax but does not reproduce semantic validation, such as required-field and duplicate-key checks; Langmeld remains authoritative. Host-provided custom lexers are not part of the language definition and may accept syntax outside this grammar.",
             ),
             Some(artifacts),
         ),

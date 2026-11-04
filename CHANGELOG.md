@@ -15,6 +15,8 @@ is cut, changes belong under `Unreleased`.
   syntax extension.
 
 ### Changed
+- Generated TextMate and Tree-sitter capability reports now explain that
+  host-provided custom lexers can accept syntax beyond declarative exports.
 
 - **Tree-sitter capability:** Mark generated grammars as partial because
   grammar parsing does not reproduce Langmeld semantic validation.
