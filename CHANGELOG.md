@@ -15,6 +15,8 @@ is cut, changes belong under `Unreleased`.
   syntax extension.
 
 ### Changed
+- Generated editor-configuration guidance now calls out host lexer and parser
+  behavior that cannot be inferred from a declarative language definition.
 - Generated TextMate and Tree-sitter capability reports now explain that
   host-provided custom lexers can accept syntax beyond declarative exports.
 

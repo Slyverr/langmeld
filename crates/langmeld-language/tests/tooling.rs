@@ -259,6 +259,9 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     assert!(artifacts["README.md"].contains("## Generated artifacts"));
     assert!(artifacts["README.md"].contains("## Language and host features"));
     assert!(artifacts["README.md"].contains("Bracket pairs: `{` → `}`"));
+    assert!(artifacts["README.md"].contains(
+        "Host-provided custom lexers and parser callbacks are outside this declarative inference"
+    ));
     assert!(artifacts["README.md"].contains("`textmate_grammar` | partial"));
     assert!(artifacts["README.md"].contains("`lsp.parser_continuation_completion` | partial"));
     assert!(artifacts["README.md"].contains("`lsp.document_symbols` | supported"));

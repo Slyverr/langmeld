@@ -290,7 +290,7 @@ fn editor_configuration_assumptions(
             .as_ref()
             .map(|comment| [comment.open.clone(), comment.close.clone()]),
         bracket_pairs: editor_bracket_pairs(spec),
-        reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields, and undeclared conventional pairs are omitted.",
+        reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields, and undeclared conventional pairs are omitted. Host-provided custom lexers and parser callbacks are outside this declarative inference and may require additional editor configuration.",
     }
 }
 
