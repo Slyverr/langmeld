@@ -1,6 +1,7 @@
 //! Rust host entry points for the Ledger language.
 
 use langmeld::core::{Diagnostic, Severity, SourceFile, ValidatedLanguageSpec};
+use langmeld::expression::{Atom, Expression, ExpressionRuntime, evaluate_expression};
 use langmeld::language::{
     AstNode, CapturedValue, ConfiguredLanguageParser, ParseResult, Program, ProjectSnapshot, Value,
     WorkspaceAnalysis, analyze_workspace_with_host_callbacks,
@@ -162,6 +163,11 @@ fn execute_node(
             }
             insert_variable(variables, name, value)?;
         }
+        "calculate" => {
+            let name = identifier(node, "name")?.to_owned();
+            let value = evaluate_numeric_expression(expression(node, "value")?)?;
+            insert_variable(variables, name, value)?;
+        }
         "subtract" => {
             let right_name = reference(node, "right")?;
             let left_name = reference(node, "left")?;
@@ -211,6 +217,74 @@ fn number(node: &AstNode, name: &str) -> Result<f64, String> {
         Value::Number(value) if value.is_finite() => Ok(value),
         Value::Number(_) => Err(format!("{}.{} is not finite", node.construct, name)),
         _ => Err(format!("{}.{} is not a number", node.construct, name)),
+    }
+}
+
+fn expression<'a>(node: &'a AstNode, name: &str) -> Result<&'a Expression, String> {
+    match &field(node, name)?.value {
+        Value::Expression(value) => Ok(value),
+        _ => Err(format!("{}.{} is not an expression", node.construct, name)),
+    }
+}
+
+fn evaluate_numeric_expression(expression: &Expression) -> Result<f64, String> {
+    evaluate_expression(expression, &mut NumericRuntime).map_err(|diagnostic| diagnostic.message)
+}
+
+struct NumericRuntime;
+
+impl ExpressionRuntime for NumericRuntime {
+    type Value = f64;
+
+    fn atom(&mut self, atom: &Atom, _span: langmeld::core::Span) -> Result<Self::Value, String> {
+        match atom {
+            Atom::Number(value) => {
+                let value = value
+                    .parse::<f64>()
+                    .map_err(|_| format!("`{value}` is not a valid number"))?;
+                if value.is_finite() {
+                    Ok(value)
+                } else {
+                    Err("numeric literal must be finite".to_owned())
+                }
+            }
+            Atom::Boolean(_) | Atom::Name(_) | Atom::Custom { .. } => {
+                Err("this example supports numeric expression atoms only".to_owned())
+            }
+        }
+    }
+
+    fn prefix(
+        &mut self,
+        operator: &str,
+        _operator_span: langmeld::core::Span,
+        operand: &Self::Value,
+    ) -> Result<Self::Value, String> {
+        match operator {
+            "-" => Ok(-operand),
+            other => Err(format!("operator `{other}` is not supported")),
+        }
+    }
+
+    fn infix(
+        &mut self,
+        operator: &str,
+        _operator_span: langmeld::core::Span,
+        left: &Self::Value,
+        right: &Self::Value,
+    ) -> Result<Self::Value, String> {
+        let result = match operator {
+            "+" => left + right,
+            "*" => left * right,
+            other => return Err(format!("operator `{other}` is not supported")),
+        };
+        if result.is_finite() {
+            Ok(result)
+        } else {
+            Err(format!(
+                "operator `{operator}` produced a non-finite result"
+            ))
+        }
     }
 }
 

@@ -1,6 +1,13 @@
 language Ledger {
+  schema_version: 3
   version: "0.1.0"
   root: program
   source_extension: ".ledger.lmprog"
   category statement {}
+
+  expression arithmetic {
+    atom: number
+    operator "+" infix 10 left
+    operator "*" infix 20 left
+  }
 }

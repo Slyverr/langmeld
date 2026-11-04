@@ -1,9 +1,10 @@
 constructs {
   construct program {
     syntax {
-      default: "program {"
+      default: "program"
     }
-    block: [statement]
+    block: [statement] {
+    }
   }
 
   construct set {
@@ -30,6 +31,21 @@ constructs {
       left: ref<variable> required
       right: ref<variable> required
       name: identifier required
+    }
+    symbol {
+      kind: variable
+      name: name
+    }
+  }
+
+  construct calculate {
+    implements: statement
+    syntax {
+      default: "calculate {name} as {value};"
+    }
+    fields {
+      name: identifier required
+      value: expression<arithmetic> until ";" required
     }
     symbol {
       kind: variable

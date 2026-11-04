@@ -4,17 +4,17 @@
   "definitions": [
     {
       "path": "language/constructs/program.langmeld",
-      "sha256": "8783fc86374c0ccd1e85fb9fa4ba080225745c787343a5e294416cabbff1c25b"
+      "sha256": "0de254d84c383edcd9b4c070e9ea576f65891e8fa60ee715fb5f485a0e9791ad"
     },
     {
       "path": "language/language.langmeld",
-      "sha256": "8bfdb9a192a61f5839cd223a0e04576f5f6ba7eab8822dc76fa915657dfcd56d"
+      "sha256": "97e038759ef9c47d5db84146726f97a7b0e7d4b709e716620a00ba3e6f876182"
     },
     {
       "path": "language/extensions/subtract.langmeld",
-      "sha256": "b75cabcff10c37dd0098981bd36192a601c78fc8596696f5d272aa2b1a2e662d"
+      "sha256": "4849a6a2a1e6ebcc94b2ccc67d633a5ffde613b838f698e770f4cf49b7d07734"
     }
   ],
   "extensions": [],
-  "effective_language_sha256": "c4fd98855d4eb9874f73d447f92e4cd23e7f268df5d5915a1ef6aeff9ba81af5"
+  "effective_language_sha256": "531d5899780ed4bb1b2696ce2d2b990dfa821d83e1acbb31f6f4e5e74c5c1c66"
 }

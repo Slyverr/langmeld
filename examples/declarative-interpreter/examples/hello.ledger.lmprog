@@ -3,6 +3,8 @@ program {
   set second to 23
   add first and second as total
   subtract first from total as remainder
+  calculate computed as (19 + 23) * 2;
   print total
   print remainder
+  print computed
 }
