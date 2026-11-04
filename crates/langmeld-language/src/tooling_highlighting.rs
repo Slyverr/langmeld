@@ -165,8 +165,15 @@ pub(crate) fn textmate_grammar(
     let string_scope = textmate_scope_for_classification("string").unwrap_or("string");
     let number_scope = textmate_scope_for_classification("number").unwrap_or("constant.numeric");
     patterns.extend([
-        serde_json::json!({"name": string_scope, "begin": "\\\"", "end": "\\\""}),
-        serde_json::json!({"name": number_scope, "match": "\\b-?[0-9]+(\\.[0-9]+)?\\b"}),
+        serde_json::json!({
+            "name": string_scope,
+            "begin": "\\\"",
+            "end": "(?<!\\\\)(?:\\\\\\\\)*\\\""
+        }),
+        serde_json::json!({
+            "name": number_scope,
+            "match": "(?<![_\\p{L}\\p{N}-])-?[0-9]+(?:\\.[0-9]*)?"
+        }),
     ]);
     if !keywords.is_empty()
         && let Some(scope) = textmate_scope_for_classification("keyword")

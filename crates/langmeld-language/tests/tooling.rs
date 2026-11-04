@@ -301,6 +301,20 @@ fn textmate_regexes_prioritize_overlaps_and_respect_identifier_boundaries() {
         serde_json::from_str(&artifacts["syntaxes/token-matching.tmLanguage.json"])
             .expect("TextMate grammar is JSON");
     let patterns = grammar["patterns"].as_array().expect("patterns list");
+    let string_pattern = patterns
+        .iter()
+        .find(|pattern| pattern["name"] == "string.quoted.double")
+        .expect("double-quoted string pattern exists");
+    assert_eq!(string_pattern["begin"], "\\\"");
+    assert_eq!(string_pattern["end"], "(?<!\\\\)(?:\\\\\\\\)*\\\"");
+    let number_pattern = patterns
+        .iter()
+        .find(|pattern| pattern["name"] == "constant.numeric")
+        .expect("number pattern exists");
+    assert_eq!(
+        number_pattern["match"],
+        "(?<![_\\p{L}\\p{N}-])-?[0-9]+(?:\\.[0-9]*)?"
+    );
     let operator_pattern = patterns
         .iter()
         .find(|pattern| pattern["name"] == "keyword.operator.langmeld")

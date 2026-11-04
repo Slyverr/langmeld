@@ -37,6 +37,12 @@ is cut, changes belong under `Unreleased`.
 - **Highlighting classifications:** Map shared classifications to TextMate
   scopes, Tree-sitter captures, and LSP token types in generated metadata.
 
+### Fixed
+
+- Generated TextMate string scopes now stay open across escaped quotes.
+- Generated TextMate number scopes now match signed numbers and trailing-dot
+  decimals accepted by Langmeld's built-in lexer.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added
