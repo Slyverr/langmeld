@@ -2217,8 +2217,8 @@ fn initialize_response(
     }
     capabilities["semanticTokensProvider"] = json!({
         "legend": {
-            "tokenTypes": semantic_tokens::TOKEN_TYPES,
-            "tokenModifiers": semantic_tokens::TOKEN_MODIFIERS
+            "tokenTypes": langmeld_language::SEMANTIC_TOKEN_TYPES,
+            "tokenModifiers": langmeld_language::SEMANTIC_TOKEN_MODIFIERS
         },
         "full": true
     });

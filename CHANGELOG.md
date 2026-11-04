@@ -38,7 +38,8 @@ is cut, changes belong under `Unreleased`.
 - **Tooling capabilities:** Generated language projects now receive a versioned
   capability report with support levels and reasons for tooling artifacts and
   generic editor features. Rust hosts can request the same typed report through
-  `generate_tooling_capabilities`.
+  `generate_tooling_capabilities`. Generated highlighting metadata and LSP
+  semantic tokens now share the same token type and modifier legends.
 - **Expression tooling:** The lossless syntax tree exposes nested expression,
   operator, atom, group, call, member, and index nodes while retaining each
   source token exactly once. Generated browser adapters serialize expression

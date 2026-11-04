@@ -64,6 +64,10 @@ lowering. The report describes Langmeld support for the validated language
 model. It does not claim that a particular editor client implements every LSP
 feature or that host behavior has been registered.
 
+The generated `highlighting.json` and LSP initialization response use the same
+semantic-token type and modifier legends. Their token indices therefore stay
+aligned with the shared Langmeld classifications.
+
 Project-definition reload is partial because it depends on editor clients
 supporting dynamic watched-file registration. A language with custom parser
 callbacks reports source formatting as customized so hosts can provide a

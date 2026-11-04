@@ -1,18 +1,6 @@
 //! LSP semantic-token encoding for shared syntax classifications.
 
-use langmeld_language::Classification;
-pub(super) const TOKEN_TYPES: [&str; 8] = [
-    "keyword",
-    "operator",
-    "string",
-    "number",
-    "comment",
-    "variable",
-    "enumMember",
-    "property",
-];
-
-pub(super) const TOKEN_MODIFIERS: [&str; 2] = ["declaration", "reference"];
+use langmeld_language::{Classification, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES};
 
 pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u32> {
     let mut pieces = Vec::new();
@@ -23,11 +11,10 @@ pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u3
         let Some(span) = source.get(classification.span.start..classification.span.end) else {
             continue;
         };
-        let modifier = match classification.kind {
-            "declaration" => 1,
-            "reference" => 2,
-            _ => 0,
-        };
+        let modifier = SEMANTIC_TOKEN_MODIFIERS
+            .iter()
+            .position(|modifier| *modifier == classification.kind)
+            .map_or(0, |index| 1 << index);
         let mut start = classification.span.start;
         for (relative, character) in span.char_indices() {
             if matches!(character, '\r' | '\n') {
@@ -74,17 +61,16 @@ pub(super) fn encode(source: &str, classifications: &[Classification]) -> Vec<u3
 }
 
 fn token_type(kind: &str) -> Option<u32> {
-    Some(match kind {
-        "keyword" => 0,
-        "operator" => 1,
-        "string" => 2,
-        "number" => 3,
-        "comment" => 4,
-        "identifier" | "declaration" | "reference" => 5,
-        "enumMember" => 6,
-        "property" => 7,
-        _ => return None,
-    })
+    let kind = match kind {
+        "identifier" | "declaration" | "reference" => "variable",
+        kind => kind,
+    };
+    u32::try_from(
+        SEMANTIC_TOKEN_TYPES
+            .iter()
+            .position(|token_type| *token_type == kind)?,
+    )
+    .ok()
 }
 
 fn push_piece(

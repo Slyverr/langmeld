@@ -78,8 +78,9 @@ pub use project::{
 };
 pub use rust_codegen::{generate_rust_ast, generate_rust_language_spec};
 pub use syntax::{
-    CLASSIFICATION_TYPES, Classification, SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken,
-    SyntaxTokenKind, classify, classify_parse_result_prepared, classify_prepared,
+    CLASSIFICATION_TYPES, Classification, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
+    SyntaxElement, SyntaxNode, SyntaxNodeRole, SyntaxToken, SyntaxTokenKind, classify,
+    classify_parse_result_prepared, classify_prepared,
 };
 pub use tooling::{GeneratedArtifacts, generate_tooling, generate_tooling_capabilities};
 pub use tooling_capabilities::{

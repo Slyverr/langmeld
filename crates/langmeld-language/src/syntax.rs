@@ -140,6 +140,21 @@ pub const CLASSIFICATION_TYPES: [&str; 10] = [
     "property",
 ];
 
+/// Semantic-token types exposed by the generic language server.
+pub const SEMANTIC_TOKEN_TYPES: [&str; 8] = [
+    "keyword",
+    "operator",
+    "string",
+    "number",
+    "comment",
+    "variable",
+    "enumMember",
+    "property",
+];
+
+/// Semantic-token modifiers exposed by the generic language server.
+pub const SEMANTIC_TOKEN_MODIFIERS: [&str; 2] = ["declaration", "reference"];
+
 pub(super) fn lossless_syntax_tokens(
     source: &SourceFile,
     tokens: &[LanguageToken],

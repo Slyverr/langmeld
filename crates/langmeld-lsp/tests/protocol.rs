@@ -6,6 +6,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use langmeld_language::{SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES};
 use serde_json::{Value, json};
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
@@ -1246,8 +1247,12 @@ fn child_process_provides_generic_hover_and_semantic_tokens() {
     assert_eq!(capabilities["hoverProvider"], true);
     assert_eq!(capabilities["semanticTokensProvider"]["full"], true);
     assert_eq!(
-        capabilities["semanticTokensProvider"]["legend"]["tokenModifiers"][0],
-        "declaration"
+        capabilities["semanticTokensProvider"]["legend"]["tokenTypes"],
+        json!(SEMANTIC_TOKEN_TYPES)
+    );
+    assert_eq!(
+        capabilities["semanticTokensProvider"]["legend"]["tokenModifiers"],
+        json!(SEMANTIC_TOKEN_MODIFIERS)
     );
     let hover = by_id(2)["result"]["contents"]["value"]
         .as_str()

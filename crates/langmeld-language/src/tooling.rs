@@ -7,7 +7,8 @@ use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, ValidatedLa
 
 use crate::{
     CLASSIFICATION_TYPES, Capability, EditorConfigurationAssumptions, PatternCompileError,
-    PreparedLanguage, ToolingCapabilities, generate_tree_sitter, rust_codegen::generate_rust_ast,
+    PreparedLanguage, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, ToolingCapabilities,
+    generate_tree_sitter, rust_codegen::generate_rust_ast,
 };
 
 /// Generated artifacts keyed by safe, relative destination paths.
@@ -58,6 +59,8 @@ pub fn generate_tooling(
             "language": spec.name,
             "version": spec.version,
             "legend": CLASSIFICATION_TYPES,
+            "semantic_token_types": SEMANTIC_TOKEN_TYPES,
+            "semantic_token_modifiers": SEMANTIC_TOKEN_MODIFIERS,
             "keywords": keywords,
             "operators": operators,
             "enum_values": enum_values,

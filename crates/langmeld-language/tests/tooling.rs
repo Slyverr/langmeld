@@ -73,6 +73,14 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     let highlighting: serde_json::Value =
         serde_json::from_str(&artifacts["highlighting.json"]).expect("highlighting is JSON");
     assert_eq!(highlighting["lexical_only"], true);
+    assert_eq!(
+        highlighting["semantic_token_types"],
+        serde_json::json!(langmeld_language::SEMANTIC_TOKEN_TYPES)
+    );
+    assert_eq!(
+        highlighting["semantic_token_modifiers"],
+        serde_json::json!(langmeld_language::SEMANTIC_TOKEN_MODIFIERS)
+    );
     assert!(
         highlighting["keywords"]
             .as_array()
