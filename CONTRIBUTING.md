@@ -71,9 +71,9 @@ capabilities with their own Rust implementations.
   `Deprecated`, `Removed`, `Fixed`, and `Security` categories as applicable,
   and describe user-visible effects rather than commit history. Group related
   changes into a concise entry; omit empty categories.
-- Do not bump the version for each feature commit. The current unreleased
-  version is `0.1.0`; accumulate its changes under `Unreleased` until the
-  release gates pass.
+- Do not bump the version for each feature commit. Before the first release,
+  target `0.1.0` and accumulate its changes under `Unreleased` until the gates
+  pass. After `0.1.0` ships, accumulate later pre-1.0 work toward `0.2.0`.
 - Before release, confirm the workspace package versions and internal
   dependency requirements agree, then refresh the root and affected consumer
   lockfiles. Run workspace tests, formatting, strict Clippy, warnings-denied
@@ -85,7 +85,7 @@ capabilities with their own Rust implementations.
   and their lockfiles. Require the hosted toolchain/platform matrix,
   generated-artifact checks, and a fresh-project workflow review to pass too.
 - Prepare each release in one commit. For the first one, use
-  `chore(release): prepare 0.1.0`; substitute the new version in that subject
+  `chore(release): finalize 0.1.0`; substitute the new version in that subject
   for later releases. Move shipped entries from `Unreleased` to a dated version
   heading, start a fresh `Unreleased` section, update the root workspace
   version, internal crate requirements, example-consumer requirements, and all
