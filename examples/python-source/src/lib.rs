@@ -24,7 +24,10 @@ pub struct SourceAnalysis {
 
 /// Loads and validates the language model used by this source index.
 pub fn validated_language_spec() -> Result<ValidatedLanguageSpec, Vec<Diagnostic>> {
-    let definition = SourceFile::new("python-source.langmeld", include_str!("../python-source.langmeld"));
+    let definition = SourceFile::new(
+        "python-source.langmeld",
+        include_str!("../python-source.langmeld"),
+    );
     parse_definition(&definition)?.validate().map_err(|errors| {
         errors
             .into_iter()
