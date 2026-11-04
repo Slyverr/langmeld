@@ -277,11 +277,63 @@ pub(super) fn occurrence_at(
     program: &Program,
     offset: usize,
 ) -> Option<SymbolOccurrence> {
-    let mut occurrences = Vec::new();
-    collect_occurrences(spec, &program.nodes, &mut occurrences);
-    occurrences
-        .into_iter()
-        .find(|occurrence| occurrence.span.start <= offset && offset < occurrence.span.end)
+    occurrence_at_nodes(spec, &program.nodes, offset)
+}
+
+fn occurrence_at_nodes(
+    spec: &ValidatedLanguageSpec,
+    nodes: &[AstNode],
+    offset: usize,
+) -> Option<SymbolOccurrence> {
+    for node in nodes {
+        if let Some(construct) = spec.construct(&node.construct) {
+            if let Some(symbol) = &construct.symbol
+                && let Some(value) = node.fields.get(&symbol.name_field)
+                && matches!(&value.value, LanguageValue::Identifier(_))
+                && value.span.start <= offset
+                && offset < value.span.end
+            {
+                return Some(SymbolOccurrence {
+                    span: value.span,
+                    is_declaration: true,
+                });
+            }
+            for field in &construct.fields {
+                if let Some(value) = node.fields.get(&field.name)
+                    && let Some(span) = field_occurrence_at(&field.kind, value, offset)
+                {
+                    return Some(SymbolOccurrence {
+                        span,
+                        is_declaration: false,
+                    });
+                }
+            }
+        }
+        if let Some(occurrence) = occurrence_at_nodes(spec, &node.children, offset) {
+            return Some(occurrence);
+        }
+    }
+    None
+}
+
+fn field_occurrence_at(kind: &FieldKind, captured: &CapturedValue, offset: usize) -> Option<Span> {
+    match (kind, &captured.value) {
+        (FieldKind::Reference { .. }, LanguageValue::Reference(_))
+            if captured.span.start <= offset && offset < captured.span.end =>
+        {
+            Some(captured.span)
+        }
+        (FieldKind::Properties { fields, .. }, LanguageValue::Properties(values)) => fields
+            .iter()
+            .find_map(|field| field_occurrence_at(&field.kind, values.get(&field.name)?, offset)),
+        (FieldKind::List { item }, LanguageValue::List(values)) => values
+            .iter()
+            .find_map(|value| field_occurrence_at(item, value, offset)),
+        (FieldKind::Map { value, .. }, LanguageValue::Map(entries)) => entries
+            .iter()
+            .find_map(|entry| field_occurrence_at(value, &entry.value, offset)),
+        _ => None,
+    }
 }
 
 pub(super) fn resolved_target(
@@ -479,63 +531,4 @@ fn scope_identity(
         ScopeLookup::LexicalParents => matching_scopes,
     };
     Some(Some(identity))
-}
-
-fn collect_occurrences(
-    spec: &ValidatedLanguageSpec,
-    nodes: &[AstNode],
-    output: &mut Vec<SymbolOccurrence>,
-) {
-    for node in nodes {
-        if let Some(construct) = spec.construct(&node.construct) {
-            if let Some(symbol) = &construct.symbol
-                && let Some(value) = node.fields.get(&symbol.name_field)
-                && matches!(&value.value, LanguageValue::Identifier(_))
-            {
-                output.push(SymbolOccurrence {
-                    span: value.span,
-                    is_declaration: true,
-                });
-            }
-            for field in &construct.fields {
-                if let Some(value) = node.fields.get(&field.name) {
-                    collect_field_occurrences(&field.kind, value, output);
-                }
-            }
-        }
-        collect_occurrences(spec, &node.children, output);
-    }
-}
-
-fn collect_field_occurrences(
-    kind: &FieldKind,
-    captured: &CapturedValue,
-    output: &mut Vec<SymbolOccurrence>,
-) {
-    match (kind, &captured.value) {
-        (FieldKind::Reference { .. }, LanguageValue::Reference(_)) => {
-            output.push(SymbolOccurrence {
-                span: captured.span,
-                is_declaration: false,
-            });
-        }
-        (FieldKind::Properties { fields, .. }, LanguageValue::Properties(values)) => {
-            for field in fields {
-                if let Some(value) = values.get(&field.name) {
-                    collect_field_occurrences(&field.kind, value, output);
-                }
-            }
-        }
-        (FieldKind::List { item }, LanguageValue::List(values)) => {
-            for value in values {
-                collect_field_occurrences(item, value, output);
-            }
-        }
-        (FieldKind::Map { value, .. }, LanguageValue::Map(entries)) => {
-            for entry in entries {
-                collect_field_occurrences(value, &entry.value, output);
-            }
-        }
-        _ => {}
-    }
 }
