@@ -286,6 +286,69 @@ pub fn parse_expression_with_atoms<P: ExpressionAtomParser>(
     grammar: &ExpressionGrammar,
     atom_parser: &mut P,
 ) -> Result<Expression, Vec<Diagnostic>> {
+    parse_expression_range(source, range, grammar, atom_parser, None)
+        .map(|(expression, _)| expression)
+}
+
+/// Parses one expression from `range.start` through a required punctuation
+/// terminator at the current grouping depth. The terminator cannot contain
+/// quote or backslash characters.
+///
+/// The returned span covers the searched source through the terminator's start;
+/// the [`Expression`] retains the narrower range of its actual syntax. The
+/// terminator is not included in either range. It must not overlap an operator
+/// spelling in `grammar`.
+///
+/// # Errors
+/// Returns diagnostics when the range or terminator is invalid, the terminator
+/// is missing, or the expression cannot be parsed.
+pub fn parse_expression_until(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    terminator: &str,
+) -> Result<(Expression, Span), Vec<Diagnostic>> {
+    parse_expression_until_with_atoms(source, range, grammar, terminator, &mut NoCustomAtoms)
+}
+
+/// Parses one expression through a required terminator with host-defined atoms.
+///
+/// # Errors
+/// Returns diagnostics when the range or terminator is invalid, the terminator
+/// is missing, the atom parser reports an error, or the expression cannot be
+/// parsed.
+pub fn parse_expression_until_with_atoms<P: ExpressionAtomParser>(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    terminator: &str,
+    atom_parser: &mut P,
+) -> Result<(Expression, Span), Vec<Diagnostic>> {
+    if terminator.is_empty()
+        || !terminator.chars().all(|character| {
+            character.is_ascii_punctuation() && !matches!(character, '\\' | '"' | '\'')
+        })
+        || grammar.operators.iter().any(|operator| {
+            operator.token.starts_with(terminator) || terminator.starts_with(&operator.token)
+        })
+    {
+        let offset = range.start.min(source.text.len());
+        return Err(vec![Diagnostic::error(
+            "LE1013",
+            "expression terminator must be punctuation other than quotes or backslashes and must not overlap a declared operator",
+            Span::new(offset, offset),
+        )]);
+    }
+    parse_expression_range(source, range, grammar, atom_parser, Some(terminator))
+}
+
+fn parse_expression_range<P: ExpressionAtomParser>(
+    source: &SourceFile,
+    range: Span,
+    grammar: &ExpressionGrammar,
+    atom_parser: &mut P,
+    terminator: Option<&str>,
+) -> Result<(Expression, Span), Vec<Diagnostic>> {
     if range.start > range.end
         || range.end > source.text.len()
         || !source.text.is_char_boundary(range.start)
@@ -298,7 +361,8 @@ pub fn parse_expression_with_atoms<P: ExpressionAtomParser>(
             Span::new(offset, offset),
         )]);
     }
-    let tokens = lex(source, range, grammar, atom_parser)?;
+    let (tokens, consumed_end, found_terminator) =
+        lex(source, range, grammar, atom_parser, terminator)?;
     let mut parser = Parser {
         tokens,
         position: 0,
@@ -317,7 +381,24 @@ pub fn parse_expression_with_atoms<P: ExpressionAtomParser>(
         let diagnostics = parser.diagnostics;
         return Err(diagnostics);
     }
-    expression.ok_or_else(|| vec![Diagnostic::error("LE1003", "expected an expression", range)])
+    if terminator.is_some() && !found_terminator {
+        return Err(vec![Diagnostic::error(
+            "LE1014",
+            format!(
+                "expected expression terminator `{}`",
+                terminator.unwrap_or_default()
+            ),
+            Span::new(range.end, range.end),
+        )]);
+    }
+    let expression = expression.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "LE1003",
+            "expected an expression",
+            Span::new(range.start, consumed_end),
+        )]
+    })?;
+    Ok((expression, Span::new(range.start, consumed_end)))
 }
 
 struct NoCustomAtoms;
@@ -360,17 +441,26 @@ fn lex<P: ExpressionAtomParser>(
     range: Span,
     grammar: &ExpressionGrammar,
     atom_parser: &mut P,
-) -> Result<Vec<Token>, Vec<Diagnostic>> {
+    terminator: Option<&str>,
+) -> Result<(Vec<Token>, usize, bool), Vec<Diagnostic>> {
     let fragment = &source.text[range.start..range.end];
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut offset = 0;
+    let mut delimiters = Vec::new();
+    let mut found_terminator = false;
     while offset < fragment.len() {
         let rest = &fragment[offset..];
         let character = rest.chars().next().expect("offset is a character boundary");
         if character.is_whitespace() {
             offset += character.len_utf8();
             continue;
+        }
+        if delimiters.is_empty()
+            && terminator.is_some_and(|terminator| rest.starts_with(terminator))
+        {
+            found_terminator = true;
+            break;
         }
         let start = offset;
         let absolute_start = range.start + start;
@@ -448,6 +538,14 @@ fn lex<P: ExpressionAtomParser>(
             });
         } else if matches!(character, '(' | ')' | ',' | '.' | '[' | ']') {
             offset += character.len_utf8();
+            match character {
+                '(' => delimiters.push(')'),
+                '[' => delimiters.push(']'),
+                ')' | ']' if delimiters.last() == Some(&character) => {
+                    delimiters.pop();
+                }
+                _ => {}
+            }
             tokens.push(Token {
                 kind: match character {
                     '(' => TokenKind::LeftParen,
@@ -485,12 +583,13 @@ fn lex<P: ExpressionAtomParser>(
             )]);
         }
     }
+    let consumed_end = range.start + offset;
     tokens.push(Token {
         kind: TokenKind::End,
-        span: Span::new(range.end, range.end),
+        span: Span::new(consumed_end, consumed_end),
     });
     if diagnostics.is_empty() {
-        Ok(tokens)
+        Ok((tokens, consumed_end, found_terminator))
     } else {
         Err(diagnostics)
     }

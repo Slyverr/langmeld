@@ -17,6 +17,9 @@ is cut, changes belong under `Unreleased`.
 - **Language grammar:** Schema 2 blocks own their delimiters and child separators.
   New declarative projects use the schema, and parsing, formatting, generated
   editor configuration, and representable Tree-sitter grammars honor the layout.
+- **Expression engine:** Parse expressions up to explicit punctuation
+  terminators, including nested groups and host-defined atoms, while preserving
+  the consumed source range.
 - **Project workflow:** An interactive CLI initializes and configures Rust
   language projects, checks and formats programs, inspects definitions,
   manages local declarative extensions, and generates deterministic editor and

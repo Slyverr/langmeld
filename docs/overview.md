@@ -24,6 +24,11 @@ provide a custom parser when a language's grammar needs different parsing
 behavior. The generic analyzer provides symbol and reference resolution and
 workspace type facts; hosts can register language-specific analysis callbacks.
 
+The separate `langmeld-expression` crate provides precedence-aware expressions
+with host-defined atoms, typing, and runtime rules. Its parser can stop at an
+explicit punctuation terminator while retaining source ranges, so hosts can
+parse an expression inside a larger construct without guessing its boundary.
+
 ## Rust host and execution
 
 `langmeld init` scaffolds a Rust project with optional command-line targets.
