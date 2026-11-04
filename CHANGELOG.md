@@ -23,7 +23,8 @@ is cut, changes belong under `Unreleased`.
   standalone expression crate also provides a host-defined atom API.
 - **Expression tooling:** The lossless syntax tree exposes nested expression,
   operator, atom, group, call, member, and index nodes while retaining each
-  source token exactly once.
+  source token exactly once. Generated browser adapters serialize expression
+  nodes and source spans as structured JSON.
 - **Project workflow:** An interactive CLI initializes and configures Rust
   language projects, checks and formats programs, inspects definitions,
   manages local declarative extensions, and generates deterministic editor and

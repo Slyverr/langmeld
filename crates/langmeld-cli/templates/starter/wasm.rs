@@ -311,6 +311,87 @@ fn value_json(value: &langmeld::language::Value) -> JsonValue {
         }
         Value::List(items) => json!(items.iter().map(captured_json).collect::<Vec<_>>()),
         Value::Map(entries) => json!(entries.iter().map(map_entry_json).collect::<Vec<_>>()),
+        Value::Expression(expression) => expression_json(expression),
+    }
+}
+
+fn expression_json(expression: &langmeld::expression::Expression) -> JsonValue {
+    use langmeld::expression::Expression;
+    match expression {
+        Expression::Atom(atom, span) => {
+            let (kind, value) = match atom {
+                langmeld::expression::Atom::Number(value) => ("number", json!(value)),
+                langmeld::expression::Atom::Boolean(value) => ("boolean", json!(value)),
+                langmeld::expression::Atom::Name(value) => ("name", json!(value)),
+                langmeld::expression::Atom::Custom { kind, text } => {
+                    ("custom", json!({"kind": kind, "text": text}))
+                }
+            };
+            json!({"kind": kind, "value": value, "span": span})
+        }
+        Expression::Prefix {
+            operator,
+            operator_span,
+            operand,
+            span,
+        } => json!({
+            "kind": "prefix",
+            "operator": operator,
+            "operator_span": operator_span,
+            "operand": expression_json(operand),
+            "span": span,
+        }),
+        Expression::Infix {
+            left,
+            operator,
+            operator_span,
+            right,
+            span,
+        } => json!({
+            "kind": "infix",
+            "left": expression_json(left),
+            "operator": operator,
+            "operator_span": operator_span,
+            "right": expression_json(right),
+            "span": span,
+        }),
+        Expression::Group { expression, span } => json!({
+            "kind": "group",
+            "expression": expression_json(expression),
+            "span": span,
+        }),
+        Expression::Call {
+            callee,
+            arguments,
+            span,
+        } => json!({
+            "kind": "call",
+            "callee": expression_json(callee),
+            "arguments": arguments.iter().map(expression_json).collect::<Vec<_>>(),
+            "span": span,
+        }),
+        Expression::Member {
+            receiver,
+            name,
+            name_span,
+            span,
+        } => json!({
+            "kind": "member",
+            "receiver": expression_json(receiver),
+            "name": name,
+            "name_span": name_span,
+            "span": span,
+        }),
+        Expression::Index {
+            receiver,
+            index,
+            span,
+        } => json!({
+            "kind": "index",
+            "receiver": expression_json(receiver),
+            "index": expression_json(index),
+            "span": span,
+        }),
     }
 }
 

@@ -251,6 +251,10 @@ fn starter_files(
             PathBuf::from("src/wasm.rs"),
             include_str!("../templates/starter/wasm.rs").to_owned(),
         );
+        files.insert(
+            PathBuf::from("tests/wasm.rs"),
+            include_str!("../templates/starter/tests/wasm.rs").replace("@CRATE@", &crate_name),
+        );
     }
     let example_source = if options.authoring == AuthoringMode::Combined {
         format!(

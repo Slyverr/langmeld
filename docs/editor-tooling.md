@@ -58,6 +58,9 @@ The caller supplies language definitions, imports, and workspace source text;
 the adapter does not read files or resolve paths. Source spans are UTF-8 byte
 offsets. Parse responses include source spans for generic block openers and
 closers, which editor integrations can use for folding and delimiter matching.
+Expression-valued fields are returned as recursively tagged JSON AST nodes,
+including operator and member-name spans, so browser tools can inspect
+subexpressions without reparsing source text.
 A generated project's `fromProject` adapter uses its compiled model
 and registered Rust callbacks. The adapter is a runtime target for language
 tools, not a backend that translates the user's language into WebAssembly.

@@ -626,6 +626,18 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
     assert!(readme.contains("UTF-8 byte offsets"));
     assert!(readme.contains("This runs Langmeld inside WebAssembly"));
 
+    let adapter_test = cargo_command()
+        .args(["test", "--features", "wasm", "--offline"])
+        .current_dir(&project)
+        .output()
+        .expect("generated browser adapter tests start");
+    assert!(
+        adapter_test.status.success(),
+        "generated browser adapter tests failed:\n{}\n{}",
+        String::from_utf8_lossy(&adapter_test.stdout),
+        String::from_utf8_lossy(&adapter_test.stderr)
+    );
+
     if std::env::var_os("LANGMELD_WASM_SMOKE").is_none() {
         return;
     }

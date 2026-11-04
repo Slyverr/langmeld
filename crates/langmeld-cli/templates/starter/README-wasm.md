@@ -9,8 +9,11 @@ parser-derived completion context; `analyzeWorkspace` accepts explicitly
 supplied source files and returns cross-file generic analysis. The adapter
 performs no filesystem access; callers resolve imports and provide every
 module. Returned spans are UTF-8 byte offsets. Opaque Rust host values are not
-serialized. Dynamically supplied models use generic analysis only and cannot
-bind host callbacks; `fromSpec` rejects models requiring a custom parser.
+serialized. Expression values are recursively tagged JSON objects (`number`,
+`boolean`, `name`, `custom`, `prefix`, `infix`, `group`, `call`, `member`, or
+`index`) with byte spans; operators and member names include their own spans.
+Dynamically supplied models use generic analysis only and cannot bind host
+callbacks; `fromSpec` rejects models requiring a custom parser.
 
 This runs Langmeld inside WebAssembly; it does not compile this language to
 WebAssembly. Add the wasm target and `wasm-bindgen` CLI matching the pinned
