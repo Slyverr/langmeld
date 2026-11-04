@@ -68,6 +68,8 @@ is cut, changes belong under `Unreleased`.
 
 ### Fixed
 
+- **Generated guidance:** Describe inferred bracket pairs accurately and state
+  that undeclared conventional pairs are omitted.
 - **Project workflow:** Keep generated starter and example builds working with
   canonical paths across symlinked and Windows project locations.
 - **Project locks:** Serialize definition paths with portable separators so

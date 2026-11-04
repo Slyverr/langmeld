@@ -39,6 +39,14 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         generate_tooling(&language).expect("generation repeats")
     );
     assert_eq!(artifacts["rust/ast.rs"], generate_rust_ast(&language));
+    assert!(
+        artifacts["agent-skill/SKILL.md"]
+            .contains("infers bracket pairs from declared blocks and built-in structured fields")
+    );
+    assert!(
+        artifacts["agent-skill/SKILL.md"]
+            .contains("omits conventional pairs that the language does not declare")
+    );
 
     let expected_paths = [
         "README.md",
