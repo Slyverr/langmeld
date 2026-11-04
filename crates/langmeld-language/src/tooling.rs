@@ -159,17 +159,21 @@ fn capability_report(
         .constructs
         .iter()
         .any(|construct| construct.custom_parser.is_some());
+    let textmate = if has_custom_parsers {
+        Capability::partial(
+            "TextMate highlighting is lexical and cannot provide parser-aware or semantic highlighting; custom parser callbacks may accept syntax outside the generated lexical rules.",
+        )
+    } else {
+        Capability::partial(
+            "TextMate highlighting is lexical and cannot provide parser-aware or semantic highlighting.",
+        )
+    };
     let artifacts = BTreeMap::from([
         ("agent_skill".to_owned(), Capability::supported()),
         ("language_configuration".to_owned(), Capability::supported()),
         ("language_metadata".to_owned(), Capability::supported()),
         ("reference_document".to_owned(), Capability::supported()),
-        (
-            "textmate_grammar".to_owned(),
-            Capability::partial(
-                "TextMate highlighting is lexical and cannot provide parser-aware or semantic highlighting.",
-            ),
-        ),
+        ("textmate_grammar".to_owned(), textmate),
         ("tree_sitter_grammar".to_owned(), tree_sitter),
         ("typed_rust_ast".to_owned(), Capability::supported()),
     ]);

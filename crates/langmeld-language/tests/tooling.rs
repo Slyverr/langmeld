@@ -345,6 +345,13 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
         capabilities["features"]["language.source_formatter"]["status"],
         "customized"
     );
+    assert!(
+        capabilities["artifacts"]["textmate_grammar"]["reason"]
+            .as_str()
+            .expect("TextMate limitation has a reason")
+            .contains("custom parser callbacks may accept syntax outside")
+    );
+    assert!(artifacts["README.md"].contains("custom parser callbacks may accept syntax outside"));
 }
 
 #[test]
