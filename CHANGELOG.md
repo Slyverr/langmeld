@@ -27,8 +27,9 @@ is cut, changes belong under `Unreleased`.
   reference, and direct the generated Agent Skill to that source.
 - **TextMate highlighting:** Match longer overlapping tokens first and use
   identifier boundaries that preserve hyphenated language tokens.
-- **Tooling capabilities:** Explain when custom parser callbacks can make
-  generated TextMate and LSP semantic highlighting incomplete.
+- **Tooling capabilities:** Report host-provided custom lexer callbacks, and
+  explain when custom parser callbacks make generated TextMate and LSP semantic
+  highlighting incomplete.
 - **Highlighting classifications:** Map shared classifications to TextMate
   scopes, Tree-sitter captures, and LSP token types in generated metadata.
 

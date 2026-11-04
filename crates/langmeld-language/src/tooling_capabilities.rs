@@ -216,6 +216,12 @@ pub(crate) fn capability_report(
             ),
         ),
         (
+            "parser.custom_lexer_callbacks".to_owned(),
+            Capability::customized(
+                "Host Rust callbacks can provide tokenization that the built-in lexical policy cannot express.",
+            ),
+        ),
+        (
             "parser.custom_construct_callbacks".to_owned(),
             Capability::customized(
                 "Host Rust callbacks can implement constructs that do not fit declarative syntax patterns.",

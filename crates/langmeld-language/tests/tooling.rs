@@ -235,6 +235,11 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         capabilities["features"]["parser.custom_construct_callbacks"]["status"],
         "customized"
     );
+    assert_eq!(
+        capabilities["features"]["parser.custom_lexer_callbacks"]["status"],
+        "customized"
+    );
+    assert!(artifacts["README.md"].contains("`parser.custom_lexer_callbacks` | customized"));
     let skill = &artifacts["agent-skill/SKILL.md"];
     assert!(skill.contains("references/capabilities.json"));
     assert!(skill.contains("validated capability report"));
