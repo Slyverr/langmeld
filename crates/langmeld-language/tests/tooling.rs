@@ -129,7 +129,7 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         capabilities["features"]["lsp.symbol_navigation"]["reason"]
             .as_str()
             .unwrap()
-            .contains("open documents")
+            .contains("configured project source snapshots")
     );
     assert_eq!(
         capabilities["features"]["host.execution"]["status"],

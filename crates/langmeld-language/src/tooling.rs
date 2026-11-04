@@ -271,7 +271,7 @@ fn capability_report(
         "lsp.symbol_navigation".to_owned(),
         if has_symbols {
             Capability::partial(
-                "Generic navigation and rename cover resolved declarations in currently open documents.",
+                "Generic navigation and rename use open documents and configured project source snapshots; project safety limits can disable cross-file navigation, and host callback resolvers cannot be renamed generically.",
             )
         } else {
             Capability::unavailable("The language declares no symbol metadata.")
