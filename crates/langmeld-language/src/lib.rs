@@ -20,6 +20,7 @@ mod rust_codegen;
 mod syntax;
 mod tooling;
 mod tooling_capabilities;
+mod tooling_reference;
 mod tree_sitter;
 
 pub use analysis::*;
