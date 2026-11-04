@@ -10,8 +10,10 @@ use clap::{Args, Parser, Subcommand};
 use langmeld::{
     core::{Severity, SourceFile},
     language::{
-        BackendDescriptor, BackendOptions, CompilationArtifact, Program, ProjectBuildConfig,
-        ProjectSnapshot, load_source_files,
+        BackendDescriptor, BackendOptions, CompilationArtifact, GeneratedArtifactWrite,
+        Program, ProjectBuildConfig, ProjectSnapshot, check_generated_artifacts,
+        generate_host_scaffold, generate_tooling, load_source_files,
+        write_generated_artifacts,
     },
 };
 
@@ -19,7 +21,7 @@ mod configure;
 
 #[derive(Debug, Parser)]
 #[command(
-    about = "Check, build, configure, or run this language project.",
+    about = "Check, build, configure, generate tooling for, or run this language project.",
     subcommand_required = true
 )]
 struct Cli {
@@ -31,6 +33,12 @@ struct Cli {
 enum Command {
     /// Parse source files and run generic workspace analysis.
     Check(InputArgs),
+    /// Generate deterministic language tooling from the compiled model.
+    Generate {
+        /// Check freshness without writing generated files.
+        #[arg(long)]
+        check: bool,
+    },
     /// Compile source files with a backend registered by this project.
     Build(BuildArgs),
     /// Configure defaults for a registered backend in langmeld.json.
@@ -89,6 +97,7 @@ fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Check(input) => process(input, true),
+        Command::Generate { check } => generate(check),
         Command::Run(input) => process(input, false),
         Command::Build(args) => build(args),
         Command::Configure(args) => configure::configure(args).map_err(|error| (2, error)),
@@ -115,6 +124,50 @@ fn process(input: InputArgs, check_only: bool) -> Result<(), (u8, String)> {
         analysis: &prepared.analysis,
     })
     .map_err(|error| (2, error))
+}
+
+fn generate(check: bool) -> Result<(), (u8, String)> {
+    let language = @CRATE@::load_language().map_err(|errors| {
+        (
+            2,
+            errors
+                .into_iter()
+                .map(|error| format!("{}: {}", error.code, error.message))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    })?;
+    let mut artifacts = generate_tooling(&language).map_err(|error| {
+        (
+            2,
+            format!("cannot generate language tooling: {error}"),
+        )
+    })?;
+    artifacts.extend(generate_host_scaffold(&language));
+    let project_root = std::env::current_dir().map_err(|error| {
+        (
+            2,
+            format!("cannot resolve the current project directory: {error}"),
+        )
+    })?;
+    let output = project_root.join(".langmeld/generated");
+    if check {
+        check_generated_artifacts(&project_root, &artifacts).map_err(|error| (1, error))?;
+        println!("generated tooling is up to date ({})", output.display());
+        return Ok(());
+    }
+
+    match write_generated_artifacts(&project_root, &artifacts).map_err(|error| (2, error))? {
+        GeneratedArtifactWrite::UpToDate { .. } => println!(
+            "generated tooling is already up to date ({})",
+            output.display()
+        ),
+        GeneratedArtifactWrite::Updated { file_count } => println!(
+            "generated {file_count} tooling files in {}",
+            output.display()
+        ),
+    }
+    Ok(())
 }
 
 fn prepare(input: InputArgs) -> Result<Prepared, (u8, String)> {

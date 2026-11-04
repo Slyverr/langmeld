@@ -36,7 +36,12 @@ fn callback_names<'a>(
     names
 }
 
-pub(crate) fn generate_host_scaffold(
+/// Generates Rust callback and runtime scaffolds for a validated language.
+///
+/// The returned paths are relative to a generated-artifact root. The output is
+/// deterministic for a given language model and contains stubs rather than
+/// executable implementations.
+pub fn generate_host_scaffold(
     language: &ValidatedLanguageSpec,
 ) -> std::collections::BTreeMap<String, String> {
     use langmeld_core::BehaviorStage;
@@ -259,17 +264,22 @@ pattern try. Once the input has the construct's recognizable prefix, return a
 diagnostic for malformed syntax instead of falling through. Successful matches
 must include the construct's declared required fields and UTF-8 byte spans.
 
-`langmeld init` seeds these modules into `src/host/`. `langmeld generate`
-writes deterministic refresh references under `.langmeld/generated/host/`;
-`langmeld generate --install-host` safely refreshes the project modules while
-preserving marked callback implementations.
+`langmeld init` seeds these modules into `src/host/`. For declarative
+projects, `langmeld generate --install-host` refreshes these modules while
+preserving marked callback implementations. Generated Rust host CLIs use
+`cargo run -- generate` to refresh references under
+`.langmeld/generated/host/`. Library-only projects can call
+`generate_host_scaffold` and the safe artifact writer from Rust. The generic
+CLI does not load Rust project code.
 
 The starter exposes `pub mod host;`, binds parser and lexer callbacks through
 `host::runtime::configured_parser`, and calls the checked analysis registries
 from its project-aware CLI. Add backend implementations to the user-owned
 `src/host/backend.rs`; `.langmeld` declarations do not select executable backends.
 
-The generated host tree contains callbacks derived from the language definition. Keep implementation code in the project host until Langmeld provides its safe install and refresh workflow.
+The generated host tree contains callback references derived from the language
+definition. Keep implementations in `src/host/`; files under
+`.langmeld/generated/host/` are refreshable references.
 "#
                 .to_owned(),
         ),

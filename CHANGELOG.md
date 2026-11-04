@@ -25,6 +25,9 @@ is cut, changes belong under `Unreleased`.
   language projects, checks and formats programs, inspects definitions,
   manages local declarative extensions, and generates deterministic editor and
   host artifacts. Safe refresh preserves authored callback implementations.
+- **Rust-host tooling:** Generated CLI projects can rebuild and check tooling
+  from their compiled Rust or combined language model with `generate` and
+  `generate --check`. Library-only projects can use the same safe writer APIs.
 - **Editor and browser tooling:** The language server provides diagnostics,
   completion, navigation, rename, hover, semantic tokens, formatting, and
   project-file indexing where the model or host provides the required facts.

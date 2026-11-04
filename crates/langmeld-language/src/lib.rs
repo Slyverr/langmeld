@@ -9,6 +9,7 @@ mod definition_meta;
 mod definition_tree;
 mod formatting;
 mod generated_artifacts;
+mod host_scaffold;
 mod lexer;
 mod lexing;
 mod model;
@@ -46,6 +47,7 @@ pub use formatting::{FormatOptions, format_parsed_source, format_source};
 pub use generated_artifacts::{
     GeneratedArtifactWrite, check_generated_artifacts, write_generated_artifacts,
 };
+pub use host_scaffold::generate_host_scaffold;
 pub use lexer::{
     CustomLexer, CustomLexerFn, LanguageToken, LanguageTokenKind, LexedSource, lex_source,
 };

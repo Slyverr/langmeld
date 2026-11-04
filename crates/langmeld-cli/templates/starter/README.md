@@ -11,6 +11,8 @@ runnable source examples live in `examples/`.
 cargo test
 cargo run --example hello
 cargo run --bin @SLUG@-host -- check --project
+cargo run -- generate
+cargo run -- generate --check
 cargo run --bin @SLUG@-host -- build --project
 ```
 
@@ -21,8 +23,13 @@ effective model, including enabled extensions. Convert a parsed program with
 `ast::from_program(&parsed.program)`. The generic parser is prepared from the
 selected model. Use the host as the starting point for custom lexing, parsing,
 analysis, or output. Keep `.langmeld` definitions modular under `language/`.
-The generated `@SLUG@-host` CLI supports `check`, `build`, `configure`, and `run`. Project
-commands use `langmeld.json`; source paths can also be passed directly.
+`@SLUG@-host` supports `check`, `build`, `configure`, `generate`, and `run`.
+Project commands use `langmeld.json`; source paths can also be passed directly.
+`generate` rebuilds deterministic tooling from the compiled effective language
+model, including enabled local extensions. Add `--check` to verify freshness
+without writing files. It replaces only `.langmeld/generated/`; authored source,
+README, examples, and host callback implementations remain in place.
+Library-only projects omit these CLI commands and use the generation APIs below.
 `run` calls `run_sources` in `src/lib.rs` with a `RuntimeContext` containing
 the validated language, source snapshots, parsed programs, and workspace
 analysis. The starter reports that runtime behavior still needs to be
@@ -38,8 +45,10 @@ backend defaults from `langmeld.json`.
 In interactive setup, choose whether to include the CLI, or pass
 `langmeld init --library-only` to create a Rust library without it.
 
-Deterministic editor and language metadata is created under `.langmeld/generated/`.
-That directory is ignored and can be rebuilt from the validated language model
-with `generate_tooling`.
+Deterministic editor and language metadata is created under
+`.langmeld/generated/`. That directory is ignored and can be rebuilt from the
+compiled language model with the host CLI. Library-only projects can call
+`langmeld::language::generate_tooling`, `generate_host_scaffold`, and
+`write_generated_artifacts` directly.
 
 @WASM_README@

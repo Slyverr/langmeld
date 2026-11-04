@@ -110,9 +110,29 @@ langmeld generate --project-root ./my-language --check
 ```
 
 `--check` reports stale generated files without rewriting them. In generated
-Rust hosts, `langmeld generate --install-host` refreshes generated host modules
-while preserving the marked callback bodies. Review generated changes along
-with the language definition changes that produced them.
+declarative projects, `langmeld generate --install-host` refreshes generated
+host modules while preserving marked callback bodies. Rust-authored and
+combined projects use their compiled host CLI instead:
+
+```sh
+cargo run -- generate
+cargo run -- generate --check
+```
+
+The host CLI loads the compiled effective language model, including local
+extensions. It rebuilds only `.langmeld/generated/`; it does not edit
+`src/host/`. Library-only projects can call
+`generate_tooling`, `generate_host_scaffold`, and
+`write_generated_artifacts` through `langmeld::language`:
+
+```rust
+let mut artifacts = langmeld::language::generate_tooling(&language)?;
+artifacts.extend(langmeld::language::generate_host_scaffold(&language));
+langmeld::language::write_generated_artifacts(project_root, &artifacts)?;
+```
+
+Review generated changes along with the language definition changes that
+produced them.
 
 Use `langmeld configure` to interactively adjust program source roots,
 individual files, or source extensions. The command validates the candidate

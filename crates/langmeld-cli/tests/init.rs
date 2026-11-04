@@ -146,6 +146,22 @@ fn run_project_host(project: &std::path::Path, arguments: &[&str]) -> std::proce
     run_host(&project.join("langmeld.json"), project, arguments)
 }
 
+fn run_generated_host(
+    project: &std::path::Path,
+    language_name: &str,
+    arguments: &[&str],
+) -> std::process::Output {
+    let binary = format!("{}-host", language_name.to_ascii_lowercase());
+    cargo_command()
+        .args(["run", "--offline", "--manifest-path"])
+        .arg(project.join("Cargo.toml"))
+        .args(["--bin", &binary, "--"])
+        .args(arguments)
+        .current_dir(project)
+        .output()
+        .expect("generated language host starts")
+}
+
 fn run_project_host_with_input(
     project: &std::path::Path,
     arguments: &[&str],
@@ -463,6 +479,60 @@ fn extension_construct_is_available_in_the_typed_ast() {
             "generated {mode} host could not load its project:\n{}\n{}",
             String::from_utf8_lossy(&checked.stdout),
             String::from_utf8_lossy(&checked.stderr)
+        );
+        let root_readme = project.join("README.md");
+        let mut authored_readme = fs::read_to_string(&root_readme).expect("project README exists");
+        authored_readme.push_str("\nAuthored content survives tooling generation.\n");
+        fs::write(&root_readme, &authored_readme).expect("append authored README content");
+        let host_parser = project.join("src/host/parser.rs");
+        let mut authored_host =
+            fs::read_to_string(&host_parser).expect("host parser scaffold exists");
+        authored_host.push_str("\n// Authored callback implementation sentinel.\n");
+        fs::write(&host_parser, &authored_host).expect("append authored host content");
+
+        let generated = run_generated_host(&project, slug, &["generate"]);
+        assert!(
+            generated.status.success(),
+            "generated {mode} host could not generate tooling:\n{}\n{}",
+            String::from_utf8_lossy(&generated.stdout),
+            String::from_utf8_lossy(&generated.stderr)
+        );
+        let generation_check = run_generated_host(&project, slug, &["generate", "--check"]);
+        assert!(
+            generation_check.status.success(),
+            "generated {mode} tooling is not fresh:\n{}\n{}",
+            String::from_utf8_lossy(&generation_check.stdout),
+            String::from_utf8_lossy(&generation_check.stderr)
+        );
+        let stale_artifact = project.join(".langmeld/generated/metadata.json");
+        fs::write(&stale_artifact, "stale").expect("make generated metadata stale");
+        let stale_check = run_generated_host(&project, slug, &["generate", "--check"]);
+        assert!(
+            !stale_check.status.success(),
+            "stale output must fail check"
+        );
+        assert_eq!(
+            fs::read_to_string(&stale_artifact).expect("check does not rewrite stale output"),
+            "stale"
+        );
+        let regenerated = run_generated_host(&project, slug, &["generate"]);
+        assert!(
+            regenerated.status.success(),
+            "generated {mode} host could not repair stale tooling:\n{}\n{}",
+            String::from_utf8_lossy(&regenerated.stdout),
+            String::from_utf8_lossy(&regenerated.stderr)
+        );
+        assert_ne!(
+            fs::read_to_string(&stale_artifact).expect("generated metadata was restored"),
+            "stale"
+        );
+        assert_eq!(
+            fs::read_to_string(&root_readme).expect("read authored project README"),
+            authored_readme
+        );
+        assert_eq!(
+            fs::read_to_string(&host_parser).expect("read authored host callback"),
+            authored_host
         );
         if has_extension {
             let source = fs::read_to_string(project.join("examples/hello.combinedmodel.lmprog"))
@@ -854,7 +924,9 @@ fn definition_only_commands_explain_rust_host_mode_without_loading_host_code() {
 
     let generate = run_generate(&project, false);
     assert!(!generate.status.success());
-    assert!(String::from_utf8_lossy(&generate.stderr).contains("cannot load Rust-host models"));
+    let generate_error = String::from_utf8_lossy(&generate.stderr);
+    assert!(generate_error.contains("cargo run -- generate"));
+    assert!(generate_error.contains("does not load Rust-host code"));
 
     let extension = run_extension(
         &project,

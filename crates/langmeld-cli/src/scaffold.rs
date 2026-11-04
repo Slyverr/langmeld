@@ -6,11 +6,11 @@ use std::{
 
 use langmeld_core::{SourceFile, ValidatedLanguageSpec};
 use langmeld_language::{
-    ProjectManifest, generate_rust_language_spec, generate_tooling,
+    ProjectManifest, generate_host_scaffold, generate_rust_language_spec, generate_tooling,
     parse_language_definition_modules,
 };
 
-use crate::{cli::AuthoringMode, generate::host::generate_host_scaffold};
+use crate::cli::AuthoringMode;
 
 const ROOT_DEFINITION: &str = include_str!("../templates/starter/language.langmeld");
 const CONSTRUCTS: &str = include_str!("../templates/starter/constructs.langmeld");

@@ -1,9 +1,9 @@
 use std::{fs, path::Path};
 
 use langmeld_language::{
-    GeneratedArtifactWrite, ProjectLanguageSource, check_generated_artifacts, generate_tooling,
-    load_project_language, load_project_manifest, parse_language_definition_project,
-    write_generated_artifacts,
+    GeneratedArtifactWrite, ProjectLanguageSource, check_generated_artifacts,
+    generate_host_scaffold, generate_tooling, load_project_language, load_project_manifest,
+    parse_language_definition_project, write_generated_artifacts,
 };
 
 use crate::cli::GenerateArgs;
@@ -20,7 +20,7 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
                 ProjectLanguageSource::Declarative { .. } => load_project_language(&manifest_path)?,
                 ProjectLanguageSource::RustHost {} => {
                     return Err(
-                        "`langmeld generate` cannot load Rust-host models; use the compiled host to generate tooling"
+                        "`langmeld generate` does not load Rust-host code; from that project run `cargo run -- generate` (or `cargo run -- generate --check`). Library-only projects can call `langmeld::language::generate_tooling`, `generate_host_scaffold`, and `write_generated_artifacts`."
                             .to_owned(),
                     );
                 }
@@ -38,7 +38,7 @@ pub(crate) fn generate(arguments: GenerateArgs) -> Result<(), String> {
             ));
         }
     };
-    let host_artifacts = host::generate_host_scaffold(&language);
+    let host_artifacts = generate_host_scaffold(&language);
     let install_plan = arguments
         .install_host
         .then(|| host::prepare_host_install(&host_artifacts, &root))

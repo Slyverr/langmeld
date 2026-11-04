@@ -36,9 +36,11 @@ standalone crate also exposes host hooks for typing and runtime rules.
 
 `langmeld init` scaffolds a Rust project with optional command-line targets.
 Generated host hooks can implement runtime behavior and register parsers,
-analysis, or artifact backends. `langmeld generate` rebuilds derived language
-tooling; `--install-host` refreshes generated host modules while preserving
-marked callback implementations.
+analysis, or artifact backends. The generic `langmeld generate` command rebuilds
+derived tooling for declarative projects; `--install-host` refreshes generated
+host modules while preserving marked callback implementations. Rust-authored
+and combined projects use `cargo run -- generate` through their compiled host
+CLI. Library-only projects use the generation APIs directly.
 
 Build and run commands need host implementations for the language's actual
 semantics. Langmeld validates backend descriptors, settings, artifacts, and
