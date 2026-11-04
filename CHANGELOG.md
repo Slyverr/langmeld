@@ -15,6 +15,8 @@ is cut, changes belong under `Unreleased`.
 
 ### Changed
 
+- **Editor capabilities:** Report language configuration as partial when host
+  parser callbacks may add delimiter syntax outside the declared bracket model.
 - **Generated Rust AST:** Type references by symbol-kind marker instead of an
   arbitrary construct that happens to declare that kind.
 - **Generated documentation:** Include artifact and language-service support

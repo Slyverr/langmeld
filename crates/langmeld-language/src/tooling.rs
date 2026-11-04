@@ -185,7 +185,16 @@ fn capability_report(
     };
     let artifacts = BTreeMap::from([
         ("agent_skill".to_owned(), Capability::supported()),
-        ("language_configuration".to_owned(), Capability::supported()),
+        (
+            "language_configuration".to_owned(),
+            if has_custom_parsers {
+                Capability::partial(
+                    "Generated comment and bracket settings cover declared lexical rules and structured fields; custom parser syntax may require host-specific settings.",
+                )
+            } else {
+                Capability::supported()
+            },
+        ),
         ("language_metadata".to_owned(), Capability::supported()),
         ("reference_document".to_owned(), Capability::supported()),
         ("textmate_grammar".to_owned(), textmate),

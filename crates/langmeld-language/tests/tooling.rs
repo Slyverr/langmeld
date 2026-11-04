@@ -392,6 +392,16 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
         capabilities["artifacts"]["tree_sitter_grammar"]["status"],
         "unavailable"
     );
+    assert_eq!(
+        capabilities["artifacts"]["language_configuration"]["status"],
+        "partial"
+    );
+    assert!(
+        capabilities["artifacts"]["language_configuration"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("custom parser syntax")
+    );
     assert!(
         capabilities["artifacts"]["tree_sitter_grammar"]["reason"]
             .as_str()
