@@ -194,7 +194,18 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "#"
     );
-    assert!(capabilities["artifacts"]["tree_sitter_grammar"]["status"] == "supported");
+    assert_eq!(
+        capabilities["artifacts"]["tree_sitter_grammar"]["status"],
+        "partial"
+    );
+    assert!(
+        capabilities["artifacts"]["tree_sitter_grammar"]["reason"]
+            .as_str()
+            .expect("Tree-sitter limitation has a reason")
+            .contains("semantic validation")
+    );
+    assert!(artifacts.contains_key("tree-sitter/grammar.js"));
+    assert!(artifacts["README.md"].contains("`tree_sitter_grammar` | partial"));
     assert!(capabilities["features"]["lsp.ranged_document_changes"]["status"] == "supported");
     assert!(capabilities["features"]["lsp.literal_keyword_completion"]["status"] == "supported");
     assert!(capabilities["features"]["lsp.parser_continuation_completion"]["status"] == "partial");

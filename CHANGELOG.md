@@ -16,6 +16,8 @@ is cut, changes belong under `Unreleased`.
 
 ### Changed
 
+- **Tree-sitter capability:** Mark generated grammars as partial because
+  grammar parsing does not reproduce Langmeld semantic validation.
 - **Editor capabilities:** Report language configuration as partial when host
   parser callbacks may add delimiter syntax outside the declared bracket model.
 - **Generated Rust AST:** Type references by symbol-kind marker instead of an

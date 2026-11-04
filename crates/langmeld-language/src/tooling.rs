@@ -144,7 +144,12 @@ fn tree_sitter_output(
     language: &ValidatedLanguageSpec,
 ) -> (Capability, Option<GeneratedArtifacts>) {
     match generate_tree_sitter(language) {
-        Ok(artifacts) => (Capability::supported(), Some(artifacts)),
+        Ok(artifacts) => (
+            Capability::partial(
+                "The generated grammar models declared syntax but does not reproduce semantic validation, such as required-field and duplicate-key checks; Langmeld remains authoritative.",
+            ),
+            Some(artifacts),
+        ),
         Err(reason) => (Capability::unavailable(reason), None),
     }
 }
