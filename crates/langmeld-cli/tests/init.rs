@@ -35,6 +35,16 @@ impl Drop for TempWorkspace {
     }
 }
 
+fn cargo_command() -> Command {
+    let mut command = Command::new(env!("CARGO"));
+    // Keep generated consumers isolated while reusing dependencies on the workspace volume.
+    command.env(
+        "CARGO_TARGET_DIR",
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"),
+    );
+    command
+}
+
 fn run_init(arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(["init"])
@@ -200,7 +210,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
             .contains("/.langmeld/")
     );
 
-    let cargo = Command::new(env!("CARGO"))
+    let cargo = cargo_command()
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .output()
@@ -219,7 +229,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         definition.replace("version: \"0.1.0\"", "version: \"0.1.1\""),
     )
     .expect("language definition changes");
-    let rebuilt = Command::new(env!("CARGO"))
+    let rebuilt = cargo_command()
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .output()
@@ -240,7 +250,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     );
     fs::write(project.join("langmeld.lock"), "not a valid lockfile\n")
         .expect("lockfile is corrupted");
-    let rejected_lock = Command::new(env!("CARGO"))
+    let rejected_lock = cargo_command()
         .args(["check", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .output()
@@ -256,7 +266,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&refreshed_lock.stdout),
         String::from_utf8_lossy(&refreshed_lock.stderr)
     );
-    let refreshed_build = Command::new(env!("CARGO"))
+    let refreshed_build = cargo_command()
         .args(["check", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .output()
@@ -268,7 +278,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&refreshed_build.stderr)
     );
 
-    let clippy = Command::new(env!("CARGO"))
+    let clippy = cargo_command()
         .args(["clippy", "--all-targets", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .args(["--", "-D", "warnings"])
@@ -281,7 +291,7 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
         String::from_utf8_lossy(&clippy.stderr)
     );
 
-    let example = Command::new(env!("CARGO"))
+    let example = cargo_command()
         .args(["run", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .args(["--example", "hello"])
@@ -423,7 +433,7 @@ fn extension_construct_is_available_in_the_typed_ast() {
             assert!(manifest["extensions"].as_array().is_none());
         }
 
-        let cargo = Command::new(env!("CARGO"))
+        let cargo = cargo_command()
             .args(["test", "--offline", "--manifest-path"])
             .arg(project.join("Cargo.toml"))
             .output()
@@ -473,7 +483,7 @@ fn extension_construct_is_available_in_the_typed_ast() {
             )
             .expect("Rust language model version changes");
         }
-        let rebuilt = Command::new(env!("CARGO"))
+        let rebuilt = cargo_command()
             .args(["test", "--offline", "--manifest-path"])
             .arg(project.join("Cargo.toml"))
             .output()
@@ -484,7 +494,7 @@ fn extension_construct_is_available_in_the_typed_ast() {
             String::from_utf8_lossy(&rebuilt.stdout),
             String::from_utf8_lossy(&rebuilt.stderr)
         );
-        let clippy = Command::new(env!("CARGO"))
+        let clippy = cargo_command()
             .args(["clippy", "--all-targets", "--offline", "--manifest-path"])
             .arg(project.join("Cargo.toml"))
             .args(["--", "-D", "warnings"])
@@ -536,7 +546,7 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
     if std::env::var_os("LANGMELD_WASM_SMOKE").is_none() {
         return;
     }
-    let native_check = Command::new(env!("CARGO"))
+    let native_check = cargo_command()
         .args(["check", "--lib", "--features", "wasm", "--offline"])
         .current_dir(&project)
         .output()
@@ -567,7 +577,7 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
         .expect("Bun is installed for the WASM smoke test");
     assert!(bun.status.success(), "Bun is unavailable");
 
-    let wasm_build = Command::new(env!("CARGO"))
+    let wasm_build = cargo_command()
         .args([
             "build",
             "--lib",
@@ -1366,7 +1376,7 @@ fn init_can_create_a_library_without_a_cli_target() {
             .contains("inquire")
     );
 
-    let cargo = Command::new(env!("CARGO"))
+    let cargo = cargo_command()
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .output()
@@ -1549,7 +1559,7 @@ fn registered_backend_returns_a_validated_workspace_artifact() {
 "#,
     )
     .expect("backend registry test is written");
-    let check = Command::new(env!("CARGO"))
+    let check = cargo_command()
         .args(["test", "--offline", "--manifest-path"])
         .arg(project.join("Cargo.toml"))
         .args(["--test", "backend_registry"])
@@ -2323,7 +2333,7 @@ fn generated_host_binds_declared_callbacks_and_parses_source() {
 "#,
     )
     .expect("generated runtime consumer test is written");
-    let check = Command::new(env!("CARGO"))
+    let check = cargo_command()
         .args([
             "test",
             "--test",
