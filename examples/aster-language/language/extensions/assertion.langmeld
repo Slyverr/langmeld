@@ -1,0 +1,15 @@
+language Aster {
+  schema_version: 5
+  version: "0.1.0"
+  root: program
+  construct assert {
+    implements: [statement, function_statement]
+    syntax {
+      default: "assert {target} equals {expected};"
+    }
+    fields {
+      target: ref<variable> required
+      expected: number required
+    }
+  }
+}

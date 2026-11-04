@@ -7,6 +7,12 @@ is cut, changes belong under `Unreleased`.
 
 ## [Unreleased]
 
+### Added
+
+- **Aster example:** Demonstrate a modular language project with function-local
+  scopes, host type checks, typed-AST lowering, an optimization pass, an
+  interpreter, and a separately implemented syntax extension.
+
 ### Changed
 
 - **Generated Rust AST:** Type references by symbol-kind marker instead of an

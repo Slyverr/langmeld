@@ -1,0 +1,20 @@
+language Aster {
+  version: "0.1.0"
+  schema_version: 5
+  root: program
+  source_extension: ".aster.lmprog"
+  category statement {}
+  category function_statement {}
+  symbol_policy function: hoisted allow_ambiguous
+
+  behavior aster_numeric_types: workspace_type_analysis
+
+  expression arithmetic {
+    atom: number
+    atom: identifier
+    operator "+" infix 10 left
+    operator "-" infix 10 left
+    operator "*" infix 20 left
+    operator "/" infix 20 left
+  }
+}

@@ -16,6 +16,8 @@ jobs:
   validate:
     name: ${{ matrix.toolchain }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +62,8 @@ jobs:
         run: |
           cargo run --locked -p langmeld-cli -- generate --project-root examples/declarative-interpreter
           cargo run --locked -p langmeld-cli -- generate --project-root examples/declarative-interpreter --check
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/aster-language
+          cargo run --locked -p langmeld-cli -- generate --project-root examples/aster-language --check
           cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures
           cargo run --locked -p langmeld-cli -- generate --project-root examples/c-signatures --check
           cargo run --locked -p langmeld-cli -- generate --project-root examples/typescript-source
@@ -88,6 +92,9 @@ jobs:
         if: matrix.full == true
         run: |
           cargo test --locked --manifest-path examples/declarative-interpreter/Cargo.toml
+          cargo test --locked --manifest-path examples/aster-language/Cargo.toml
+          cargo fmt --manifest-path examples/aster-language/Cargo.toml -- --check
+          cargo clippy --locked --manifest-path examples/aster-language/Cargo.toml --all-targets -- -D warnings
           cargo test --locked --manifest-path examples/rust-functions/Cargo.toml
           cargo test --locked --manifest-path examples/combined-brief/Cargo.toml
           cargo test --locked --manifest-path examples/c-signatures/Cargo.toml

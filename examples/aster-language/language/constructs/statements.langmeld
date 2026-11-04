@@ -1,0 +1,58 @@
+constructs {
+  construct let {
+    implements: [statement, function_statement]
+    syntax {
+      default: "let {name} = {value};"
+    }
+    fields {
+      name: identifier required
+      value: expression<arithmetic> until ";" required
+    }
+    symbol {
+      kind: variable
+      name: name
+      scope: function
+      scope_name: name
+      scope_lookup: lexical_parents
+    }
+  }
+
+  construct return {
+    implements: [statement, function_statement]
+    syntax {
+      default: "return {value};"
+    }
+    fields {
+      value: expression<arithmetic> until ";" required
+    }
+  }
+
+  construct call {
+    implements: [statement, function_statement]
+    syntax {
+      default: "call {target} with {arguments} as {name};"
+    }
+    fields {
+      target: ref<function> required
+      arguments: list<number> required
+      name: identifier required
+    }
+    symbol {
+      kind: variable
+      name: name
+      scope: function
+      scope_name: name
+      scope_lookup: lexical_parents
+    }
+  }
+
+  construct print {
+    implements: [statement, function_statement]
+    syntax {
+      default: "print {target}"
+    }
+    fields {
+      target: ref<variable> required
+    }
+  }
+}

@@ -1,0 +1,13 @@
+program {
+  fn double {
+    param value
+    print value
+    return value * 2;
+  }
+  fn main {
+    call double with [21] as answer;
+    assert answer equals 42;
+    print answer
+    return answer;
+  }
+}

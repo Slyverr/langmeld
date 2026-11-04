@@ -1,0 +1,32 @@
+constructs {
+  construct function {
+    implements: statement
+    syntax {
+      default: "fn {name}"
+    }
+    fields {
+      name: identifier required
+    }
+    symbol {
+      kind: function
+      name: name
+    }
+    block: [parameter, function_statement]
+  }
+
+  construct parameter {
+    syntax {
+      default: "param {name}"
+    }
+    fields {
+      name: identifier required
+    }
+    symbol {
+      kind: variable
+      name: name
+      scope: function
+      scope_name: name
+      scope_lookup: lexical_parents
+    }
+  }
+}

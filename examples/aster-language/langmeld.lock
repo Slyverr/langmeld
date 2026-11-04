@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "resolution_sha256": "5000613be783abb81ee736056c628442cf29210ca9cb1855cba7164f9d51c321",
+  "definitions": [
+    {
+      "path": "language/constructs/function.langmeld",
+      "sha256": "b510095d4f0070020402a3aefe6df00dd9afa044027128bb60d0c0d0576b3e32"
+    },
+    {
+      "path": "language/constructs/program.langmeld",
+      "sha256": "178311a46587c151ec2cd5938198dbf174ec7c32de21ebfacd675ed42b19d315"
+    },
+    {
+      "path": "language/constructs/statements.langmeld",
+      "sha256": "b8f34ef960105b17c20e83e764b7e38dcf45b77455a6bf21eeddb92aded31fd5"
+    },
+    {
+      "path": "language/language.langmeld",
+      "sha256": "e4b313c0952b226f0c187e74d884c953b6aa8b490e3198f199fde4ff8f1df46f"
+    },
+    {
+      "path": "language/extensions/assertion.langmeld",
+      "sha256": "c089c2b25f0ab36f88e6b33095899327ec0bc017c0f2c748ba2cc5c5c3748355"
+    }
+  ],
+  "extensions": [],
+  "effective_language_sha256": "8957c5bb1e5311f82a18a01fda3aaff234a37891f673c64504a0a4694ac81cb6"
+}

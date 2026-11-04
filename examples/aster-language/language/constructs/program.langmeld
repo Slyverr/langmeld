@@ -1,0 +1,8 @@
+constructs {
+  construct program {
+    syntax {
+      default: "program"
+    }
+    block: [statement]
+  }
+}
