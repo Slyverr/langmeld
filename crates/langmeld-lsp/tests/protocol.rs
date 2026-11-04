@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{BufRead, Cursor, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -473,6 +473,33 @@ fn frame(value: &Value) -> Vec<u8> {
     let mut framed = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
     framed.extend(body);
     framed
+}
+
+fn file_uri_for_test(path: &Path) -> String {
+    let canonical = path.canonicalize().expect("test file path canonicalizes");
+    let path = canonical.to_string_lossy();
+    #[cfg(windows)]
+    let path = {
+        let path = path.as_ref();
+        path.strip_prefix(r"\\?\")
+            .unwrap_or(path)
+            .replace('\\', "/")
+    };
+    #[cfg(not(windows))]
+    let path = path.into_owned();
+    let mut uri = if cfg!(windows) {
+        String::from("file:///")
+    } else {
+        String::from("file://")
+    };
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b':' | b'-' | b'.' | b'_' | b'~') {
+            uri.push(char::from(byte));
+        } else {
+            uri.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    uri
 }
 
 fn read_frames(bytes: &[u8]) -> Vec<Value> {
@@ -1130,11 +1157,7 @@ fn child_process_provides_generic_hover_and_semantic_tokens() {
         .as_array()
         .expect("semantic token data is an array");
     assert!(tokens.len() >= 5 && tokens.len() % 5 == 0);
-    assert!(
-        tokens
-            .chunks_exact(5)
-            .any(|token| token[3] == 2 && token[2] == 6)
-    );
+    assert!(tokens.chunks(5).any(|token| token[3] == 2 && token[2] == 6));
     assert_eq!(by_id(4)["result"], Value::Null);
 }
 
@@ -1719,8 +1742,8 @@ fn project_navigation_includes_closed_files_and_returns_rename_edits_for_them() 
         .expect("closed declaration source is written");
     fs::write(&reference_path, "program main {\n  use entry\n}\n")
         .expect("reference source is written");
-    let declaration_uri = format!("file://{}", declaration_path.display());
-    let reference_uri = format!("file://{}", reference_path.display());
+    let declaration_uri = file_uri_for_test(&declaration_path);
+    let reference_uri = file_uri_for_test(&reference_path);
     let messages = [
         json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }),
         json!({ "jsonrpc": "2.0", "method": "initialized", "params": {} }),

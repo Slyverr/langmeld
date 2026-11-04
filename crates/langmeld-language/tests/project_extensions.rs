@@ -299,11 +299,14 @@ fn failed_lock_write_rolls_back_extension_manifest() {
     let old_manifest = fs::read(&manifest_path).unwrap();
     let old_lock = fs::read(&lock_path).unwrap();
     for attempt in 0..32 {
-        fs::create_dir(project.0.join(format!(
-            ".langmeld.lock.{}.{}.tmp",
-            std::process::id(),
-            attempt
-        )))
+        fs::write(
+            project.0.join(format!(
+                ".langmeld.lock.{}.{}.tmp",
+                std::process::id(),
+                attempt
+            )),
+            b"blocked",
+        )
         .expect("lock temporary path is blocked");
     }
 

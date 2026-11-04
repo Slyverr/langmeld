@@ -10,7 +10,9 @@ fn main() {
 }
 
 fn generate_language_model() -> Result<(), String> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve project root: {error}"))?;
     let manifest_path = root.join("langmeld.json");
     let manifest = langmeld::language::load_project_manifest(&manifest_path)?;
     let base_language = language_spec::validated_language()

@@ -142,6 +142,7 @@ fn labels(paths: &[PathBuf], base: &Path) -> Result<Vec<String>, (u8, String)> {
                 .unwrap_or(path)
                 .display()
                 .to_string()
+                .replace('\\', "/")
         })
         .collect())
 }

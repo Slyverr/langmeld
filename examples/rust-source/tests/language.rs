@@ -1,4 +1,7 @@
-use langmeld::{core::{Severity, SourceFile}, language::classify_parse_result_prepared};
+use langmeld::{
+    core::{Severity, SourceFile},
+    language::classify_parse_result_prepared,
+};
 use rust_source_language::{RustFunctionSignature, ast, parse_source, parser};
 
 #[test]
@@ -62,7 +65,10 @@ fn host_parser_reports_malformed_rust_at_a_source_location() {
 
 #[test]
 fn opaque_rust_regions_do_not_claim_generic_identifier_highlighting() {
-    let source = SourceFile::new("source.rs", "fn greet(name: &str) -> String { name.into() }\n");
+    let source = SourceFile::new(
+        "source.rs",
+        "fn greet(name: &str) -> String { name.into() }\n",
+    );
     let parser = parser().expect("Rust source parser configures");
     let parsed = parser.parse(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);

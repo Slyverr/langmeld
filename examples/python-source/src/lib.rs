@@ -119,7 +119,6 @@ pub fn analyze_sources(sources: &[SourceFile]) -> WorkspaceAnalysis {
 }
 
 /// Creates the workspace hook for checking relative module imports and exports.
-#[must_use]
 pub fn project_import_analysis_hook() -> langmeld::language::WorkspaceTypeAnalysisHook {
     project::project_import_analysis_hook()
 }

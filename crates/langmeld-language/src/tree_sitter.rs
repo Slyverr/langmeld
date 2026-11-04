@@ -660,7 +660,8 @@ fn compile_at_depth(
                     {
                         characters.next();
                     }
-                } else if let Some(alternatives) = split_choice(body) {
+                } else {
+                    let alternatives = split_choice(body)?;
                     let alternatives = alternatives
                         .into_iter()
                         .map(|alternative| compile_at_depth(alternative, construct, repeat_depth))
@@ -675,8 +676,6 @@ fn compile_at_depth(
                     {
                         characters.next();
                     }
-                } else {
-                    return None;
                 }
             }
             ')' | ']' | '}' => return None,

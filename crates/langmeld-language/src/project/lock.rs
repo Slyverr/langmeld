@@ -1,6 +1,7 @@
 //! Deterministic integrity locks for the definitions resolved by a project.
 
 use std::{
+    borrow::Cow,
     collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
@@ -43,8 +44,9 @@ pub struct ProjectLockfile {
 #[serde(deny_unknown_fields)]
 pub struct LockedDefinition {
     /// Definition path relative to the project manifest.
+    #[serde(with = "portable_path")]
     pub path: PathBuf,
-    /// SHA-256 of the exact file bytes.
+    /// SHA-256 of file bytes with CRLF line endings normalized to LF.
     pub sha256: String,
 }
 
@@ -59,6 +61,7 @@ pub struct LockedExtension {
     /// Language version requirement used for compatibility.
     pub language_version: String,
     /// Definition path relative to the project manifest.
+    #[serde(with = "portable_path")]
     pub path: PathBuf,
     /// Package dependencies and their accepted ranges.
     pub dependencies: Vec<LockedExtensionDependency>,
@@ -77,13 +80,67 @@ pub struct LockedExtensionDependency {
 #[derive(Serialize)]
 struct ResolutionInputs<'a> {
     schema_version: u32,
-    language: &'a Path,
-    extensions: &'a [ManifestExtension],
+    language: String,
+    extensions: Vec<ResolutionExtension<'a>>,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ResolutionExtension<'a> {
+    Path(String),
+    Package(ResolutionPackage<'a>),
+}
+
+#[derive(Serialize)]
+struct ResolutionPackage<'a> {
+    id: &'a str,
+    version: &'a str,
+    path: String,
+    language_version: &'a str,
+    #[serde(skip_serializing_if = "dependencies_are_empty")]
+    dependencies: &'a [ExtensionDependency],
+}
+
+fn dependencies_are_empty(dependencies: &&[ExtensionDependency]) -> bool {
+    dependencies.is_empty()
 }
 
 #[derive(Deserialize)]
 struct LockfileVersion {
     schema_version: u32,
+}
+
+mod portable_path {
+    use std::path::{Path, PathBuf};
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(path: &Path, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let path = as_portable_string(path);
+        serializer.serialize_str(&path)
+    }
+
+    pub fn as_portable_string(path: &Path) -> String {
+        let path = path.to_string_lossy();
+        #[cfg(windows)]
+        {
+            path.replace('\\', "/")
+        }
+        #[cfg(not(windows))]
+        {
+            path.into_owned()
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<PathBuf, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(PathBuf::from)
+    }
 }
 
 /// Writes or refreshes the deterministic lock for the project manifest.
@@ -271,15 +328,32 @@ fn expected_lockfile(
             }
             definitions.push(LockedDefinition {
                 path: locked_path,
-                sha256: sha256(&bytes),
+                sha256: sha256(&normalized_definition_bytes(&bytes)),
             });
         }
     }
 
     let resolution_inputs = ResolutionInputs {
         schema_version: manifest.schema_version,
-        language: language_path,
-        extensions: &manifest.extensions,
+        language: portable_path::as_portable_string(language_path),
+        extensions: manifest
+            .extensions
+            .iter()
+            .map(|extension| match extension {
+                ManifestExtension::Path(path) => {
+                    ResolutionExtension::Path(portable_path::as_portable_string(path))
+                }
+                ManifestExtension::Package(package) => {
+                    ResolutionExtension::Package(ResolutionPackage {
+                        id: &package.id,
+                        version: &package.version,
+                        path: portable_path::as_portable_string(&package.path),
+                        language_version: &package.language_version,
+                        dependencies: &package.dependencies,
+                    })
+                }
+            })
+            .collect(),
     };
     let resolution_bytes = serde_json::to_vec(&resolution_inputs)
         .map_err(|error| format!("cannot serialize language-resolution inputs: {error}"))?;
@@ -379,4 +453,23 @@ fn sha256(bytes: &[u8]) -> String {
         hexadecimal.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
     }
     hexadecimal
+}
+
+fn normalized_definition_bytes(bytes: &[u8]) -> Cow<'_, [u8]> {
+    if !bytes.windows(2).any(|pair| pair == b"\r\n") {
+        return Cow::Borrowed(bytes);
+    }
+
+    let mut normalized = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'\r' && bytes.get(index + 1) == Some(&b'\n') {
+            normalized.push(b'\n');
+            index += 2;
+        } else {
+            normalized.push(bytes[index]);
+            index += 1;
+        }
+    }
+    Cow::Owned(normalized)
 }

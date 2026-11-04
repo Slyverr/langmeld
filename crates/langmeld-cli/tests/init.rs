@@ -329,7 +329,9 @@ fn init_creates_modular_project_and_generated_tooling_that_builds_and_runs() {
     );
 
     let library_path = project.join("src/lib.rs");
-    let library = fs::read_to_string(&library_path).expect("runtime hook is readable");
+    let library = fs::read_to_string(&library_path)
+        .expect("runtime hook is readable")
+        .replace("\r\n", "\n");
     let library = library.replace(
         "pub fn run_sources(_context: &RuntimeContext<'_>) -> Result<(), String> {\n    Err(\"runtime behavior is not implemented yet; add it in src/lib.rs\".to_owned())\n}",
         "pub fn run_sources(context: &RuntimeContext<'_>) -> Result<(), String> {\n    println!(\"host executed {} source(s), {} program(s), and {} analysis diagnostic(s)\", context.sources.len(), context.programs.len(), context.analysis.diagnostics.len());\n    let _ = context.language;\n    Ok(())\n}",
@@ -1400,7 +1402,9 @@ fn generated_host_registry_dispatches_and_validates_workspace_backends() {
     );
 
     let backend_path = project.join("src/host/backend.rs");
-    let backend = fs::read_to_string(&backend_path).expect("host registry is readable");
+    let backend = fs::read_to_string(&backend_path)
+        .expect("host registry is readable")
+        .replace("\r\n", "\n");
     let backend = backend.replace(
         "    Vec::new()\n}",
         "    vec![\n        RegisteredBackend::Workspace(Box::new(TestBackend)),\n        RegisteredBackend::Single(Box::new(SingleTestBackend)),\n    ]\n}",
@@ -2176,14 +2180,18 @@ fn generate_emits_host_callbacks_that_compile_in_a_project_consumer() {
     );
 
     let definition_path = project.join("language/language.lm");
-    let definition = fs::read_to_string(&definition_path).expect("starter definition is written");
+    let definition = fs::read_to_string(&definition_path)
+        .expect("starter definition is written")
+        .replace("\r\n", "\n");
     let definition = definition.replace(
         "  root: program\n",
         "  root: program\n  behavior semantic_policy: semantic_analysis\n  behavior workspace_names: symbol_resolution\n  behavior workspace_types: workspace_type_analysis\n",
     );
     fs::write(&definition_path, definition).expect("analysis callbacks are declared");
     let constructs_path = project.join("language/constructs/program.lm");
-    let constructs = fs::read_to_string(&constructs_path).expect("starter constructs are written");
+    let constructs = fs::read_to_string(&constructs_path)
+        .expect("starter constructs are written")
+        .replace("\r\n", "\n");
     fs::write(
         &constructs_path,
         constructs.replace(

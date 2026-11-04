@@ -298,7 +298,7 @@ fn local_dependency(options: &ProjectOptions) -> Result<String, String> {
             checkout.display()
         ));
     }
-    let project = absolute_path(&options.path)?;
+    let project = canonical_project_path(&absolute_path(&options.path)?)?;
     let facade_path = checkout.join("crates/langmeld");
     let relative =
         relative_path(&project, &facade_path).unwrap_or_else(|| facade_path.to_path_buf());
@@ -340,6 +340,37 @@ fn absolute_path(path: &Path) -> Result<PathBuf, String> {
         return Err("project path must name a directory".to_owned());
     }
     Ok(normalized)
+}
+
+fn canonical_project_path(path: &Path) -> Result<PathBuf, String> {
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| "project path must name a directory".to_owned())?;
+    let mut existing_parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut missing_components = Vec::new();
+    while !existing_parent.exists() {
+        let component = existing_parent
+            .file_name()
+            .ok_or_else(|| format!("cannot resolve project parent '{}'", path.display()))?;
+        missing_components.push(component.to_os_string());
+        existing_parent = existing_parent
+            .parent()
+            .ok_or_else(|| format!("cannot resolve project parent '{}'", path.display()))?;
+    }
+    let mut canonical = existing_parent.canonicalize().map_err(|error| {
+        format!(
+            "cannot resolve project parent '{}': {error}",
+            existing_parent.display()
+        )
+    })?;
+    for component in missing_components.iter().rev() {
+        canonical.push(component);
+    }
+    canonical.push(file_name);
+    Ok(canonical)
 }
 
 fn relative_path(from: &Path, to: &Path) -> Option<PathBuf> {
@@ -476,4 +507,43 @@ pub(crate) fn valid_language_name(name: &str) -> bool {
         .next()
         .is_some_and(|first| first.is_ascii_alphabetic())
         && characters.all(|character| character.is_ascii_alphanumeric())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::canonical_project_path;
+    use std::{
+        fs,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn canonical_project_path_resolves_a_symlinked_existing_parent() {
+        use std::os::unix::fs::symlink;
+
+        let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+        let directory = std::env::temp_dir().join(format!(
+            "langmeld-canonical-project-path-{}-{id}",
+            std::process::id()
+        ));
+        let target = directory.join("target");
+        let alias = directory.join("alias");
+        fs::create_dir_all(&target).expect("target directory is created");
+        symlink(&target, &alias).expect("directory alias is created");
+
+        let requested = alias.join("nested/project");
+        let canonical = canonical_project_path(&requested)
+            .expect("nonexistent project path resolves through its canonical parent");
+        assert_eq!(
+            canonical,
+            target
+                .canonicalize()
+                .expect("target directory canonicalizes")
+                .join("nested/project")
+        );
+
+        fs::remove_dir_all(directory).expect("test directory is removed");
+    }
 }

@@ -28,5 +28,14 @@ is cut, changes belong under `Unreleased`.
   Rust-authored and combined language models, and focused C, Rust, TypeScript,
   and Python parser or source-indexing integrations.
 
+### Fixed
+
+- **Project workflow:** Keep generated starter and example builds working with
+  canonical paths across symlinked and Windows project locations.
+- **Project locks:** Serialize definition paths with portable separators so
+  lockfiles stay stable across operating systems. Normalize CRLF to LF in
+  definition hashes so Windows checkout conversion does not stale a lock.
+- **LSP paths:** Convert Windows drive and UNC paths to standard file URIs.
+
 [Keep a Changelog 1.1.0]: https://keepachangelog.com/en/1.1.0/
 [Semantic Versioning 2.0.0]: https://semver.org/spec/v2.0.0.html

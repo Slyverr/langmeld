@@ -223,12 +223,16 @@ fn project_language_can_compile_without_discovering_program_sources() {
     let language = load_project_language(&manifest_path)
         .expect("effective language loads without a configured source root");
     assert_eq!(language.spec().name, "Sample");
+    let canonical_project = project
+        .0
+        .canonicalize()
+        .expect("project root canonicalizes");
     assert_eq!(
         project_definition_source_paths_for_manifest(&manifest_path, &manifest, &language)
             .expect("definition paths are available"),
         [
-            project.0.join("language/constructs/program.lm"),
-            project.0.join("language/language.lm")
+            canonical_project.join("language/constructs/program.lm"),
+            canonical_project.join("language/language.lm")
         ]
     );
 
@@ -270,8 +274,8 @@ fn rust_host_snapshot_uses_injected_base_model_and_rejects_generic_definition_op
     let snapshot = load_project_with_base_language(&manifest_path, &base_language)
         .expect("host can inject its compiled base model");
     assert_eq!(snapshot.sources.len(), 2);
-    assert!(snapshot.sources[0].name.ends_with("examples/a.calc"));
-    assert!(snapshot.sources[1].name.ends_with("examples/b.calc"));
+    assert!(Path::new(&snapshot.sources[0].name).ends_with("examples/a.calc"));
+    assert!(Path::new(&snapshot.sources[1].name).ends_with("examples/b.calc"));
     assert!(
         write_project_lockfile(&manifest_path)
             .expect_err("Rust-host mode has no definition lock")
@@ -437,9 +441,9 @@ fn source_loading_inherits_extensions_and_orders_discovered_paths() {
     let sources = load_project_sources(&manifest, &project_manifest)
         .expect("source roots inherit extensions from the language definition");
     assert_eq!(sources.len(), 2);
-    assert!(sources[0].name.ends_with("examples/z.calc"));
+    assert!(Path::new(&sources[0].name).ends_with("examples/z.calc"));
     assert_eq!(sources[0].text, "z source");
-    assert!(sources[1].name.ends_with("examples/nested/a.calc"));
+    assert!(Path::new(&sources[1].name).ends_with("examples/nested/a.calc"));
     assert_eq!(sources[1].text, "a source");
 
     let snapshot = load_project(&manifest).expect("project snapshot resolves definition and files");

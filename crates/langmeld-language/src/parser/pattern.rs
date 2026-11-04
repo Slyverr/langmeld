@@ -118,7 +118,8 @@ fn compile_at_depth(
                     {
                         characters.next();
                     }
-                } else if let Some(end) = choice_end(pattern, offset) {
+                } else {
+                    let end = choice_end(pattern, offset)?;
                     let mut alternatives = Vec::new();
                     for alternative in split_alternatives(&pattern[offset + 1..end]) {
                         let compiled =
@@ -138,8 +139,6 @@ fn compile_at_depth(
                     {
                         characters.next();
                     }
-                } else {
-                    return None;
                 }
             }
             ']' | '}' => return None,

@@ -2328,12 +2328,21 @@ fn ast_node_count(nodes: &[AstNode]) -> usize {
 fn path_to_file_uri(path: &Path) -> Option<String> {
     let path = path.canonicalize().ok()?;
     let path = path.to_str()?;
-    let path = if cfg!(windows) {
-        path.replace('\\', "/")
-    } else {
-        path.to_owned()
+    #[cfg(windows)]
+    let path = {
+        if let Some(unc_path) = path.strip_prefix(r"\\?\UNC\") {
+            format!("//{}", unc_path.replace('\\', "/"))
+        } else {
+            path.strip_prefix(r"\\?\")
+                .unwrap_or(path)
+                .replace('\\', "/")
+        }
     };
-    let mut uri = if cfg!(windows) {
+    #[cfg(not(windows))]
+    let path = path.to_owned();
+    let mut uri = if cfg!(windows) && path.starts_with("//") {
+        String::from("file:")
+    } else if cfg!(windows) {
         String::from("file:///")
     } else {
         String::from("file://")
@@ -2355,7 +2364,14 @@ fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
     } else if encoded_path.starts_with('/') {
         encoded_path.to_owned()
     } else {
-        return None;
+        #[cfg(windows)]
+        {
+            format!("//{encoded_path}")
+        }
+        #[cfg(not(windows))]
+        {
+            return None;
+        }
     };
     if encoded_path.contains('?') || encoded_path.contains('#') {
         return None;
@@ -3328,9 +3344,13 @@ mod tests {
         let path = root.join("language/constructs/café notes.lm");
         fs::write(&path, "constructs {}\n").expect("test definition file is written");
         let uri = path_to_file_uri(&path).expect("path converts to a file URI");
+        let canonical_path = path.canonicalize().expect("test path canonicalizes");
 
         assert!(uri.contains("%20"));
-        assert_eq!(file_uri_to_path(&uri).as_deref(), Some(path.as_path()));
+        assert_eq!(
+            file_uri_to_path(&uri).and_then(|path| path.canonicalize().ok()),
+            Some(canonical_path)
+        );
         assert!(file_uri_to_path("https://example.test/file.lm").is_none());
         assert!(file_uri_to_path("file:///tmp/bad%2Gpath.lm").is_none());
 

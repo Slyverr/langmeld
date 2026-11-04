@@ -163,6 +163,10 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
         paths,
         ["types/shared.lm", "language.lm", "extensions/local.lm"]
     );
+    assert_eq!(
+        lock["resolution_sha256"],
+        "b1157681325ca24adc949edaabe2c591b0cbd7233cb464216ef9ed6f7d3bcb01"
+    );
     load_project(&manifest_path).expect("matching lockfile loads");
 
     project.write(
@@ -179,6 +183,25 @@ fn lockfile_pins_imported_definition_bytes_and_rejects_stale_content() {
     project.write("language.lm", &base);
     let error = load_project(&manifest_path).expect_err("changed base bytes stale the lock");
     assert!(error.contains("lockfile") && error.contains("stale"));
+}
+
+#[test]
+fn lockfile_accepts_crlf_checkout_of_locked_definition_sources() {
+    let project = TempProject::new();
+    project.write("language.lm", BASE);
+    project.write("source.calc", "catalog demo {}\n");
+    let manifest_path = project.write_project(&starter_manifest());
+    let lock_path = write_project_lockfile(&manifest_path).expect("lockfile writes");
+
+    let language_path = project.0.join("language.lm");
+    let language = fs::read_to_string(&language_path).expect("language source reads");
+    fs::write(&language_path, language.replace('\n', "\r\n"))
+        .expect("language source is rewritten with CRLF endings");
+
+    load_project(&manifest_path).expect("line-ending conversion does not stale the lock");
+    let lock: Value = serde_json::from_slice(&fs::read(lock_path).expect("lock reads"))
+        .expect("lockfile is JSON");
+    assert_eq!(lock["definitions"][0]["path"], "language.lm");
 }
 
 #[test]
@@ -206,7 +229,13 @@ fn lockfile_tracks_package_metadata_and_definition_edits() {
         dependencies: Vec::new(),
     })];
     let manifest_path = project.write_project(&manifest);
-    write_project_lockfile(&manifest_path).expect("lockfile writes");
+    let lock_path = write_project_lockfile(&manifest_path).expect("lockfile writes");
+    let lock: Value = serde_json::from_slice(&fs::read(lock_path).expect("lock reads"))
+        .expect("lockfile is JSON");
+    assert_eq!(
+        lock["resolution_sha256"],
+        "f416b31b9848ac3c5d0606615c1e69a51865ab2174f94a90c0832cd8acf563e0"
+    );
 
     manifest.extensions[0] = ManifestExtension::Package(ExtensionPackage {
         version: "1.3.0".to_owned(),

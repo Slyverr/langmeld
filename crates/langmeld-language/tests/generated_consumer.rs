@@ -150,5 +150,8 @@ fn generated_rust_artifact_matches_the_compiled_fixture() {
         return;
     }
 
-    assert_eq!(generated_source, include_str!("fixtures/generated_ast.rs"));
+    assert_eq!(
+        generated_source.replace("\r\n", "\n"),
+        include_str!("fixtures/generated_ast.rs").replace("\r\n", "\n")
+    );
 }

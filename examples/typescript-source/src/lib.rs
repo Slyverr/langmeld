@@ -336,7 +336,6 @@ pub fn analyze_sources(sources: &[SourceFile]) -> WorkspaceAnalysis {
 
 /// Creates a workspace hook that checks imported function paths and exports in
 /// a live TypeScript project LSP session.
-#[must_use]
 pub fn project_import_analysis_hook() -> WorkspaceTypeAnalysisHook {
     Box::new(|_, files, _, _, _, diagnostics| {
         let sources = files
