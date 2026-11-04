@@ -15,6 +15,7 @@ pub fn language_spec() -> langmeld_core::LanguageSpec {
         }],
         rules: vec![],
         enums: vec![],
+        expressions: vec![],
         types: vec![],
         behaviors: vec![],
         constructs: vec![
