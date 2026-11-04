@@ -41,11 +41,10 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
     assert_eq!(artifacts["rust/ast.rs"], generate_rust_ast(&language));
     assert!(
         artifacts["agent-skill/SKILL.md"]
-            .contains("infers bracket pairs from declared blocks and built-in structured fields")
+            .contains("bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields")
     );
     assert!(
-        artifacts["agent-skill/SKILL.md"]
-            .contains("omits conventional pairs that the language does not declare")
+        artifacts["agent-skill/SKILL.md"].contains("undeclared conventional pairs are omitted")
     );
 
     let expected_paths = [
@@ -168,10 +167,19 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
         "customized"
     );
     let skill = &artifacts["agent-skill/SKILL.md"];
-    assert!(skill.contains("literal-keyword suggestions"));
-    assert!(skill.contains("document symbols"));
-    assert!(skill.contains("generic definition/references"));
+    assert!(skill.contains("references/capabilities.json"));
+    assert!(skill.contains("validated capability report"));
     assert!(artifacts["README.md"].contains("`let {mode} {name} => {value}`"));
+    assert!(artifacts["README.md"].contains("## Generated artifacts"));
+    assert!(artifacts["README.md"].contains("## Language and host features"));
+    assert!(artifacts["README.md"].contains("Bracket pairs: `{` → `}`"));
+    assert!(artifacts["README.md"].contains("`textmate_grammar` | partial"));
+    assert!(artifacts["README.md"].contains("`lsp.parser_continuation_completion` | partial"));
+    assert!(artifacts["README.md"].contains("`lsp.document_symbols` | supported"));
+    assert!(
+        artifacts["agent-skill/SKILL.md"]
+            .contains("generated artifact and language-feature support tables")
+    );
 
     let config: serde_json::Value = serde_json::from_str(&artifacts["language-configuration.json"])
         .expect("editor config is JSON");
@@ -237,6 +245,10 @@ fn generated_editor_artifacts_follow_the_declared_comment_policy() {
         capabilities["editor_configuration_assumptions"]["line_comment"],
         "//"
     );
+    assert!(artifacts["README.md"].contains("line comments use `//`"));
+    assert!(artifacts["README.md"].contains("block comments use `/*` and `*/`"));
+    assert!(artifacts["agent-skill/SKILL.md"].contains("line comments use `//`"));
+    assert!(artifacts["agent-skill/SKILL.md"].contains("block comments use `/*` and `*/`"));
     assert_eq!(
         capabilities["artifacts"]["tree_sitter_grammar"]["status"],
         "unavailable"
@@ -286,6 +298,7 @@ fn unsupported_tree_sitter_does_not_block_baseline_tooling() {
             .unwrap()
             .contains("custom parser `host-custom`")
     );
+    assert!(artifacts["README.md"].contains("custom parser `host-custom`"));
     assert_eq!(
         capabilities["features"]["language.source_formatter"]["status"],
         "customized"

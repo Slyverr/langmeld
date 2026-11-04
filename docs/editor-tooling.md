@@ -64,6 +64,12 @@ lowering. The report describes Langmeld support for the validated language
 model. It does not claim that a particular editor client implements every LSP
 feature or that host behavior has been registered.
 
+The generated grammar reference includes the report's editor-configuration
+assumptions and tables of artifact and feature statuses. The generated Agent
+Skill uses the same comment and bracket assumptions and points authors to the
+reference and machine-readable report instead of maintaining a second list of
+editor capabilities.
+
 The generated `highlighting.json` and LSP initialization response use the same
 semantic-token type and modifier legends. Their token indices therefore stay
 aligned with the shared Langmeld classifications.

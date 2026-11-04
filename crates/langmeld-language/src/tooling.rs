@@ -6,9 +6,9 @@ use std::{
 use langmeld_core::{FieldKind, FieldSpec, LanguageSpec, LexicalSpec, ValidatedLanguageSpec};
 
 use crate::{
-    CLASSIFICATION_TYPES, Capability, EditorConfigurationAssumptions, PatternCompileError,
-    PreparedLanguage, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, ToolingCapabilities,
-    generate_tree_sitter, rust_codegen::generate_rust_ast,
+    CLASSIFICATION_TYPES, Capability, CapabilityStatus, EditorConfigurationAssumptions,
+    PatternCompileError, PreparedLanguage, SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES,
+    ToolingCapabilities, generate_tree_sitter, rust_codegen::generate_rust_ast,
 };
 
 /// Generated artifacts keyed by safe, relative destination paths.
@@ -67,7 +67,7 @@ pub fn generate_tooling(
             "lexical_only": true
         }))?,
     );
-    let reference = reference_document(spec);
+    let reference = reference_document(spec, &capabilities);
     artifacts.insert("README.md".to_owned(), reference.clone());
     artifacts.insert("rust/ast.rs".to_owned(), generate_rust_ast(language));
     artifacts.insert(
@@ -86,7 +86,10 @@ pub fn generate_tooling(
             &capabilities.editor_configuration_assumptions,
         ))?,
     );
-    artifacts.insert("agent-skill/SKILL.md".to_owned(), agent_skill(spec, &slug));
+    artifacts.insert(
+        "agent-skill/SKILL.md".to_owned(),
+        agent_skill(spec, &slug, &capabilities),
+    );
     artifacts.insert("agent-skill/references/grammar.md".to_owned(), reference);
     artifacts.insert(
         "agent-skill/references/capabilities.json".to_owned(),
@@ -312,7 +315,7 @@ fn editor_configuration_assumptions(
             .as_ref()
             .map(|comment| [comment.open.clone(), comment.close.clone()]),
         bracket_pairs: editor_bracket_pairs(spec),
-        reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields.",
+        reason: "Comment settings follow the validated lexical policy; bracket pairs are inferred from declared blocks and built-in list, map, property, and expression fields, and undeclared conventional pairs are omitted.",
     }
 }
 
@@ -379,7 +382,7 @@ fn collect_field_bracket_pairs(kind: &FieldKind, output: &mut BTreeSet<(String, 
     }
 }
 
-fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
+fn agent_skill(spec: &LanguageSpec, slug: &str, capabilities: &ToolingCapabilities) -> String {
     let title = single_line(&spec.name);
     let version = single_line(&spec.version);
     let suffixes = if spec.source_extensions.is_empty() {
@@ -394,9 +397,34 @@ fn agent_skill(spec: &LanguageSpec, slug: &str) -> String {
                 .join(", ")
         )
     };
+    let editor_configuration =
+        editor_configuration_description(&capabilities.editor_configuration_assumptions);
     format!(
-        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source. The standalone LSP provides diagnostics, versioned full/ranged document changes, literal-keyword suggestions, schema-based enum and in-scope reference suggestions, parser-derived continuations for simple missing-field patterns, document symbols, schema-based hover, semantic tokens, generic definition/references, and safe rename for resolved declarations across open documents. Rust hosts can embed `langmeld_lsp::serve_configured` with registered parser, analysis, and typed completion callbacks; host-owned symbol resolvers do not expose generic rename. The standalone binary does not load host code.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe generated TextMate grammar is lexical and the language configuration mirrors declared comment delimiters and infers bracket pairs from declared blocks and built-in structured fields; it omits conventional pairs that the language does not declare. Neither surface provides parser-backed editor behavior. The generic LSP offers global literal-keyword completion, captured-value enum/reference suggestions, parser-derived continuations for simple literal/capture patterns, simple child-construct snippets, document symbols, schema-based hover, generic definition/references, and safe rename for resolved symbols across open documents; it does not load unopened project source files or infer host-specific semantics. Patterns with optional, choice, or repeated sections do not receive continuation snippets.\n",
+        "---\nname: {slug}-language\ndescription: Guidance for source written in the {slug} language.\n---\n\n# {title} language\n\nUse this guidance when creating or editing source for `{title}` version {}. {suffixes}\n\n## Workflow\n\n1. Read [the grammar reference](references/grammar.md) and [the current capabilities](references/capabilities.json).\n2. Use the declared syntax, fields, constraints, and construct relationships.\n3. Use `langmeld check` or the initialized host CLI to validate source.\n4. Resolve diagnostics before treating a source file as valid.\n5. Run the host application's own renderer, compiler, or interpreter to check domain behavior; Langmeld does not provide generic execution or domain lowering.\n\n## Generated artifacts\n\nThe grammar reference includes generated artifact and language-feature support tables based on this language's validated capability report. Check them before choosing an editor integration or relying on host-specific behavior. TextMate is lexical; it does not provide parser-backed or semantic highlighting. {editor_configuration}\n",
         code_span(&version)
+    )
+}
+
+fn editor_configuration_description(assumptions: &EditorConfigurationAssumptions) -> String {
+    let mut comment_delimiters = Vec::new();
+    if let Some(line_comment) = &assumptions.line_comment {
+        comment_delimiters.push(format!("line comments use {}", code_span(line_comment)));
+    }
+    if let Some([open, close]) = &assumptions.block_comment {
+        comment_delimiters.push(format!(
+            "block comments use {} and {}",
+            code_span(open),
+            code_span(close)
+        ));
+    }
+    let comment_delimiters = if comment_delimiters.is_empty() {
+        "no comment delimiters are configured".to_owned()
+    } else {
+        comment_delimiters.join("; ")
+    };
+    format!(
+        "The generated language configuration uses {comment_delimiters}. {}",
+        assumptions.reason
     )
 }
 
@@ -610,7 +638,7 @@ fn flush_operator(token: &mut String, output: &mut BTreeSet<String>) {
     }
 }
 
-fn reference_document(spec: &LanguageSpec) -> String {
+fn reference_document(spec: &LanguageSpec, capabilities: &ToolingCapabilities) -> String {
     let mut output = format!(
         "# {} reference\n\nVersion: {}\n\nRoot construct: {}\n\n",
         single_line(&spec.name),
@@ -802,7 +830,64 @@ fn reference_document(spec: &LanguageSpec) -> String {
         }
         output.push('\n');
     }
+    let assumptions = &capabilities.editor_configuration_assumptions;
+    let bracket_pairs = assumptions
+        .bracket_pairs
+        .iter()
+        .map(|(open, close)| format!("{} → {}", code_span(open), code_span(close)))
+        .collect::<Vec<_>>();
+    let bracket_pairs = if bracket_pairs.is_empty() {
+        "none inferred".to_owned()
+    } else {
+        bracket_pairs.join(", ")
+    };
+    let _ = writeln!(
+        output,
+        "## Editor configuration\n\n{}\n\nBracket pairs: {bracket_pairs}.\n",
+        editor_configuration_description(assumptions)
+    );
+    append_capability_table(&mut output, "Generated artifacts", &capabilities.artifacts);
+    append_capability_table(
+        &mut output,
+        "Language and host features",
+        &capabilities.features,
+    );
     output
+}
+
+fn append_capability_table(
+    output: &mut String,
+    heading: &str,
+    capabilities: &BTreeMap<String, Capability>,
+) {
+    if capabilities.is_empty() {
+        return;
+    }
+    let _ = writeln!(
+        output,
+        "## {heading}\n\n| Capability | Status | Details |\n| --- | --- | --- |"
+    );
+    for (name, capability) in capabilities {
+        let status = match capability.status {
+            CapabilityStatus::Supported => "supported",
+            CapabilityStatus::Partial => "partial",
+            CapabilityStatus::Customized => "customized",
+            CapabilityStatus::Unavailable => "unavailable",
+        };
+        let details = capability
+            .reason
+            .as_deref()
+            .map(markdown_table_cell)
+            .unwrap_or_else(|| {
+                "Generated or provided from the validated language model.".to_owned()
+            });
+        let _ = writeln!(output, "| {} | {status} | {details} |", code_span(name));
+    }
+    output.push('\n');
+}
+
+fn markdown_table_cell(value: &str) -> String {
+    value.replace('|', "\\|").replace('\n', " ")
 }
 
 fn field_type_description(kind: &FieldKind) -> String {

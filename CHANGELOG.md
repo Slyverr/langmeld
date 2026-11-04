@@ -7,6 +7,12 @@ is cut, changes belong under `Unreleased`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Generated documentation:** Include artifact and language-service support
+  statuses from the validated capability report in the generated grammar
+  reference, and direct the generated Agent Skill to that source.
+
 ## [0.1.0] - 2026-11-04
 
 ### Added
