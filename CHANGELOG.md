@@ -12,6 +12,8 @@ is cut, changes belong under `Unreleased`.
 - **Generated documentation:** Include artifact and language-service support
   statuses from the validated capability report in the generated grammar
   reference, and direct the generated Agent Skill to that source.
+- **TextMate highlighting:** Match longer overlapping tokens first and use
+  identifier boundaries that preserve hyphenated language tokens.
 
 ## [0.1.0] - 2026-11-04
 

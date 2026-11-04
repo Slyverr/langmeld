@@ -1059,12 +1059,17 @@ fn textmate_grammar(
 }
 
 fn word_regex(values: &BTreeSet<String>) -> String {
-    format!("\\b(?:{})\\b", alternative_regex(values))
+    format!(
+        "(?<![_\\p{{L}}\\p{{N}}-])(?:{})(?![_\\p{{L}}\\p{{N}}-])",
+        alternative_regex(values)
+    )
 }
 
 fn alternative_regex(values: &BTreeSet<String>) -> String {
-    values
-        .iter()
+    let mut ordered = values.iter().collect::<Vec<_>>();
+    ordered.sort_by(|left, right| right.len().cmp(&left.len()).then_with(|| left.cmp(right)));
+    ordered
+        .into_iter()
         .map(|value| regex_escape(value))
         .collect::<Vec<_>>()
         .join("|")

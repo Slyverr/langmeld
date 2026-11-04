@@ -187,6 +187,48 @@ fn generated_tooling_is_deterministic_and_describes_current_capabilities() {
 }
 
 #[test]
+fn textmate_regexes_prioritize_overlaps_and_respect_identifier_boundaries() {
+    let language = LanguageBuilder::new("Token matching")
+        .version("0.1.0")
+        .root("program")
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program {")
+                .block(["state"]),
+        )
+        .construct(
+            ConstructBuilder::new("state")
+                .syntax_variant("single", "state {value} =")
+                .syntax_variant("double", "state {value} ==")
+                .field(FieldSpec::required(
+                    "value",
+                    FieldKind::enumeration(["read", "read-write", "readonly"]),
+                )),
+        )
+        .build()
+        .expect("token fixture validates");
+    let artifacts = generate_tooling(&language).expect("tooling generates");
+    let grammar: serde_json::Value =
+        serde_json::from_str(&artifacts["syntaxes/token-matching.tmLanguage.json"])
+            .expect("TextMate grammar is JSON");
+    let patterns = grammar["patterns"].as_array().expect("patterns list");
+    let operator_pattern = patterns
+        .iter()
+        .find(|pattern| pattern["name"] == "keyword.operator.langmeld")
+        .expect("operator pattern exists");
+    assert_eq!(operator_pattern["match"], "==|=");
+
+    let enum_pattern = patterns
+        .iter()
+        .find(|pattern| pattern["name"] == "constant.language.enum")
+        .expect("enum pattern exists");
+    assert_eq!(
+        enum_pattern["match"],
+        "(?<![_\\p{L}\\p{N}-])(?:read-write|readonly|read)(?![_\\p{L}\\p{N}-])"
+    );
+}
+
+#[test]
 fn generated_editor_artifacts_follow_the_declared_comment_policy() {
     let mut spec = language().spec().clone();
     spec.schema_version = 4;

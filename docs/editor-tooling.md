@@ -39,6 +39,8 @@ from the language model. These rules cover lexical classification; they do not
 provide semantic highlighting. Schema 4 comment delimiters drive the built-in
 lexer and the generated editor settings. Tree-sitter export reports configured
 block comments as unavailable until they can be represented exactly.
+TextMate alternatives put longer tokens first, and identifier matching uses
+the language's Unicode and hyphen continuation rules.
 Generated bracket and auto-closing pairs come from declared blocks and the
 built-in list, map, property, and expression field forms. Host-defined custom
 syntax is not inferred from the declarative model.
