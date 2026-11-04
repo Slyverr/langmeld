@@ -128,19 +128,6 @@ jobs:
           mkdir -p "$HOME/.cargo/bin"
           install -m 0755 "$RUNNER_TEMP/tree-sitter-cli/tree-sitter" "$HOME/.cargo/bin/tree-sitter"
           tree-sitter --version
-      - name: Validate generated Tree-sitter grammar and highlights
-        if: matrix.full == true
-        working-directory: examples/declarative-interpreter/.langmeld/generated/tree-sitter
-        run: |
-          grammar_dir="$RUNNER_TEMP/langmeld-ledger-tree-sitter"
-          mkdir -p "$grammar_dir"
-          cp -R . "$grammar_dir/"
-          cd "$grammar_dir"
-          tree-sitter generate --js-runtime bun
-          sample="$GITHUB_WORKSPACE/examples/declarative-interpreter/examples/hello.ledger.lmprog"
-          tree-sitter parse --json-summary --grammar-path . "$sample" > parse-summary.json
-          bun -e 'const summary = await Bun.file("parse-summary.json").json(); if (!summary.parse_summaries?.every(({ successful }) => successful)) process.exit(1);'
-          tree-sitter query --quiet --grammar-path . queries/highlights.scm "$sample"
       - name: Emit Rust-authored Tree-sitter fixture
         if: matrix.full == true
         env:

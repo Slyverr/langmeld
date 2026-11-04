@@ -1,6 +1,7 @@
 use langmeld_core::{
-    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, FieldKind, FieldSpec, LanguageBuilder,
-    MapKeyKind, SourceFile, SymbolSpec,
+    BlockSeparator, BlockSeparatorPolicy, ConstructBuilder, ExpressionAssociativity,
+    ExpressionAtomKind, ExpressionOperatorSpec, ExpressionSpec, FieldKind, FieldSpec,
+    LanguageBuilder, MapKeyKind, SourceFile, SymbolSpec,
 };
 use langmeld_language::{PreparedLanguage, generate_tree_sitter, langmeld_definition_language};
 use std::{env, fs, path::Path};
@@ -91,6 +92,44 @@ fn language() -> langmeld_core::ValidatedLanguageSpec {
         )
         .build()
         .expect("tree-sitter fixture validates")
+}
+
+#[test]
+fn tree_sitter_export_reports_expression_fields_as_unsupported() {
+    let language = LanguageBuilder::new("Calc")
+        .version("0.1.0")
+        .schema_version(3)
+        .root("program")
+        .expression(
+            ExpressionSpec::new("arithmetic")
+                .atom(ExpressionAtomKind::Number)
+                .operator(ExpressionOperatorSpec::infix(
+                    "+",
+                    10,
+                    ExpressionAssociativity::Left,
+                )),
+        )
+        .construct(
+            ConstructBuilder::new("program")
+                .syntax("program")
+                .block(["statement"]),
+        )
+        .construct(
+            ConstructBuilder::new("statement")
+                .syntax("evaluate {value};")
+                .field(FieldSpec::required(
+                    "value",
+                    FieldKind::expression("arithmetic", ";"),
+                )),
+        )
+        .build()
+        .expect("expression language validates");
+
+    let error = generate_tree_sitter(&language).expect_err("expression fields are not exported");
+    assert_eq!(
+        error,
+        "Tree-sitter export does not yet represent expression field grammar `arithmetic`"
+    );
 }
 
 #[test]
