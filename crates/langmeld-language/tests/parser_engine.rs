@@ -57,6 +57,29 @@ fn completion_language() -> PreparedLanguage {
     PreparedLanguage::new(spec).expect("completion syntax compiles")
 }
 
+fn nested_block_parser() -> langmeld_language::ConfiguredLanguageParser {
+    let spec = LanguageBuilder::new("NestedBlocks")
+        .version("0.1.0")
+        .root("block")
+        .construct(
+            ConstructBuilder::new("block")
+                .syntax("block {")
+                .block(["block", "binding"]),
+        )
+        .construct(
+            ConstructBuilder::new("binding")
+                .syntax("let {name} = {value}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .field(FieldSpec::required("value", FieldKind::Number)),
+        )
+        .build()
+        .expect("nested block language is valid");
+    PreparedLanguage::new(spec)
+        .expect("nested block patterns compile")
+        .configure()
+        .expect("no callback registrations are required")
+}
+
 #[test]
 fn parser_retains_expected_capture_and_block_contexts_for_completion() {
     let parser = completion_language()
@@ -180,27 +203,7 @@ fn block_children_accept_newline_and_semicolon_separators_by_default() {
 
 #[test]
 fn nested_blocks_balance_their_own_braces() {
-    let spec = LanguageBuilder::new("NestedBlocks")
-        .version("0.1.0")
-        .root("block")
-        .construct(
-            ConstructBuilder::new("block")
-                .syntax("block {")
-                .block(["block", "binding"]),
-        )
-        .construct(
-            ConstructBuilder::new("binding")
-                .syntax("let {name} = {value}")
-                .field(FieldSpec::required("name", FieldKind::Identifier))
-                .field(FieldSpec::required("value", FieldKind::Number)),
-        )
-        .build()
-        .expect("nested block language is valid");
-    let parser = PreparedLanguage::new(spec)
-        .expect("nested block patterns compile")
-        .configure()
-        .expect("no callback registrations are required");
-    let result = parser.parse(&SourceFile::new(
+    let result = nested_block_parser().parse(&SourceFile::new(
         "nested-blocks.lang",
         "block {\nblock {\nlet inner = 1\n}\nlet outer = 2\n}\n",
     ));
@@ -211,6 +214,34 @@ fn nested_blocks_balance_their_own_braces() {
     assert_eq!(root.children[0].construct, "block");
     assert_eq!(root.children[0].children.len(), 1);
     assert_eq!(root.children[1].construct, "binding");
+}
+
+#[test]
+fn missing_nested_block_closers_preserve_partial_tree_and_report_each_scope() {
+    let source = SourceFile::new("nested-open.lang", "block {\nblock {\nlet inner = 1\n");
+    let result = nested_block_parser().parse(&source);
+
+    let missing_closers = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "LM1204")
+        .collect::<Vec<_>>();
+    assert_eq!(missing_closers.len(), 2, "{:?}", result.diagnostics);
+    assert!(
+        missing_closers
+            .iter()
+            .all(|diagnostic| diagnostic.span
+                == Some(Span::new(source.text.len(), source.text.len())))
+    );
+
+    let outer = &result.program.nodes[0];
+    let inner = &outer.children[0];
+    assert_eq!(outer.construct, "block");
+    assert_eq!(inner.construct, "block");
+    assert_eq!(inner.children.len(), 1);
+    assert_eq!(inner.children[0].construct, "binding");
+    assert_eq!(inner.span.end, source.text.len());
+    assert_eq!(outer.span.end, source.text.len());
 }
 
 #[test]
