@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 description = "Language token contracts and parsing infrastructure for Langmeld."
 documentation = "https://docs.rs/langmeld-language"
 

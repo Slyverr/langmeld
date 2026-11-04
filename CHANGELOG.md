@@ -89,6 +89,8 @@ is cut, changes belong under `Unreleased`.
   highlighting incomplete.
 - **Highlighting classifications:** Map shared classifications to TextMate
   scopes, Tree-sitter captures, and LSP token types in generated metadata.
+- **Crate metadata:** Link published crates to the project repository and
+  homepage.
 
 ### Fixed
 
