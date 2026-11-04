@@ -38,11 +38,12 @@ impl Drop for TempWorkspace {
 fn cargo_command() -> Command {
     let mut command = Command::new(env!("CARGO"));
     // Keep generated consumers isolated while reusing dependencies on the workspace volume.
-    command.env(
-        "CARGO_TARGET_DIR",
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"),
-    );
+    command.env("CARGO_TARGET_DIR", shared_cargo_target_dir());
     command
+}
+
+fn shared_cargo_target_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target")
 }
 
 fn run_init(arguments: &[&str]) -> std::process::Output {
@@ -608,9 +609,9 @@ fn init_can_create_and_run_a_browser_wasm_adapter_project() {
 
     let crate_name = "browserlanguage_language";
     let bindings_directory = project.join("target/wasm-bindgen");
-    let wasm_file = project.join(format!(
-        "target/wasm32-unknown-unknown/debug/{crate_name}.wasm"
-    ));
+    let wasm_file = shared_cargo_target_dir()
+        .join("wasm32-unknown-unknown/debug")
+        .join(format!("{crate_name}.wasm"));
     let bindings = Command::new("wasm-bindgen")
         .args(["--target", "web", "--out-dir"])
         .arg(&bindings_directory)
