@@ -2,6 +2,9 @@
 set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+target_dir="${CARGO_TARGET_DIR:-$repo_root/target}"
+CARGO_TARGET_DIR="$(python3 -c 'import sys; from pathlib import Path; print(Path(sys.argv[1]).resolve())' "$target_dir")"
+export CARGO_TARGET_DIR
 package_root="${LANGMELD_PACKAGE_ROOT:-${CARGO_TARGET_DIR:-$repo_root/target}/package}"
 package_root="$(python3 -c 'import sys; from pathlib import Path; print(Path(sys.argv[1]).resolve())' "$package_root")"
 package_version="$(cargo metadata --locked --offline --no-deps --format-version 1 \
@@ -14,13 +17,31 @@ for package in langmeld langmeld-core langmeld-expression langmeld-language; do
     fi
 done
 
-temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/langmeld-packaged-consumer.XXXXXX")"
-trap 'rm -rf "$temporary_root"' EXIT
-project="$temporary_root/project"
+project="${LANGMELD_PACKAGE_CONSUMER_PROJECT:-$repo_root/../langmeld-packaged-consumer}"
+project="$(python3 -c 'import sys; from pathlib import Path; print(Path(sys.argv[1]).resolve())' "$project")"
+marker="$project/.langmeld-packaged-consumer"
+base_manifest="$project/.langmeld-packaged-consumer-base.Cargo.toml"
 
-cargo run --locked --offline --manifest-path "$repo_root/Cargo.toml" -p langmeld-cli -- \
-    init --path "$project" --name PackagedConsumer --no-interactive \
-    --langmeld-path "$repo_root"
+if [[ ! -f "$marker" ]]; then
+    if [[ -e "$project" && ( ! -d "$project" || -n "$(find "$project" -mindepth 1 -maxdepth 1 -print -quit)" ) ]]; then
+        echo "refusing to reuse a nonempty or unmarked path at $project" >&2
+        echo "set LANGMELD_PACKAGE_CONSUMER_PROJECT to a dedicated smoke-project path" >&2
+        exit 1
+    fi
+    mkdir -p "$project"
+    cargo run --locked --offline --manifest-path "$repo_root/Cargo.toml" -p langmeld-cli -- \
+        init --path "$project" --name PackagedConsumer --no-interactive \
+        --langmeld-path "$repo_root"
+    cp "$project/Cargo.toml" "$base_manifest"
+    printf '%s\n' "Langmeld packaged-consumer smoke project" > "$marker"
+elif [[ ! -f "$base_manifest" ]]; then
+    echo "marked consumer project is missing its base manifest: $base_manifest" >&2
+    exit 1
+fi
+
+# Restore the generated manifest before patching local package paths, making
+# repeated runs safe without deleting or recreating the consumer project.
+cp "$base_manifest" "$project/Cargo.toml"
 
 python3 - "$project/Cargo.toml" "$repo_root" "$project" "$package_root" \
     "$package_version" <<'PY'
@@ -51,7 +72,7 @@ for package, directory in patches:
 manifest_path.write_text(manifest)
 PY
 
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$repo_root/target/package-consumer}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$repo_root/target}"
 cargo test --offline --manifest-path "$project/Cargo.toml"
 (cd "$project" && cargo run --locked --offline \
     --manifest-path "$project/Cargo.toml" --bin packagedconsumer-host -- check --project)

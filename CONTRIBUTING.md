@@ -48,6 +48,10 @@ composable, and reliable for language authors.
    If Cargo uses a custom target directory, set `CARGO_TARGET_DIR` when
    packaging as well. Set `LANGMELD_PACKAGE_ROOT` separately only when the
    archives are stored outside its default `target/package` subdirectory.
+   The packaged-consumer check keeps a reusable project at
+   `../langmeld-packaged-consumer` and uses the repository's `target/` cache by
+   default. Set `LANGMELD_PACKAGE_CONSUMER_PROJECT` to choose another dedicated
+   path. It refuses to take over an existing unmarked project.
 5. Review the diff for generated files, unrelated changes, inaccurate claims,
    and a clean build from the checked-in sources.
 

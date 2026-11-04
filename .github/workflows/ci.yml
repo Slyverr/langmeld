@@ -252,6 +252,6 @@ jobs:
         if: matrix.full == true
         env:
           LANGMELD_PACKAGE_ROOT: ${{ github.workspace }}/target/package
-          TMPDIR: ${{ runner.temp }}
+          LANGMELD_PACKAGE_CONSUMER_PROJECT: ${{ runner.temp }}/langmeld-packaged-consumer
           CARGO_TARGET_DIR: ${{ github.workspace }}/target/package-consumer
         run: bash scripts/check-packaged-consumer.sh
