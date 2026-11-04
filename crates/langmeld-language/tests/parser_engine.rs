@@ -159,6 +159,61 @@ fn parses_nested_constructs_and_retains_typed_fields_and_spans() {
 }
 
 #[test]
+fn block_children_accept_newline_and_semicolon_separators_by_default() {
+    let result = configured().parse(&SourceFile::new(
+        "separators.lang",
+        "program {\nlet first = 1; let second = 2;\n}\n",
+    ));
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let children = &result.program.nodes[0].children;
+    assert_eq!(children.len(), 2);
+    assert_eq!(
+        children[0].fields["name"].value,
+        Value::Identifier("first".to_owned())
+    );
+    assert_eq!(
+        children[1].fields["name"].value,
+        Value::Identifier("second".to_owned())
+    );
+}
+
+#[test]
+fn nested_blocks_balance_their_own_braces() {
+    let spec = LanguageBuilder::new("NestedBlocks")
+        .version("0.1.0")
+        .root("block")
+        .construct(
+            ConstructBuilder::new("block")
+                .syntax("block {")
+                .block(["block", "binding"]),
+        )
+        .construct(
+            ConstructBuilder::new("binding")
+                .syntax("let {name} = {value}")
+                .field(FieldSpec::required("name", FieldKind::Identifier))
+                .field(FieldSpec::required("value", FieldKind::Number)),
+        )
+        .build()
+        .expect("nested block language is valid");
+    let parser = PreparedLanguage::new(spec)
+        .expect("nested block patterns compile")
+        .configure()
+        .expect("no callback registrations are required");
+    let result = parser.parse(&SourceFile::new(
+        "nested-blocks.lang",
+        "block {\nblock {\nlet inner = 1\n}\nlet outer = 2\n}\n",
+    ));
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let root = &result.program.nodes[0];
+    assert_eq!(root.children.len(), 2);
+    assert_eq!(root.children[0].construct, "block");
+    assert_eq!(root.children[0].children.len(), 1);
+    assert_eq!(root.children[1].construct, "binding");
+}
+
+#[test]
 fn child_errors_recover_and_keep_valid_siblings() {
     let result = configured().parse(&SourceFile::new(
         "recovery.lang",
