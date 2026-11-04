@@ -34,8 +34,8 @@ fn project_composes_functions_scopes_and_an_extension() {
     assert_eq!(parsed.program.nodes[0].children[0].construct, "function");
 
     let programs = vec![parsed.program];
-    let analysis =
-        analyze_sources(&language, &[source.clone()], &[&programs[0]]).expect("host analysis runs");
+    let analysis = analyze_sources(&language, std::slice::from_ref(&source), &[&programs[0]])
+        .expect("host analysis runs");
     assert!(
         analysis.diagnostics.is_empty(),
         "{:#?}",
@@ -125,8 +125,8 @@ fn expressions_follow_precedence_associativity_and_nested_groups() {
     let parsed = parse_source(&source).expect("parser prepares");
     assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
     let programs = vec![parsed.program];
-    let analysis =
-        analyze_sources(&language, &[source.clone()], &[&programs[0]]).expect("host analysis runs");
+    let analysis = analyze_sources(&language, std::slice::from_ref(&source), &[&programs[0]])
+        .expect("host analysis runs");
     assert!(
         analysis.diagnostics.is_empty(),
         "{:#?}",
@@ -176,8 +176,8 @@ fn host_runtime_executes_the_extension_handler_and_reports_failed_assertions() {
     let parsed = parse_source(&source).expect("parser prepares");
     assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
     let programs = vec![parsed.program];
-    let analysis =
-        analyze_sources(&language, &[source.clone()], &[&programs[0]]).expect("host analysis runs");
+    let analysis = analyze_sources(&language, std::slice::from_ref(&source), &[&programs[0]])
+        .expect("host analysis runs");
     assert!(
         analysis.diagnostics.is_empty(),
         "{:#?}",
