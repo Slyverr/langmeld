@@ -1,0 +1,14 @@
+[workspace]
+members = ["crates/langmeld-cli", "crates/langmeld-core"]
+default-members = ["crates/langmeld-cli"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Slyverr/langmeld"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
