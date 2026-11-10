@@ -153,6 +153,18 @@ It receives the same source snapshot and parsed document, then returns an
 semantic diagnostics. The host chooses its analysis phases and policies;
 languages that do not need semantic analysis can use the parser alone.
 
+For host-owned trees, implement `LanguageCompleter<P>` to provide
+language-specific completion candidates. Its callback receives the current
+source, the existing parsed document, an optional analysis document, and a byte
+offset. `complete_with` rejects parse or analysis documents from another
+database-managed source revision and filters candidates whose replacement
+spans are outside the source or split a UTF-8 character. Detached
+`SourceFile`s have no revision identity, so hosts must pair their parse and
+analysis results with the matching text. Use `type Analysis = ()` when
+completion does not need semantic analysis. This keeps completion behavior
+with the host language while allowing an editor integration to reuse its
+current parse and analysis results.
+
 ## Syntax completions
 
 `complete_at` returns grammar-derived construct-start tokens accepted at a byte

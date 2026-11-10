@@ -7,12 +7,14 @@ mod host;
 mod parser;
 mod spec;
 
-pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer};
+pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer, complete_with};
 pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
     parse_language_definition, parse_language_definition_project,
 };
-pub use host::{AnalysisDocument, LanguageAnalyzer, LanguageParser, ParsedDocument};
+pub use host::{
+    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageParser, ParsedDocument,
+};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
     CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseResult,

@@ -11,15 +11,16 @@ itself parsed by that generic parser. The parser does not yet provide
 expressions, type checking, execution, code generation, or editor integrations;
 language authors own those behaviors in Rust. Rust hosts can provide a custom
 lexer while reusing the generic parser, or implement `LanguageParser` and keep
-their own parse-tree type. Arbitrary host trees do not receive automatic editor
-tooling yet. A host can optionally implement `LanguageAnalyzer` to return its
-own semantic result and diagnostics without adopting framework-defined symbol
-or type rules. The separate `langmeld-expression` crate provides a
-configurable, source-spanned expression parser; typing and evaluation remain
-host-owned. Project definitions can explicitly import local construct files
-through a host-provided resolver. Declarative grammars also provide scoped
-syntax-token completion candidates; semantic completion and editor protocols
-remain host or future work. The `langmeld-project` crate provides a
+their own parse-tree type. A host can optionally implement `LanguageAnalyzer`
+to return its own semantic result and diagnostics without adopting
+framework-defined symbol or type rules, and `LanguageCompleter` to provide
+completion candidates from an existing parse and optional analysis result. The
+separate `langmeld-expression` crate provides a configurable, source-spanned
+expression parser; typing and evaluation remain host-owned. Project definitions
+can explicitly import local construct files through a host-provided resolver.
+Declarative grammars also provide scoped syntax-token completion candidates;
+editor protocols and other host-tree tooling remain future work. The
+`langmeld-project` crate provides a
 directory-backed resolver for modular `.lm` projects, with project-root
 confinement and source snapshots for diagnostic display.
 

@@ -1,7 +1,10 @@
 use langmeld_core::{SourceFile, Span};
 
 use crate::parser::{DefaultLexer, Lexer, parse_with_contexts};
-use crate::{LanguageSpec, PatternPart, RepeatMinimum};
+use crate::{
+    AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParsedDocument, PatternPart,
+    RepeatMinimum,
+};
 
 /// A grammar-derived token suggestion at a source location.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -10,6 +13,44 @@ pub struct CompletionCandidate {
     pub text: String,
     /// Source range to replace, empty when completing at a token boundary.
     pub replace: Span,
+}
+
+/// Requests host-defined completions for a parsed source snapshot.
+///
+/// Parse or analysis results from a different database-managed revision are
+/// rejected. Detached snapshots have no revision identity, so callers must
+/// pair those values correctly. Candidates with replacement spans outside the
+/// source or inside a UTF-8 code point are discarded.
+#[must_use]
+pub fn complete_with<P, C>(
+    source: &SourceFile,
+    parsed: &ParsedDocument<P::Tree>,
+    analysis: Option<&AnalysisDocument<C::Analysis>>,
+    offset: usize,
+    completer: &C,
+) -> Vec<CompletionCandidate>
+where
+    P: LanguageParser,
+    C: LanguageCompleter<P>,
+{
+    if offset > source.text.len()
+        || !source.text.is_char_boundary(offset)
+        || parsed.source != source.identity()
+        || analysis.is_some_and(|analysis| analysis.source != source.identity())
+    {
+        return Vec::new();
+    }
+
+    completer
+        .complete(source, parsed, analysis, offset)
+        .into_iter()
+        .filter(|candidate| {
+            candidate.replace.start <= candidate.replace.end
+                && candidate.replace.end <= source.text.len()
+                && source.text.is_char_boundary(candidate.replace.start)
+                && source.text.is_char_boundary(candidate.replace.end)
+        })
+        .collect()
 }
 
 /// Parser scope accepted at a source range, used to derive completions.
