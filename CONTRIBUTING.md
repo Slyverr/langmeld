@@ -140,7 +140,10 @@ Configure each crate's Trusted Publisher for `Slyverr/langmeld`, workflow
 `release.yml`, and the GitHub Actions environment `crates-io` before publishing.
 The publish job is disabled unless the repository variable
 `LANGMELD_CRATES_IO_PUBLISH_ENABLED` is set to `true`; without it, release tags
-still run version validation and CI but do not publish packages.
+still run version validation and CI but do not publish packages. After the
+release workflow completes successfully, fast-forward `main` to the tagged
+commit. If `develop` has post-tag commits, do not merge those commits into
+`main` as part of that release.
 
 ## Commit conventions
 
