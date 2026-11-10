@@ -217,7 +217,7 @@ fn pattern_part(part: &PatternPart, construct: &str) -> Result<String, TreeSitte
             };
             format!("field({}, $.{symbol})", js_string(name))
         }
-        PatternPart::Choice { name, values } => {
+        PatternPart::Choice { name, values, .. } => {
             let alternatives = values
                 .iter()
                 .map(|value| js_string(value))

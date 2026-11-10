@@ -202,6 +202,33 @@ fn finite_choice_completion_suggests_only_allowed_values_in_field_context() {
 }
 
 #[test]
+fn finite_choice_completion_kind_can_be_overridden() {
+    let language = LanguageSpec::new(
+        "Movement",
+        [ConstructSpec::new(
+            "move",
+            [
+                PatternPart::literal("move"),
+                PatternPart::choice_with_completion_kind(
+                    "direction",
+                    ["left", "right"],
+                    CompletionKind::Keyword,
+                ),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = "move r";
+
+    let candidates = complete_at(&SourceFile::new("main", source), &language, source.len());
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].text, "right");
+    assert_eq!(candidates[0].kind, Some(CompletionKind::Keyword));
+}
+
+#[test]
 fn does_not_offer_sibling_constructs_inside_an_incomplete_construct() {
     let source = "program { repeat ";
 
@@ -302,7 +329,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
             .iter()
             .map(|candidate| candidate.text.as_str())
             .collect::<Vec<_>>(),
-        ["value", "}"]
+        ["completion", "value", "}"]
     );
 
     let source = "language \"Toy\" { construct \"item\" { ";

@@ -661,7 +661,7 @@ fn lsp_definitions_mode_serves_context_aware_langmeld_completions() {
             .iter()
             .map(|candidate| candidate["label"].as_str().unwrap())
             .collect::<Vec<_>>(),
-        ["value", "}"]
+        ["completion", "value", "}"]
     );
 
     let format_source = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";

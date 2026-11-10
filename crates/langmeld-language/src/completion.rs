@@ -166,6 +166,7 @@ pub(crate) struct ParseContext {
     pub(crate) constructs: Vec<String>,
     pub(crate) close: Option<String>,
     pub(crate) values: Vec<String>,
+    pub(crate) value_kind: CompletionKind,
     pub(crate) blocked: bool,
 }
 
@@ -264,7 +265,7 @@ pub fn complete_at_with_lexer(
             text,
             &prefix,
             replacement,
-            Some(CompletionKind::EnumMember),
+            Some(context.value_kind),
         );
     }
     for name in &context.constructs {

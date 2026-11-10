@@ -99,7 +99,17 @@ Pattern items match lexer tokens in order:
   The parser rejects undeclared values and completion suggests the declared
   values while the field is being edited. The captured value remains token
   text; hosts decide what it means. TextMate and Tree-sitter exports include
-  the alternatives when their lexical models can represent them.
+  the alternatives when their lexical models can represent them. Suggestions
+  use the `enum_member` editor category by default. Override it in the choice
+  declaration when the values fit another category:
+
+  ```langmeld
+  choice "mode" {
+      completion "keyword";
+      value "automatic";
+      value "manual";
+  }
+  ```
 - `expression "field" until ";";` captures the source span up to a top-level
   terminator and consumes that terminator. Nested `()`, `[]`, and `{}` groups
   may contain the same token without ending the capture.
@@ -125,8 +135,10 @@ construct "print" {
 ```
 
 This metadata affects editor presentation only; it does not change parsing.
-Finite-choice values are automatically presented as enum members. Supported
-kinds are `text`, `method`, `function`, `constructor`, `field`, `variable`,
+Finite-choice values default to the `enum_member` category and can declare a
+different kind inside the `choice` block. Rust-authored grammars can use
+`PatternPart::choice_with_completion_kind`. Supported kinds are `text`,
+`method`, `function`, `constructor`, `field`, `variable`,
 `class`, `interface`, `module`, `property`, `unit`, `value`, `enum`, `keyword`,
 `snippet`, `color`, `file`, `reference`, `folder`, `enum_member`, `constant`,
 `struct`, `event`, `operator`, and `type_parameter`.

@@ -395,6 +395,36 @@ fn construct_completion_kind_is_declared_and_used_by_grammar_completion() {
 }
 
 #[test]
+fn choice_completion_kind_can_be_overridden_in_langmeld() {
+    let definition = parse_language_definition(&SourceFile::new(
+        "language.langmeld",
+        r#"
+language "Movement" {
+    construct "move" {
+        syntax {
+            literal "move";
+            choice "direction" {
+                completion "keyword";
+                value "left";
+                value "right";
+            }
+        }
+    }
+}
+"#,
+    ));
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let language = definition.language.unwrap();
+    let source = SourceFile::new("main", "move r");
+
+    let candidates = complete_at(&source, &language, source.text.len());
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].text, "right");
+    assert_eq!(candidates[0].kind, Some(CompletionKind::Keyword));
+}
+
+#[test]
 fn definition_frontend_accepts_each_completion_kind_name() {
     let kinds = [
         ("text", CompletionKind::Text),
@@ -481,6 +511,52 @@ fn invalid_and_duplicate_construct_completion_kinds_are_diagnosed() {
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-DEF-029")
+    );
+}
+
+#[test]
+fn invalid_and_duplicate_choice_completion_kinds_are_diagnosed() {
+    let invalid = parse_language_definition(&SourceFile::new(
+        "language.langmeld",
+        r#"language "Toy" {
+            construct "move" {
+                syntax {
+                    choice "direction" {
+                        completion "keywordish";
+                        value "left";
+                    }
+                }
+            }
+        }"#,
+    ));
+    assert!(invalid.language.is_none());
+    assert!(
+        invalid
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-DEF-033")
+    );
+
+    let duplicate = parse_language_definition(&SourceFile::new(
+        "language.langmeld",
+        r#"language "Toy" {
+            construct "move" {
+                syntax {
+                    choice "direction" {
+                        completion "keyword";
+                        completion "enum_member";
+                        value "left";
+                    }
+                }
+            }
+        }"#,
+    ));
+    assert!(duplicate.language.is_none());
+    assert!(
+        duplicate
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-DEF-032")
     );
 }
 

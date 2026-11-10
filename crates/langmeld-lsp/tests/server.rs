@@ -1147,7 +1147,11 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
                 "print",
                 [
                     PatternPart::literal("print"),
-                    PatternPart::choice("speed", ["fast", "slow"]),
+                    PatternPart::choice_with_completion_kind(
+                        "speed",
+                        ["fast", "slow"],
+                        CompletionKind::Keyword,
+                    ),
                     PatternPart::literal(";"),
                 ],
             ),
@@ -1235,7 +1239,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
         .map(|item| item["label"].as_str().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(choices, ["fast"]);
-    assert_eq!(completions[0]["kind"], 20);
+    assert_eq!(completions[0]["kind"], 14);
     assert_eq!(
         completions[0]["textEdit"]["range"]["start"]["character"],
         16

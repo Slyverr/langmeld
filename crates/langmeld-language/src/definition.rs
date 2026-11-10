@@ -614,29 +614,12 @@ fn lower_construct(
         ));
         return None;
     }
-    let completion_kind = if let Some(completion) = completion_nodes.first() {
-        let Some(value) = string_field(completion, "kind").and_then(decode_quoted) else {
-            diagnostics.push(Diagnostic::error(
-                "LM-DEF-030",
-                "completion requires a valid quoted kind",
-                source,
-                completion.span,
-            ));
-            return None;
-        };
-        let Some(kind) = parse_completion_kind(&value) else {
-            diagnostics.push(Diagnostic::error(
-                "LM-DEF-031",
-                format!("unknown completion kind `{value}`"),
-                source,
-                completion.span,
-            ));
-            return None;
-        };
-        Some(kind)
-    } else {
-        None
-    };
+    let completion_kind = completion_nodes.first().and_then(|completion| {
+        lower_completion_kind(completion, source, diagnostics, "LM-DEF-031", "")
+    });
+    if !completion_nodes.is_empty() && completion_kind.is_none() {
+        return None;
+    }
 
     let block_nodes: Vec<_> = node
         .children
@@ -803,7 +786,37 @@ fn lower_pattern(
                 ));
                 return None;
             }
-            Some(PatternPart::choice(name, values))
+            let completion_nodes: Vec<_> = node
+                .children
+                .iter()
+                .filter(|child| child.name == "completion")
+                .collect();
+            if completion_nodes.len() > 1 {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-032",
+                    "a choice field may declare only one completion kind",
+                    source,
+                    completion_nodes[1].span,
+                ));
+                return None;
+            }
+            let completion_kind = completion_nodes.first().and_then(|completion| {
+                lower_completion_kind(
+                    completion,
+                    source,
+                    diagnostics,
+                    "LM-DEF-033",
+                    " for choice field",
+                )
+            });
+            if !completion_nodes.is_empty() && completion_kind.is_none() {
+                return None;
+            }
+            Some(if let Some(kind) = completion_kind {
+                PatternPart::choice_with_completion_kind(name, values, kind)
+            } else {
+                PatternPart::choice(name, values)
+            })
         }
         "expression" => {
             let (Some(name), Some(terminator)) = (
@@ -835,6 +848,34 @@ fn lower_pattern(
         }
         _ => None,
     }
+}
+
+fn lower_completion_kind(
+    node: &ParsedConstruct,
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+    unknown_code: &'static str,
+    unknown_suffix: &str,
+) -> Option<CompletionKind> {
+    let Some(value) = string_field(node, "kind").and_then(decode_quoted) else {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-030",
+            "completion requires a valid quoted kind",
+            source,
+            node.span,
+        ));
+        return None;
+    };
+    let Some(kind) = parse_completion_kind(&value) else {
+        diagnostics.push(Diagnostic::error(
+            unknown_code,
+            format!("unknown completion kind `{value}`{unknown_suffix}"),
+            source,
+            node.span,
+        ));
+        return None;
+    };
+    Some(kind)
 }
 
 fn string_field<'a>(node: &'a ParsedConstruct, name: &str) -> Option<&'a str> {
@@ -1049,7 +1090,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "choice",
                     [PatternPart::literal("choice"), PatternPart::string("name")],
                 )
-                .block("{", "}", &["choice_value"]),
+                .block("{", "}", &["completion", "choice_value"]),
                 ConstructSpec::new(
                     "literal",
                     [

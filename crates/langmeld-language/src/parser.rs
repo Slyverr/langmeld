@@ -362,6 +362,7 @@ impl Parser<'_> {
                     .collect(),
                 close: close.map(str::to_owned),
                 values: Vec::new(),
+                value_kind: crate::CompletionKind::EnumMember,
                 blocked: self.completion_blocked,
             });
         }
@@ -429,7 +430,11 @@ impl Parser<'_> {
             if let Some((spec, _, attempt)) = best_partial {
                 self.completion_blocked = true;
                 if self.capture_contexts
-                    && let Some(PatternPart::Choice { values, .. }) = attempt.expected
+                    && let Some(PatternPart::Choice {
+                        values,
+                        completion_kind,
+                        ..
+                    }) = attempt.expected
                 {
                     let offset = self
                         .tokens
@@ -440,6 +445,7 @@ impl Parser<'_> {
                         constructs: Vec::new(),
                         close: None,
                         values: values.clone(),
+                        value_kind: *completion_kind,
                         blocked: false,
                     });
                 }
@@ -688,7 +694,7 @@ fn match_sequence<'a>(
                 });
                 cursor += 1;
             }
-            PatternPart::Choice { name, values } => {
+            PatternPart::Choice { name, values, .. } => {
                 let Some(token) = tokens.get(cursor).filter(|token| {
                     token.kind != TokenKind::Invalid
                         && values.iter().any(|value| value == &token.text)

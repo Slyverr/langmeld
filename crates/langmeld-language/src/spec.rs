@@ -106,11 +106,14 @@ pub enum PatternPart {
         kind: FieldKind,
     },
     /// Captures one exact token from a finite set of allowed values.
+    /// Completion suggestions use the enum-member category by default.
     Choice {
         /// Name exposed in parsed construct fields.
         name: String,
         /// Exact tokens accepted by this field.
         values: Vec<String>,
+        /// Editor category for suggestions from this field.
+        completion_kind: CompletionKind,
     },
     /// Captures the source span before a top-level terminator token.
     ///
@@ -197,6 +200,21 @@ impl PatternPart {
         Self::Choice {
             name: name.into(),
             values: values.into_iter().map(Into::into).collect(),
+            completion_kind: CompletionKind::EnumMember,
+        }
+    }
+
+    /// Captures one exact token from a finite set and sets its editor category.
+    #[must_use]
+    pub fn choice_with_completion_kind(
+        name: impl Into<String>,
+        values: impl IntoIterator<Item = impl Into<String>>,
+        kind: CompletionKind,
+    ) -> Self {
+        Self::Choice {
+            name: name.into(),
+            values: values.into_iter().map(Into::into).collect(),
+            completion_kind: kind,
         }
     }
 
@@ -846,7 +864,7 @@ fn validate_pattern(
                     });
                 }
             }
-            PatternPart::Choice { name, values } => {
+            PatternPart::Choice { name, values, .. } => {
                 if name.trim().is_empty() {
                     return Err(SpecError::EmptyFieldName(construct.to_owned()));
                 }
