@@ -7,6 +7,17 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Incremental LSP document updates using negotiated UTF-8, UTF-16, or UTF-32
+  positions, plus host workspace-symbol search and document outlines.
+- Host-resolved navigation and references across closed project files, with
+  document-close callbacks for host-managed indexes.
+
+### Fixed
+
+- Cross-platform file-URI comparison and workspace lockfile package versions.
+
 ## [0.5.0] - 2026-11-10
 
 ### Added
