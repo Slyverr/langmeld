@@ -6,13 +6,34 @@ use crate::{
     PatternPart, RepeatMinimum,
 };
 
-/// A grammar-derived token suggestion at a source location.
+/// A completion suggestion and the source range it replaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionCandidate {
     /// Token text to insert.
     pub text: String,
     /// Source range to replace, empty when completing at a token boundary.
     pub replace: Span,
+    /// Optional short explanation shown beside the candidate in editors.
+    pub detail: Option<String>,
+}
+
+impl CompletionCandidate {
+    /// Creates a candidate with no editor detail.
+    #[must_use]
+    pub fn new(text: impl Into<String>, replace: Span) -> Self {
+        Self {
+            text: text.into(),
+            replace,
+            detail: None,
+        }
+    }
+
+    /// Adds a short editor detail, such as a symbol kind or value category.
+    #[must_use]
+    pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
 }
 
 /// Requests host-defined completions for a parsed source snapshot.
@@ -175,10 +196,7 @@ pub fn complete_at_with_lexer(
         && close != &prefix
         && !candidates.iter().any(|candidate| candidate.text == *close)
     {
-        candidates.push(CompletionCandidate {
-            text: close.clone(),
-            replace: replacement,
-        });
+        candidates.push(CompletionCandidate::new(close.clone(), replacement));
     }
     candidates
 }
@@ -218,8 +236,5 @@ fn push_candidate(
     {
         return;
     }
-    candidates.push(CompletionCandidate {
-        text: text.to_owned(),
-        replace: replacement,
-    });
+    candidates.push(CompletionCandidate::new(text, replacement));
 }

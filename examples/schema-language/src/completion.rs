@@ -40,9 +40,9 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
             .symbols
             .iter()
             .filter(|symbol| symbol.name.starts_with(prefix))
-            .map(|symbol| CompletionCandidate {
-                text: symbol.name.clone(),
-                replace: reference.span,
+            .map(|symbol| {
+                CompletionCandidate::new(symbol.name.clone(), reference.span)
+                    .with_detail("Record type")
             })
             .collect()
     }

@@ -6,27 +6,27 @@ syntax, parsing source, and building language-specific behavior in Rust.
 The current libraries provide source snapshots, revision-aware diagnostics,
 UTF-8/UTF-16/UTF-32 editor position conversion, a validated syntax model, and
 a generic parser for token patterns, typed, generic, and finite-choice captures,
-alternative forms, optional and repeated groups, and scoped blocks. The `.langmeld` frontend
-is itself parsed by that generic parser. The framework does not prescribe
-language-specific semantics, execution, or code generation; authors implement
-those behaviors in Rust. Rust hosts can provide a custom
+alternative forms, optional and repeated groups, and scoped blocks. The
+`.langmeld` frontend is itself parsed by that generic parser. The framework does
+not prescribe language-specific semantics, execution, or code generation;
+authors implement those behaviors in Rust. Rust hosts can provide a custom
 lexer while reusing the generic parser, or implement `LanguageParser` and keep
 their own parse-tree type. A host can optionally implement `LanguageAnalyzer`
 to return its own semantic result and diagnostics without adopting
 framework-defined symbol or type rules, and `LanguageCompleter` to provide
-completion candidates and `LanguageNavigator` to provide definition and
-reference queries from an existing parse and optional analysis result. The
-separate `langmeld-expression` crate provides a configurable, source-spanned
-expression parser; typing and evaluation remain host-owned. Project
-definitions can explicitly import local construct files through a host-provided
-resolver. Declarative grammars also provide scoped syntax-token completion
-candidates. The `langmeld-lsp` crate provides full-text LSP synchronization,
-diagnostics, and completion for declarative languages, plus host-backed
-definition, references, rename, formatting, hover, document symbols, and
-semantic tokens through the same LSP adapter. The `langmeld lsp` CLI command
-serves manifest-backed projects, and `langmeld lsp --definitions` assists with
-editing `.langmeld` syntax with project validation, diagnostics, scoped
-completion, and formatting.
+completion candidates with optional editor details. `LanguageNavigator`
+provides definition and reference queries from an existing parse and optional
+analysis result. The separate `langmeld-expression` crate provides a
+configurable, source-spanned expression parser; typing and evaluation remain
+host-owned. Project definitions can explicitly import local construct files
+through a host-provided resolver. Declarative grammars also provide scoped
+syntax-token completion candidates. The `langmeld-lsp` crate provides full-text
+LSP synchronization, diagnostics, and completion for declarative languages,
+plus host-backed definition, references, rename, formatting, hover, document
+symbols, and semantic tokens through the same LSP adapter. The `langmeld lsp`
+CLI command serves manifest-backed projects, and `langmeld lsp --definitions`
+assists with editing `.langmeld` syntax with project validation, diagnostics,
+scoped completion, and formatting.
 `langmeld format` formats all definitions reachable through the project
 manifest; pass a file path to format one file. The optional
 `langmeld-textmate` crate exports lexical highlighting rules, and

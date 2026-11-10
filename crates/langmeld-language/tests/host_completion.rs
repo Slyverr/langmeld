@@ -29,10 +29,9 @@ impl LanguageCompleter<Parser> for Completer {
         assert_eq!(parsed.tree, source.text);
         assert!(offset <= source.text.len());
         assert_eq!(analysis.map(|document| document.result), Some(3));
-        vec![CompletionCandidate {
-            text: "suggestion".into(),
-            replace: Span::new(0, 0),
-        }]
+        vec![
+            CompletionCandidate::new("suggestion", Span::new(0, 0)).with_detail("candidate detail"),
+        ]
     }
 }
 
@@ -45,6 +44,7 @@ fn host_completion_receives_the_existing_parse_and_analysis() {
     let candidates = complete_with(&source, &parsed, Some(&analysis), 3, &Completer);
 
     assert_eq!(candidates[0].text, "suggestion");
+    assert_eq!(candidates[0].detail.as_deref(), Some("candidate detail"));
 }
 
 #[test]
@@ -127,10 +127,7 @@ fn invalid_offsets_and_replacement_spans_are_rejected() {
                 Span::new(2, 2),
             ]
             .into_iter()
-            .map(|replace| CompletionCandidate {
-                text: "suggestion".into(),
-                replace,
-            })
+            .map(|replace| CompletionCandidate::new("suggestion", replace))
             .collect()
         }
     }

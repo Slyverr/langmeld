@@ -95,6 +95,7 @@ pub(crate) fn completion_items(
             }
             Some(CompletionItem {
                 label: candidate.text.clone(),
+                detail: candidate.detail,
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range,
                     new_text: candidate.text,
