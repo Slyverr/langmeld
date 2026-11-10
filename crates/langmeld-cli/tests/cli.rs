@@ -114,6 +114,16 @@ fn receive_lsp_message(receiver: &mpsc::Receiver<io::Result<Value>>) -> Value {
         .expect("language server should send a valid LSP message")
 }
 
+fn canonical_file_uri(uri: &str) -> String {
+    let path = url::Url::parse(uri)
+        .expect("file URI should be valid")
+        .to_file_path()
+        .expect("URI should identify a local file");
+    url::Url::from_file_path(fs::canonicalize(path).expect("file should exist"))
+        .expect("canonical path should form a file URI")
+        .to_string()
+}
+
 fn start_lsp(
     args: &[&str],
     current_directory: Option<&Path>,
@@ -1200,7 +1210,10 @@ fn project_definitions_lsp_navigates_construct_and_category_references() {
     );
     let definition = receive_lsp_message(&receiver)["result"].clone();
     assert_eq!(definition.as_array().unwrap().len(), 1);
-    assert_eq!(definition[0]["uri"], module_uri);
+    assert_eq!(
+        canonical_file_uri(definition[0]["uri"].as_str().unwrap()),
+        canonical_file_uri(&module_uri)
+    );
     let print_span = module_source.find("\"print\"").unwrap();
     assert_eq!(definition[0]["range"]["start"]["character"], print_span);
     assert_eq!(
@@ -1214,20 +1227,12 @@ fn project_definitions_lsp_navigates_construct_and_category_references() {
     );
     let references = receive_lsp_message(&receiver)["result"].clone();
     assert_eq!(references.as_array().unwrap().len(), 2);
-    assert!(
-        references
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|location| location["uri"] == root_uri)
-    );
-    assert!(
-        references
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|location| location["uri"] == module_uri)
-    );
+    assert!(references.as_array().unwrap().iter().any(|location| {
+        canonical_file_uri(location["uri"].as_str().unwrap()) == canonical_file_uri(&root_uri)
+    }));
+    assert!(references.as_array().unwrap().iter().any(|location| {
+        canonical_file_uri(location["uri"].as_str().unwrap()) == canonical_file_uri(&module_uri)
+    }));
 
     send_lsp_message(
         &mut stdin,
@@ -1264,7 +1269,10 @@ fn project_definitions_lsp_navigates_construct_and_category_references() {
             .as_array()
             .unwrap()
             .iter()
-            .all(|location| location["uri"] == module_uri)
+            .all(|location| {
+                canonical_file_uri(location["uri"].as_str().unwrap())
+                    == canonical_file_uri(&module_uri)
+            })
     );
 
     send_lsp_message(
