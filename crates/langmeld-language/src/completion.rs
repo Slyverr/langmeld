@@ -11,6 +11,8 @@ use crate::{
 pub struct CompletionCandidate {
     /// Token text to insert.
     pub text: String,
+    /// Optional display label; defaults to [`Self::text`].
+    pub label: Option<String>,
     /// Source range to replace, empty when completing at a token boundary.
     pub replace: Span,
     /// Optional short explanation shown beside the candidate in editors.
@@ -23,9 +25,17 @@ impl CompletionCandidate {
     pub fn new(text: impl Into<String>, replace: Span) -> Self {
         Self {
             text: text.into(),
+            label: None,
             replace,
             detail: None,
         }
+    }
+
+    /// Sets a display label that can differ from the inserted text.
+    #[must_use]
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
     }
 
     /// Adds a short editor detail, such as a symbol kind or value category.

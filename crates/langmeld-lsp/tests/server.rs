@@ -70,6 +70,7 @@ impl LanguageBackend for Backend {
         assert_eq!(offset, "😀".len());
         vec![
             CompletionCandidate::new("good", Span::new("😀".len(), source.text.len()))
+                .with_label("Good value")
                 .with_detail("Suggested item"),
         ]
     }
@@ -1041,8 +1042,9 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         }),
     );
     let completion = receive_response(&client);
-    assert_eq!(completion[0]["label"], "good");
+    assert_eq!(completion[0]["label"], "Good value");
     assert_eq!(completion[0]["detail"], "Suggested item");
+    assert_eq!(completion[0]["textEdit"]["newText"], "good");
     assert_eq!(completion[0]["textEdit"]["range"]["start"]["character"], 2);
     assert_eq!(completion[0]["textEdit"]["range"]["end"]["character"], 5);
 

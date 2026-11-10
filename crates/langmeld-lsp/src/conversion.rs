@@ -93,8 +93,9 @@ pub(crate) fn completion_items(
             if range.start.line != range.end.line {
                 return None;
             }
+            let label = candidate.label.unwrap_or_else(|| candidate.text.clone());
             Some(CompletionItem {
-                label: candidate.text.clone(),
+                label,
                 detail: candidate.detail,
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range,
