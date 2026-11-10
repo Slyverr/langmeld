@@ -4,20 +4,55 @@ use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
 
 use crate::{FieldKind, LanguageSpec, PatternPart, RepeatMinimum};
 
-#[derive(Clone, Debug)]
-struct Token {
-    text: String,
-    kind: TokenKind,
-    span: Span,
+/// A token emitted by a language lexer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LexedToken {
+    /// Exact token text from the source snapshot.
+    pub text: String,
+    /// Lexical category used by declarative field patterns.
+    pub kind: TokenKind,
+    /// Byte range of `text` in the source snapshot.
+    pub span: Span,
 }
 
+/// Lexical category assigned to a token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TokenKind {
+pub enum TokenKind {
+    /// Identifier-like token.
     Identifier,
+    /// Decimal integer token.
     Integer,
+    /// Quoted or otherwise host-defined string token.
     String,
+    /// Operator or punctuation token.
     Punctuation,
+    /// Invalid token retained for recovery and never accepted as a field.
     Invalid,
+}
+
+/// Tokens and lexical diagnostics produced for one source snapshot.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LexOutput {
+    /// Non-overlapping tokens in source order. Whitespace and comments may be omitted.
+    pub tokens: Vec<LexedToken>,
+    /// Source-located lexical diagnostics.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Host-provided lexical behavior for the generic Langmeld parser.
+pub trait Lexer {
+    /// Lexes the supplied immutable source snapshot.
+    fn lex(&self, source: &SourceFile) -> LexOutput;
+}
+
+/// Lexes the initial built-in token subset used by [`parse`].
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DefaultLexer;
+
+impl Lexer for DefaultLexer {
+    fn lex(&self, source: &SourceFile) -> LexOutput {
+        lex_default(source)
+    }
 }
 
 /// A field value captured by a syntax pattern.
@@ -79,7 +114,24 @@ pub const MAX_NESTING_DEPTH: usize = 128;
 /// future API concerns.
 #[must_use]
 pub fn parse(source: &SourceFile, language: &LanguageSpec) -> ParseResult {
-    let (tokens, mut diagnostics) = lex(source);
+    parse_with_lexer(source, language, &DefaultLexer)
+}
+
+/// Parses a source snapshot using a host-provided lexer and Langmeld grammar.
+///
+/// Tokens with invalid, overlapping, out-of-order, or mismatched source spans
+/// are discarded and reported as `LM-LEX-002` diagnostics before parsing.
+#[must_use]
+pub fn parse_with_lexer(
+    source: &SourceFile,
+    language: &LanguageSpec,
+    lexer: &impl Lexer,
+) -> ParseResult {
+    let LexOutput {
+        tokens,
+        mut diagnostics,
+    } = lexer.lex(source);
+    let tokens = validate_tokens(source, tokens, &mut diagnostics);
     let allowed = language.constructs.iter().collect::<Vec<_>>();
     let constructs = Parser {
         source,
@@ -99,7 +151,7 @@ pub fn parse(source: &SourceFile, language: &LanguageSpec) -> ParseResult {
 struct Parser<'a> {
     source: &'a SourceFile,
     language: &'a LanguageSpec,
-    tokens: Vec<Token>,
+    tokens: Vec<LexedToken>,
     cursor: usize,
     diagnostics: &'a mut Vec<Diagnostic>,
 }
@@ -314,7 +366,7 @@ struct MatchAttempt<'a> {
 
 fn match_sequence<'a>(
     pattern: &'a [PatternPart],
-    tokens: &[Token],
+    tokens: &[LexedToken],
     start: usize,
 ) -> MatchAttempt<'a> {
     let mut fields = Vec::new();
@@ -439,7 +491,7 @@ fn accepts(expected: FieldKind, actual: TokenKind) -> bool {
     )
 }
 
-fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
+fn lex_default(source: &SourceFile) -> LexOutput {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut chars = source.text.char_indices().peekable();
@@ -463,7 +515,7 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
                 }
             }
             let span = Span::new(start, end);
-            tokens.push(Token {
+            tokens.push(LexedToken {
                 text: source.text[start..end].to_owned(),
                 kind: if closed {
                     TokenKind::String
@@ -492,7 +544,7 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
                     break;
                 }
             }
-            tokens.push(Token {
+            tokens.push(LexedToken {
                 text: source.text[start..end].to_owned(),
                 kind: TokenKind::Identifier,
                 span: Span::new(start, end),
@@ -509,7 +561,7 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
                     break;
                 }
             }
-            tokens.push(Token {
+            tokens.push(LexedToken {
                 text: source.text[start..end].to_owned(),
                 kind: TokenKind::Integer,
                 span: Span::new(start, end),
@@ -526,20 +578,67 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
                     break;
                 }
             }
-            tokens.push(Token {
+            tokens.push(LexedToken {
                 text: source.text[start..end].to_owned(),
                 kind: TokenKind::Punctuation,
                 span: Span::new(start, end),
             });
             continue;
         }
-        tokens.push(Token {
+        tokens.push(LexedToken {
             text: character.to_string(),
             kind: TokenKind::Punctuation,
             span: Span::new(start, start + character.len_utf8()),
         });
     }
-    (tokens, diagnostics)
+    LexOutput {
+        tokens,
+        diagnostics,
+    }
+}
+
+fn validate_tokens(
+    source: &SourceFile,
+    tokens: Vec<LexedToken>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<LexedToken> {
+    let mut valid = Vec::with_capacity(tokens.len());
+    let mut previous_end = 0;
+    for token in tokens {
+        let span = token.span;
+        let valid_range = span.start < span.end
+            && span.end <= source.text.len()
+            && source.text.is_char_boundary(span.start)
+            && source.text.is_char_boundary(span.end);
+        if !valid_range {
+            diagnostics.push(Diagnostic::spec_error(
+                "LM-LEX-002",
+                "lexer emitted an empty or invalid source range",
+            ));
+            continue;
+        }
+        if span.start < previous_end {
+            diagnostics.push(Diagnostic::error(
+                "LM-LEX-002",
+                "lexer emitted overlapping or out-of-order tokens",
+                source,
+                span,
+            ));
+            continue;
+        }
+        if source.text.get(span.start..span.end) != Some(token.text.as_str()) {
+            diagnostics.push(Diagnostic::error(
+                "LM-LEX-002",
+                "lexer token text does not match its source range",
+                source,
+                span,
+            ));
+            continue;
+        }
+        previous_end = span.end;
+        valid.push(token);
+    }
+    valid
 }
 
 fn is_grouped_punctuation(character: char) -> bool {

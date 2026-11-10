@@ -18,3 +18,5 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   explicitly scoped nested blocks in `langmeld-language`.
 - A first `.lm` definition frontend parsed through the generic engine, plus a
   root-level Toy language consumer example.
+- A host lexer contract that validates token text and source ranges before the
+  generic parser consumes them.

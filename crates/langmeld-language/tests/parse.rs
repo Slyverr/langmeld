@@ -1,5 +1,8 @@
-use langmeld_core::{Severity, SourceDatabase, SourceFile, SourceIdentity};
-use langmeld_language::{CapturedValue, ConstructSpec, LanguageSpec, PatternPart, parse};
+use langmeld_core::{Severity, SourceDatabase, SourceFile, SourceIdentity, Span};
+use langmeld_language::{
+    CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer, PatternPart,
+    TokenKind, parse, parse_with_lexer,
+};
 
 fn language() -> LanguageSpec {
     LanguageSpec::new(
@@ -354,6 +357,113 @@ fn rejects_overlapping_variants_of_one_construct() {
         LanguageSpec::new("Functions", [construct]),
         Err(langmeld_language::SpecError::AmbiguousVariants(_))
     ));
+}
+
+#[test]
+fn custom_lexer_can_supply_host_specific_string_tokens() {
+    struct RawStringLexer;
+
+    impl Lexer for RawStringLexer {
+        fn lex(&self, source: &SourceFile) -> LexOutput {
+            let string_start = source.text.find("r#\"").unwrap();
+            LexOutput {
+                tokens: vec![
+                    LexedToken {
+                        text: "emit".into(),
+                        kind: TokenKind::Identifier,
+                        span: Span::new(0, 4),
+                    },
+                    LexedToken {
+                        text: source.text[string_start..].into(),
+                        kind: TokenKind::String,
+                        span: Span::new(string_start, source.text.len()),
+                    },
+                ],
+                diagnostics: Vec::new(),
+            }
+        }
+    }
+
+    let grammar = LanguageSpec::new(
+        "RawStrings",
+        [ConstructSpec::new(
+            "emit",
+            [PatternPart::literal("emit"), PatternPart::string("text")],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("raw", "emit r#\"hello\"#");
+
+    let parsed = parse_with_lexer(&source, &grammar, &RawStringLexer);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::String("r#\"hello\"#".into())
+    );
+}
+
+#[test]
+fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
+    struct IncorrectLexer;
+
+    impl Lexer for IncorrectLexer {
+        fn lex(&self, _source: &SourceFile) -> LexOutput {
+            LexOutput {
+                tokens: vec![LexedToken {
+                    text: "wrong".into(),
+                    kind: TokenKind::Identifier,
+                    span: Span::new(0, 4),
+                }],
+                diagnostics: Vec::new(),
+            }
+        }
+    }
+
+    let grammar = LanguageSpec::new(
+        "Custom",
+        [ConstructSpec::new("item", [PatternPart::literal("item")])],
+    )
+    .unwrap();
+    let source = SourceFile::new("source", "item");
+
+    let parsed = parse_with_lexer(&source, &grammar, &IncorrectLexer);
+
+    assert_eq!(parsed.diagnostics[0].code, "LM-LEX-002");
+    assert!(parsed.constructs.is_empty());
+}
+
+#[test]
+fn rejects_custom_token_ranges_inside_utf8_codepoints_without_panicking() {
+    struct InvalidBoundaryLexer;
+
+    impl Lexer for InvalidBoundaryLexer {
+        fn lex(&self, _source: &SourceFile) -> LexOutput {
+            LexOutput {
+                tokens: vec![LexedToken {
+                    text: "x".into(),
+                    kind: TokenKind::Identifier,
+                    span: Span::new(1, 2),
+                }],
+                diagnostics: Vec::new(),
+            }
+        }
+    }
+
+    let grammar = LanguageSpec::new(
+        "Unicode",
+        [ConstructSpec::new(
+            "item",
+            [PatternPart::identifier("name")],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("unicode", "🦀");
+
+    let parsed = parse_with_lexer(&source, &grammar, &InvalidBoundaryLexer);
+
+    assert_eq!(parsed.diagnostics[0].code, "LM-LEX-002");
+    assert!(parsed.constructs.is_empty());
 }
 
 #[test]
