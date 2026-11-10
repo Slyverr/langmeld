@@ -1,5 +1,6 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::{CompletionCandidate, LanguageSpec, ParseResult, complete_at, parse};
+use lsp_types::FormattingOptions;
 
 use crate::semantic::{SemanticToken, SemanticTokenLegend};
 
@@ -37,6 +38,8 @@ pub struct BackendCapabilities {
     pub references: bool,
     /// The backend supplies host-defined semantic tokens.
     pub semantic_tokens: bool,
+    /// The backend formats a complete document.
+    pub formatting: bool,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -112,6 +115,20 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _document: &BackendDocument<Self::Document>,
     ) -> Vec<SemanticToken> {
         Vec::new()
+    }
+
+    /// Formats one complete document using the editor's requested options.
+    ///
+    /// Return `None` when the document needs no edit. Implementations own all
+    /// language-specific formatting decisions; Langmeld returns the result as
+    /// a single full-document edit.
+    fn format_document(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _options: &FormattingOptions,
+    ) -> Option<String> {
+        None
     }
 }
 

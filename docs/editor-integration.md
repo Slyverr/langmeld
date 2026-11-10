@@ -3,7 +3,8 @@
 `langmeld-lsp` provides a synchronous Language Server Protocol adapter for
 Langmeld languages. It supports full-document synchronization, diagnostics,
 completion, go-to-definition, references, and host-provided semantic tokens. It
-advertises only operations enabled by the backend.
+also supports host-provided full-document formatting and advertises only
+operations enabled by the backend.
 
 ## Declarative languages
 
@@ -20,6 +21,10 @@ open source snapshot. Implement only the queries the language supports and
 return matching `BackendCapabilities`; the server uses that report to build
 its LSP capabilities. `LanguageBackend::did_close` receives the last snapshot
 when a document closes, allowing hosts to remove it from workspace indexes.
+Hosts can implement `format_document` to return formatted text for a complete
+document. Langmeld passes through the editor's formatting options and returns
+one whole-document edit using the negotiated position encoding. Formatting
+policy remains language-owned.
 
 ```rust,ignore
 use langmeld_core::SourceFile;
@@ -92,7 +97,7 @@ connections rather than browser workers.
 ## Current limits
 
 The server uses full-text document changes. Incremental edits, rename, hover,
-document symbols, formatting, and Tree-sitter exports are not provided yet.
+document symbols, and Tree-sitter exports are not provided yet.
 TextMate output is lexical only; it does not infer comments, host lexer rules,
 or semantic classifications. Diagnostics without a source location or tied to
 another file are not published as diagnostics for the current document.

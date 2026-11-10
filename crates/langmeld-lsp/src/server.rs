@@ -4,17 +4,17 @@ use langmeld_core::{PositionEncoding, SourceDatabase, SourceId};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
-    GotoDefinitionResponse, InitializeParams, InitializeResult, Location, PositionEncodingKind,
-    PublishDiagnosticsParams, ReferenceParams, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Uri,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, InitializeResult, Location,
+    PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, SemanticTokensOptions,
+    SemanticTokensParams, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Uri,
 };
 use serde_json::{Value, json};
 
 use crate::{
     backend::{BackendCapabilities, BackendDocument, LanguageBackend},
-    conversion::{byte_offset, completion_items, diagnostics_for, lsp_location},
+    conversion::{byte_offset, completion_items, diagnostics_for, lsp_location, to_lsp_range},
     semantic::{SemanticTokenLegend, encode},
 };
 
@@ -139,6 +139,10 @@ impl<B: LanguageBackend> ServerState<B> {
                 serde_json::from_value::<SemanticTokensParams>(request.params)
                     .map(|params| self.semantic_tokens(params).map(|tokens| json!(tokens)))
             }
+            "textDocument/formatting" if self.capabilities.formatting => {
+                serde_json::from_value::<DocumentFormattingParams>(request.params)
+                    .map(|params| self.format_document(params).map(|edits| json!(edits)))
+            }
             _ => {
                 return Response::new_err(
                     id,
@@ -223,6 +227,32 @@ impl<B: LanguageBackend> ServerState<B> {
             self.backend.semantic_tokens(source, &document.analysis),
             self.encoding,
         ))
+    }
+
+    fn format_document(&self, params: DocumentFormattingParams) -> Option<Vec<TextEdit>> {
+        let document = self.documents.get(&params.text_document.uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if document.analysis.source != source.identity() {
+            return Some(Vec::new());
+        }
+        let Some(text) = self
+            .backend
+            .format_document(source, &document.analysis, &params.options)
+        else {
+            return Some(Vec::new());
+        };
+        if text == source.text {
+            return Some(Vec::new());
+        }
+        let range = to_lsp_range(
+            source,
+            langmeld_core::Span::new(0, source.text.len()),
+            self.encoding,
+        )?;
+        Some(vec![TextEdit {
+            range,
+            new_text: text,
+        }])
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
@@ -393,6 +423,7 @@ fn server_capabilities(
                 full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
             })
         }),
+        document_formatting_provider: backend.formatting.then_some(lsp_types::OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }

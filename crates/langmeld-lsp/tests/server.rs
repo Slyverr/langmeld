@@ -38,6 +38,7 @@ impl LanguageBackend for Backend {
             definition: true,
             references: true,
             semantic_tokens: true,
+            formatting: true,
         }
     }
 
@@ -106,6 +107,20 @@ impl LanguageBackend for Backend {
             SemanticToken::new(Span::new(2, 5), "variable"),
             SemanticToken::new(Span::new(4, 7), "unknown"),
         ]
+    }
+
+    fn format_document(
+        &self,
+        source: &SourceFile,
+        _document: &BackendDocument<String>,
+        options: &lsp_types::FormattingOptions,
+    ) -> Option<String> {
+        let indentation = if options.insert_spaces {
+            " ".repeat(options.tab_size as usize)
+        } else {
+            "\t".to_owned()
+        };
+        Some(format!("{indentation}{}", source.text))
     }
 }
 
@@ -188,6 +203,10 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         initialized["capabilities"]["semanticTokensProvider"]["full"],
         true
     );
+    assert_eq!(
+        initialized["capabilities"]["documentFormattingProvider"],
+        true
+    );
     assert!(initialized["capabilities"]["hoverProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
@@ -224,6 +243,26 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     send_request(
         &client,
         3,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 2, "insertSpaces": true }
+        }),
+    );
+    let edits = receive_response(&client);
+    assert_eq!(
+        edits[0]["range"]["start"],
+        json!({ "line": 0, "character": 0 })
+    );
+    assert_eq!(
+        edits[0]["range"]["end"],
+        json!({ "line": 0, "character": 5 })
+    );
+    assert_eq!(edits[0]["newText"], "  😀bad");
+
+    send_request(
+        &client,
+        4,
         "textDocument/completion",
         json!({
             "textDocument": { "uri": uri },
@@ -237,7 +276,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        4,
+        5,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -250,7 +289,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        5,
+        6,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -275,7 +314,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        6,
+        7,
         "textDocument/semanticTokens/full",
         json!({ "textDocument": { "uri": uri } }),
     );
@@ -301,7 +340,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 7, "shutdown", Value::Null);
+    send_request(&client, 8, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
@@ -345,6 +384,8 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     let initialized = receive_response(&client);
     assert!(initialized["capabilities"]["completionProvider"].is_object());
     assert!(initialized["capabilities"]["definitionProvider"].is_null());
+    assert!(initialized["capabilities"]["semanticTokensProvider"].is_null());
+    assert!(initialized["capabilities"]["documentFormattingProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///declarative.lm";
