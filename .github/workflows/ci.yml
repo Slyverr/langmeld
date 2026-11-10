@@ -34,3 +34,9 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Verify packaged workspace crates
+        run: >-
+          cargo package --workspace --locked
+          --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"'
+          --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"'
+          --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'

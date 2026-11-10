@@ -21,6 +21,18 @@ cargo run \
   --locked
 ```
 
+Verify crate archives before a release with:
+
+```sh
+cargo package --workspace --locked \
+  --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+  --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"' \
+  --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'
+```
+
+The local patches make archive verification use this workspace's versions of
+Langmeld crates, independent of what is currently published to crates.io.
+
 ## Design changes
 
 For substantial features or architecture changes, clarify the use case and
@@ -62,7 +74,7 @@ as needed. Curate entries for users; do not copy the commit log.
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
-checks above and `cargo package --workspace --locked`. Use
+checks above and the archive verification command. Use
 `chore(release): prepare vX.Y.Z` for the release-preparation commit.
 
 ## Commit conventions
