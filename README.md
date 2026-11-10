@@ -19,7 +19,9 @@ configurable, source-spanned expression parser; typing and evaluation remain
 host-owned. Project definitions can explicitly import local construct files
 through a host-provided resolver. Declarative grammars also provide scoped
 syntax-token completion candidates; semantic completion and editor protocols
-remain host or future work.
+remain host or future work. The `langmeld-project` crate provides a
+directory-backed resolver for modular `.lm` projects, with project-root
+confinement and source snapshots for diagnostic display.
 
 ## Requirements
 

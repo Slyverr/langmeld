@@ -114,45 +114,28 @@ meaning from blocks. The generic parser limits block nesting to 128 levels.
 ## Loading a project
 
 `parse_language_definition` handles one source file and reports an error if
-that file contains imports. For a multi-file project, pass a root source and a
-host implementation of `DefinitionResolver` to
-`parse_language_definition_project`:
+that file contains imports. The `langmeld-project` crate provides
+`DirectoryDefinitionResolver` for filesystem projects. It confines resolved
+imports to the selected root and retains snapshots for diagnostics:
 
 ```rust,ignore
-use langmeld_core::SourceFile;
-use langmeld_language::{
-    DefinitionResolver, DefinitionSource, parse_language_definition_project,
-};
+use langmeld_language::parse_language_definition_project;
+use langmeld_project::DirectoryDefinitionResolver;
 
-struct ProjectResolver;
-
-impl DefinitionResolver for ProjectResolver {
-    fn resolve(
-        &self,
-        from_key: &str,
-        import: &str,
-    ) -> Result<DefinitionSource, String> {
-        // Resolve relative to `from_key`, enforce the project's allowed root,
-        // read the source, then return a stable key and named snapshot.
-        unimplemented!("load the requested source from the host project")
-    }
-}
-
-let root = DefinitionSource::new(
-    "language/language.lm",
-    SourceFile::new("language/language.lm", root_text),
-);
-let result = parse_language_definition_project(root, &ProjectResolver);
+let resolver = DirectoryDefinitionResolver::new(".")?;
+let root = resolver.load("language/language.lm")?;
+let result = parse_language_definition_project(root, &resolver);
+let diagnostic_sources = resolver.sources();
 ```
 
-Langmeld does not access the filesystem or prescribe path rules. The resolver
-owns normalization, project-root restrictions, source loading, and stable
-keys. Keys identify logical sources for de-duplication and cycle detection.
-Import cycles are errors, repeated imports of an already loaded key are
-ignored, and import nesting is bounded at 64 sources. Diagnostics retain the
-source name and span that produced each error. The Toy example uses a small
-filesystem resolver that keeps imports inside its language project and retains
-loaded snapshots for line-and-column diagnostics.
+The parser remains independent of filesystem access. Hosts that need another
+storage model can implement `DefinitionResolver`; keys identify logical
+sources for de-duplication and cycle detection. Import cycles are errors,
+repeated imports of an already loaded key are ignored, and import nesting is
+bounded at 64 sources. Diagnostics retain the source name and span that
+produced each error. `DirectoryDefinitionResolver` accepts relative imports,
+including parent segments when the canonical target remains within the project
+root; it rejects absolute paths, backslash separators, and symlink escapes.
 
 ## When to use Rust hooks
 

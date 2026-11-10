@@ -51,6 +51,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-project"
+version = "0.3.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-language",
+]
+
+[[package]]
 name = "langmeld-schema-language-example"
 version = "0.3.0"
 dependencies = [
@@ -64,4 +72,5 @@ version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
+ "langmeld-project",
 ]

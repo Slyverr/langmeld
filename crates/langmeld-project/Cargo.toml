@@ -1,0 +1,15 @@
+[package]
+name = "langmeld-project"
+description = "Filesystem-backed language project loading for Langmeld."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+langmeld-core.workspace = true
+langmeld-language.workspace = true
+
+[lints]
+workspace = true

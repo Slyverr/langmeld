@@ -4,6 +4,7 @@ members = [
     "crates/langmeld-core",
     "crates/langmeld-expression",
     "crates/langmeld-language",
+    "crates/langmeld-project",
     "examples/aster-language",
     "examples/custom-lexer",
     "examples/custom-parser",
@@ -25,6 +26,7 @@ repository = "https://github.com/Slyverr/langmeld"
 langmeld-core = { path = "crates/langmeld-core", version = "0.3.0" }
 langmeld-expression = { path = "crates/langmeld-expression", version = "0.3.0" }
 langmeld-language = { path = "crates/langmeld-language", version = "0.3.0" }
+langmeld-project = { path = "crates/langmeld-project", version = "0.3.0" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
