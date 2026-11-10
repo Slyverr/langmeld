@@ -14,6 +14,15 @@ files and publishes parser diagnostics, and uses declared grammar scopes for
 completion. It does not infer symbol resolution, semantic diagnostics,
 hover, rename, document symbols, formatting, or semantic highlighting.
 
+## Langmeld definitions
+
+Run `langmeld lsp --definitions` to edit `.lm` files with the built-in
+definition grammar. This mode publishes parser diagnostics and context-aware
+syntax completions for root declarations and nested construct syntax. It does
+not run definition-level semantic checks or resolve imports from unsaved
+buffers; use `langmeld check --manifest-path langmeld.toml` to validate the
+complete project definition and its imports.
+
 ## Rust hosts
 
 Implement `LanguageBackend` when a language owns its AST or semantic rules. The

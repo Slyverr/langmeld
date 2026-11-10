@@ -83,7 +83,10 @@ project directory. The command validates the manifest and complete imported
 definition tree; it does not parse user program files or run language-specific
 semantics. Custom parser projects should use Cargo to build and run the host.
 For declarative projects, `langmeld lsp` starts an editor server that publishes
-parse diagnostics and grammar-scoped syntax completions. See
+parse diagnostics and grammar-scoped syntax completions. Run
+`langmeld lsp --definitions` to get parser diagnostics and contextual syntax
+completion while editing `.lm` files; it does not validate definition-level
+semantics or imports. See
 [Editor integration](editor-integration.md) for supported features and host
 extension points.
 Generate a lexical TextMate grammar to standard output with:

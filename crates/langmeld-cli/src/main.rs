@@ -21,7 +21,7 @@ enum Command {
     Init(init::InitArgs),
     /// Validate the project manifest and language definition.
     Check(check::CheckArgs),
-    /// Start an LSP server for a declarative language project.
+    /// Serve editor support for a language project or `.lm` definitions.
     Lsp(lsp::LspArgs),
     /// Generate editor tooling from a declarative language project.
     Generate(generate::GenerateArgs),

@@ -114,6 +114,38 @@ fn receive_lsp_message(receiver: &mpsc::Receiver<io::Result<Value>>) -> Value {
         .expect("language server should send a valid LSP message")
 }
 
+fn start_lsp(
+    args: &[&str],
+    current_directory: Option<&Path>,
+) -> (
+    ChildGuard,
+    std::process::ChildStdin,
+    mpsc::Receiver<io::Result<Value>>,
+) {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
+    command
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    if let Some(current_directory) = current_directory {
+        command.current_dir(current_directory);
+    }
+    let mut child = ChildGuard(command.spawn().expect("CLI should start"));
+    let stdin = child.0.stdin.take().unwrap();
+    let stdout = child.0.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        while let Ok(message) = read_lsp_message(&mut reader) {
+            if sender.send(Ok(message)).is_err() {
+                break;
+            }
+        }
+    });
+    (child, stdin, receiver)
+}
+
 #[test]
 fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     let parent = TestDirectory::new();
@@ -288,8 +320,9 @@ fn help_lists_init_and_the_non_interactive_mode() {
 
     assert!(output.status.success());
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Start an LSP server for a declarative language project"));
+    assert!(help.contains("Serve editor support for a language project or `.lm` definitions"));
     assert!(help.contains("--manifest-path"));
+    assert!(help.contains("--definitions"));
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(["generate", "textmate", "--help"])
@@ -307,31 +340,10 @@ fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
     let parent = TestDirectory::new();
     let project = parent.path();
     write_widget_project(project);
-
-    let mut child = ChildGuard(
-        Command::new(env!("CARGO_BIN_EXE_langmeld"))
-            .args([
-                "lsp",
-                "--manifest-path",
-                project.join("langmeld.toml").to_str().unwrap(),
-            ])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("CLI should start"),
-    );
-    let mut stdin = child.0.stdin.take().unwrap();
-    let stdout = child.0.stdout.take().unwrap();
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        while let Ok(message) = read_lsp_message(&mut reader) {
-            if sender.send(Ok(message)).is_err() {
-                break;
-            }
-        }
-    });
+    let manifest_path = project.join("langmeld.toml");
+    let manifest_path = manifest_path.to_str().unwrap();
+    let (mut child, mut stdin, receiver) =
+        start_lsp(&["lsp", "--manifest-path", manifest_path], None);
 
     send_lsp_message(
         &mut stdin,
@@ -373,6 +385,86 @@ fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
         json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
     );
     assert_eq!(receive_lsp_message(&receiver)["id"], 3);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
+fn lsp_definitions_mode_serves_context_aware_lm_completions() {
+    let parent = TestDirectory::new();
+    let (mut child, mut stdin, receiver) =
+        start_lsp(&["lsp", "--definitions"], Some(parent.path()));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    let initialized = receive_lsp_message(&receiver);
+    assert!(initialized["result"]["capabilities"]["completionProvider"].is_object());
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+
+    let root_source = "lan";
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":"file:///language.lm","languageId":"lm","version":1,"text":root_source}
+            }
+        }),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
+                "textDocument":{"uri":"file:///language.lm"},"position":{"line":0,"character":3}
+            }
+        }),
+    );
+    let root_completions = receive_lsp_message(&receiver)["result"].clone();
+    assert_eq!(root_completions[0]["label"], "language");
+    assert_eq!(root_completions.as_array().unwrap().len(), 1);
+
+    let nested_source = "language \"Toy\" { construct \"item\" { syntax { lit";
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":"file:///constructs.lm","languageId":"lm","version":1,"text":nested_source}
+            }
+        }),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","id":3,"method":"textDocument/completion","params":{
+                "textDocument":{"uri":"file:///constructs.lm"},"position":{"line":0,"character":nested_source.len()}
+            }
+        }),
+    );
+    let nested_completions = receive_lsp_message(&receiver)["result"].clone();
+    assert_eq!(nested_completions.as_array().unwrap().len(), 1);
+    assert_eq!(nested_completions[0]["label"], "literal");
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
