@@ -146,7 +146,9 @@ owns normalization, project-root restrictions, source loading, and stable
 keys. Keys identify logical sources for de-duplication and cycle detection.
 Import cycles are errors, repeated imports of an already loaded key are
 ignored, and import nesting is bounded at 64 sources. Diagnostics retain the
-source name and span that produced each error.
+source name and span that produced each error. The Toy example uses a small
+filesystem resolver that keeps imports inside its language project and retains
+loaded snapshots for line-and-column diagnostics.
 
 ## When to use Rust hooks
 

@@ -2,50 +2,87 @@ use langmeld_core::SourceFile;
 use langmeld_language::{
     DefinitionResolver, DefinitionSource, parse, parse_language_definition_project,
 };
-use std::collections::HashMap;
-use std::path::{Component, Path};
+use std::cell::RefCell;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 
-const LANGUAGE_DEFINITION: &str = include_str!("../language/toy.lm");
-const STATEMENTS: &str = include_str!("../language/constructs/statements.lm");
-const VALUES: &str = include_str!("../language/constructs/values.lm");
 const PROGRAM: &str = "program { let title = \"Hello\"; draw title; }";
 
-struct ExampleResolver(HashMap<String, &'static str>);
+struct ProjectResolver {
+    root: PathBuf,
+    sources: RefCell<Vec<SourceFile>>,
+}
 
-impl ExampleResolver {
-    fn new() -> Self {
-        Self(HashMap::from([
-            ("language/constructs/statements.lm".to_owned(), STATEMENTS),
-            ("language/constructs/values.lm".to_owned(), VALUES),
-        ]))
+impl ProjectResolver {
+    fn new(root: &Path) -> Result<Self, String> {
+        let root = root
+            .canonicalize()
+            .map_err(|error| format!("cannot resolve language project root: {error}"))?;
+        Ok(Self {
+            root,
+            sources: RefCell::new(Vec::new()),
+        })
+    }
+
+    fn sources(&self) -> Vec<SourceFile> {
+        self.sources.borrow().clone()
     }
 }
 
-impl DefinitionResolver for ExampleResolver {
+impl DefinitionResolver for ProjectResolver {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
+        let from_path = Path::new(from_key);
         let import_path = Path::new(import);
-        if import_path
-            .components()
-            .any(|component| !matches!(component, Component::Normal(_)))
-        {
-            return Err("example imports must use relative paths without `.` or `..`".into());
+        if !is_normal_relative_path(from_path) || !is_relative_path(import_path) {
+            return Err("imports must use relative paths".into());
         }
 
-        let path = Path::new(from_key)
+        let containing_file = self.root.join(from_path).canonicalize().map_err(|error| {
+            format!("cannot resolve importing definition `{from_key}`: {error}")
+        })?;
+        if !containing_file.starts_with(&self.root) {
+            return Err(format!(
+                "definition `{from_key}` is outside the project root"
+            ));
+        }
+        let path = containing_file
             .parent()
             .unwrap_or_else(|| Path::new(""))
             .join(import_path);
-        let key = path.to_string_lossy().replace('\\', "/");
-        let text = self
-            .0
-            .get(&key)
-            .ok_or_else(|| format!("no embedded definition source for `{key}`"))?;
+        let path = path
+            .canonicalize()
+            .map_err(|error| format!("cannot resolve import `{import}`: {error}"))?;
+        if !path.starts_with(&self.root) {
+            return Err(format!(
+                "import `{import}` resolves outside the project root"
+            ));
+        }
+        let key = path
+            .strip_prefix(&self.root)
+            .expect("the resolved import was checked to be inside the project root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let text = fs::read_to_string(&path)
+            .map_err(|error| format!("cannot read import `{key}`: {error}"))?;
+        let source = SourceFile::new(key.clone(), text);
+        self.sources.borrow_mut().push(source.clone());
 
-        Ok(DefinitionSource::new(
-            key.clone(),
-            SourceFile::new(key, *text),
-        ))
+        Ok(DefinitionSource::new(key, source))
     }
+}
+
+fn is_normal_relative_path(path: &Path) -> bool {
+    !path.as_os_str().is_empty()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+}
+
+fn is_relative_path(path: &Path) -> bool {
+    !path.as_os_str().is_empty()
+        && path
+            .components()
+            .all(|component| !matches!(component, Component::RootDir | Component::Prefix(_)))
 }
 
 fn main() {
@@ -56,20 +93,20 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let root_source = SourceFile::new("language/toy.lm", LANGUAGE_DEFINITION);
+    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let root_key = "language/toy.lm";
+    let root_text = fs::read_to_string(project_root.join(root_key))
+        .map_err(|error| format!("cannot read `{root_key}`: {error}"))?;
+    let root_source = SourceFile::new(root_key, root_text);
+    let resolver = ProjectResolver::new(project_root)?;
     let definition = parse_language_definition_project(
-        DefinitionSource::new("language/toy.lm", root_source.clone()),
-        &ExampleResolver::new(),
+        DefinitionSource::new(root_key, root_source.clone()),
+        &resolver,
     );
     if !definition.is_valid() {
-        return Err(format_diagnostics(
-            &[
-                root_source,
-                SourceFile::new("language/constructs/statements.lm", STATEMENTS),
-                SourceFile::new("language/constructs/values.lm", VALUES),
-            ],
-            &definition.diagnostics,
-        ));
+        let mut sources = vec![root_source];
+        sources.extend(resolver.sources());
+        return Err(format_diagnostics(&sources, &definition.diagnostics));
     }
     let language = definition
         .language
