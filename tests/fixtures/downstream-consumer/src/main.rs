@@ -3,6 +3,7 @@ use langmeld_expression::{Associativity, ExpressionGrammar, ExpressionParser, Op
 use langmeld_language::{CapturedValue, parse, parse_language_definition_project};
 use langmeld_project::DirectoryDefinitionResolver;
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
+use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 use std::path::Path;
 
 fn main() {
@@ -23,6 +24,10 @@ fn main() {
     .expect("TextMate grammar should be generated");
     assert!(grammar.contains("\"scopeName\": \"source.mini\""));
     assert!(grammar.contains("\"fileTypes\": [\n    \"mini\"\n  ]"));
+    let tree_sitter = generate_tree_sitter(&language, &TreeSitterOptions::new("mini"))
+        .expect("Tree-sitter grammar should be generated");
+    assert!(tree_sitter.contains("name: \"mini\""));
+    assert!(tree_sitter.contains("source_file: $ => repeat("));
 
     let program = SourceFile::new("main.mini", "program { let answer = 42; draw answer; }");
     let parsed = parse(&program, &language);
@@ -49,5 +54,5 @@ fn main() {
         expression.diagnostics
     );
     assert!(expression.expression.is_some());
-    println!("standalone Langmeld consumer, project imports, and TextMate export passed");
+    println!("standalone Langmeld consumer, project imports, and editor exports passed");
 }

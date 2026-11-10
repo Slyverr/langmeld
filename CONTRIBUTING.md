@@ -18,7 +18,13 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo run \
   --manifest-path tests/fixtures/downstream-consumer/Cargo.toml \
   --target-dir target \
-  --locked
+  --locked \
+  --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+  --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"' \
+  --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+  --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
+  --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"' \
+  --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
 ```
 
 Nix users can use `nix develop` for the Rust linker and Node.js development
@@ -36,6 +42,26 @@ cargo run -p langmeld-cli --locked -- generate textmate \
 npm --prefix tests/textmate test
 ```
 
+The Tree-sitter exporter is validated by generating and parsing a grammar with
+the Tree-sitter CLI. This check requires Node.js 22 and a C compiler:
+
+```sh
+npm ci --prefix tests/tree-sitter
+mkdir -p target/tree-sitter-validation
+cargo run -p langmeld-cli --locked -- generate tree-sitter \
+  --manifest-path tests/fixtures/tree-sitter-language/langmeld.toml \
+  --grammar-name widget \
+  > target/tree-sitter-validation/grammar.js
+tests/tree-sitter/node_modules/.bin/tree-sitter generate \
+  target/tree-sitter-validation/grammar.js \
+  --output target/tree-sitter-validation/src
+printf '%s\n' 'program { say hello to world with "one" with "two"; emit 7; raw opaque; }' \
+  > target/tree-sitter-validation/sample.widget
+tests/tree-sitter/node_modules/.bin/tree-sitter parse \
+  --grammar-path target/tree-sitter-validation \
+  target/tree-sitter-validation/sample.widget
+```
+
 Verify crate archives before a release with:
 
 ```sh
@@ -51,7 +77,7 @@ cargo package --workspace \
   --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
   --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
   --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
-  --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"' \\
+  --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"' \
   --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
 ```
 

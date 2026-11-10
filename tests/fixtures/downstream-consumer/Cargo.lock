@@ -43,6 +43,7 @@ dependencies = [
  "langmeld-language",
  "langmeld-project",
  "langmeld-textmate",
+ "langmeld-tree-sitter",
 ]
 
 [[package]]
@@ -75,6 +76,13 @@ dependencies = [
  "langmeld-language",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "langmeld-tree-sitter"
+version = "0.3.0"
+dependencies = [
+ "langmeld-language",
 ]
 
 [[package]]
