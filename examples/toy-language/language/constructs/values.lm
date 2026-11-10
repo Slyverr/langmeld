@@ -1,0 +1,9 @@
+construct "let" {
+    syntax {
+        literal "let";
+        identifier "name";
+        literal "=";
+        string "value";
+        literal ";";
+    }
+}

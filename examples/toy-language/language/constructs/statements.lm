@@ -1,0 +1,9 @@
+import "values.lm";
+
+construct "draw" {
+    syntax {
+        literal "draw";
+        identifier "shape";
+        literal ";";
+    }
+}

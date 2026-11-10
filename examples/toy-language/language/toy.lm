@@ -1,4 +1,6 @@
 language "WidgetScript" {
+    import "constructs/statements.lm";
+
     construct "program" {
         syntax {
             literal "program";
@@ -9,21 +11,4 @@ language "WidgetScript" {
         }
     }
 
-    construct "let" {
-        syntax {
-            literal "let";
-            identifier "name";
-            literal "=";
-            string "value";
-            literal ";";
-        }
-    }
-
-    construct "draw" {
-        syntax {
-            literal "draw";
-            identifier "shape";
-            literal ";";
-        }
-    }
 }

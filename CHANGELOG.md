@@ -29,3 +29,5 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - A separate custom-lexer consumer example for raw strings and comments.
 - A custom-parser consumer example combining host-owned declarations and
   evaluation with the reusable expression parser.
+- A multi-file declarative consumer example with nested local imports and a
+  host-owned definition resolver.
