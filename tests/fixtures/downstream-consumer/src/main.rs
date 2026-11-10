@@ -1,6 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_expression::{Associativity, ExpressionGrammar, ExpressionParser, OperatorSpec};
 use langmeld_language::{CapturedValue, parse, parse_language_definition};
+use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 
 fn main() {
     let definition_source = SourceFile::new(
@@ -20,6 +21,13 @@ fn main() {
     let definition = parse_language_definition(&definition_source);
     assert!(definition.is_valid(), "{:?}", definition.diagnostics);
     let language = definition.language.expect("validated language definition");
+    let grammar = generate_textmate(
+        &language,
+        &TextMateOptions::new("source.mini").file_types(["mini"]),
+    )
+    .expect("TextMate grammar should be generated");
+    assert!(grammar.contains("\"scopeName\": \"source.mini\""));
+    assert!(grammar.contains("\"fileTypes\": [\n    \"mini\"\n  ]"));
 
     let program = SourceFile::new("main.mini", "let answer = 42;");
     let parsed = parse(&program, &language);
@@ -39,7 +47,11 @@ fn main() {
         &expression_source,
         Span::new(0, expression_source.text.len()),
     );
-    assert!(expression.diagnostics.is_empty(), "{:?}", expression.diagnostics);
+    assert!(
+        expression.diagnostics.is_empty(),
+        "{:?}",
+        expression.diagnostics
+    );
     assert!(expression.expression.is_some());
-    println!("standalone Langmeld consumer passed");
+    println!("standalone Langmeld consumer and TextMate export passed");
 }
