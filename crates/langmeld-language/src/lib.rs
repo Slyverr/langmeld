@@ -1,11 +1,13 @@
 //! Declarative syntax models and a generic parser for Langmeld languages.
 #![deny(missing_docs)]
 
+mod completion;
 mod definition;
 mod host;
 mod parser;
 mod spec;
 
+pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer};
 pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
     parse_language_definition, parse_language_definition_project,

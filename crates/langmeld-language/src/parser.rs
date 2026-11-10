@@ -2,6 +2,7 @@
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
 
+use crate::completion::ParseContext;
 use crate::{FieldKind, LanguageSpec, PatternPart, RepeatMinimum};
 
 /// A token emitted by a language lexer.
@@ -134,25 +135,50 @@ pub fn parse_with_lexer(
     language: &LanguageSpec,
     lexer: &impl Lexer,
 ) -> ParseResult {
+    parse_with_lexer_internal(source, language, lexer, false).0
+}
+
+pub(crate) fn parse_with_contexts(
+    source: &SourceFile,
+    language: &LanguageSpec,
+    lexer: &impl Lexer,
+) -> (ParseResult, Vec<ParseContext>) {
+    parse_with_lexer_internal(source, language, lexer, true)
+}
+
+fn parse_with_lexer_internal(
+    source: &SourceFile,
+    language: &LanguageSpec,
+    lexer: &impl Lexer,
+    capture_contexts: bool,
+) -> (ParseResult, Vec<ParseContext>) {
     let LexOutput {
         tokens,
         mut diagnostics,
     } = lexer.lex(source);
     let tokens = validate_tokens(source, tokens, &mut diagnostics);
     let allowed = language.constructs.iter().collect::<Vec<_>>();
-    let constructs = Parser {
+    let mut parser = Parser {
         source,
         language,
         tokens,
         cursor: 0,
         diagnostics: &mut diagnostics,
-    }
-    .parse_children(&allowed, None, 0);
-    ParseResult {
-        source: source.identity(),
-        constructs,
-        diagnostics,
-    }
+        capture_contexts,
+        completion_contexts: Vec::new(),
+        completion_blocked: false,
+    };
+    let constructs = parser.parse_children(&allowed, None, 0);
+    let contexts = std::mem::take(&mut parser.completion_contexts);
+    drop(parser);
+    (
+        ParseResult {
+            source: source.identity(),
+            constructs,
+            diagnostics,
+        },
+        contexts,
+    )
 }
 
 struct Parser<'a> {
@@ -161,6 +187,9 @@ struct Parser<'a> {
     tokens: Vec<LexedToken>,
     cursor: usize,
     diagnostics: &'a mut Vec<Diagnostic>,
+    capture_contexts: bool,
+    completion_contexts: Vec<ParseContext>,
+    completion_blocked: bool,
 }
 
 impl Parser<'_> {
@@ -170,6 +199,10 @@ impl Parser<'_> {
         close: Option<&str>,
         depth: usize,
     ) -> Vec<ParsedConstruct> {
+        let start = self
+            .tokens
+            .get(self.cursor)
+            .map_or(self.source.text.len(), |token| token.span.start);
         let mut children = Vec::new();
         while let Some(token) = self.tokens.get(self.cursor) {
             if close.is_some_and(|close| token.text == close) {
@@ -178,6 +211,21 @@ impl Parser<'_> {
             if let Some(child) = self.parse_one(allowed, depth) {
                 children.push(child);
             }
+        }
+        if self.capture_contexts {
+            let end = self
+                .tokens
+                .get(self.cursor)
+                .map_or(self.source.text.len(), |token| token.span.start);
+            self.completion_contexts.push(ParseContext {
+                span: Span::new(start, end),
+                constructs: allowed
+                    .iter()
+                    .map(|construct| construct.name().to_owned())
+                    .collect(),
+                close: close.map(str::to_owned),
+                blocked: self.completion_blocked,
+            });
         }
         children
     }
@@ -216,6 +264,7 @@ impl Parser<'_> {
         }
 
         if ambiguous {
+            self.completion_blocked = false;
             let token = &self.tokens[self.cursor];
             self.diagnostics.push(Diagnostic::error(
                 "LM-PARSE-006",
@@ -229,6 +278,7 @@ impl Parser<'_> {
 
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
+                self.completion_blocked = true;
                 let span = self.tokens.get(attempt.end).map_or_else(
                     || Span::new(self.source.text.len(), self.source.text.len()),
                     |token| token.span,
@@ -246,6 +296,7 @@ impl Parser<'_> {
                     .max(self.cursor + 1)
                     .min(self.tokens.len());
             } else if let Some(token) = self.tokens.get(self.cursor) {
+                self.completion_blocked = false;
                 self.diagnostics.push(Diagnostic::error(
                     "LM-PARSE-001",
                     format!("unexpected token `{}`", token.text),
@@ -257,6 +308,7 @@ impl Parser<'_> {
             return None;
         };
 
+        self.completion_blocked = false;
         self.cursor = attempt.end;
         let start = self.tokens[start_index].span.start;
         let mut end = self.tokens[self.cursor - 1].span.end;
@@ -283,6 +335,7 @@ impl Parser<'_> {
                 });
             }
             if depth >= MAX_NESTING_DEPTH {
+                self.completion_blocked = true;
                 self.diagnostics.push(Diagnostic::error(
                     "LM-PARSE-003",
                     format!("maximum block nesting depth ({MAX_NESTING_DEPTH}) exceeded"),
@@ -310,6 +363,7 @@ impl Parser<'_> {
                 if let Some(closing) = self.tokens.get(self.cursor) {
                     end = closing.span.end;
                     self.cursor += 1;
+                    self.completion_blocked = false;
                 } else {
                     end = self.source.text.len();
                     self.diagnostics.push(Diagnostic::error(
@@ -331,6 +385,7 @@ impl Parser<'_> {
     }
 
     fn missing_block_open(&mut self, spec: &crate::ConstructSpec, open: &str) {
+        self.completion_blocked = true;
         let span = self.tokens.get(self.cursor).map_or_else(
             || Span::new(self.source.text.len(), self.source.text.len()),
             |token| token.span,

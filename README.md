@@ -17,7 +17,9 @@ own semantic result and diagnostics without adopting framework-defined symbol
 or type rules. The separate `langmeld-expression` crate provides a
 configurable, source-spanned expression parser; typing and evaluation remain
 host-owned. Project definitions can explicitly import local construct files
-through a host-provided resolver.
+through a host-provided resolver. Declarative grammars also provide scoped
+syntax-token completion candidates; semantic completion and editor protocols
+remain host or future work.
 
 ## Requirements
 

@@ -169,3 +169,13 @@ It receives the same source snapshot and parsed document, then returns an
 `AnalysisDocument<T>` containing the source identity, a host-defined result, and
 semantic diagnostics. The host chooses its analysis phases and policies;
 languages that do not need semantic analysis can use the parser alone.
+
+## Syntax completions
+
+`complete_at` returns grammar-derived construct-start tokens accepted at a byte
+offset. Suggestions follow the current root or nested block scope, filter by a
+partially typed identifier, include the active block's closing delimiter, and
+provide a replacement range. Use `complete_at_with_lexer` with a custom lexer.
+These completions come from declared syntax only; field values and semantic
+suggestions require host-provided analysis. Custom parsers do not receive these
+grammar-derived suggestions.
