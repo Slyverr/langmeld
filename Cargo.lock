@@ -27,6 +27,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-expression"
+version = "0.2.0"
+dependencies = [
+ "langmeld-core",
+]
+
+[[package]]
 name = "langmeld-language"
 version = "0.1.0"
 dependencies = [

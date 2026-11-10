@@ -22,6 +22,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   generic parser consumes them.
 - A host parser contract that keeps a language's own AST alongside source
   identity and structured diagnostics.
+- A standalone expression parser with configurable prefix/infix operators,
+  precedence, associativity, calls, members, and indexes.
 - A separate custom-lexer consumer example for raw strings and comments.
 - A custom-parser consumer example for expressions, a host-owned AST, recovery,
   and evaluation.
