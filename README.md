@@ -30,8 +30,9 @@ cargo run -p langmeld-custom-parser-example --locked
 The [`toy-language`](examples/toy-language) example shows `.lm` definitions
 and nested constructs. The [`custom-lexer`](examples/custom-lexer) example
 shows host-defined raw strings and comment skipping.
-The [`custom-parser`](examples/custom-parser) example owns its expression
-grammar, AST, recovery, and evaluation in Rust.
+The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
+declaration parser and runtime with `langmeld-expression` for operator
+precedence and expression trees.
 
 ## License
 

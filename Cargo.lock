@@ -23,6 +23,7 @@ name = "langmeld-custom-parser-example"
 version = "0.2.0"
 dependencies = [
  "langmeld-core",
+ "langmeld-expression",
  "langmeld-language",
 ]
 

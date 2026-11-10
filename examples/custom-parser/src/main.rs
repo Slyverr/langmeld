@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_expression::{
+    Associativity, Expression, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
+};
 use langmeld_language::{LanguageParser, ParsedDocument};
 
 const PROGRAM: &str = "let width = 20 + 4 * 2;\nlet height = (10 + 5) * 2;\n";
@@ -9,14 +12,6 @@ const PROGRAM: &str = "let width = 20 + 4 * 2;\nlet height = (10 + 5) * 2;\n";
 struct Declaration {
     name: String,
     value: Expression,
-}
-
-#[derive(Debug)]
-enum Expression {
-    Integer(i64),
-    Name(String),
-    Add(Box<Self>, Box<Self>),
-    Multiply(Box<Self>, Box<Self>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,11 +34,17 @@ impl LanguageParser for CalculatorParser {
     type Tree = Vec<Declaration>;
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
+        let expression_grammar = ExpressionGrammar::new([
+            OperatorSpec::infix("+", 1, Associativity::Left),
+            OperatorSpec::infix("*", 2, Associativity::Left),
+        ])
+        .expect("the example expression grammar is valid");
         let (tokens, mut diagnostics) = lex(source);
         let mut parser = Parser {
             source,
             tokens,
             cursor: 0,
+            expression_parser: ExpressionParser::new(&expression_grammar),
             diagnostics: &mut diagnostics,
         };
         let mut declarations = Vec::new();
@@ -60,14 +61,15 @@ impl LanguageParser for CalculatorParser {
     }
 }
 
-struct Parser<'a> {
+struct Parser<'a, 'grammar> {
     source: &'a SourceFile,
     tokens: Vec<Token>,
     cursor: usize,
+    expression_parser: ExpressionParser<'grammar>,
     diagnostics: &'a mut Vec<Diagnostic>,
 }
 
-impl Parser<'_> {
+impl Parser<'_, '_> {
     fn parse_declaration(&mut self) -> Option<Declaration> {
         let keyword = self.advance()?;
         if self.token_text(keyword) != "let" {
@@ -86,7 +88,22 @@ impl Parser<'_> {
             self.error_here("CALC-PARSE-003", "expected `=`");
             return None;
         }
-        let value = self.parse_expression(0)?;
+        let expression_start = self
+            .current()
+            .map_or(self.source.text.len(), |token| token.span.start);
+        let semicolon_index = self.find_statement_end();
+        let expression_end = self
+            .tokens
+            .get(semicolon_index)
+            .map_or(self.source.text.len(), |token| token.span.start);
+        let parsed = self.expression_parser.parse_until(
+            self.source,
+            Span::new(expression_start, expression_end),
+            &[";"],
+        );
+        self.diagnostics.extend(parsed.diagnostics);
+        self.cursor = semicolon_index;
+        let value = parsed.expression?;
         if !self.consume(";") {
             self.error_here("CALC-PARSE-004", "expected `;` after expression");
             return None;
@@ -97,52 +114,17 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_expression(&mut self, minimum_binding_power: u8) -> Option<Expression> {
-        let Some(token) = self.advance() else {
-            self.error_here("CALC-PARSE-007", "expected an expression");
-            return None;
-        };
-        let mut left = match token.kind {
-            TokenKind::Integer => match self.token_text(token).parse() {
-                Ok(value) => Expression::Integer(value),
-                Err(_) => {
-                    self.error("CALC-PARSE-005", "integer is out of range", token.span);
-                    return None;
-                }
-            },
-            TokenKind::Identifier => Expression::Name(self.token_text(token).to_owned()),
-            TokenKind::Punctuation if self.token_text(token) == "(" => {
-                let expression = self.parse_expression(0)?;
-                if !self.consume(")") {
-                    self.error_here("CALC-PARSE-006", "expected `)`");
-                    return None;
-                }
-                expression
+    fn find_statement_end(&self) -> usize {
+        let mut nesting = 0usize;
+        for (index, token) in self.tokens.iter().enumerate().skip(self.cursor) {
+            match self.token_text(*token) {
+                "(" | "[" => nesting += 1,
+                ")" | "]" => nesting = nesting.saturating_sub(1),
+                ";" if nesting == 0 => return index,
+                _ => {}
             }
-            _ => {
-                self.error("CALC-PARSE-007", "expected an expression", token.span);
-                return None;
-            }
-        };
-
-        while let Some(operator) = self.current() {
-            let (left_power, right_power) = match self.token_text(operator) {
-                "+" => (1, 2),
-                "*" => (3, 4),
-                _ => break,
-            };
-            if left_power < minimum_binding_power {
-                break;
-            }
-            let operator = self.advance()?;
-            let right = self.parse_expression(right_power)?;
-            left = match self.token_text(operator) {
-                "+" => Expression::Add(Box::new(left), Box::new(right)),
-                "*" => Expression::Multiply(Box::new(left), Box::new(right)),
-                _ => return None,
-            };
         }
-        Some(left)
+        self.tokens.len()
     }
 
     fn recover_statement(&mut self) {
@@ -216,7 +198,7 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
                 characters.next();
             }
             TokenKind::Integer
-        } else if "+*=();".contains(character) {
+        } else if "+-*=();".contains(character) {
             TokenKind::Punctuation
         } else {
             let span = Span::new(start, start + character.len_utf8());
@@ -238,18 +220,35 @@ fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
 }
 
 fn evaluate(expression: &Expression, variables: &BTreeMap<String, i64>) -> Result<i64, String> {
-    match expression {
-        Expression::Integer(value) => Ok(*value),
-        Expression::Name(name) => variables
+    match &expression.kind {
+        ExpressionKind::Integer(value) => value
+            .parse()
+            .map_err(|_| "integer literal is out of range".to_owned()),
+        ExpressionKind::Name(name) => variables
             .get(name)
             .copied()
             .ok_or_else(|| format!("unknown variable `{name}`")),
-        Expression::Add(left, right) => evaluate(left, variables)?
+        ExpressionKind::Group(expression) => evaluate(expression, variables),
+        ExpressionKind::Prefix { operator, operand } if operator == "-" => {
+            evaluate(operand, variables)?
+                .checked_neg()
+                .ok_or_else(|| "integer negation overflowed".to_owned())
+        }
+        ExpressionKind::Infix {
+            operator,
+            left,
+            right,
+        } if operator == "+" => evaluate(left, variables)?
             .checked_add(evaluate(right, variables)?)
             .ok_or_else(|| "integer addition overflowed".to_owned()),
-        Expression::Multiply(left, right) => evaluate(left, variables)?
+        ExpressionKind::Infix {
+            operator,
+            left,
+            right,
+        } if operator == "*" => evaluate(left, variables)?
             .checked_mul(evaluate(right, variables)?)
             .ok_or_else(|| "integer multiplication overflowed".to_owned()),
+        _ => Err("the example runtime does not support this expression".to_owned()),
     }
 }
 
