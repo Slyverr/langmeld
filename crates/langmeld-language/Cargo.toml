@@ -1,0 +1,14 @@
+[package]
+name = "langmeld-language"
+description = "Language definition and parsing primitives for Langmeld."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+langmeld-core = { path = "../langmeld-core", version = "0.2.0" }
+
+[lints]
+workspace = true

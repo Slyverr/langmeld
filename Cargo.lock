@@ -9,3 +9,10 @@ version = "0.1.0"
 [[package]]
 name = "langmeld-core"
 version = "0.1.0"
+
+[[package]]
+name = "langmeld-language"
+version = "0.1.0"
+dependencies = [
+ "langmeld-core",
+]

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/langmeld-cli", "crates/langmeld-core"]
+members = ["crates/langmeld-cli", "crates/langmeld-core", "crates/langmeld-language"]
 default-members = ["crates/langmeld-cli"]
 resolver = "3"
 
