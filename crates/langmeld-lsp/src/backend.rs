@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::{
     CompletionCandidate, DefinitionFormatOptions, LanguageSpec, ParseResult, complete_at,
@@ -23,6 +25,26 @@ pub struct BackendDocument<T> {
     pub state: T,
     /// Findings to publish for this document.
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// A source snapshot for a location outside the editor's open documents.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackendSource {
+    /// URI the editor uses to open this source.
+    pub uri: Uri,
+    /// Immutable source snapshot used to validate and convert locations.
+    pub source: Arc<SourceFile>,
+}
+
+impl BackendSource {
+    /// Creates an external source mapping.
+    #[must_use]
+    pub fn new(uri: Uri, source: impl Into<Arc<SourceFile>>) -> Self {
+        Self {
+            uri,
+            source: source.into(),
+        }
+    }
 }
 
 impl<T> BackendDocument<T> {
@@ -172,6 +194,14 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _include_declaration: bool,
     ) -> Vec<SourceLocation> {
         Vec::new()
+    }
+
+    /// Resolves a source location that is not part of the editor's open
+    /// documents. Return the matching immutable source snapshot and its URI,
+    /// or `None` when the source is unavailable. The snapshot's name and
+    /// identity must match `location`; stale or mismatched results are ignored.
+    fn source_for_location(&self, _location: &SourceLocation) -> Option<BackendSource> {
+        None
     }
 
     /// Returns the semantic token names advertised to the editor.

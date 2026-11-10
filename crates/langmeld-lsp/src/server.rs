@@ -18,8 +18,8 @@ use serde_json::{Value, json};
 
 use crate::{
     backend::{
-        BackendCapabilities, BackendDocument, BackendWorkspace, BackendWorkspaceCapabilities,
-        LanguageBackend,
+        BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
+        BackendWorkspaceCapabilities, LanguageBackend,
     },
     conversion::{byte_offset, completion_items, diagnostics_for, lsp_location, to_lsp_range},
     hover::{HoverContent, HoverInfo},
@@ -30,6 +30,30 @@ struct OpenDocument<D> {
     source_id: SourceId,
     version: i32,
     analysis: BackendDocument<D>,
+}
+
+enum ResolvedLocationSource<'a> {
+    Open {
+        uri: &'a Uri,
+        source: &'a SourceFile,
+    },
+    External(BackendSource),
+}
+
+impl ResolvedLocationSource<'_> {
+    fn uri(&self) -> &Uri {
+        match self {
+            Self::Open { uri, .. } => uri,
+            Self::External(source) => &source.uri,
+        }
+    }
+
+    fn source(&self) -> &SourceFile {
+        match self {
+            Self::Open { source, .. } => source,
+            Self::External(source) => &source.source,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -492,17 +516,9 @@ impl<B: LanguageBackend> ServerState<B> {
         let mut edits_by_uri: HashMap<String, Vec<(langmeld_core::Span, TextEdit)>> =
             HashMap::new();
         for location in locations {
-            let mut targets = self.documents.iter().filter_map(|(uri, document)| {
-                let target_source = self.sources.get(document.source_id)?;
-                (location.source_name == target_source.name
-                    && location.identity == target_source.identity())
-                .then_some((uri, target_source))
-            });
-            let target = targets.next()?;
-            if targets.next().is_some() {
-                return None;
-            }
-            let (target_uri, target_source) = target;
+            let target = self.resolve_location_source(&location)?;
+            let target_uri = target.uri();
+            let target_source = target.source();
             let span = location.span;
             if span.is_empty()
                 || span.end > target_source.text.len()
@@ -562,10 +578,31 @@ impl<B: LanguageBackend> ServerState<B> {
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
-        self.documents.iter().find_map(|(uri, document)| {
+        let target = self.resolve_location_source(location)?;
+        lsp_location(
+            location,
+            target.uri().clone(),
+            target.source(),
+            self.encoding,
+        )
+    }
+
+    fn resolve_location_source<'a>(
+        &'a self,
+        location: &langmeld_core::SourceLocation,
+    ) -> Option<ResolvedLocationSource<'a>> {
+        if let Some((uri, source)) = self.documents.iter().find_map(|(uri, document)| {
             let source = self.sources.get(document.source_id)?;
-            lsp_location(location, uri.clone(), source, self.encoding)
-        })
+            (source.name == location.source_name && source.identity() == location.identity)
+                .then_some((uri, source))
+        }) {
+            return Some(ResolvedLocationSource::Open { uri, source });
+        }
+
+        let target = self.backend.source_for_location(location)?;
+        (target.source.name == location.source_name
+            && target.source.identity() == location.identity)
+            .then_some(ResolvedLocationSource::External(target))
     }
 
     fn open(

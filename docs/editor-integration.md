@@ -115,10 +115,28 @@ optionally associated with a source range. The adapter converts both the
 request position and returned range using the negotiated position encoding,
 and sends Markdown only when the client advertises support for it.
 For rename, hosts return every declaration and reference span for the symbol.
-The adapter groups edits by open document and rejects the whole edit if a
-location is missing, stale, ambiguous, malformed, or overlaps another edit.
-This avoids returning a partial rename when the host's workspace index cannot
-be mapped to the server's open snapshots.
+The adapter groups edits by URI and rejects the whole edit if a location is
+missing, stale, ambiguous, malformed, or overlaps another edit. A custom
+`LanguageBackend` can implement `source_for_location` to resolve closed-file
+targets; `HostLanguageBackend` accepts the same resolver with
+`with_source_resolver`:
+
+```rust,ignore
+use std::sync::Arc;
+use langmeld_lsp::BackendSource;
+
+let backend = backend.with_source_resolver(move |location| {
+    let indexed = project_index.get(&location.source_name)?;
+    (indexed.source.identity() == location.identity).then(|| {
+        BackendSource::new(indexed.uri.clone(), Arc::clone(&indexed.source))
+    })
+});
+```
+
+The resolver must return the source snapshot matching the location's name and
+identity. Langmeld validates the identity and span before returning navigation
+results or edits; the host remains responsible for keeping its closed-file
+index current.
 Hosts can also return document outline trees with UTF-8 byte ranges for each
 symbol and its selection range. The adapter validates that every range is
 inside its source snapshot, that selections are contained by their symbols, and
@@ -155,7 +173,8 @@ Run an embedded server over stdio with `langmeld_lsp::run_stdio(backend)` or
 use `run_connection` with an existing LSP connection. Host implementations own
 their resolution policies and must return source locations tied to the
 corresponding source snapshots. Cross-file locations are converted when their
-target document is open in the server.
+target document is open, or when the backend resolves a closed-file target to
+its current source snapshot and URI.
 
 The [Aster example](../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition,

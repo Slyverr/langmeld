@@ -1,4 +1,4 @@
-use langmeld_core::{Severity, SourceDatabase, SourceFile, SourceIdentity, Span};
+use langmeld_core::{Severity, SourceDatabase, SourceFile, Span};
 use langmeld_language::{
     CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer, LexicalRules,
     ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
@@ -649,12 +649,12 @@ fn parse_result_and_diagnostics_keep_source_revision() {
     let id = sources.insert("main", "? print value;").unwrap();
     let source = sources.get(id).unwrap();
     let result = parse(source, &language());
-    let expected = SourceIdentity { id, revision: 1 };
+    let expected = source.identity();
 
-    assert_eq!(result.source, Some(expected));
+    assert_eq!(result.source, expected);
     assert_eq!(
         result.diagnostics[0].location.as_ref().unwrap().identity,
-        Some(expected)
+        expected
     );
 }
 

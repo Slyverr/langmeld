@@ -1,6 +1,9 @@
 //! Source snapshots and stable identities.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use crate::LineIndex;
 
@@ -109,6 +112,8 @@ impl SourceId {
 /// Identity and revision of one managed source snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SourceIdentity {
+    /// Process-local identity of the database that owns this source.
+    pub database_id: u64,
     /// Stable source ID within its database.
     pub id: SourceId,
     /// Revision of the source text, starting at 1.
@@ -149,11 +154,59 @@ struct SourceRecord {
 }
 
 /// Stores source snapshots with stable IDs and monotonically increasing revisions.
-#[derive(Clone, Debug, Default)]
+///
+/// Cloning a database creates a distinct database identity while preserving
+/// each source's local ID and revision.
+#[derive(Debug)]
 pub struct SourceDatabase {
     records: HashMap<SourceId, SourceRecord>,
     ids_by_name: HashMap<String, SourceId>,
     next_id: u64,
+    database_id: u64,
+}
+
+static NEXT_DATABASE_ID: AtomicU64 = AtomicU64::new(1);
+
+fn allocate_database_id() -> u64 {
+    NEXT_DATABASE_ID
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+            next.checked_add(1)
+        })
+        .expect("source database identity space exhausted")
+}
+
+impl Default for SourceDatabase {
+    fn default() -> Self {
+        Self {
+            records: HashMap::new(),
+            ids_by_name: HashMap::new(),
+            next_id: 0,
+            database_id: allocate_database_id(),
+        }
+    }
+}
+
+impl Clone for SourceDatabase {
+    fn clone(&self) -> Self {
+        let database_id = allocate_database_id();
+        let mut records = self.records.clone();
+        for record in records.values_mut() {
+            let identity = record
+                .source
+                .identity
+                .expect("database sources carry an identity");
+            record.source.identity = Some(SourceIdentity {
+                database_id,
+                ..identity
+            });
+        }
+        Self {
+            records,
+            ids_by_name: self.ids_by_name.clone(),
+            next_id: self.next_id,
+            database_id,
+        }
+    }
 }
 
 impl SourceDatabase {
@@ -173,7 +226,11 @@ impl SourceDatabase {
             .ok_or(SourceDatabaseError::IdExhausted)?;
         let id = SourceId(id_value);
         let mut source = SourceFile::new(name.clone(), text);
-        source.identity = Some(SourceIdentity { id, revision: 1 });
+        source.identity = Some(SourceIdentity {
+            database_id: self.database_id,
+            id,
+            revision: 1,
+        });
         self.records.insert(id, SourceRecord { source });
         self.ids_by_name.insert(name, id);
         self.next_id = following_id;

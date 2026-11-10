@@ -1,6 +1,6 @@
 use langmeld_core::{
-    Diagnostic, PositionEncoding, SourceDatabase, SourceDatabaseError, SourceFile, SourceIdentity,
-    SourcePosition, Span,
+    Diagnostic, PositionEncoding, SourceDatabase, SourceDatabaseError, SourceFile, SourcePosition,
+    Span,
 };
 
 #[test]
@@ -75,9 +75,32 @@ fn database_keeps_identity_and_advances_revision_only_for_changed_text() {
     assert_eq!(sources.update(id, "one").unwrap(), 1);
     assert_eq!(sources.update(id, "two").unwrap(), 2);
     assert_eq!(sources.id_by_name("main"), Some(id));
+    let identity = sources.get(id).unwrap().identity().unwrap();
+    assert_eq!(identity.id, id);
+    assert_eq!(identity.revision, 2);
+}
+
+#[test]
+fn source_identities_are_unique_across_database_instances_and_clones() {
+    let mut original = SourceDatabase::default();
+    let original_id = original.insert("main", "text").unwrap();
+    let original_identity = original.get(original_id).unwrap().identity();
+
+    let mut separate = SourceDatabase::default();
+    let separate_id = separate.insert("main", "text").unwrap();
+    assert_ne!(
+        original_identity,
+        separate.get(separate_id).unwrap().identity()
+    );
+
+    let cloned = original.clone();
+    assert_ne!(
+        original_identity,
+        cloned.get(original_id).unwrap().identity()
+    );
     assert_eq!(
-        sources.get(id).unwrap().identity(),
-        Some(SourceIdentity { id, revision: 2 })
+        cloned.get(original_id).unwrap().identity().unwrap().id,
+        original_id
     );
 }
 

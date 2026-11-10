@@ -4,7 +4,9 @@ use langmeld_language::{
     LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 
-use crate::{BackendCapabilities, BackendDocument, LanguageBackend};
+use crate::{BackendCapabilities, BackendDocument, BackendSource, LanguageBackend};
+
+type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
 
 /// Retained parse and analysis results produced by a [`HostLanguageBackend`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -47,6 +49,7 @@ where
     workspace_analyzer: Option<Box<dyn LanguageWorkspaceAnalyzer<P, A> + Send + Sync>>,
     completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync>>,
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
+    source_resolver: Option<Box<SourceResolver>>,
 }
 
 impl<P> HostLanguageBackend<P, NoAnalyzer>
@@ -62,6 +65,7 @@ where
             workspace_analyzer: None,
             completer: None,
             navigator: None,
+            source_resolver: None,
         }
     }
 
@@ -77,6 +81,7 @@ where
             workspace_analyzer: None,
             completer: None,
             navigator: None,
+            source_resolver: self.source_resolver,
         }
     }
 }
@@ -113,6 +118,16 @@ where
         N: LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync + 'static,
     {
         self.navigator = Some(Box::new(navigator));
+        self
+    }
+
+    /// Adds a resolver for navigation targets in closed project files.
+    #[must_use]
+    pub fn with_source_resolver(
+        mut self,
+        resolver: impl Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync + 'static,
+    ) -> Self {
+        self.source_resolver = Some(Box::new(resolver));
         self
     }
 }
@@ -240,5 +255,9 @@ where
                 include_declaration,
             )
         })
+    }
+
+    fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
+        self.source_resolver.as_ref()?(location)
     }
 }

@@ -9,18 +9,20 @@ use std::{
     time::Duration,
 };
 
-use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
+use langmeld_core::{Diagnostic, SourceDatabase, SourceFile, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, CompletionCandidate, CompletionKind, ConstructSpec, LanguageAnalyzer,
     LanguageCompleter, LanguageNavigator, LanguageParser, LanguageSpec, LanguageWorkspaceAnalyzer,
     ParsedDocument, PatternPart,
 };
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, BackendWorkspace, BackendWorkspaceCapabilities,
-    DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind, HostLanguageBackend, HoverInfo,
-    LanguageBackend, SemanticToken, SemanticTokenLegend, run_connection,
+    BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
+    BackendWorkspaceCapabilities, DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind,
+    HostLanguageBackend, HoverInfo, LanguageBackend, SemanticToken, SemanticTokenLegend,
+    run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use lsp_types::Uri;
 use serde_json::{Value, json};
 
 #[derive(Default)]
@@ -109,6 +111,18 @@ impl LanguageBackend for Backend {
             .collect()
     }
 
+    fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
+        if location.source_name != "file:///closed.test" {
+            return None;
+        }
+        let source = self.0.lock().unwrap().get(&location.source_name)?.clone();
+        if source.identity() != location.identity {
+            return None;
+        }
+        let uri = location.source_name.parse::<Uri>().ok()?;
+        Some(BackendSource::new(uri, Arc::new(source)))
+    }
+
     fn semantic_token_legend(&self) -> SemanticTokenLegend {
         SemanticTokenLegend::new(["variable"], ["declaration"])
     }
@@ -178,6 +192,22 @@ impl LanguageBackend for Backend {
                         span,
                     })
                     .collect(),
+            );
+        }
+        if new_name == "closed" {
+            let other = self.0.lock().unwrap().get("file:///closed.test").cloned()?;
+            return Some(
+                [
+                    (source, Span::new(4, 7)),
+                    (&other, Span::new(0, other.text.len())),
+                ]
+                .into_iter()
+                .map(|(source, span)| SourceLocation {
+                    source_name: source.name.clone(),
+                    identity: source.identity(),
+                    span,
+                })
+                .collect(),
             );
         }
         let spans = if new_name == "overlap" {
@@ -797,6 +827,14 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let backend = Backend::default();
+    let mut closed_sources = SourceDatabase::default();
+    let closed_source_id = closed_sources
+        .insert("file:///closed.test", "declaration")
+        .unwrap();
+    backend.0.lock().unwrap().insert(
+        "file:///closed.test".to_owned(),
+        closed_sources.get(closed_source_id).unwrap().clone(),
+    );
     let observed = Backend(backend.0.clone());
     let server_thread = thread::spawn(move || {
         let result = run_connection(server_connection, backend);
@@ -1001,6 +1039,22 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     assert_eq!(
         cross_file_rename["changes"]["file:///other.test"][0]["newText"],
         "cross"
+    );
+
+    send_request(
+        &client,
+        20,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "closed"
+        }),
+    );
+    let closed_file_rename = receive_response(&client);
+    assert_eq!(
+        closed_file_rename["changes"]["file:///closed.test"][0]["range"]["end"]["character"],
+        11
     );
 
     send_request(
@@ -1456,6 +1510,33 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
     }
 }
 
+struct ExternalLocationNavigator(SourceLocation);
+
+impl LanguageNavigator<DiagnosticParser> for ExternalLocationNavigator {
+    type Analysis = usize;
+
+    fn definition(
+        &self,
+        _source: &SourceFile,
+        _parsed: &ParsedDocument<bool>,
+        _analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+    ) -> Vec<SourceLocation> {
+        vec![self.0.clone()]
+    }
+
+    fn references(
+        &self,
+        _source: &SourceFile,
+        _parsed: &ParsedDocument<bool>,
+        _analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+        _include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        vec![self.0.clone()]
+    }
+}
+
 #[test]
 fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     let parser_only = HostLanguageBackend::new(DiagnosticParser);
@@ -1521,6 +1602,97 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     assert_eq!(references.as_array().unwrap().len(), 1);
 
     send_request(&client, 5, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[test]
+fn host_backend_can_resolve_navigation_locations_in_closed_files() {
+    let mut sources = SourceDatabase::default();
+    let target_id = sources
+        .insert("closed.host", "declaration")
+        .expect("closed source should be registered");
+    let target = Arc::new(
+        sources
+            .get(target_id)
+            .expect("closed source should exist")
+            .clone(),
+    );
+    let target_location = SourceLocation {
+        source_name: target.name.clone(),
+        identity: target.identity(),
+        span: Span::new(0, target.text.len()),
+    };
+    let uri: Uri = "file:///closed.host"
+        .parse()
+        .expect("test URI should be valid");
+    let location_for_resolver = target_location.clone();
+    let backend = HostLanguageBackend::new(DiagnosticParser)
+        .with_analyzer(DiagnosticAnalyzer)
+        .with_navigator(ExternalLocationNavigator(target_location))
+        .with_source_resolver(move |location| {
+            (location == &location_for_resolver)
+                .then(|| BackendSource::new(uri.clone(), Arc::clone(&target)))
+        });
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": "file:///open.host",
+                "languageId": "test",
+                "version": 1,
+                "text": "syntax semantic"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+
+    send_request(
+        &client,
+        2,
+        "textDocument/definition",
+        json!({
+            "textDocument": { "uri": "file:///open.host" },
+            "position": { "line": 0, "character": 10 }
+        }),
+    );
+    let definition = receive_response(&client);
+    assert_eq!(definition[0]["uri"], "file:///closed.host");
+    assert_eq!(definition[0]["range"]["end"]["character"], 11);
+
+    send_request(
+        &client,
+        3,
+        "textDocument/references",
+        json!({
+            "textDocument": { "uri": "file:///open.host" },
+            "position": { "line": 0, "character": 10 },
+            "context": { "includeDeclaration": true }
+        }),
+    );
+    let references = receive_response(&client);
+    assert_eq!(references.as_array().unwrap().len(), 1);
+    assert_eq!(references[0]["uri"], "file:///closed.host");
+
+    send_request(&client, 4, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
