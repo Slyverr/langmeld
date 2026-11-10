@@ -1,7 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
     ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, PatternPart, TokenKind,
-    complete_at, complete_at_with_lexer,
+    complete_at, complete_at_with_lexer, language_definition_grammar,
 };
 
 fn language() -> LanguageSpec {
@@ -125,6 +125,42 @@ fn offers_root_constructs_when_the_source_is_empty() {
     assert_eq!(
         suggestions("", 0),
         ["program", "when", "repeat", "print", "say", "fn"]
+    );
+}
+
+#[test]
+fn definition_grammar_completions_follow_root_and_nested_scopes() {
+    let grammar = language_definition_grammar();
+    let root = complete_at(&SourceFile::new("language.lm", ""), grammar, 0);
+    assert_eq!(
+        root.iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["language", "import", "construct"]
+    );
+
+    let source = "language \"Toy\" { construct \"item\" { syntax { ";
+    let nested = complete_at(
+        &SourceFile::new("language.lm", source),
+        grammar,
+        source.len(),
+    );
+    assert_eq!(
+        nested
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "literal",
+            "token",
+            "identifier",
+            "integer",
+            "string",
+            "optional",
+            "zero_or_more",
+            "one_or_more",
+            "}"
+        ]
     );
 }
 

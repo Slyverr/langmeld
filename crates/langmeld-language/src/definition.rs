@@ -102,6 +102,16 @@ pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
     )
 }
 
+/// Returns Langmeld's built-in grammar for `.lm` language definitions.
+///
+/// The grammar accepts root declarations and constrains nested syntax through
+/// explicit blocks. It is used by the definition parser and can also drive
+/// editor features such as diagnostics and context-aware completion.
+#[must_use]
+pub fn language_definition_grammar() -> &'static LanguageSpec {
+    definition_grammar()
+}
+
 /// Loads and composes a language root and its explicitly imported local modules.
 ///
 /// The root file contains one `language` declaration. Imported files contain
@@ -595,9 +605,11 @@ fn decode_quoted(value: &str) -> Option<String> {
 
 fn spec_error_construct(error: &SpecError) -> Option<&str> {
     match error {
-        SpecError::EmptyConstructName | SpecError::NoConstructs | SpecError::EmptyLanguageName => {
-            None
-        }
+        SpecError::EmptyConstructName
+        | SpecError::NoConstructs
+        | SpecError::EmptyLanguageName
+        | SpecError::UnknownRootConstruct(_)
+        | SpecError::DuplicateRootConstruct(_) => None,
         SpecError::DuplicateConstruct(name)
         | SpecError::EmptyPattern(name)
         | SpecError::EmptyLiteral(name)
@@ -762,6 +774,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                 ),
             ],
         )
+        .and_then(|language| language.with_root_constructs(&["language", "import", "construct"]))
         .expect("the built-in language-definition grammar must remain valid")
     })
 }

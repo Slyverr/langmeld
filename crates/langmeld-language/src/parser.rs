@@ -157,7 +157,7 @@ fn parse_with_lexer_internal(
         mut diagnostics,
     } = lexer.lex(source);
     let tokens = validate_tokens(source, tokens, &mut diagnostics);
-    let allowed = language.constructs.iter().collect::<Vec<_>>();
+    let allowed = language.root_constructs().collect::<Vec<_>>();
     let mut parser = Parser {
         source,
         language,

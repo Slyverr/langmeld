@@ -105,6 +105,59 @@ fn validates_duplicate_declarations_and_fields() {
 }
 
 #[test]
+fn root_construct_allowlist_preserves_nested_constructs() {
+    let grammar = LanguageSpec::new(
+        "ScopedRoot",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["print"],
+            ),
+            ConstructSpec::new(
+                "print",
+                [
+                    PatternPart::literal("print"),
+                    PatternPart::identifier("name"),
+                ],
+            ),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["program"])
+    .unwrap();
+    let source = SourceFile::new("main", "print outside program { print inside }");
+
+    let result = parse(&source, &grammar);
+
+    assert_eq!(result.constructs.len(), 1);
+    assert_eq!(result.constructs[0].name, "program");
+    assert_eq!(result.constructs[0].children[0].name, "print");
+    assert_eq!(result.diagnostics[0].code, "LM-PARSE-001");
+}
+
+#[test]
+fn root_construct_allowlist_rejects_unknown_and_duplicate_names() {
+    let grammar = LanguageSpec::new(
+        "ScopedRoot",
+        [ConstructSpec::new(
+            "program",
+            [PatternPart::literal("program")],
+        )],
+    )
+    .unwrap();
+
+    assert!(matches!(
+        grammar.clone().with_root_constructs(&["missing"]),
+        Err(langmeld_language::SpecError::UnknownRootConstruct(name)) if name == "missing"
+    ));
+    assert!(matches!(
+        grammar.with_root_constructs(&["program", "program"]),
+        Err(langmeld_language::SpecError::DuplicateRootConstruct(name)) if name == "program"
+    ));
+}
+
+#[test]
 fn rejects_literal_patterns_that_do_not_match_one_lexer_token() {
     let construct = ConstructSpec::new("invalid", [PatternPart::literal("let name")]);
 

@@ -241,6 +241,8 @@ pub struct LanguageSpec {
     pub(crate) name: String,
     /// Syntax constructs accepted by this language.
     pub(crate) constructs: Vec<ConstructSpec>,
+    /// Indices of constructs allowed at the source root.
+    pub(crate) root_constructs: Vec<usize>,
 }
 
 impl LanguageSpec {
@@ -328,7 +330,39 @@ impl LanguageSpec {
                 }
             }
         }
-        Ok(Self { name, constructs })
+        let root_constructs = (0..constructs.len()).collect();
+        Ok(Self {
+            name,
+            constructs,
+            root_constructs,
+        })
+    }
+
+    /// Restricts which constructs may appear at the source root.
+    ///
+    /// By default every construct is allowed at the root. Constructs allowed
+    /// inside delimited blocks are configured separately with
+    /// [`ConstructSpec::block`].
+    pub fn with_root_constructs(mut self, names: &[&str]) -> Result<Self, SpecError> {
+        let mut root_constructs = vec![false; self.constructs.len()];
+        for name in names {
+            let Some(index) = self
+                .constructs
+                .iter()
+                .position(|construct| construct.name == *name)
+            else {
+                return Err(SpecError::UnknownRootConstruct((*name).to_owned()));
+            };
+            if std::mem::replace(&mut root_constructs[index], true) {
+                return Err(SpecError::DuplicateRootConstruct((*name).to_owned()));
+            }
+        }
+        self.root_constructs = root_constructs
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, allowed)| allowed.then_some(index))
+            .collect();
+        Ok(self)
     }
 
     /// Returns the human-readable language name.
@@ -342,6 +376,13 @@ impl LanguageSpec {
     pub fn constructs(&self) -> &[ConstructSpec] {
         &self.constructs
     }
+
+    /// Returns constructs allowed at the source root in declaration order.
+    pub fn root_constructs(&self) -> impl Iterator<Item = &ConstructSpec> {
+        self.root_constructs
+            .iter()
+            .map(|index| &self.constructs[*index])
+    }
 }
 
 /// An invalid declarative grammar.
@@ -351,6 +392,10 @@ pub enum SpecError {
     EmptyLanguageName,
     /// At least one construct is required.
     NoConstructs,
+    /// A root construct name does not exist in the language.
+    UnknownRootConstruct(String),
+    /// A root construct is listed more than once.
+    DuplicateRootConstruct(String),
     /// A construct name is blank.
     EmptyConstructName,
     /// Construct names must be unique.
@@ -648,6 +693,12 @@ impl std::fmt::Display for SpecError {
         match self {
             Self::EmptyLanguageName => f.write_str("language name cannot be empty"),
             Self::NoConstructs => f.write_str("language must declare at least one construct"),
+            Self::UnknownRootConstruct(name) => {
+                write!(f, "root scope references unknown construct `{name}`")
+            }
+            Self::DuplicateRootConstruct(name) => {
+                write!(f, "root scope lists construct `{name}` more than once")
+            }
             Self::EmptyConstructName => f.write_str("construct name cannot be empty"),
             Self::DuplicateConstruct(name) => {
                 write!(f, "construct `{name}` is declared more than once")
