@@ -1,11 +1,14 @@
-//! Filesystem-backed loading for modular Langmeld language projects.
+//! Source loading for modular Langmeld language projects.
 //!
-//! This crate keeps filesystem policy outside the language parser. Its
-//! [`DirectoryDefinitionResolver`] confines imports to one canonical project
-//! root and retains loaded source snapshots for diagnostic rendering.
+//! This crate keeps source-storage policy outside the language parser.
+//! [`DirectoryDefinitionResolver`] confines file imports to one project root;
+//! [`InMemoryDefinitionResolver`] resolves embedded, virtual, or editor-owned
+//! source snapshots without filesystem access.
 
+mod definition_paths;
 mod definition_project;
 mod manifest;
+mod memory_resolver;
 
 pub use definition_project::{
     DefinitionProjectError, LoadedDefinitionProject, load_definition_project,
@@ -15,19 +18,21 @@ pub use manifest::{
     PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError, read_project_manifest,
     read_project_manifest_file,
 };
+pub use memory_resolver::InMemoryDefinitionResolver;
 
 use std::{
     collections::BTreeMap,
     error::Error,
     fmt, fs, io,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 
+use definition_paths::{DefinitionPathError, normalize_source_key, resolve_import_key};
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
 
-/// Filesystem failure while loading a language project definition.
+/// Failure while loading a language project definition.
 #[derive(Debug)]
 pub enum ProjectLoadError {
     /// The configured root could not be resolved or is not a directory.
@@ -40,6 +45,8 @@ pub enum ProjectLoadError {
     OutsideRoot(String),
     /// A definition could not be read as a regular UTF-8 file.
     Read { path: PathBuf, source: io::Error },
+    /// A definition is absent from an in-memory source collection.
+    MissingDefinition(String),
 }
 
 impl fmt::Display for ProjectLoadError {
@@ -73,6 +80,12 @@ impl fmt::Display for ProjectLoadError {
                     path.display()
                 )
             }
+            Self::MissingDefinition(path) => {
+                write!(
+                    formatter,
+                    "definition `{path}` is not in the source collection"
+                )
+            }
         }
     }
 }
@@ -82,7 +95,10 @@ impl Error for ProjectLoadError {
         match self {
             Self::RootIo { source, .. } => Some(source),
             Self::Read { source, .. } => Some(source),
-            Self::RootNotDirectory(_) | Self::InvalidPath(_) | Self::OutsideRoot(_) => None,
+            Self::RootNotDirectory(_)
+            | Self::InvalidPath(_)
+            | Self::OutsideRoot(_)
+            | Self::MissingDefinition(_) => None,
         }
     }
 }
@@ -124,8 +140,9 @@ impl DirectoryDefinitionResolver {
 
     /// Loads a project-relative root definition file.
     pub fn load(&self, relative_path: &str) -> Result<DefinitionSource, ProjectLoadError> {
-        validate_root_key(relative_path)?;
-        let path = self.root.join(relative_path);
+        let key = normalize_source_key(relative_path)
+            .map_err(|_| ProjectLoadError::InvalidPath(relative_path.to_owned()))?;
+        let path = self.root.join(key);
         self.load_path(path, relative_path.to_owned())
     }
 
@@ -181,51 +198,16 @@ impl DirectoryDefinitionResolver {
 
 impl DefinitionResolver for DirectoryDefinitionResolver {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
-        if !is_normal_relative_path(from_key) || !is_relative_import(import) {
-            return Err(ProjectLoadError::InvalidPath(import.to_owned()).to_string());
-        }
-        let importer = self.root.join(from_key).canonicalize().map_err(|error| {
-            format!("cannot resolve importing definition `{from_key}`: {error}")
+        let key = resolve_import_key(from_key, import).map_err(|error| match error {
+            DefinitionPathError::Invalid => {
+                ProjectLoadError::InvalidPath(import.to_owned()).to_string()
+            }
+            DefinitionPathError::OutsideRoot => {
+                ProjectLoadError::OutsideRoot(import.to_owned()).to_string()
+            }
         })?;
-        if !importer.starts_with(&self.root) {
-            return Err(ProjectLoadError::OutsideRoot(from_key.to_owned()).to_string());
-        }
-        let requested = importer.parent().unwrap_or(&self.root).join(import);
+        let requested = self.root.join(key);
         self.load_path(requested, import.to_owned())
             .map_err(|error| error.to_string())
     }
-}
-
-fn validate_root_key(path: &str) -> Result<(), ProjectLoadError> {
-    if is_normal_relative_path(path) {
-        Ok(())
-    } else {
-        Err(ProjectLoadError::InvalidPath(path.to_owned()))
-    }
-}
-
-fn is_normal_relative_path(path: &str) -> bool {
-    !path.is_empty()
-        && !path.contains('\\')
-        && !has_windows_drive_prefix(path)
-        && Path::new(path)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-}
-
-fn is_relative_import(path: &str) -> bool {
-    !path.is_empty()
-        && !path.contains('\\')
-        && !has_windows_drive_prefix(path)
-        && Path::new(path).components().all(|component| {
-            matches!(
-                component,
-                Component::Normal(_) | Component::CurDir | Component::ParentDir
-            )
-        })
-}
-
-fn has_windows_drive_prefix(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }

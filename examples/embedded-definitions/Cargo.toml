@@ -10,6 +10,7 @@ license.workspace = true
 [dependencies]
 langmeld-core.workspace = true
 langmeld-language.workspace = true
+langmeld-project.workspace = true
 
 [lints]
 workspace = true

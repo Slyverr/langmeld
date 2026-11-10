@@ -316,28 +316,38 @@ optional plain-text `format_diagnostics` helper. File-system and manifest
 failures are returned as errors. Use `load_definition_project_from_manifest`
 when the manifest is not at the project root.
 
-For custom source storage or editor overlays, implement `DefinitionResolver`
-directly or use `DirectoryDefinitionResolver`, which confines imports to the
-selected root and retains source snapshots:
+For custom source storage, embedded modules, or editor overlays, use
+`InMemoryDefinitionResolver` or implement `DefinitionResolver` directly. The
+in-memory resolver keeps project-relative keys and source snapshots without
+filesystem access:
 
 ```rust,ignore
+use langmeld_core::SourceFile;
 use langmeld_language::parse_language_definition_project;
-use langmeld_project::DirectoryDefinitionResolver;
+use langmeld_project::InMemoryDefinitionResolver;
 
-let resolver = DirectoryDefinitionResolver::new(".")?;
+let mut resolver = InMemoryDefinitionResolver::new();
+resolver.insert(
+    "language/language.langmeld",
+    SourceFile::new("language/language.langmeld", language_source),
+)?;
+resolver.insert(
+    "language/constructs/statements.langmeld",
+    SourceFile::new("language/constructs/statements.langmeld", statements_source),
+)?;
 let root = resolver.load("language/language.langmeld")?;
 let result = parse_language_definition_project(root, &resolver);
-let diagnostic_sources = resolver.sources();
+let sources = resolver.sources();
 ```
 
-The parser remains independent of filesystem access. Hosts that need another
-storage model can implement `DefinitionResolver`; keys identify logical
-sources for de-duplication and cycle detection. Import cycles are errors,
-repeated imports of an already loaded key are ignored, and import nesting is
-bounded at 64 sources. Diagnostics retain the source name and span that
-produced each error. `DirectoryDefinitionResolver` accepts relative imports,
-including parent segments when the canonical target remains within the project
-root; it rejects absolute paths, backslash separators, and symlink escapes.
+The parser remains independent of filesystem access. Hosts can implement
+`DefinitionResolver` for other storage models; keys identify logical sources
+for de-duplication and cycle detection. Import cycles are errors, repeated
+imports of an already loaded key are ignored, and import nesting is bounded at
+64 sources. Diagnostics retain the source name and span that produced each
+error. Both built-in resolvers accept project-relative imports and reject
+absolute paths, backslash separators, and paths that escape the project root.
+The directory resolver also rejects symlink escapes.
 
 ## When to use Rust hooks
 

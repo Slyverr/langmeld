@@ -377,6 +377,7 @@ version = "0.1.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
+ "langmeld-project",
 ]
 
 [[package]]

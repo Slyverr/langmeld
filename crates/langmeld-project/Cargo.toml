@@ -1,6 +1,6 @@
 [package]
 name = "langmeld-project"
-description = "Filesystem-backed language project loading for Langmeld."
+description = "Language project source loading and manifests for Langmeld."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
