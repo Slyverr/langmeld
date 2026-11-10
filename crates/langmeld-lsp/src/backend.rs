@@ -2,7 +2,10 @@ use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::{CompletionCandidate, LanguageSpec, ParseResult, complete_at, parse};
 use lsp_types::FormattingOptions;
 
-use crate::semantic::{SemanticToken, SemanticTokenLegend};
+use crate::{
+    hover::HoverInfo,
+    semantic::{SemanticToken, SemanticTokenLegend},
+};
 
 /// A host's retained document state and diagnostics for one source revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,6 +43,8 @@ pub struct BackendCapabilities {
     pub semantic_tokens: bool,
     /// The backend formats a complete document.
     pub formatting: bool,
+    /// The backend provides hover information.
+    pub hover: bool,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -128,6 +133,20 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _document: &BackendDocument<Self::Document>,
         _options: &FormattingOptions,
     ) -> Option<String> {
+        None
+    }
+
+    /// Returns host-defined information for an editor hover request.
+    ///
+    /// The position is a UTF-8 byte offset in the source snapshot. Optional
+    /// hover ranges also use UTF-8 byte offsets and are validated by the LSP
+    /// adapter before they are returned to the editor.
+    fn hover(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _offset: usize,
+    ) -> Option<HoverInfo> {
         None
     }
 }

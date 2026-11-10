@@ -7,8 +7,8 @@ use std::{
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{CompletionCandidate, ConstructSpec, LanguageSpec, PatternPart};
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend, SemanticToken,
-    SemanticTokenLegend, run_connection,
+    BackendCapabilities, BackendDocument, DeclarativeBackend, HoverInfo, LanguageBackend,
+    SemanticToken, SemanticTokenLegend, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use serde_json::{Value, json};
@@ -39,6 +39,7 @@ impl LanguageBackend for Backend {
             references: true,
             semantic_tokens: true,
             formatting: true,
+            hover: true,
         }
     }
 
@@ -122,6 +123,16 @@ impl LanguageBackend for Backend {
         };
         Some(format!("{indentation}{}", source.text))
     }
+
+    fn hover(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<String>,
+        offset: usize,
+    ) -> Option<HoverInfo> {
+        assert_eq!(offset, "😀".len());
+        Some(HoverInfo::markdown("**bad**").with_range(Span::new(4, 7)))
+    }
 }
 
 fn send_request(connection: &Connection, id: i32, method: &str, params: Value) {
@@ -186,7 +197,8 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         "initialize",
         json!({
             "capabilities": {
-                "general": { "positionEncodings": ["utf-16", "utf-8"] }
+                "general": { "positionEncodings": ["utf-16", "utf-8"] },
+                "textDocument": { "hover": { "contentFormat": ["markdown", "plaintext"] } }
             }
         }),
     );
@@ -207,7 +219,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         initialized["capabilities"]["documentFormattingProvider"],
         true
     );
-    assert!(initialized["capabilities"]["hoverProvider"].is_null());
+    assert_eq!(initialized["capabilities"]["hoverProvider"], true);
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.test";
@@ -263,6 +275,21 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     send_request(
         &client,
         4,
+        "textDocument/hover",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 }
+        }),
+    );
+    let hover = receive_response(&client);
+    assert_eq!(hover["contents"]["kind"], "markdown");
+    assert_eq!(hover["contents"]["value"], "**bad**");
+    assert_eq!(hover["range"]["start"]["character"], 2);
+    assert_eq!(hover["range"]["end"]["character"], 5);
+
+    send_request(
+        &client,
+        5,
         "textDocument/completion",
         json!({
             "textDocument": { "uri": uri },
@@ -276,7 +303,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        5,
+        6,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -289,7 +316,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        6,
+        7,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -314,7 +341,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        7,
+        8,
         "textDocument/semanticTokens/full",
         json!({ "textDocument": { "uri": uri } }),
     );
@@ -340,7 +367,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 8, "shutdown", Value::Null);
+    send_request(&client, 9, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
@@ -386,6 +413,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert!(initialized["capabilities"]["definitionProvider"].is_null());
     assert!(initialized["capabilities"]["semanticTokensProvider"].is_null());
     assert!(initialized["capabilities"]["documentFormattingProvider"].is_null());
+    assert!(initialized["capabilities"]["hoverProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///declarative.lm";
@@ -535,4 +563,52 @@ fn rejects_invalid_semantic_token_legends_during_initialization() {
         .expect("server thread should finish")
         .expect_err("duplicate legend entries should prevent initialization");
     assert!(error.to_string().contains("declared more than once"));
+}
+
+#[test]
+fn does_not_return_markdown_hover_when_client_did_not_advertise_it() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, Backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    let uri = "file:///plaintext-only.test";
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": uri,
+                "languageId": "test",
+                "version": 1,
+                "text": "😀bad"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+    send_request(
+        &client,
+        2,
+        "textDocument/hover",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 }
+        }),
+    );
+    assert!(receive_response(&client).is_null());
+    send_request(&client, 3, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
 }

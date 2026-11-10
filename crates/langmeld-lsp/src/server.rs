@@ -5,16 +5,18 @@ use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, InitializeResult, Location,
-    PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, SemanticTokensOptions,
-    SemanticTokensParams, SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Uri,
+    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult,
+    Location, MarkupContent, MarkupKind, PositionEncodingKind, PublishDiagnosticsParams,
+    ReferenceParams, SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    Uri,
 };
 use serde_json::{Value, json};
 
 use crate::{
     backend::{BackendCapabilities, BackendDocument, LanguageBackend},
     conversion::{byte_offset, completion_items, diagnostics_for, lsp_location, to_lsp_range},
+    hover::{HoverContent, HoverInfo},
     semantic::{SemanticTokenLegend, encode},
 };
 
@@ -41,6 +43,13 @@ pub fn run_connection<B: LanguageBackend>(
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
     let encoding = negotiate_encoding(&initialize_params);
+    let supports_markdown_hover = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|capabilities| capabilities.hover.as_ref())
+        .and_then(|capabilities| capabilities.content_format.as_ref())
+        .is_some_and(|formats| formats.contains(&MarkupKind::Markdown));
     let capabilities = backend.capabilities();
     let semantic_legend = if capabilities.semantic_tokens {
         backend.semantic_token_legend()
@@ -65,6 +74,7 @@ pub fn run_connection<B: LanguageBackend>(
         backend,
         capabilities,
         semantic_legend,
+        supports_markdown_hover,
         encoding,
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
@@ -110,6 +120,7 @@ struct ServerState<B: LanguageBackend> {
     backend: B,
     capabilities: BackendCapabilities,
     semantic_legend: SemanticTokenLegend,
+    supports_markdown_hover: bool,
     encoding: PositionEncoding,
     sources: SourceDatabase,
     documents: HashMap<Uri, OpenDocument<B::Document>>,
@@ -142,6 +153,10 @@ impl<B: LanguageBackend> ServerState<B> {
             "textDocument/formatting" if self.capabilities.formatting => {
                 serde_json::from_value::<DocumentFormattingParams>(request.params)
                     .map(|params| self.format_document(params).map(|edits| json!(edits)))
+            }
+            "textDocument/hover" if self.capabilities.hover => {
+                serde_json::from_value::<HoverParams>(request.params)
+                    .map(|params| self.hover(params).map(|hover| json!(hover)))
             }
             _ => {
                 return Response::new_err(
@@ -253,6 +268,19 @@ impl<B: LanguageBackend> ServerState<B> {
             range,
             new_text: text,
         }])
+    }
+
+    fn hover(&self, params: HoverParams) -> Option<lsp_types::Hover> {
+        let position = params.text_document_position_params.position;
+        let uri = params.text_document_position_params.text_document.uri;
+        let document = self.documents.get(&uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if document.analysis.source != source.identity() {
+            return None;
+        }
+        let offset = byte_offset(source, position, self.encoding)?;
+        let info = self.backend.hover(source, &document.analysis, offset)?;
+        hover_for(source, info, self.encoding, self.supports_markdown_hover)
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
@@ -424,6 +452,34 @@ fn server_capabilities(
             })
         }),
         document_formatting_provider: backend.formatting.then_some(lsp_types::OneOf::Left(true)),
+        hover_provider: backend
+            .hover
+            .then_some(lsp_types::HoverProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
+}
+
+fn hover_for(
+    source: &langmeld_core::SourceFile,
+    info: HoverInfo,
+    encoding: PositionEncoding,
+    supports_markdown: bool,
+) -> Option<lsp_types::Hover> {
+    let (kind, value) = match info.content {
+        HoverContent::PlainText(value) => (MarkupKind::PlainText, value),
+        HoverContent::Markdown(value) if supports_markdown => (MarkupKind::Markdown, value),
+        HoverContent::Markdown(_) => return None,
+    };
+    let range = info.range.and_then(|span| {
+        (span.start <= span.end
+            && span.end <= source.text.len()
+            && source.text.is_char_boundary(span.start)
+            && source.text.is_char_boundary(span.end))
+        .then(|| to_lsp_range(source, span, encoding))
+        .flatten()
+    });
+    Some(lsp_types::Hover {
+        contents: lsp_types::HoverContents::Markup(MarkupContent { kind, value }),
+        range,
+    })
 }
