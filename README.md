@@ -23,8 +23,9 @@ resolver. Declarative grammars also provide scoped syntax-token completion
 candidates. The `langmeld-lsp` crate provides full-text LSP synchronization,
 diagnostics, and completion for declarative languages, plus host-backed
 definition and references queries. The `langmeld lsp` CLI command serves
-manifest-backed declarative projects. TextMate and Tree-sitter exports are not
-available yet. The `langmeld-project` crate provides a directory-backed
+manifest-backed declarative projects. The optional `langmeld-textmate` crate
+exports lexical highlighting rules for declarative syntax. Tree-sitter export
+is not available yet. The `langmeld-project` crate provides a directory-backed
 resolver for modular `.lm` projects, with project-root confinement and source
 snapshots for diagnostic display.
 

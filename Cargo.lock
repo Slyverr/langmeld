@@ -216,6 +216,7 @@ dependencies = [
  "dialoguer",
  "langmeld-core",
  "langmeld-language",
+ "langmeld-lsp",
  "langmeld-project",
  "serde_json",
 ]
@@ -282,6 +283,15 @@ version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
+]
+
+[[package]]
+name = "langmeld-textmate"
+version = "0.3.0"
+dependencies = [
+ "langmeld-language",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

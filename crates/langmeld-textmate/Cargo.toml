@@ -1,0 +1,16 @@
+[package]
+name = "langmeld-textmate"
+description = "Lexical TextMate grammar export for Langmeld language definitions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+langmeld-language.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true

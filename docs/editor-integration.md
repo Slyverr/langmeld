@@ -55,6 +55,26 @@ The [Aster example](../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition
 and reference queries.
 
+## TextMate grammar export
+
+The optional `langmeld-textmate` crate converts a declarative `LanguageSpec`
+into a JSON TextMate grammar. Supply a unique scope name such as
+`source.widget`; file extensions are optional metadata:
+
+```rust,ignore
+use langmeld_textmate::{TextMateOptions, generate};
+
+let options = TextMateOptions::new("source.widget").file_types(["widget"]);
+let grammar_json = generate(&language, &options)?;
+```
+
+The output highlights declared literal words and punctuation, decimal
+integers, and double-quoted strings. It is lexical highlighting, not a generated
+parser: comments, semantic roles, and host-specific lexer rules are not
+inferred. Use the LSP for semantic diagnostics and navigation. See the
+[VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
+for TextMate grammar integration details.
+
 ## Current limits
 
 The server uses full-text document changes. Incremental edits, rename, hover,
