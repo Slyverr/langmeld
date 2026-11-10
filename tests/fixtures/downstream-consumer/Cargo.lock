@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "langmeld-core"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-downstream-smoke"
@@ -17,14 +17,14 @@ dependencies = [
 
 [[package]]
 name = "langmeld-expression"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-language"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
 ]

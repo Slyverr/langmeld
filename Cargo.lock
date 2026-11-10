@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "langmeld-aster-language-example"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -13,15 +13,15 @@ dependencies = [
 
 [[package]]
 name = "langmeld-cli"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-core"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-custom-lexer-example"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-custom-parser-example"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -38,21 +38,21 @@ dependencies = [
 
 [[package]]
 name = "langmeld-expression"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-language"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-schema-language-example"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-toy-language-example"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",

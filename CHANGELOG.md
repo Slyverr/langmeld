@@ -7,6 +7,15 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-10
+
+### Added
+
+- A public host-analysis contract for language-specific diagnostics, scoped
+  name resolution, and type facts without imposing shared semantic rules.
+- Aster and schema-language consumers demonstrating local and cross-source
+  host analysis.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

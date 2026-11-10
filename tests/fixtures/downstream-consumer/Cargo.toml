@@ -6,6 +6,6 @@ rust-version = "1.88"
 publish = false
 
 [dependencies]
-langmeld-core = { path = "../../../crates/langmeld-core", version = "0.2.0" }
-langmeld-expression = { path = "../../../crates/langmeld-expression", version = "0.2.0" }
-langmeld-language = { path = "../../../crates/langmeld-language", version = "0.2.0" }
+langmeld-core = { path = "../../../crates/langmeld-core", version = "0.3.0" }
+langmeld-expression = { path = "../../../crates/langmeld-expression", version = "0.3.0" }
+langmeld-language = { path = "../../../crates/langmeld-language", version = "0.3.0" }

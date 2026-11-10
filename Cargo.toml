@@ -15,16 +15,16 @@ exclude = ["tests/fixtures/downstream-consumer"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slyverr/langmeld"
 
 [workspace.dependencies]
-langmeld-core = { path = "crates/langmeld-core", version = "0.2.0" }
-langmeld-expression = { path = "crates/langmeld-expression", version = "0.2.0" }
-langmeld-language = { path = "crates/langmeld-language", version = "0.2.0" }
+langmeld-core = { path = "crates/langmeld-core", version = "0.3.0" }
+langmeld-expression = { path = "crates/langmeld-expression", version = "0.3.0" }
+langmeld-language = { path = "crates/langmeld-language", version = "0.3.0" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
