@@ -61,7 +61,10 @@ fn reports_unmatched_tokens_and_keeps_parsing_after_them() {
     assert_eq!(result.constructs.len(), 1);
     assert_eq!(result.diagnostics.len(), 1);
     assert_eq!(result.diagnostics[0].severity, Severity::Error);
-    assert_eq!(result.diagnostics[0].location.unwrap().span.start, 0);
+    assert_eq!(
+        result.diagnostics[0].location.as_ref().unwrap().span.start,
+        0
+    );
 }
 
 #[test]
@@ -138,7 +141,7 @@ fn parse_result_and_diagnostics_keep_source_revision() {
 
     assert_eq!(result.source, Some(expected));
     assert_eq!(
-        result.diagnostics[0].location.unwrap().identity,
+        result.diagnostics[0].location.as_ref().unwrap().identity,
         Some(expected)
     );
 }
@@ -232,7 +235,7 @@ fn reports_missing_block_closer_at_end_of_source() {
     assert_eq!(result.diagnostics.len(), 1);
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
     assert_eq!(
-        result.diagnostics[0].location.unwrap().span.start,
+        result.diagnostics[0].location.as_ref().unwrap().span.start,
         source.text.len()
     );
 }

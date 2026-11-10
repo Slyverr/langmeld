@@ -65,7 +65,8 @@ fn definition_errors_have_source_locations() {
     assert!(result.language.is_none());
     let diagnostic = result.diagnostics.last().unwrap();
     assert_eq!(diagnostic.code, "LM-DEF-004");
-    assert!(diagnostic.location.unwrap().span.end > diagnostic.location.unwrap().span.start);
+    let span = diagnostic.location.as_ref().unwrap().span;
+    assert!(span.end > span.start);
 }
 
 #[test]

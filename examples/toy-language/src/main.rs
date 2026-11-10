@@ -44,6 +44,7 @@ fn format_diagnostics(source: &SourceFile, diagnostics: &[langmeld_core::Diagnos
         .map(|diagnostic| {
             let (line, column) = diagnostic
                 .location
+                .as_ref()
                 .map(|location| source.line_column(location.span.start))
                 .unwrap_or((1, 1));
             format!(

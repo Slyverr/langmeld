@@ -27,8 +27,10 @@ pub struct Diagnostic {
 }
 
 /// A source range tied to the identity and revision that were analyzed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceLocation {
+    /// Display name of the source snapshot, including for detached sources.
+    pub source_name: String,
     /// Source identity and revision, absent only for a detached source.
     pub identity: Option<SourceIdentity>,
     /// Byte range in the associated source snapshot.
@@ -49,6 +51,7 @@ impl Diagnostic {
             severity: Severity::Error,
             message: message.into(),
             location: Some(SourceLocation {
+                source_name: source.name.clone(),
                 identity: source.identity(),
                 span,
             }),

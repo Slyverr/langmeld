@@ -1,4 +1,6 @@
-use langmeld_core::{SourceDatabase, SourceDatabaseError, SourceFile, SourceIdentity, Span};
+use langmeld_core::{
+    Diagnostic, SourceDatabase, SourceDatabaseError, SourceFile, SourceIdentity, Span,
+};
 
 #[test]
 fn source_locations_count_unicode_columns_and_lines() {
@@ -41,4 +43,15 @@ fn database_rejects_duplicate_names_and_unknown_ids() {
 fn span_length_is_saturating_for_invalid_ranges() {
     assert_eq!(Span::new(2, 5).len(), 3);
     assert_eq!(Span::new(5, 2).len(), 0);
+}
+
+#[test]
+fn diagnostic_locations_keep_source_names_for_detached_snapshots() {
+    let source = SourceFile::new("language/constructs.lm", "construct");
+    let diagnostic = Diagnostic::error("TEST-001", "invalid syntax", &source, Span::new(0, 9));
+
+    let location = diagnostic.location.unwrap();
+    assert_eq!(location.source_name, "language/constructs.lm");
+    assert_eq!(location.identity, None);
+    assert_eq!(location.span, Span::new(0, 9));
 }
