@@ -353,6 +353,59 @@ fn root_construct_allowlist_preserves_nested_constructs() {
 }
 
 #[test]
+fn parses_multiple_explicit_roots_with_and_without_blocks() {
+    let grammar = LanguageSpec::new(
+        "MixedRoots",
+        [
+            ConstructSpec::new(
+                "visual",
+                [
+                    PatternPart::literal("visual"),
+                    PatternPart::identifier("name"),
+                ],
+            )
+            .block("{", "}", &["node"]),
+            ConstructSpec::new(
+                "node",
+                [
+                    PatternPart::literal("node"),
+                    PatternPart::identifier("name"),
+                ],
+            ),
+            ConstructSpec::new(
+                "scenario",
+                [
+                    PatternPart::literal("scenario"),
+                    PatternPart::identifier("name"),
+                ],
+            ),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["visual", "scenario"])
+    .unwrap();
+    let source = SourceFile::new("main", "visual board { node title } scenario startup");
+
+    let result = parse(&source, &grammar);
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert_eq!(
+        result
+            .constructs
+            .iter()
+            .map(|construct| construct.name.as_str())
+            .collect::<Vec<_>>(),
+        ["visual", "scenario"]
+    );
+    assert_eq!(result.constructs[0].children[0].name, "node");
+    assert_eq!(result.constructs[1].children.len(), 0);
+    assert_eq!(
+        &source.text[result.constructs[1].span.start..result.constructs[1].span.end],
+        "scenario startup"
+    );
+}
+
+#[test]
 fn recovers_at_a_later_root_through_unclosed_nested_blocks() {
     let grammar = LanguageSpec::new(
         "RootRecovery",
