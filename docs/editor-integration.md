@@ -23,9 +23,10 @@ formatting edits that honor the editor's indentation options. Formatting is
 available only for syntactically valid files. This mode does not run
 definition-level semantic checks without a project manifest. When a manifest is
 available in the working directory or passed with `--manifest-path`, the
-backend validates the complete imported definition graph and uses the current
-open file as an overlay; other files are read from disk. Diagnostics are
-published for the file currently being analyzed. Use
+backend validates the complete imported definition graph using all open
+project files as overlays; unopened files are read from disk. When any open
+file changes or closes, diagnostics are refreshed for every remaining open
+project file. Use
 `langmeld check --manifest-path langmeld.toml` to validate the complete on-disk
 project definition and imports.
 

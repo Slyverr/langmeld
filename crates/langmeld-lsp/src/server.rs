@@ -444,6 +444,7 @@ impl<B: LanguageBackend> ServerState<B> {
             }
             self.sources.remove(document.source_id);
             publish_diagnostics(connection, uri, None, Vec::new())?;
+            self.refresh_workspace(None, connection)?;
         }
         Ok(())
     }
@@ -455,6 +456,70 @@ impl<B: LanguageBackend> ServerState<B> {
         version: i32,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.refresh_workspace(Some((uri, source_id, version)), connection)
+    }
+
+    fn refresh_workspace(
+        &mut self,
+        updated: Option<(Uri, SourceId, i32)>,
+        connection: &Connection,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let updated_uri = updated.as_ref().map(|(uri, _, _)| uri);
+        let mut entries = self
+            .documents
+            .iter()
+            .filter(|(uri, _)| Some(*uri) != updated_uri)
+            .filter_map(|(uri, document)| {
+                self.sources.get(document.source_id).map(|source| {
+                    (
+                        uri.clone(),
+                        document.source_id,
+                        document.version,
+                        source.clone(),
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        if let Some((uri, source_id, version)) = &updated {
+            let source = self
+                .sources
+                .get(*source_id)
+                .expect("upserted document source exists")
+                .clone();
+            entries.push((uri.clone(), *source_id, *version, source));
+        }
+        entries.sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
+
+        let sources = entries
+            .iter()
+            .map(|(_, _, _, source)| source.clone())
+            .collect::<Vec<_>>();
+        let workspace = self.backend.analyze_workspace(&sources);
+        if let Some(analyses) = workspace.filter(|analyses| {
+            analyses.len() == entries.len()
+                && analyses
+                    .iter()
+                    .zip(&entries)
+                    .all(|(analysis, (_, _, _, source))| analysis.source == source.identity())
+        }) {
+            for ((uri, source_id, version, source), analysis) in entries.into_iter().zip(analyses) {
+                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
+                self.documents.insert(
+                    uri.clone(),
+                    OpenDocument {
+                        source_id,
+                        version,
+                        analysis,
+                    },
+                );
+                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+            }
+            return Ok(());
+        }
+
+        let Some((uri, source_id, version)) = updated else {
+            return Ok(());
+        };
         let source = self
             .sources
             .get(source_id)

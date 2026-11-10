@@ -686,18 +686,129 @@ fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
             }
         }),
     );
-    let diagnostics = receive_lsp_message(&receiver);
-    assert_eq!(diagnostics["method"], "textDocument/publishDiagnostics");
-    assert_eq!(
-        diagnostics["params"]["diagnostics"][0]["code"],
-        "LM-DEF-004"
+    let diagnostics = [
+        receive_lsp_message(&receiver),
+        receive_lsp_message(&receiver),
+    ];
+    assert!(
+        diagnostics
+            .iter()
+            .all(|message| { message["method"] == "textDocument/publishDiagnostics" })
     );
+    assert!(diagnostics.iter().any(|message| {
+        message["params"]["diagnostics"]
+            .as_array()
+            .is_some_and(|items| items.iter().any(|item| item["code"] == "LM-DEF-004"))
+    }));
 
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
     );
     assert_eq!(receive_lsp_message(&receiver)["id"], 3);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
+fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overlays() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("project with spaces");
+    write_widget_project(&project);
+    let module = project.join("language/constructs/statements.lm");
+    let root = project.join("language/language.lm");
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+
+    let root_allows_missing = "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }";
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"lm","version":1,"text":root_allows_missing}}}),
+    );
+    let root_diagnostics = receive_lsp_message(&receiver);
+    assert_eq!(root_diagnostics["params"]["uri"], root_uri);
+    assert_eq!(
+        root_diagnostics["params"]["diagnostics"][0]["code"],
+        "LM-DEF-004"
+    );
+
+    let module_defines_missing = "construct \"missing\" { syntax { literal \"missing\"; } }";
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":module_uri,"languageId":"lm","version":1,"text":module_defines_missing}}}),
+    );
+    let opened_module_messages = [
+        receive_lsp_message(&receiver),
+        receive_lsp_message(&receiver),
+    ];
+    let root_after_module_open = opened_module_messages
+        .iter()
+        .find(|message| message["params"]["uri"] == root_uri)
+        .expect("opening an imported buffer republishes root diagnostics");
+    assert!(
+        root_after_module_open["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    let root_allows_print = "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":root_uri,"version":2},"contentChanges":[{"text":root_allows_print}]}}),
+    );
+    let changed_root_messages = [
+        receive_lsp_message(&receiver),
+        receive_lsp_message(&receiver),
+    ];
+    let root_after_change = changed_root_messages
+        .iter()
+        .find(|message| message["params"]["uri"] == root_uri)
+        .expect("changing the root republishes diagnostics for every open file");
+    assert_eq!(
+        root_after_change["params"]["diagnostics"][0]["code"],
+        "LM-DEF-004"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":module_uri}}}),
+    );
+    let closed_module_messages = [
+        receive_lsp_message(&receiver),
+        receive_lsp_message(&receiver),
+    ];
+    let root_after_module_close = closed_module_messages
+        .iter()
+        .find(|message| message["params"]["uri"] == root_uri)
+        .expect("closing an imported buffer republishes remaining project diagnostics");
+    assert!(
+        root_after_module_close["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 2);
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"exit","params":null}),

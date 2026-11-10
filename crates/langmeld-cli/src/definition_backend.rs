@@ -1,6 +1,11 @@
-use std::{cell::Cell, error::Error, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    path::PathBuf,
+    sync::Mutex,
+};
 
-use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_core::SourceFile;
 use langmeld_language::{
     DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
 };
@@ -30,51 +35,70 @@ impl ProjectDefinitionBackend {
             syntax_backend: LanguageDefinitionBackend,
         })
     }
-
-    fn project_diagnostics(&self, source: &SourceFile, key: &str) -> Option<Vec<Diagnostic>> {
-        let result = if key == self.root_definition {
-            parse_language_definition_project(
-                DefinitionSource::new(key, source.clone()),
-                &self.resolver,
-            )
-        } else {
-            let root = self.resolver.load(&self.root_definition).ok()?;
-            let overlay = OpenFileOverlayResolver {
-                resolver: &self.resolver,
-                key,
-                source,
-                used: Cell::new(false),
-            };
-            let result = parse_language_definition_project(root, &overlay);
-            if !overlay.used.get() {
-                return None;
-            }
-            result
-        };
-
-        Some(
-            result
-                .diagnostics
-                .into_iter()
-                .filter(|diagnostic| match diagnostic.location.as_ref() {
-                    Some(location) => location.source_name == source.name,
-                    None => key == self.root_definition,
-                })
-                .collect(),
-        )
-    }
 }
 
 impl LanguageBackend for ProjectDefinitionBackend {
     type Document = ParseResult;
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
-        let syntax = self.syntax_backend.analyze(source);
-        let diagnostics = self
-            .source_key(source)
-            .and_then(|key| self.project_diagnostics(source, &key))
-            .unwrap_or(syntax.diagnostics);
-        BackendDocument::new(source, syntax.state, diagnostics)
+        self.analyze_workspace(std::slice::from_ref(source))
+            .and_then(|mut documents| documents.pop())
+            .unwrap_or_else(|| self.syntax_backend.analyze(source))
+    }
+
+    fn analyze_workspace(
+        &self,
+        sources: &[SourceFile],
+    ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        let keys = sources
+            .iter()
+            .map(|source| self.source_key(source))
+            .collect::<Vec<_>>();
+        let open_sources = sources
+            .iter()
+            .zip(&keys)
+            .filter_map(|(source, key)| key.as_ref().map(|key| (key.clone(), source.clone())))
+            .collect::<HashMap<_, _>>();
+
+        let root = if let Some(source) = open_sources.get(&self.root_definition) {
+            DefinitionSource::new(&self.root_definition, source.clone())
+        } else {
+            self.resolver.load(&self.root_definition).ok()?
+        };
+        let resolver = OpenFileOverlayResolver {
+            resolver: &self.resolver,
+            open_sources: &open_sources,
+            loaded: Mutex::new(HashSet::from([self.root_definition.clone()])),
+        };
+        let result = parse_language_definition_project(root, &resolver);
+        let loaded = resolver
+            .loaded
+            .lock()
+            .expect("definition resolver lock is not poisoned");
+
+        Some(
+            sources
+                .iter()
+                .zip(keys)
+                .map(|(source, key)| {
+                    let syntax = self.syntax_backend.analyze(source);
+                    let diagnostics = if key.as_ref().is_some_and(|key| loaded.contains(key)) {
+                        result
+                            .diagnostics
+                            .iter()
+                            .filter(|diagnostic| match diagnostic.location.as_ref() {
+                                Some(location) => location.source_name == source.name,
+                                None => key.as_deref() == Some(&self.root_definition),
+                            })
+                            .cloned()
+                            .collect()
+                    } else {
+                        syntax.diagnostics
+                    };
+                    BackendDocument::new(source, syntax.state, diagnostics)
+                })
+                .collect(),
+        )
     }
 
     fn capabilities(&self) -> BackendCapabilities {
@@ -125,17 +149,19 @@ fn canonical_definition_key(root: &std::path::Path, manifest: &ProjectManifest) 
 
 struct OpenFileOverlayResolver<'a> {
     resolver: &'a DirectoryDefinitionResolver,
-    key: &'a str,
-    source: &'a SourceFile,
-    used: Cell<bool>,
+    open_sources: &'a HashMap<String, SourceFile>,
+    loaded: Mutex<HashSet<String>>,
 }
 
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
         let resolved = self.resolver.resolve(from_key, import)?;
-        if resolved.key == self.key {
-            self.used.set(true);
-            Ok(DefinitionSource::new(resolved.key, self.source.clone()))
+        self.loaded
+            .lock()
+            .expect("definition resolver lock is not poisoned")
+            .insert(resolved.key.clone());
+        if let Some(source) = self.open_sources.get(&resolved.key) {
+            Ok(DefinitionSource::new(resolved.key, source.clone()))
         } else {
             Ok(resolved)
         }

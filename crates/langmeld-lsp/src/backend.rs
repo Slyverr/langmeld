@@ -67,6 +67,20 @@ pub trait LanguageBackend: Send + Sync + 'static {
     /// Parses and analyzes one immutable source snapshot.
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document>;
 
+    /// Analyzes a set of open source snapshots as one workspace revision.
+    ///
+    /// Return `Some` only when the backend has produced one document, in the
+    /// same order, for every supplied source. Each result must carry that
+    /// source's identity. Returning `None` keeps the server's default
+    /// per-document analysis behavior. Workspace-aware backends can use this
+    /// hook to account for unsaved changes in related open files.
+    fn analyze_workspace(
+        &self,
+        _sources: &[SourceFile],
+    ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        None
+    }
+
     /// Notifies the backend when an open document is closed by the client.
     ///
     /// Hosts that maintain workspace indexes can remove this source here.
