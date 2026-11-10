@@ -24,12 +24,11 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
             return Vec::new();
         }
 
-        let Some(reference) = analysis
-            .result
-            .references
-            .iter()
-            .find(|reference| reference.span.start <= offset && offset <= reference.span.end)
-        else {
+        let Some(reference) = analysis.result.references.iter().find(|reference| {
+            is_current_source(&reference.location, source)
+                && reference.span.start <= offset
+                && offset <= reference.span.end
+        }) else {
             return Vec::new();
         };
         let Some(prefix) = source.text.get(reference.span.start..offset) else {
@@ -47,4 +46,8 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
             })
             .collect()
     }
+}
+
+fn is_current_source(location: &langmeld_core::SourceLocation, source: &SourceFile) -> bool {
+    location.identity == source.identity() && location.source_name == source.name
 }

@@ -17,7 +17,7 @@ pub use definition::{
 pub use format::{DefinitionFormatOptions, format_language_definition};
 pub use host::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
-    ParsedDocument,
+    LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;

@@ -1,7 +1,7 @@
 use langmeld_core::{SourceFile, SourceLocation};
 use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
-    ParsedDocument,
+    LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 
 use crate::{BackendCapabilities, BackendDocument, LanguageBackend};
@@ -44,6 +44,7 @@ where
 {
     parser: P,
     analyzer: A,
+    workspace_analyzer: Option<Box<dyn LanguageWorkspaceAnalyzer<P, A> + Send + Sync>>,
     completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync>>,
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
 }
@@ -58,6 +59,7 @@ where
         Self {
             parser,
             analyzer: NoAnalyzer,
+            workspace_analyzer: None,
             completer: None,
             navigator: None,
         }
@@ -72,6 +74,7 @@ where
         HostLanguageBackend {
             parser: self.parser,
             analyzer,
+            workspace_analyzer: None,
             completer: None,
             navigator: None,
         }
@@ -83,6 +86,16 @@ where
     P: LanguageParser,
     A: LanguageAnalyzer<P>,
 {
+    /// Adds semantic analysis across the currently open parsed documents.
+    #[must_use]
+    pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
+    where
+        W: LanguageWorkspaceAnalyzer<P, A> + Send + Sync + 'static,
+    {
+        self.workspace_analyzer = Some(Box::new(analyzer));
+        self
+    }
+
     /// Adds completion using the retained parse and analysis results.
     #[must_use]
     pub fn with_completer<C>(mut self, completer: C) -> Self
@@ -123,6 +136,51 @@ where
             .cloned()
             .collect();
         BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+    }
+
+    fn analyze_workspace(
+        &self,
+        sources: &[SourceFile],
+    ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        let workspace_analyzer = self.workspace_analyzer.as_ref()?;
+        let parsed = sources
+            .iter()
+            .map(|source| self.parser.parse(source))
+            .collect::<Vec<_>>();
+        if parsed
+            .iter()
+            .zip(sources)
+            .any(|(parsed, source)| parsed.source != source.identity())
+        {
+            return None;
+        }
+        let documents = sources.iter().zip(&parsed).collect::<Vec<_>>();
+        let analyses = workspace_analyzer.analyze_workspace(&self.analyzer, &documents);
+        if analyses.len() != sources.len()
+            || analyses
+                .iter()
+                .zip(sources)
+                .any(|(analysis, source)| analysis.source != source.identity())
+        {
+            return None;
+        }
+
+        Some(
+            sources
+                .iter()
+                .zip(parsed)
+                .zip(analyses)
+                .map(|((source, parsed), analysis)| {
+                    let diagnostics = parsed
+                        .diagnostics
+                        .iter()
+                        .chain(&analysis.diagnostics)
+                        .cloned()
+                        .collect();
+                    BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+                })
+                .collect(),
+        )
     }
 
     fn capabilities(&self) -> BackendCapabilities {

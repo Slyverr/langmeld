@@ -2,7 +2,8 @@ use langmeld_core::{SourceFile, Span};
 use langmeld_language::{LanguageAnalyzer, complete_with, definition_at, references_at};
 use langmeld_lsp::{HostLanguageBackend, LanguageBackend};
 use langmeld_schema_language_example::{
-    SchemaAnalyzer, SchemaCompleter, SchemaNavigator, SchemaParser, analyze, parse_schema,
+    SchemaAnalyzer, SchemaCompleter, SchemaNavigator, SchemaParser, SchemaWorkspaceAnalyzer,
+    analyze, parse_schema,
 };
 
 #[test]
@@ -54,6 +55,51 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
             .references(&source, &document, type_use + 1, true)
             .len(),
         2
+    );
+}
+
+#[test]
+fn workspace_analysis_resolves_and_navigates_across_open_files() {
+    let backend = HostLanguageBackend::new(SchemaParser)
+        .with_analyzer(SchemaAnalyzer)
+        .with_workspace_analyzer(SchemaWorkspaceAnalyzer)
+        .with_completer(SchemaCompleter)
+        .with_navigator(SchemaNavigator);
+    let user = SourceFile::new("user.schema", "record User { manager: Manager }");
+    let manager = SourceFile::new("manager.schema", "record Manager {}");
+    let documents = backend
+        .analyze_workspace(&[user.clone(), manager.clone()])
+        .expect("workspace analyzer is configured");
+    let type_offset = user.text.find("Manager").expect("type use");
+    let declaration_offset = manager.text.find("Manager").expect("declaration");
+    let completions = backend.complete(&user, &documents[0], type_offset + "Man".len());
+
+    assert!(documents[0].diagnostics.is_empty());
+    assert!(documents[1].diagnostics.is_empty());
+    assert!(
+        completions
+            .iter()
+            .any(|candidate| candidate.text == "Manager")
+    );
+    let definition = backend.definition(&user, &documents[0], type_offset + 1);
+    assert_eq!(definition.len(), 1);
+    assert_eq!(definition[0].source_name, manager.name);
+    assert_eq!(
+        definition[0].span,
+        Span::new(declaration_offset, declaration_offset + 7)
+    );
+
+    let references = backend.references(&manager, &documents[1], declaration_offset + 1, true);
+    assert_eq!(references.len(), 2);
+    assert!(
+        references
+            .iter()
+            .any(|location| location.source_name == user.name)
+    );
+    assert!(
+        references
+            .iter()
+            .any(|location| location.source_name == manager.name)
     );
 }
 

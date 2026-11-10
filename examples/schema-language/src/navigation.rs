@@ -20,13 +20,10 @@ impl LanguageNavigator<SchemaParser> for SchemaNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, offset) else {
+        let Some(symbol) = selected_symbol(&analysis.result, source, offset) else {
             return Vec::new();
         };
-        vec![location(
-            source,
-            analysis.result.symbols[symbol].declaration,
-        )]
+        vec![analysis.result.symbols[symbol].location.clone()]
     }
 
     fn references(
@@ -40,7 +37,7 @@ impl LanguageNavigator<SchemaParser> for SchemaNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, offset) else {
+        let Some(symbol) = selected_symbol(&analysis.result, source, offset) else {
             return Vec::new();
         };
         let mut locations = analysis
@@ -48,38 +45,32 @@ impl LanguageNavigator<SchemaParser> for SchemaNavigator {
             .references
             .iter()
             .filter(|reference| reference.target == Some(symbol))
-            .map(|reference| location(source, reference.span))
+            .map(|reference| reference.location.clone())
             .collect::<Vec<_>>();
         if include_declaration {
-            locations.push(location(
-                source,
-                analysis.result.symbols[symbol].declaration,
-            ));
+            locations.push(analysis.result.symbols[symbol].location.clone());
         }
         locations
     }
 }
 
-fn selected_symbol(analysis: &Analysis, offset: usize) -> Option<usize> {
+fn selected_symbol(analysis: &Analysis, source: &SourceFile, offset: usize) -> Option<usize> {
     analysis
         .references
         .iter()
-        .find(|reference| contains(reference.span, offset))
+        .find(|reference| {
+            is_current_source(&reference.location, source) && contains(reference.span, offset)
+        })
         .and_then(|reference| reference.target)
         .or_else(|| {
-            analysis
-                .symbols
-                .iter()
-                .position(|symbol| contains(symbol.declaration, offset))
+            analysis.symbols.iter().position(|symbol| {
+                is_current_source(&symbol.location, source) && contains(symbol.declaration, offset)
+            })
         })
 }
 
-fn location(source: &SourceFile, span: Span) -> SourceLocation {
-    SourceLocation {
-        source_name: source.name.clone(),
-        identity: source.identity(),
-        span,
-    }
+fn is_current_source(location: &SourceLocation, source: &SourceFile) -> bool {
+    location.identity == source.identity() && location.source_name == source.name
 }
 
 fn contains(span: Span, offset: usize) -> bool {

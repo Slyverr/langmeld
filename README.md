@@ -69,7 +69,8 @@ The [`schema-language`](examples/schema-language) example uses a global type
 namespace with forward and recursive references, then completes field types
 from the existing semantic result through `LanguageCompleter` and navigates
 those references through `LanguageNavigator`. It also provides a standalone
-LSP binary assembled with `HostLanguageBackend`.
+LSP binary assembled with `HostLanguageBackend`, including type resolution,
+completion, definition, and references across open files.
 
 Create a starter language project with
 `cargo run -p langmeld-cli -- init my-language`. The initializer prompts for

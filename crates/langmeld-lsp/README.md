@@ -27,5 +27,12 @@ output to match the client. `HostLanguageBackend` connects the existing
 semantic diagnostics, and can attach host completion and navigation
 providers. Other editor queries remain host-owned.
 
+For semantics that span several open documents, attach a
+`LanguageWorkspaceAnalyzer` with `HostLanguageBackend::with_workspace_analyzer`.
+The adapter validates that results map to the corresponding source snapshots
+and refreshes diagnostics for every open document. Hosts that need persistent
+parse caches or unopened project files can implement `LanguageBackend`
+directly.
+
 See [Editor integration](../../docs/editor-integration.md) for the current
 scope and embedding API.

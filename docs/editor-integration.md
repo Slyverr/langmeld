@@ -65,8 +65,14 @@ For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and
 `with_navigator` to expose host completion, definition, and reference
-callbacks. The parser-only form publishes parser diagnostics. Rename,
-formatting, hover, and workspace-dependent analysis still require a custom
+callbacks. Add `with_workspace_analyzer` when semantics depend on more than one
+open document; its analyzer receives each source with its parsed tree and must
+return one source-bound analysis result for each input. The adapter combines
+those results with parser diagnostics and reanalyzes open documents when the
+workspace changes. It parses each open source again for a workspace pass;
+implement `LanguageBackend` directly when the host needs persistent parse
+caches, unopened files, or finer control. The parser-only form publishes
+parser diagnostics. Rename, formatting, and hover still require a custom
 `LanguageBackend`.
 Hosts can implement `format_document` to return formatted text for a complete
 document. Langmeld passes through the editor's formatting options and returns

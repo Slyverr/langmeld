@@ -96,6 +96,23 @@ pub trait LanguageAnalyzer<P: LanguageParser> {
     ) -> AnalysisDocument<Self::Analysis>;
 }
 
+/// Optional semantic analysis across several parsed source snapshots.
+///
+/// Implement this when references or validation span multiple documents.
+/// Each returned result must correspond to the source at the same input index
+/// and retain that source's identity. Hosts that need to load unopened files or
+/// retain project indexes can implement the lower-level workspace backend.
+/// The existing per-source analyzer is passed in so workspace analysis can
+/// reuse its checks and combine them with cross-document rules.
+pub trait LanguageWorkspaceAnalyzer<P: LanguageParser, A: LanguageAnalyzer<P>> {
+    /// Analyzes open source snapshots and their already parsed trees together.
+    fn analyze_workspace(
+        &self,
+        analyzer: &A,
+        documents: &[(&SourceFile, &ParsedDocument<P::Tree>)],
+    ) -> Vec<AnalysisDocument<A::Analysis>>;
+}
+
 /// Host-defined completion behavior for a parser-owned syntax tree.
 ///
 /// The provider receives the existing parse and optional semantic result so

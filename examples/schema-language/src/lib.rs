@@ -6,7 +6,9 @@ mod completion;
 mod navigation;
 mod parser;
 
-pub use analysis::{Analysis, RecordSymbol, SchemaAnalyzer, TypeReference, analyze};
+pub use analysis::{
+    Analysis, RecordSymbol, SchemaAnalyzer, SchemaWorkspaceAnalyzer, TypeReference, analyze,
+};
 pub use ast::{Field, Record, Schema, TypeName};
 pub use completion::SchemaCompleter;
 pub use navigation::SchemaNavigator;
