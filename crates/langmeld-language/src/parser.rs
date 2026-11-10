@@ -438,7 +438,7 @@ fn match_sequence<'a>(
             PatternPart::Literal(literal) => {
                 if tokens
                     .get(cursor)
-                    .is_some_and(|token| token.text == *literal)
+                    .is_some_and(|token| token.kind != TokenKind::Invalid && token.text == *literal)
                 {
                     cursor += 1;
                 } else {

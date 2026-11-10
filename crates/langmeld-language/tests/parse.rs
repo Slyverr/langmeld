@@ -114,6 +114,36 @@ fn rejects_literal_patterns_that_do_not_match_one_lexer_token() {
     ));
 }
 
+struct InvalidKeywordLexer;
+
+impl Lexer for InvalidKeywordLexer {
+    fn lex(&self, _source: &SourceFile) -> LexOutput {
+        LexOutput {
+            tokens: vec![LexedToken {
+                text: "while".into(),
+                kind: TokenKind::Invalid,
+                span: Span::new(0, 5),
+            }],
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
+#[test]
+fn does_not_accept_invalid_tokens_as_literal_syntax() {
+    let grammar = LanguageSpec::new(
+        "InvalidToken",
+        [ConstructSpec::new("while", [PatternPart::literal("while")])],
+    )
+    .unwrap();
+    let source = SourceFile::new("main", "while");
+
+    let result = parse_with_lexer(&source, &grammar, &InvalidKeywordLexer);
+
+    assert!(result.constructs.is_empty());
+    assert_eq!(result.diagnostics[0].code, "LM-PARSE-001");
+}
+
 #[test]
 fn rejects_ambiguous_patterns_instead_of_using_declaration_order() {
     let short = ConstructSpec::new("short", [PatternPart::literal("print")]);
