@@ -814,6 +814,85 @@ fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
 }
 
 #[test]
+fn project_definitions_lsp_completes_construct_and_category_references() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("project");
+    write_widget_project(&project);
+    let root = project.join("language/language.langmeld");
+    let module = project.join("language/constructs/statements.langmeld");
+    let root_source = "language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
+    let module_source = "construct \"print\" { implements \"statement\"; syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }";
+    fs::write(&root, root_source).unwrap();
+    fs::write(&module, module_source).unwrap();
+    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    for (uri, text) in [(&root_uri, root_source), (&module_uri, module_source)] {
+        send_lsp_message(
+            &mut stdin,
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"langmeld","version":1,"text":text}}}),
+        );
+        let count = if uri == &root_uri { 1 } else { 2 };
+        for _ in 0..count {
+            assert_eq!(
+                receive_lsp_message(&receiver)["method"],
+                "textDocument/publishDiagnostics"
+            );
+        }
+    }
+
+    for (id, uri, text, prefix, label, detail) in [
+        (2, &root_uri, root_source, "pri", "print", "Construct"),
+        (
+            3,
+            &module_uri,
+            module_source,
+            "sta",
+            "statement",
+            "Category",
+        ),
+    ] {
+        let offset = text.find(prefix).unwrap() + prefix.len();
+        let position = json!({"line": 0, "character": offset});
+        send_lsp_message(
+            &mut stdin,
+            json!({"jsonrpc":"2.0","id":id,"method":"textDocument/completion","params":{"textDocument":{"uri":uri},"position":position}}),
+        );
+        let completion = receive_lsp_message(&receiver);
+        assert_eq!(completion["result"].as_array().unwrap().len(), 1);
+        assert_eq!(completion["result"][0]["label"], label);
+        assert_eq!(completion["result"][0]["detail"], detail);
+        assert_eq!(completion["result"][0]["kind"], 18);
+        assert_eq!(
+            completion["result"][0]["textEdit"]["newText"],
+            format!("\"{label}\"")
+        );
+    }
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
 fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overlays() {
     let parent = TestDirectory::new();
     let project = parent.path().join("project with spaces");
