@@ -1,8 +1,8 @@
 # Aster
 
 Aster is a small Rust-first language consumer that combines Langmeld's source,
-diagnostic, host-parser, and expression APIs. It deliberately uses its own
-AST and implements its own name resolution and basic type checking.
+diagnostic, host-parser, host-analyzer, and expression APIs. It deliberately
+uses its own AST and implements its own name resolution and basic type checking.
 It uses `LanguageParser` instead of `.lm` because its function grammar and
 expression boundaries need parser-directed handling.
 

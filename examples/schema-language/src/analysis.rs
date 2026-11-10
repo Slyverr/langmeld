@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_language::{AnalysisDocument, LanguageAnalyzer, ParsedDocument};
 
-use crate::Schema;
+use crate::{Schema, SchemaParser};
 
 /// Index of a record in an [`Analysis`]'s symbol list.
 pub type RecordId = usize;
@@ -27,39 +28,25 @@ pub struct TypeReference {
     pub target: Option<RecordId>,
 }
 
-/// Global type-resolution findings for one schema source.
+/// Schema-specific declarations and type references.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Analysis {
-    /// Identity and revision of the analyzed source, when database-managed.
-    pub source: Option<SourceIdentity>,
     /// Unique record declarations in source order.
     pub symbols: Vec<RecordSymbol>,
     /// User-defined field type uses in source order.
     pub references: Vec<TypeReference>,
-    /// Duplicate declaration and unresolved type errors.
-    pub diagnostics: Vec<Diagnostic>,
-}
-
-impl Analysis {
-    /// Returns whether semantic analysis found no errors.
-    #[must_use]
-    pub fn is_valid(&self) -> bool {
-        self.diagnostics.is_empty()
-    }
 }
 
 /// Resolves named record types after collecting the schema's global declarations.
 #[must_use]
-pub fn analyze(source: &SourceFile, schema: &Schema) -> Analysis {
-    let mut analysis = Analysis {
-        source: source.identity(),
-        ..Analysis::default()
-    };
+pub fn analyze(source: &SourceFile, schema: &Schema) -> AnalysisDocument<Analysis> {
+    let mut analysis = Analysis::default();
+    let mut diagnostics = Vec::new();
     let mut records = HashMap::new();
 
     for record in &schema.records {
         if records.contains_key(record.name.as_str()) {
-            analysis.diagnostics.push(Diagnostic::error(
+            diagnostics.push(Diagnostic::error(
                 "SCHEMA-SEM-001",
                 format!("record `{}` is already declared", record.name),
                 source,
@@ -79,7 +66,7 @@ pub fn analyze(source: &SourceFile, schema: &Schema) -> Analysis {
         let mut fields = HashSet::new();
         for field in &record.fields {
             if !fields.insert(field.name.as_str()) {
-                analysis.diagnostics.push(Diagnostic::error(
+                diagnostics.push(Diagnostic::error(
                     "SCHEMA-SEM-002",
                     format!(
                         "field `{}` is already declared in `{}`",
@@ -100,7 +87,7 @@ pub fn analyze(source: &SourceFile, schema: &Schema) -> Analysis {
                 target,
             });
             if target.is_none() {
-                analysis.diagnostics.push(Diagnostic::error(
+                diagnostics.push(Diagnostic::error(
                     "SCHEMA-SEM-003",
                     format!("unknown record type `{}`", field.ty.name),
                     source,
@@ -110,5 +97,21 @@ pub fn analyze(source: &SourceFile, schema: &Schema) -> Analysis {
         }
     }
 
-    analysis
+    AnalysisDocument::new(source, analysis, diagnostics)
+}
+
+/// Analyzer for schema record names and field types.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SchemaAnalyzer;
+
+impl LanguageAnalyzer<SchemaParser> for SchemaAnalyzer {
+    type Analysis = Analysis;
+
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<Schema>,
+    ) -> AnalysisDocument<Self::Analysis> {
+        analyze(source, &parsed.tree)
+    }
 }

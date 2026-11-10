@@ -1,7 +1,8 @@
 use std::{fs, path::Path};
 
-use langmeld_aster_language_example::{analyze, parse_program};
+use langmeld_aster_language_example::{AsterAnalyzer, parse_program};
 use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_language::LanguageAnalyzer;
 
 fn main() {
     if let Err(error) = run() {
@@ -16,7 +17,7 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
     let source = SourceFile::new("src/main.aster", text);
     let parsed = parse_program(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = AsterAnalyzer.analyze(&source, &parsed);
     let diagnostics = parsed
         .diagnostics
         .into_iter()
@@ -29,8 +30,9 @@ fn run() -> Result<(), String> {
     println!(
         "Aster: {} function(s), {} symbol(s), {} resolved reference(s)",
         parsed.tree.functions.len(),
-        analysis.symbols.len(),
+        analysis.result.symbols.len(),
         analysis
+            .result
             .references
             .iter()
             .filter(|reference| reference.target.is_some())

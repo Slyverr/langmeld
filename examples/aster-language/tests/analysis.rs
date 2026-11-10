@@ -1,5 +1,8 @@
-use langmeld_aster_language_example::{Statement, SymbolKind, ValueType, analyze, parse_program};
+use langmeld_aster_language_example::{
+    AsterAnalyzer, Statement, SymbolKind, ValueType, analyze, parse_program,
+};
 use langmeld_core::{SourceDatabase, SourceFile};
+use langmeld_language::LanguageAnalyzer;
 
 #[test]
 fn resolves_forward_calls_and_scoped_local_references() {
@@ -19,19 +22,21 @@ fn resolves_forward_calls_and_scoped_local_references() {
 
     let parsed = parse_program(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = AsterAnalyzer.analyze(&source, &parsed);
 
     assert!(analysis.is_valid(), "{:?}", analysis.diagnostics);
     let call = analysis
+        .result
         .references
         .iter()
         .find(|reference| reference.name == "twice")
         .expect("forward function reference");
     assert_eq!(
-        analysis.symbols[call.target.expect("resolved function")].kind,
+        analysis.result.symbols[call.target.expect("resolved function")].kind,
         SymbolKind::Function
     );
     let values = analysis
+        .result
         .symbols
         .iter()
         .filter(|symbol| symbol.name == "value")
@@ -40,6 +45,7 @@ fn resolves_forward_calls_and_scoped_local_references() {
     assert_ne!(values[0].scope, values[1].scope);
     assert!(
         analysis
+            .result
             .references
             .iter()
             .all(|reference| reference.target.is_some())
@@ -69,11 +75,13 @@ fn reports_unresolved_names_and_same_scope_duplicates() {
     );
     assert!(
         analysis
+            .result
             .references
             .iter()
             .any(|reference| { reference.name == "missing" && reference.target.is_none() })
     );
     let later_references = analysis
+        .result
         .references
         .iter()
         .filter(|reference| reference.name == "later")
@@ -151,13 +159,14 @@ fn reports_values_that_shadow_functions_when_called() {
     let analysis = analyze(&source, &parsed.tree);
 
     let reference = analysis
+        .result
         .references
         .iter()
         .find(|reference| {
             reference.name == "value"
-                && reference
-                    .target
-                    .is_some_and(|target| analysis.symbols[target].kind == SymbolKind::Variable)
+                && reference.target.is_some_and(|target| {
+                    analysis.result.symbols[target].kind == SymbolKind::Variable
+                })
         })
         .expect("call through the shadowing local");
     assert!(reference.target.is_some());
@@ -179,12 +188,13 @@ fn keeps_function_navigation_for_a_function_used_as_a_value() {
     let analysis = analyze(&source, &parsed.tree);
 
     let reference = analysis
+        .result
         .references
         .iter()
         .find(|reference| reference.name == "value")
         .expect("function name reference");
     assert_eq!(
-        analysis.symbols[reference.target.expect("declaration target")].kind,
+        analysis.result.symbols[reference.target.expect("declaration target")].kind,
         SymbolKind::Function
     );
     assert!(

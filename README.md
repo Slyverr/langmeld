@@ -12,10 +12,12 @@ expressions, type checking, execution, code generation, or editor integrations;
 language authors own those behaviors in Rust. Rust hosts can provide a custom
 lexer while reusing the generic parser, or implement `LanguageParser` and keep
 their own parse-tree type. Arbitrary host trees do not receive automatic editor
-tooling yet. The separate `langmeld-expression` crate provides a configurable,
-source-spanned expression parser; typing and evaluation remain host-owned.
-Project definitions can explicitly import local construct files through a
-host-provided resolver.
+tooling yet. A host can optionally implement `LanguageAnalyzer` to return its
+own semantic result and diagnostics without adopting framework-defined symbol
+or type rules. The separate `langmeld-expression` crate provides a
+configurable, source-spanned expression parser; typing and evaluation remain
+host-owned. Project definitions can explicitly import local construct files
+through a host-provided resolver.
 
 ## Requirements
 

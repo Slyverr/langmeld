@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_expression::{Expression, ExpressionKind};
+use langmeld_language::{AnalysisDocument, LanguageAnalyzer, ParsedDocument};
 
-use crate::{Function, Program, Statement, ValueType};
+use crate::{AsterParser, Function, Program, Statement, ValueType};
 
 /// Index of a symbol in an [`Analysis`]'s symbol list.
 pub type SymbolId = usize;
@@ -62,31 +63,35 @@ pub struct NameReference {
     pub target: Option<SymbolId>,
 }
 
-/// Host-owned symbols, references, and diagnostics for one Aster program.
+/// Aster-specific symbols and name references.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Analysis {
-    /// Identity and revision of the analyzed source, when database-managed.
-    pub source: Option<SourceIdentity>,
     /// Declarations in discovery order.
     pub symbols: Vec<Symbol>,
     /// Name uses in source traversal order.
     pub references: Vec<NameReference>,
-    /// Semantic errors tied to the analyzed source.
-    pub diagnostics: Vec<Diagnostic>,
-}
-
-impl Analysis {
-    /// Returns whether semantic analysis produced no errors.
-    #[must_use]
-    pub fn is_valid(&self) -> bool {
-        self.diagnostics.is_empty()
-    }
 }
 
 /// Resolves Aster names and checks its small built-in type system.
 #[must_use]
-pub fn analyze(source: &SourceFile, program: &Program) -> Analysis {
+pub fn analyze(source: &SourceFile, program: &Program) -> AnalysisDocument<Analysis> {
     Analyzer::new(source, program).run()
+}
+
+/// Analyzer for Aster's scope and type rules.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AsterAnalyzer;
+
+impl LanguageAnalyzer<AsterParser> for AsterAnalyzer {
+    type Analysis = Analysis;
+
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<Program>,
+    ) -> AnalysisDocument<Self::Analysis> {
+        analyze(source, &parsed.tree)
+    }
 }
 
 #[derive(Default)]
@@ -99,6 +104,7 @@ struct Analyzer<'a> {
     source: &'a SourceFile,
     program: &'a Program,
     analysis: Analysis,
+    diagnostics: Vec<Diagnostic>,
     scopes: Vec<Scope>,
     functions: HashMap<String, SymbolId>,
 }
@@ -108,21 +114,19 @@ impl<'a> Analyzer<'a> {
         Self {
             source,
             program,
-            analysis: Analysis {
-                source: source.identity(),
-                ..Analysis::default()
-            },
+            analysis: Analysis::default(),
+            diagnostics: Vec::new(),
             scopes: vec![Scope::default()],
             functions: HashMap::new(),
         }
     }
 
-    fn run(mut self) -> Analysis {
+    fn run(mut self) -> AnalysisDocument<Analysis> {
         self.declare_functions();
         for function in &self.program.functions {
             self.analyze_function(function);
         }
-        self.analysis
+        AnalysisDocument::new(self.source, self.analysis, self.diagnostics)
     }
 
     fn declare_functions(&mut self) {
@@ -508,8 +512,7 @@ impl<'a> Analyzer<'a> {
     }
 
     fn error(&mut self, code: &str, message: impl Into<String>, span: Span) {
-        self.analysis
-            .diagnostics
+        self.diagnostics
             .push(Diagnostic::error(code, message, self.source, span));
     }
 }

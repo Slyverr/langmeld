@@ -39,7 +39,7 @@ pub struct AnalysisDocument<T> {
     /// Identity and revision of the analyzed source, if database-managed.
     pub source: Option<SourceIdentity>,
     /// Language-specific semantic result, such as symbols or typed facts.
-    pub analysis: T,
+    pub result: T,
     /// Semantic findings associated with the source snapshot.
     pub diagnostics: Vec<Diagnostic>,
 }
@@ -47,10 +47,10 @@ pub struct AnalysisDocument<T> {
 impl<T> AnalysisDocument<T> {
     /// Creates an analysis document tied to the supplied source snapshot.
     #[must_use]
-    pub fn new(source: &SourceFile, analysis: T, diagnostics: Vec<Diagnostic>) -> Self {
+    pub fn new(source: &SourceFile, result: T, diagnostics: Vec<Diagnostic>) -> Self {
         Self {
             source: source.identity(),
-            analysis,
+            result,
             diagnostics,
         }
     }

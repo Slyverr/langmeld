@@ -1,5 +1,6 @@
 use langmeld_core::SourceFile;
-use langmeld_schema_language_example::{analyze, parse_schema};
+use langmeld_language::LanguageAnalyzer;
+use langmeld_schema_language_example::{SchemaAnalyzer, analyze, parse_schema};
 
 #[test]
 fn resolves_forward_and_recursive_record_types() {
@@ -10,13 +11,14 @@ fn resolves_forward_and_recursive_record_types() {
     let parsed = parse_schema(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
 
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = SchemaAnalyzer.analyze(&source, &parsed);
 
     assert!(analysis.is_valid(), "{:?}", analysis.diagnostics);
-    assert_eq!(analysis.symbols.len(), 2);
-    assert_eq!(analysis.references.len(), 2);
+    assert_eq!(analysis.result.symbols.len(), 2);
+    assert_eq!(analysis.result.references.len(), 2);
     assert!(
         analysis
+            .result
             .references
             .iter()
             .all(|reference| reference.target.is_some())
@@ -52,6 +54,7 @@ fn reports_duplicate_records_fields_and_unknown_types() {
     );
     assert!(
         analysis
+            .result
             .references
             .iter()
             .any(|reference| { reference.name == "Missing" && reference.target.is_none() })
