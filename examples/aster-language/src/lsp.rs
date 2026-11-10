@@ -1,8 +1,10 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation};
 use langmeld_language::{AnalysisDocument, LanguageAnalyzer, LanguageNavigator, ParsedDocument};
-use langmeld_lsp::{BackendCapabilities, BackendDocument, LanguageBackend};
+use langmeld_lsp::{
+    BackendCapabilities, BackendDocument, LanguageBackend, SemanticToken, SemanticTokenLegend,
+};
 
-use crate::{Analysis, AsterAnalyzer, AsterNavigator, Program, parse_program};
+use crate::{Analysis, AsterAnalyzer, AsterNavigator, Program, SymbolKind, parse_program};
 
 /// LSP backend that exposes Aster's own parser, semantic diagnostics, and
 /// resolved-symbol navigation.
@@ -37,8 +39,38 @@ impl LanguageBackend for AsterBackend {
         BackendCapabilities {
             definition: true,
             references: true,
+            semantic_tokens: true,
             ..BackendCapabilities::default()
         }
+    }
+
+    fn semantic_token_legend(&self) -> SemanticTokenLegend {
+        SemanticTokenLegend::new(["function", "parameter", "variable"], ["declaration"])
+    }
+
+    fn semantic_tokens(
+        &self,
+        _source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+    ) -> Vec<SemanticToken> {
+        let analysis = &document.state.analysis.result;
+        let mut tokens = analysis
+            .symbols
+            .iter()
+            .map(|symbol| {
+                SemanticToken::new(symbol.declaration, symbol_kind_name(symbol.kind))
+                    .with_modifier("declaration")
+            })
+            .collect::<Vec<_>>();
+        tokens.extend(analysis.references.iter().filter_map(|reference| {
+            let target = reference.target?;
+            let symbol = analysis.symbols.get(target)?;
+            Some(SemanticToken::new(
+                reference.span,
+                symbol_kind_name(symbol.kind),
+            ))
+        }));
+        tokens
     }
 
     fn definition(
@@ -69,5 +101,13 @@ impl LanguageBackend for AsterBackend {
             offset,
             include_declaration,
         )
+    }
+}
+
+fn symbol_kind_name(kind: SymbolKind) -> &'static str {
+    match kind {
+        SymbolKind::Function => "function",
+        SymbolKind::Parameter => "parameter",
+        SymbolKind::Variable => "variable",
     }
 }

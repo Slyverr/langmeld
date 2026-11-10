@@ -40,6 +40,33 @@ fn receive_response(connection: &Connection) -> Value {
     }
 }
 
+fn decode_tokens(value: &Value) -> Vec<(u32, u32, u32, u32, u32)> {
+    let mut line = 0;
+    let mut character = 0;
+    value["data"]
+        .as_array()
+        .expect("semantic token data is an array")
+        .chunks_exact(5)
+        .map(|token| {
+            let delta_line = token[0].as_u64().unwrap() as u32;
+            let delta_start = token[1].as_u64().unwrap() as u32;
+            line += delta_line;
+            character = if delta_line == 0 {
+                character + delta_start
+            } else {
+                delta_start
+            };
+            (
+                line,
+                character,
+                token[2].as_u64().unwrap() as u32,
+                token[3].as_u64().unwrap() as u32,
+                token[4].as_u64().unwrap() as u32,
+            )
+        })
+        .collect()
+}
+
 #[test]
 fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     let (server_connection, client) = Connection::memory();
@@ -56,6 +83,10 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     assert!(initialized["capabilities"]["completionProvider"].is_null());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);
+    assert_eq!(
+        initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
+        json!(["function", "parameter", "variable"])
+    );
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.aster";
@@ -86,12 +117,37 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
         message => panic!("expected diagnostics, got {message:?}"),
     }
 
+    send_request(
+        &client,
+        2,
+        "textDocument/semanticTokens/full",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let tokens = decode_tokens(&receive_response(&client));
+    let token_at = |offset: usize| {
+        let line = text[..offset].matches('\n').count() as u32;
+        let line_start = text[..offset].rfind('\n').map_or(0, |index| index + 1);
+        let character = text[line_start..offset].chars().count() as u32;
+        tokens
+            .iter()
+            .find(|token| token.0 == line && token.1 == character)
+            .copied()
+    };
+    let add_declaration = token_at(text.find("add(value").unwrap()).unwrap();
+    assert_eq!((add_declaration.3, add_declaration.4), (0, 1));
+    let parameter_declaration = token_at(text.find("value:").unwrap()).unwrap();
+    assert_eq!((parameter_declaration.3, parameter_declaration.4), (1, 1));
+    let parameter_use = token_at(text.find("return value").unwrap() + "return ".len()).unwrap();
+    assert_eq!((parameter_use.3, parameter_use.4), (1, 0));
+    let add_reference = token_at(text.rfind("add(1)").unwrap()).unwrap();
+    assert_eq!((add_reference.3, add_reference.4), (0, 0));
+
     let second_line = text.find('\n').unwrap() + 1;
     let add_call = text.rfind("add(1)").unwrap() - second_line;
     let add_declaration = text.find("add(value").unwrap();
     send_request(
         &client,
-        2,
+        3,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -106,7 +162,7 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
 
     send_request(
         &client,
-        3,
+        4,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -117,7 +173,7 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     let references = receive_response(&client);
     assert_eq!(references.as_array().unwrap().len(), 2);
 
-    send_request(&client, 4, "shutdown", Value::Null);
+    send_request(&client, 5, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
