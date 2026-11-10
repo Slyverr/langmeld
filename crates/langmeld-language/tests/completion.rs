@@ -1,7 +1,8 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
-    ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, LexicalRules, ParseLimits,
-    PatternPart, TokenKind, complete_at, complete_at_with_lexer, language_definition_grammar,
+    CompletionKind, ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, LexicalRules,
+    ParseLimits, PatternPart, TokenKind, complete_at, complete_at_with_lexer,
+    language_definition_grammar,
 };
 
 fn language() -> LanguageSpec {
@@ -163,6 +164,7 @@ fn finite_choice_completion_suggests_only_allowed_values_in_field_context() {
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].text, "right");
+    assert_eq!(candidates[0].kind, Some(CompletionKind::EnumMember));
     assert_eq!(candidates[0].replace, Span::new(5, 6));
 }
 

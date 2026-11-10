@@ -21,7 +21,8 @@ separate `langmeld-expression` crate provides a
 configurable, source-spanned expression parser; typing and evaluation remain
 host-owned. Project definitions can explicitly import local construct files
 through a host-provided resolver. Declarative grammars also provide scoped
-syntax-token completion candidates. The `langmeld-lsp` crate provides full-text
+syntax-token completions and identify finite-choice values as enum members.
+The `langmeld-lsp` crate provides full-text
 LSP synchronization, diagnostics, and completion for declarative languages,
 plus host-backed definition, references, rename, formatting, hover, document
 symbols, and semantic tokens through the same LSP adapter. The `langmeld lsp`

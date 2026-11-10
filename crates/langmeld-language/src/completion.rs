@@ -259,7 +259,13 @@ pub fn complete_at_with_lexer(
 
     let mut candidates = Vec::new();
     for text in &context.values {
-        push_candidate(&mut candidates, text, &prefix, replacement);
+        push_candidate(
+            &mut candidates,
+            text,
+            &prefix,
+            replacement,
+            Some(CompletionKind::EnumMember),
+        );
     }
     for name in &context.constructs {
         let Some(construct) = language
@@ -273,7 +279,7 @@ pub fn complete_at_with_lexer(
             let mut literals = Vec::new();
             collect_first_literals(pattern, &mut literals);
             for text in literals {
-                push_candidate(&mut candidates, &text, &prefix, replacement);
+                push_candidate(&mut candidates, &text, &prefix, replacement, None);
             }
         }
     }
@@ -315,6 +321,7 @@ fn push_candidate(
     text: &str,
     prefix: &str,
     replacement: Span,
+    kind: Option<CompletionKind>,
 ) {
     if !text.starts_with(prefix)
         || text == prefix
@@ -322,5 +329,10 @@ fn push_candidate(
     {
         return;
     }
-    candidates.push(CompletionCandidate::new(text, replacement));
+    let candidate = CompletionCandidate::new(text, replacement);
+    candidates.push(if let Some(kind) = kind {
+        candidate.with_kind(kind)
+    } else {
+        candidate
+    });
 }

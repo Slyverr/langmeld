@@ -1235,6 +1235,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
         .map(|item| item["label"].as_str().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(choices, ["fast"]);
+    assert_eq!(completions[0]["kind"], 20);
     assert_eq!(
         completions[0]["textEdit"]["range"]["start"]["character"],
         16
