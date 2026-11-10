@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructSpec, LanguageSpec, PatternPart};
+use langmeld_language::{ConstructSpec, LanguageSpec, LexicalRules, PatternPart};
 use langmeld_tree_sitter::{TreeSitterOptions, generate};
 
 fn language() -> LanguageSpec {
@@ -66,6 +66,34 @@ fn rejects_invalid_grammar_names_and_languages_without_root_constructs() {
         .with_root_constructs(&[])
         .expect("an empty root list is valid for parsing");
     assert!(generate(&no_roots, &TreeSitterOptions::new("widget_script")).is_err());
+}
+
+#[test]
+fn exports_configured_line_comments_as_tree_sitter_extras() {
+    let language = language()
+        .with_lexical_rules(LexicalRules::default().line_comment("//"))
+        .unwrap();
+
+    let output = generate(&language, &TreeSitterOptions::new("widget_script"))
+        .expect("line comments are supported");
+
+    assert!(output.contains("extras: $ => [/\\s/, $.line_comment_0]"));
+    assert!(output.contains("line_comment_0: _ => token(seq(\"//\", /[^\\r\\n]*/))"));
+}
+
+#[test]
+fn reports_configured_block_comments_as_unsupported() {
+    let language = language()
+        .with_lexical_rules(LexicalRules::default().block_comment("/*", "*/"))
+        .unwrap();
+
+    assert!(matches!(
+        generate(&language, &TreeSitterOptions::new("widget_script")),
+        Err(langmeld_tree_sitter::TreeSitterError::UnsupportedBlockComment {
+            opening,
+            closing,
+        }) if opening == "/*" && closing == "*/"
+    ));
 }
 
 #[test]

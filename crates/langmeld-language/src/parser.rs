@@ -3,7 +3,7 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
 
 use crate::completion::ParseContext;
-use crate::{FieldKind, LanguageSpec, PatternPart, RepeatMinimum};
+use crate::{FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum};
 
 /// A token emitted by a language lexer.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,11 +61,29 @@ pub struct DefaultLexer;
 
 impl Lexer for DefaultLexer {
     fn lex(&self, source: &SourceFile) -> LexOutput {
-        lex_default(source, ParseLimits::default().max_tokens)
+        lex_default(
+            source,
+            ParseLimits::default().max_tokens,
+            &LexicalRules::default(),
+        )
     }
 
     fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
-        lex_default(source, max_tokens)
+        lex_default(source, max_tokens, &LexicalRules::default())
+    }
+}
+
+pub(crate) struct ConfiguredLexer<'a> {
+    pub(crate) rules: &'a LexicalRules,
+}
+
+impl Lexer for ConfiguredLexer<'_> {
+    fn lex(&self, source: &SourceFile) -> LexOutput {
+        lex_default(source, ParseLimits::default().max_tokens, self.rules)
+    }
+
+    fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
+        lex_default(source, max_tokens, self.rules)
     }
 }
 
@@ -183,7 +201,10 @@ pub fn parse_with_limits(
     language: &LanguageSpec,
     limits: ParseLimits,
 ) -> ParseResult {
-    parse_with_lexer_and_limits(source, language, &DefaultLexer, limits)
+    let lexer = ConfiguredLexer {
+        rules: language.lexical_rules(),
+    };
+    parse_with_lexer_and_limits(source, language, &lexer, limits)
 }
 
 /// Parses a source snapshot using a host-provided lexer and Langmeld grammar.
@@ -793,12 +814,40 @@ fn accepts(expected: FieldKind, actual: TokenKind) -> bool {
     )
 }
 
-fn lex_default(source: &SourceFile, max_tokens: usize) -> LexOutput {
+fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> LexOutput {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut chars = source.text.char_indices().peekable();
     while let Some((start, character)) = chars.next() {
         if character.is_whitespace() {
+            continue;
+        }
+        if let Some((opening, closing)) = comment_start(&source.text[start..], rules) {
+            let content_start = start + opening.len();
+            if let Some(closing) = closing {
+                if let Some(relative_end) = source.text[content_start..].find(closing) {
+                    let end = content_start + relative_end + closing.len();
+                    while chars.peek().is_some_and(|(byte, _)| *byte < end) {
+                        chars.next();
+                    }
+                } else {
+                    let span = Span::new(start, source.text.len());
+                    diagnostics.push(Diagnostic::error(
+                        "LM-LEX-003",
+                        format!("unterminated block comment starting with `{opening}`"),
+                        source,
+                        span,
+                    ));
+                    break;
+                }
+            } else {
+                while chars
+                    .peek()
+                    .is_some_and(|(_, next)| *next != '\n' && *next != '\r')
+                {
+                    chars.next();
+                }
+            }
             continue;
         }
         if tokens.len() == max_tokens {
@@ -906,6 +955,46 @@ fn lex_default(source: &SourceFile, max_tokens: usize) -> LexOutput {
         tokens,
         diagnostics,
     }
+}
+
+#[derive(Clone, Copy)]
+enum CommentStart<'a> {
+    Line(&'a str),
+    Block(&'a str, &'a str),
+}
+
+impl<'a> CommentStart<'a> {
+    fn opening(self) -> &'a str {
+        match self {
+            Self::Line(opening) | Self::Block(opening, _) => opening,
+        }
+    }
+
+    fn closing(self) -> Option<&'a str> {
+        match self {
+            Self::Line(_) => None,
+            Self::Block(_, closing) => Some(closing),
+        }
+    }
+}
+
+fn comment_start<'a>(
+    remaining: &str,
+    rules: &'a LexicalRules,
+) -> Option<(&'a str, Option<&'a str>)> {
+    let line = rules
+        .line_comments()
+        .iter()
+        .filter(|opening| remaining.starts_with(opening.as_str()))
+        .map(|opening| CommentStart::Line(opening.as_str()));
+    let block = rules
+        .block_comments()
+        .iter()
+        .filter(|(opening, _)| remaining.starts_with(opening.as_str()))
+        .map(|(opening, closing)| CommentStart::Block(opening.as_str(), closing.as_str()));
+    line.chain(block)
+        .max_by_key(|comment| comment.opening().len())
+        .map(|comment| (comment.opening(), comment.closing()))
 }
 
 fn limit_lex_output(source: &SourceFile, mut output: LexOutput, max_tokens: usize) -> LexOutput {

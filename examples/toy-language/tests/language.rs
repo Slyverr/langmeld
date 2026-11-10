@@ -24,7 +24,7 @@ fn imports_constructs_and_parses_the_example_program() {
     let language = load_language();
     let source = SourceFile::new(
         "main.widget",
-        "program { let title = \"Hello\"; draw title; }",
+        "// a comment before the program\nprogram { let title = \"Hello\"; draw title; }",
     );
     let parsed = parse(&source, &language);
 

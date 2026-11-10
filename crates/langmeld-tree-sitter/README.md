@@ -5,7 +5,8 @@ Generate a Tree-sitter `grammar.js` file from a declarative Langmeld
 
 The exporter maps construct variants, captured fields, optional and repeated
 groups, and delimited child blocks. It provides lexical rules for identifiers,
-decimal integers, quoted strings, and grouped punctuation.
+decimal integers, quoted strings, grouped punctuation, and configured line
+comments. Configured block comments are reported as unsupported.
 
 ```rust,ignore
 use langmeld_tree_sitter::{TreeSitterOptions, generate};

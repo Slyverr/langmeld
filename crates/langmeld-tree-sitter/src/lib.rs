@@ -46,6 +46,12 @@ pub fn generate(
     if roots.is_empty() {
         return Err(TreeSitterError::NoRootConstructs);
     }
+    if let Some((opening, closing)) = language.lexical_rules().block_comments().first() {
+        return Err(TreeSitterError::UnsupportedBlockComment {
+            opening: opening.clone(),
+            closing: closing.clone(),
+        });
+    }
 
     let rules = language
         .constructs()
@@ -62,7 +68,13 @@ pub fn generate(
     writeln!(output, "module.exports = grammar({{").expect("writing to a string cannot fail");
     writeln!(output, "  name: {},", js_string(options.grammar_name()))
         .expect("writing to a string cannot fail");
-    writeln!(output, "  extras: $ => [/\\s/],").expect("writing to a string cannot fail");
+    let mut extras = vec!["/\\s/".to_owned()];
+    extras.extend(
+        (0..language.lexical_rules().line_comments().len())
+            .map(|index| format!("$.line_comment_{index}")),
+    );
+    writeln!(output, "  extras: $ => [{}],", extras.join(", "))
+        .expect("writing to a string cannot fail");
     writeln!(output, "  word: $ => $.identifier,").expect("writing to a string cannot fail");
     writeln!(output, "  rules: {{").expect("writing to a string cannot fail");
 
@@ -95,6 +107,7 @@ pub fn generate(
     }
 
     write_lexer_rules(&mut output, language);
+    write_comment_rules(&mut output, language);
     writeln!(output, "  }},").expect("writing to a string cannot fail");
     writeln!(output, "}});").expect("writing to a string cannot fail");
     Ok(output)
@@ -289,6 +302,17 @@ fn write_lexer_rules(output: &mut String, language: &LanguageSpec) {
     }
 }
 
+fn write_comment_rules(output: &mut String, language: &LanguageSpec) {
+    for (index, marker) in language.lexical_rules().line_comments().iter().enumerate() {
+        writeln!(
+            output,
+            "    line_comment_{index}: _ => token(seq({}, /[^\\r\\n]*/)),",
+            js_string(marker)
+        )
+        .expect("writing to a string cannot fail");
+    }
+}
+
 fn collect_lexer_needs(
     parts: &[PatternPart],
     needs_integer: &mut bool,
@@ -329,6 +353,13 @@ pub enum TreeSitterError {
         /// Name of the expression field.
         field: String,
     },
+    /// A configured block-comment rule cannot be represented by this exporter.
+    UnsupportedBlockComment {
+        /// Comment opening marker.
+        opening: String,
+        /// Comment closing marker.
+        closing: String,
+    },
 }
 
 impl std::fmt::Display for TreeSitterError {
@@ -344,6 +375,10 @@ impl std::fmt::Display for TreeSitterError {
             Self::UnsupportedExpressionCapture { construct, field } => write!(
                 formatter,
                 "cannot export expression field `{field}` in construct `{construct}`; use a host-authored Tree-sitter grammar for expression syntax"
+            ),
+            Self::UnsupportedBlockComment { opening, closing } => write!(
+                formatter,
+                "cannot export block comments `{opening}` ... `{closing}` to Tree-sitter"
             ),
         }
     }

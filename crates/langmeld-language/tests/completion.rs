@@ -1,7 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
-    ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, ParseLimits, PatternPart,
-    TokenKind, complete_at, complete_at_with_lexer, language_definition_grammar,
+    ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, LexicalRules, ParseLimits,
+    PatternPart, TokenKind, complete_at, complete_at_with_lexer, language_definition_grammar,
 };
 
 fn language() -> LanguageSpec {
@@ -94,6 +94,29 @@ fn category_members_are_suggested_only_in_blocks_that_allow_the_category() {
             .collect::<Vec<_>>(),
         ["print", "}"]
     );
+}
+
+#[test]
+fn completion_ignores_configured_comments_before_the_cursor() {
+    let language = LanguageSpec::new(
+        "Comments",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["print"],
+            ),
+            ConstructSpec::new("print", [PatternPart::literal("print")]),
+        ],
+    )
+    .unwrap()
+    .with_lexical_rules(LexicalRules::default().line_comment("//"))
+    .unwrap();
+    let source = "program { // ignore print here\npri";
+    let candidates = complete_at(&SourceFile::new("main", source), &language, source.len());
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].text, "print");
 }
 
 #[test]

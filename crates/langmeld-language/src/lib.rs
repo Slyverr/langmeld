@@ -27,5 +27,6 @@ pub use parser::{
     parse_with_limits,
 };
 pub use spec::{
-    BlockSpec, ConstructSpec, FieldKind, LanguageSpec, PatternPart, RepeatMinimum, SpecError,
+    BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum,
+    SpecError,
 };

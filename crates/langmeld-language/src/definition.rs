@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{
-    CapturedValue, ConstructSpec, FieldKind, LanguageSpec, ParsedConstruct, PatternPart, SpecError,
-    parse,
+    CapturedValue, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, ParsedConstruct,
+    PatternPart, SpecError, parse,
 };
 
 /// Result of parsing and validating one language-definition source.
@@ -68,6 +68,8 @@ struct DefinitionUnit {
     language_name: Option<String>,
     constructs: Vec<(ConstructSpec, Span)>,
     imports: Vec<ImportDirective>,
+    lexical_rules: LexicalRules,
+    lexical_span: Option<Span>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -97,6 +99,8 @@ pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
     finish_definition(
         unit.language_name,
         constructs,
+        unit.lexical_rules,
+        unit.lexical_span,
         unit.diagnostics,
         source.clone(),
     )
@@ -157,7 +161,14 @@ pub fn parse_language_definition_project(
         &mut diagnostics,
     );
 
-    finish_definition(Some(language_name), constructs, diagnostics, root.source)
+    finish_definition(
+        Some(language_name),
+        constructs,
+        unit.lexical_rules,
+        unit.lexical_span,
+        diagnostics,
+        root.source,
+    )
 }
 
 fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
@@ -166,6 +177,8 @@ fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
         language_name: None,
         constructs: Vec::new(),
         imports: Vec::new(),
+        lexical_rules: LexicalRules::default(),
+        lexical_span: None,
         diagnostics: parsed.diagnostics,
     };
     if is_root {
@@ -214,6 +227,23 @@ fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
             return unit;
         };
         unit.language_name = Some(name);
+        let lexical_nodes = root
+            .children
+            .iter()
+            .filter(|child| child.name == "lexical")
+            .collect::<Vec<_>>();
+        if lexical_nodes.len() > 1 {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-024",
+                "a language may declare only one `lexical` block",
+                source,
+                lexical_nodes[1].span,
+            ));
+        }
+        if let Some(lexical) = lexical_nodes.first() {
+            unit.lexical_span = Some(lexical.span);
+            unit.lexical_rules = lower_lexical_rules(lexical, source, &mut unit.diagnostics);
+        }
         for node in &root.children {
             match node.name.as_str() {
                 "construct" => {
@@ -273,6 +303,47 @@ fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
         }
     }
     unit
+}
+
+fn lower_lexical_rules(
+    node: &ParsedConstruct,
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> LexicalRules {
+    let mut rules = LexicalRules::default();
+    for declaration in &node.children {
+        match declaration.name.as_str() {
+            "line_comment" => {
+                if let Some(marker) = string_field(declaration, "marker").and_then(decode_quoted) {
+                    rules = rules.line_comment(marker);
+                } else {
+                    diagnostics.push(Diagnostic::error(
+                        "LM-DEF-025",
+                        "`line_comment` requires a valid quoted marker",
+                        source,
+                        declaration.span,
+                    ));
+                }
+            }
+            "block_comment" => {
+                if let (Some(open), Some(close)) = (
+                    string_field(declaration, "open").and_then(decode_quoted),
+                    string_field(declaration, "close").and_then(decode_quoted),
+                ) {
+                    rules = rules.block_comment(open, close);
+                } else {
+                    diagnostics.push(Diagnostic::error(
+                        "LM-DEF-026",
+                        "`block_comment` requires quoted opening and closing markers",
+                        source,
+                        declaration.span,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    rules
 }
 
 fn lower_import(
@@ -381,6 +452,8 @@ fn load_imports(
 fn finish_definition(
     language_name: Option<String>,
     constructs: Vec<(ConstructSpec, SourceFile, Span)>,
+    lexical_rules: LexicalRules,
+    lexical_span: Option<Span>,
     mut diagnostics: Vec<Diagnostic>,
     fallback_source: SourceFile,
 ) -> DefinitionResult {
@@ -394,7 +467,9 @@ fn finish_definition(
         .iter()
         .map(|(construct, _, _)| construct.clone())
         .collect::<Vec<_>>();
-    let language = match LanguageSpec::new(language_name, specs) {
+    let language = match LanguageSpec::new(language_name, specs)
+        .and_then(|language| language.with_lexical_rules(lexical_rules))
+    {
         Ok(language) => Some(language),
         Err(error) => {
             let target = match &error {
@@ -408,10 +483,25 @@ fn finish_definition(
                         .find(|(construct, _, _)| construct.name() == name)
                 }),
             };
-            let (source, span) = target
-                .map_or((&fallback_source, Span::new(0, 0)), |(_, source, span)| {
-                    (source, *span)
-                });
+            let lexical_error = matches!(
+                error,
+                SpecError::InvalidLineComment(_)
+                    | SpecError::InvalidBlockComment { .. }
+                    | SpecError::DuplicateCommentStart(_)
+            );
+            let (source, span) = target.map_or_else(
+                || {
+                    (
+                        &fallback_source,
+                        if lexical_error {
+                            lexical_span.unwrap_or_else(|| Span::new(0, 0))
+                        } else {
+                            Span::new(0, 0)
+                        },
+                    )
+                },
+                |(_, source, span)| (source, *span),
+            );
             diagnostics.push(Diagnostic::error(
                 "LM-DEF-004",
                 error.to_string(),
@@ -664,7 +754,10 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         | SpecError::NoConstructs
         | SpecError::EmptyLanguageName
         | SpecError::UnknownRootConstruct(_)
-        | SpecError::DuplicateRootConstruct(_) => None,
+        | SpecError::DuplicateRootConstruct(_)
+        | SpecError::InvalidLineComment(_)
+        | SpecError::InvalidBlockComment { .. }
+        | SpecError::DuplicateCommentStart(_) => None,
         SpecError::DuplicateConstruct(name)
         | SpecError::EmptyPattern(name)
         | SpecError::EmptyLiteral(name)
@@ -702,12 +795,34 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["construct", "import"]),
+                .block("{", "}", &["construct", "import", "lexical"]),
                 ConstructSpec::new(
                     "import",
                     [
                         PatternPart::literal("import"),
                         PatternPart::string("path"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new("lexical", [PatternPart::literal("lexical")]).block(
+                    "{",
+                    "}",
+                    &["line_comment", "block_comment"],
+                ),
+                ConstructSpec::new(
+                    "line_comment",
+                    [
+                        PatternPart::literal("line_comment"),
+                        PatternPart::string("marker"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "block_comment",
+                    [
+                        PatternPart::literal("block_comment"),
+                        PatternPart::string("open"),
+                        PatternPart::string("close"),
                         PatternPart::literal(";"),
                     ],
                 ),
@@ -865,6 +980,9 @@ fn definition_grammar() -> &'static LanguageSpec {
             ],
         )
         .and_then(|language| language.with_root_constructs(&["language", "import", "construct"]))
+        .and_then(|language| {
+            language.with_lexical_rules(LexicalRules::default().line_comment("//"))
+        })
         .expect("the built-in language-definition grammar must remain valid")
     })
 }

@@ -49,9 +49,9 @@ impl TextMateOptions {
 ///
 /// The generated grammar highlights literal words as keywords, literal
 /// punctuation, decimal integers, and double-quoted strings. It does not
-/// reproduce Langmeld parsing, infer comments or semantic roles, or account
-/// for host-defined lexer rules. Hosts can extend the emitted grammar for
-/// language-specific lexical behavior.
+/// reproduce Langmeld parsing, infer semantic roles, or account for host-defined
+/// lexer rules. Configured line and block comments are emitted as TextMate
+/// comment patterns.
 pub fn generate(
     language: &LanguageSpec,
     options: &TextMateOptions,
@@ -81,6 +81,26 @@ pub fn generate(
         .into_iter()
         .partition(|literal| is_identifier_literal(literal));
     let mut patterns = vec![string_pattern(suffix).into()];
+    for marker in language.lexical_rules().line_comments() {
+        patterns.push(
+            MatchPattern {
+                name: format!("comment.line.{suffix}"),
+                regex: format!("{}[^\\r\\n]*", regex_escape(marker)),
+            }
+            .into(),
+        );
+    }
+    for (opening, closing) in language.lexical_rules().block_comments() {
+        patterns.push(
+            StringPattern {
+                name: format!("comment.block.{suffix}"),
+                begin: regex_escape(opening),
+                end: regex_escape(closing),
+                patterns: Vec::new(),
+            }
+            .into(),
+        );
+    }
     if !keywords.is_empty() {
         patterns.push(
             MatchPattern {

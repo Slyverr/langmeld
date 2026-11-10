@@ -1,7 +1,7 @@
 use langmeld_core::{Severity, SourceDatabase, SourceFile, SourceIdentity, Span};
 use langmeld_language::{
-    CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer, ParseLimits,
-    PatternPart, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
+    CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer, LexicalRules,
+    ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
     parse_with_limits,
 };
 
@@ -116,6 +116,113 @@ fn rejects_expression_terminators_that_are_not_single_tokens() {
     assert!(matches!(
         LanguageSpec::new("Expressions", [construct]),
         Err(langmeld_language::SpecError::InvalidExpressionTerminator { .. })
+    ));
+}
+
+#[test]
+fn configured_line_and_block_comments_are_skipped_without_changing_string_tokens() {
+    let grammar = LanguageSpec::new(
+        "Comments",
+        [ConstructSpec::new(
+            "print",
+            [
+                PatternPart::literal("print"),
+                PatternPart::string("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap()
+    .with_lexical_rules(
+        LexicalRules::default()
+            .line_comment("#")
+            .block_comment("/*", "*/"),
+    )
+    .unwrap();
+    let source = SourceFile::new(
+        "comments",
+        "# before\nprint \"/* string */\"; /* between */ print \"// string\";",
+    );
+
+    let parsed = parse(&source, &grammar);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs.len(), 2);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::String("\"/* string */\"".into())
+    );
+    assert_eq!(
+        parsed.constructs[1].fields[0].value,
+        CapturedValue::String("\"// string\"".into())
+    );
+}
+
+#[test]
+fn unterminated_block_comments_report_a_source_located_lexical_error() {
+    let grammar = LanguageSpec::new(
+        "Comments",
+        [ConstructSpec::new("print", [PatternPart::literal("print")])],
+    )
+    .unwrap()
+    .with_lexical_rules(LexicalRules::default().block_comment("/*", "*/"))
+    .unwrap();
+    let source = SourceFile::new("comments", "print /* never closed");
+
+    let parsed = parse(&source, &grammar);
+
+    let diagnostic = parsed
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-LEX-003")
+        .expect("unterminated comment diagnostic");
+    assert_eq!(
+        diagnostic.location.as_ref().unwrap().span,
+        Span::new(6, source.text.len())
+    );
+}
+
+#[test]
+fn longest_comment_opener_wins_when_comment_markers_share_a_prefix() {
+    let grammar = LanguageSpec::new(
+        "Comments",
+        [ConstructSpec::new("item", [PatternPart::literal("item")])],
+    )
+    .unwrap()
+    .with_lexical_rules(
+        LexicalRules::default()
+            .line_comment("#")
+            .block_comment("##", "!!"),
+    )
+    .unwrap();
+
+    let parsed = parse(&SourceFile::new("comments", "## ignored !! item"), &grammar);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs.len(), 1);
+}
+
+#[test]
+fn rejects_empty_and_duplicate_comment_markers() {
+    for marker in [" ", "\"", "#\n"] {
+        let construct = ConstructSpec::new("item", [PatternPart::literal("item")]);
+        assert!(matches!(
+            LanguageSpec::new("Comments", [construct])
+                .unwrap()
+                .with_lexical_rules(LexicalRules::default().line_comment(marker)),
+            Err(langmeld_language::SpecError::InvalidLineComment(_))
+        ));
+    }
+    let construct = ConstructSpec::new("item", [PatternPart::literal("item")]);
+    assert!(matches!(
+        LanguageSpec::new("Comments", [construct])
+            .unwrap()
+            .with_lexical_rules(
+                LexicalRules::default()
+                    .line_comment("#")
+                    .block_comment("#", "!"),
+            ),
+        Err(langmeld_language::SpecError::DuplicateCommentStart(_))
     ));
 }
 

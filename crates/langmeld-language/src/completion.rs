@@ -1,6 +1,6 @@
 use langmeld_core::{SourceFile, Span};
 
-use crate::parser::{DefaultLexer, Lexer, lex_bounded, parse_with_contexts};
+use crate::parser::{ConfiguredLexer, Lexer, lex_bounded, parse_with_contexts};
 use crate::{
     AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParseLimits, ParsedDocument,
     PatternPart, RepeatMinimum,
@@ -71,7 +71,10 @@ pub fn complete_at(
     language: &LanguageSpec,
     offset: usize,
 ) -> Vec<CompletionCandidate> {
-    complete_at_with_lexer(source, language, offset, &DefaultLexer)
+    let lexer = ConfiguredLexer {
+        rules: language.lexical_rules(),
+    };
+    complete_at_with_lexer(source, language, offset, &lexer)
 }
 
 /// Suggests construct-start tokens accepted at the source offset using a host lexer.

@@ -149,7 +149,7 @@ jobs:
           tests/tree-sitter/node_modules/.bin/tree-sitter generate \
             target/tree-sitter-validation/grammar.js \
             --output target/tree-sitter-validation/src
-          printf '%s\n' 'program { say hello to world with "one" with "two"; emit 7; raw opaque; }' \
+          printf '%s\n' '// generated grammar smoke test' 'program { say hello to world with "one" with "two"; emit 7; raw opaque; }' \
             > target/tree-sitter-validation/sample.widget
           tests/tree-sitter/node_modules/.bin/tree-sitter parse \
             --grammar-path target/tree-sitter-validation \

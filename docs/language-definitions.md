@@ -24,6 +24,9 @@ declare another language. Imports are explicit and may be nested.
 ```langmeld
 language "WidgetScript" {
     import "constructs/statements.langmeld";
+    lexical {
+        line_comment "//";
+    }
 
     construct "program" {
         syntax {
@@ -80,6 +83,34 @@ Pattern items match lexer tokens in order:
 - `optional { ... }` matches its sequence zero or one times.
 - `zero_or_more { ... }` and `one_or_more { ... }` repeat a sequence; fields
   from each match are captured in source order.
+
+## Lexical comments
+
+The built-in lexer accepts optional line and non-nested block-comment markers.
+Declare them once in the root language file:
+
+```langmeld
+language "WidgetScript" {
+    lexical {
+        line_comment "//";
+        block_comment "/*" "*/";
+    }
+
+    // constructs and imports go here
+}
+```
+
+Comments are skipped by the built-in parser and completion lexer, while text
+inside quoted strings remains unchanged. Unterminated block comments produce a
+source-located lexical diagnostic. The built-in meta-grammar also accepts `//`
+comments in `.langmeld` files. A host lexer supplied through
+`parse_with_lexer` owns its own comment handling. Hosts that parse a captured
+expression span must also teach their expression parser about comments inside
+that span.
+
+TextMate export includes configured line and block comments. Tree-sitter export
+includes line comments, but reports block comments as unsupported so it does
+not emit a grammar with misleading behavior.
 
 Captured values preserve their lexical text. For example, integer captures
 are not parsed into numeric values and strings retain their quotes. Hosts

@@ -2,6 +2,82 @@
 
 use std::collections::{HashMap, HashSet};
 
+/// Comment delimiters used by Langmeld's built-in lexer.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LexicalRules {
+    line_comments: Vec<String>,
+    block_comments: Vec<(String, String)>,
+}
+
+impl LexicalRules {
+    /// Adds a line-comment marker, such as `//` or `#`.
+    #[must_use]
+    pub fn line_comment(mut self, marker: impl Into<String>) -> Self {
+        self.line_comments.push(marker.into());
+        self
+    }
+
+    /// Adds a non-nested block-comment pair, such as `/*` and `*/`.
+    #[must_use]
+    pub fn block_comment(mut self, opening: impl Into<String>, closing: impl Into<String>) -> Self {
+        self.block_comments.push((opening.into(), closing.into()));
+        self
+    }
+
+    /// Returns the configured line-comment markers.
+    #[must_use]
+    pub fn line_comments(&self) -> &[String] {
+        &self.line_comments
+    }
+
+    /// Returns configured block-comment opening and closing markers.
+    #[must_use]
+    pub fn block_comments(&self) -> &[(String, String)] {
+        &self.block_comments
+    }
+
+    fn validate(&self) -> Result<(), SpecError> {
+        let mut openings = HashSet::new();
+        for marker in &self.line_comments {
+            if invalid_comment_marker(marker) {
+                return Err(SpecError::InvalidLineComment(marker.clone()));
+            }
+            if !openings.insert(marker.as_str()) {
+                return Err(SpecError::DuplicateCommentStart(marker.clone()));
+            }
+        }
+        for (opening, closing) in &self.block_comments {
+            if invalid_comment_marker(opening)
+                || closing.trim().is_empty()
+                || has_line_break(closing)
+                || opening == closing
+            {
+                return Err(SpecError::InvalidBlockComment {
+                    opening: opening.clone(),
+                    closing: closing.clone(),
+                });
+            }
+            if !openings.insert(opening.as_str()) {
+                return Err(SpecError::DuplicateCommentStart(opening.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn invalid_comment_marker(marker: &str) -> bool {
+    marker.trim().is_empty()
+        || marker.starts_with('"')
+        || marker.chars().next().is_some_and(char::is_whitespace)
+        || has_line_break(marker)
+}
+
+fn has_line_break(value: &str) -> bool {
+    value
+        .chars()
+        .any(|character| matches!(character, '\n' | '\r'))
+}
+
 /// The token category accepted by a captured syntax field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldKind {
@@ -333,6 +409,8 @@ pub struct LanguageSpec {
     pub(crate) name: String,
     /// Syntax constructs accepted by this language.
     pub(crate) constructs: Vec<ConstructSpec>,
+    /// Comment delimiters used by the built-in lexer.
+    pub(crate) lexical_rules: LexicalRules,
     /// Indices of constructs allowed at the source root.
     pub(crate) root_constructs: Vec<usize>,
 }
@@ -468,8 +546,22 @@ impl LanguageSpec {
         Ok(Self {
             name,
             constructs,
+            lexical_rules: LexicalRules::default(),
             root_constructs,
         })
+    }
+
+    /// Configures comment delimiters for the built-in lexer.
+    pub fn with_lexical_rules(mut self, rules: LexicalRules) -> Result<Self, SpecError> {
+        rules.validate()?;
+        self.lexical_rules = rules;
+        Ok(self)
+    }
+
+    /// Returns the comment delimiters used by the built-in lexer.
+    #[must_use]
+    pub fn lexical_rules(&self) -> &LexicalRules {
+        &self.lexical_rules
     }
 
     /// Restricts which constructs may appear at the source root.
@@ -612,6 +704,17 @@ pub enum SpecError {
         /// Missing category name.
         category: String,
     },
+    /// A line-comment marker cannot be recognized by the built-in lexer.
+    InvalidLineComment(String),
+    /// A block-comment marker is invalid for the built-in lexer.
+    InvalidBlockComment {
+        /// Opening marker that failed validation.
+        opening: String,
+        /// Closing marker that failed validation.
+        closing: String,
+    },
+    /// Two comment rules use the same opening marker.
+    DuplicateCommentStart(String),
 }
 
 fn patterns_overlap(left: &[PatternPart], right: &[PatternPart]) -> bool {
@@ -976,6 +1079,19 @@ impl std::fmt::Display for SpecError {
                 f,
                 "block for `{construct}` references category `{category}` with no members"
             ),
+            Self::InvalidLineComment(marker) => {
+                write!(
+                    f,
+                    "line-comment marker `{marker}` must not start with whitespace or a quote, and must not contain a line break"
+                )
+            }
+            Self::InvalidBlockComment { opening, closing } => write!(
+                f,
+                "block-comment markers `{opening}` and `{closing}` must be non-empty, line-local, and different"
+            ),
+            Self::DuplicateCommentStart(marker) => {
+                write!(f, "comment marker `{marker}` is configured more than once")
+            }
         }
     }
 }

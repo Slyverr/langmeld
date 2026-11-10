@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructSpec, LanguageSpec, PatternPart};
+use langmeld_language::{ConstructSpec, LanguageSpec, LexicalRules, PatternPart};
 use langmeld_textmate::{TextMateOptions, generate};
 use serde_json::Value;
 
@@ -65,4 +65,25 @@ fn rejects_invalid_scope_names_and_file_extensions() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn exports_configured_line_and_block_comments() {
+    let language = language()
+        .with_lexical_rules(
+            LexicalRules::default()
+                .line_comment("//")
+                .block_comment("/*", "*/"),
+        )
+        .unwrap();
+
+    let output = generate(&language, &TextMateOptions::new("source.widget")).unwrap();
+    let grammar: Value = serde_json::from_str(&output).unwrap();
+    let patterns = grammar["patterns"].as_array().unwrap();
+
+    assert_eq!(patterns[1]["name"], "comment.line.widget");
+    assert_eq!(patterns[1]["match"], "//[^\\r\\n]*");
+    assert_eq!(patterns[2]["name"], "comment.block.widget");
+    assert_eq!(patterns[2]["begin"], r"/\*");
+    assert_eq!(patterns[2]["end"], r"\*/");
 }

@@ -147,9 +147,10 @@ let grammar_json = generate(&language, &options)?;
 ```
 
 The output highlights declared literal words and punctuation, decimal
-integers, and double-quoted strings. It is lexical highlighting, not a generated
-parser: comments, semantic roles, and host-specific lexer rules are not
-inferred. CI tokenizes the generated example grammar with VS Code's TextMate
+integers, double-quoted strings, and comments configured in the language
+definition. It is lexical highlighting, not a generated parser: undeclared
+comments, semantic roles, and host-specific lexer rules are not inferred. CI
+tokenizes the generated example grammar with VS Code's TextMate
 engine and checks representative keyword, punctuation, number, string, escape,
 and non-keyword scopes. This validates the emitted grammar's behavior in the
 TextMate tokenizer; it does not test VS Code extension packaging, themes, or
@@ -162,7 +163,9 @@ for TextMate grammar integration details.
 The optional `langmeld-tree-sitter` crate converts a declarative `LanguageSpec`
 to a Tree-sitter `grammar.js` source. It maps construct variants, captures,
 optional and repeated groups, and child blocks. The generated lexer covers the
-built-in identifier, decimal integer, quoted string, and punctuation categories.
+configured line comments and the built-in identifier, decimal integer, quoted
+string, and punctuation categories. Configured block comments are reported as
+unsupported.
 It cannot infer a host lexer, custom parser, semantic rules, or runtime
 behavior, so those languages need a host-authored Tree-sitter grammar.
 
@@ -193,8 +196,9 @@ connections rather than browser workers.
 
 ## Current limits
 
-The server uses full-text document changes. Incremental edits and Tree-sitter
-exports are not provided yet.
-TextMate output is lexical only; it does not infer comments, host lexer rules,
-or semantic classifications. Diagnostics without a source location or tied to
+The server uses full-text document changes; incremental edits are not provided
+yet.
+TextMate output is lexical only; it includes configured comments but does not
+infer undeclared comments, host lexer rules, or semantic classifications.
+Diagnostics without a source location or tied to
 another file are not published as diagnostics for the current document.
