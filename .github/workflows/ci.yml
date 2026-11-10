@@ -47,12 +47,30 @@ jobs:
         run: |
           cargo run -p langmeld-cli --locked -- check \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
+          cargo fmt \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            -- --check
+          cargo test \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --target-dir target \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
             --target-dir target \
             --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
             --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
             --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
+          printf '%s\n' 'program { let message = "Hello from a file"; print message; }' \
+            > "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
+          cargo run \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --target-dir target \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
+            -- "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
       - name: Initialize and run custom-parser language project
         shell: bash
         run: |
@@ -77,6 +95,15 @@ jobs:
             --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
             --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
             --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
+          printf '%s\n' 'say Hello from a file!' \
+            > "$RUNNER_TEMP/langmeld-init-custom-parser/sample.say"
+          cargo run \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
+            --target-dir target \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
+            -- "$RUNNER_TEMP/langmeld-init-custom-parser/sample.say"
 
   quality:
     name: Formatting, check, and Clippy

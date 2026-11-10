@@ -170,9 +170,14 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     );
     assert!(project.join("Cargo.toml").is_file());
     assert!(project.join("langmeld.toml").is_file());
+    assert!(project.join("src/lib.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
+    assert!(project.join("tests/language.rs").is_file());
     assert!(project.join("language/language.lm").is_file());
     assert!(project.join("language/constructs/statements.lm").is_file());
+    let main = fs::read_to_string(project.join("src/main.rs")).expect("CLI should be generated");
+    assert!(main.contains("args_os()"));
+    assert!(main.contains("fs::read_to_string"));
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));
@@ -938,6 +943,8 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     let binary =
         fs::read_to_string(project.join("src/main.rs")).expect("binary should be generated");
     assert!(binary.contains("Custom Language"));
+    assert!(binary.contains("args_os()"));
+    assert!(binary.contains("fs::read_to_string"));
     let lsp = fs::read_to_string(project.join("src/bin/language-lsp.rs"))
         .expect("language server entry point should be generated");
     assert!(lsp.contains("HostLanguageBackend::new(SayParser)"));
