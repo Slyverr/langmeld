@@ -1651,7 +1651,7 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
 }
 
 #[test]
-fn host_backend_can_resolve_navigation_locations_in_closed_files() {
+fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
     let mut sources = SourceDatabase::default();
     let target_id = sources
         .insert("closed.host", "declaration")
@@ -1672,6 +1672,8 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
         .expect("test URI should be valid");
     let location_for_resolver = target_location.clone();
     let location_for_symbols = target_location.clone();
+    let closed_document = Arc::new(Mutex::new(None));
+    let closed_document_handler = Arc::clone(&closed_document);
     let backend = HostLanguageBackend::new(DiagnosticParser)
         .with_analyzer(DiagnosticAnalyzer)
         .with_navigator(ExternalLocationNavigator(target_location))
@@ -1691,6 +1693,10 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
                 DocumentSymbolKind::Struct,
                 location_for_symbols.clone(),
             )]
+        })
+        .with_document_close_handler(move |source| {
+            *closed_document_handler.lock().unwrap() =
+                Some((source.name.clone(), source.text.to_string()));
         });
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
@@ -1714,6 +1720,15 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
                 "version": 1,
                 "text": "syntax semantic"
             }
+        }),
+    );
+    receive_diagnostics(&client);
+    send_notification(
+        &client,
+        "textDocument/didChange",
+        json!({
+            "textDocument": { "uri": "file:///open.host", "version": 2 },
+            "contentChanges": [{ "text": "syntax semantic latest" }]
         }),
     );
     receive_diagnostics(&client);
@@ -1755,8 +1770,21 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
     assert_eq!(symbols[0]["name"], "ClosedDeclaration");
     assert_eq!(symbols[0]["location"]["uri"], "file:///closed.host");
 
+    send_notification(
+        &client,
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":"file:///open.host"}}),
+    );
+    receive_diagnostics(&client);
     send_request(&client, 5, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
+    assert_eq!(
+        *closed_document.lock().unwrap(),
+        Some((
+            "file:///open.host".to_owned(),
+            "syntax semantic latest".to_owned()
+        ))
+    );
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
     server_receiver

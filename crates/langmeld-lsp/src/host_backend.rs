@@ -10,6 +10,7 @@ use crate::{
 
 type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
 type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
+type DocumentCloseHandler = dyn Fn(&SourceFile) + Send + Sync;
 
 /// Retained parse and analysis results produced by a [`HostLanguageBackend`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,6 +55,7 @@ where
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
     source_resolver: Option<Box<SourceResolver>>,
     workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider>>,
+    document_close_handler: Option<Box<DocumentCloseHandler>>,
 }
 
 impl<P> HostLanguageBackend<P, NoAnalyzer>
@@ -71,6 +73,7 @@ where
             navigator: None,
             source_resolver: None,
             workspace_symbol_provider: None,
+            document_close_handler: None,
         }
     }
 
@@ -88,6 +91,7 @@ where
             navigator: None,
             source_resolver: self.source_resolver,
             workspace_symbol_provider: self.workspace_symbol_provider,
+            document_close_handler: self.document_close_handler,
         }
     }
 }
@@ -144,6 +148,17 @@ where
         provider: impl Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync + 'static,
     ) -> Self {
         self.workspace_symbol_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Registers a callback for removing or refreshing an editor-buffer entry
+    /// when its document closes.
+    #[must_use]
+    pub fn with_document_close_handler(
+        mut self,
+        handler: impl Fn(&SourceFile) + Send + Sync + 'static,
+    ) -> Self {
+        self.document_close_handler = Some(Box::new(handler));
         self
     }
 }
@@ -276,6 +291,12 @@ where
 
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
         self.source_resolver.as_ref()?(location)
+    }
+
+    fn did_close(&self, source: &SourceFile, _document: &BackendDocument<Self::Document>) {
+        if let Some(handler) = &self.document_close_handler {
+            handler(source);
+        }
     }
 
     fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbolInfo> {

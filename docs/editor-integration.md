@@ -145,6 +145,11 @@ source locations; Langmeld resolves open files itself and asks
 `source_for_location` for closed-file snapshots. The host decides which symbol
 kinds are searchable and how queries match names.
 
+When a host index overlays unsaved editor buffers, register
+`HostLanguageBackend::with_document_close_handler` to remove that overlay or
+reload the closed file's disk snapshot when the editor closes it. The callback
+receives the last source snapshot Langmeld analyzed for that document.
+
 Hosts can also return document outline trees with UTF-8 byte ranges for each
 symbol and its selection range. The adapter validates that every range is
 inside its source snapshot, that selections are contained by their symbols, and
