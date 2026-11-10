@@ -7,6 +7,21 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
+### Added
+
+- Parse-driven completion, navigation, and host-analysis contracts for
+  language-specific semantics and editor data.
+- A capability-aware LSP backend with completion, diagnostics, navigation,
+  references, rename, hover, formatting, document symbols, and semantic tokens.
+- TextMate and Tree-sitter exporters for supported declarative syntax, plus
+  manifest-backed project loading and starter initialization.
+
+### Fixed
+
+- Use Rust 1.88-compatible chunk decoding in the Aster semantic-token test.
+
 ## [0.3.0] - 2026-11-10
 
 ### Added
