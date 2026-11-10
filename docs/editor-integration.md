@@ -2,8 +2,8 @@
 
 `langmeld-lsp` provides a synchronous Language Server Protocol adapter for
 Langmeld languages. It supports full-document synchronization, diagnostics,
-completion, go-to-definition, and references. It advertises only completion
-and navigation operations enabled by the backend.
+completion, go-to-definition, references, and host-provided semantic tokens. It
+advertises only operations enabled by the backend.
 
 ## Declarative languages
 
@@ -40,6 +40,7 @@ impl LanguageBackend for MyLanguage {
             completion: true,
             definition: true,
             references: true,
+            ..BackendCapabilities::default()
         }
     }
 }
@@ -53,7 +54,11 @@ target document is open in the server.
 
 The [Aster example](../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition
-and reference queries.
+and reference queries. It also provides semantic token types for functions,
+parameters, and variables, classifying declarations and resolved references.
+Hosts return token names and UTF-8 byte spans; the adapter validates the legend,
+converts spans using the negotiated position encoding, and splits multiline
+spans into line-local tokens. Declarative grammars do not imply semantic roles.
 
 ## TextMate grammar export
 
@@ -75,9 +80,19 @@ inferred. Use the LSP for semantic diagnostics and navigation. See the
 [VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
 for TextMate grammar integration details.
 
+## WebAssembly
+
+The `langmeld-core`, `langmeld-expression`, `langmeld-language`, and
+`langmeld-textmate` crates compile for `wasm32-unknown-unknown`. This makes
+their Rust APIs usable from a Rust WebAssembly application, but Langmeld does
+not provide JavaScript bindings or a browser editor adapter. The project
+resolver uses filesystem APIs, and the LSP adapter currently serves protocol
+connections rather than browser workers.
+
 ## Current limits
 
 The server uses full-text document changes. Incremental edits, rename, hover,
-document symbols, formatting, semantic tokens, TextMate, and Tree-sitter
-exports are not provided yet. Diagnostics without a source location or tied to
+document symbols, formatting, and Tree-sitter exports are not provided yet.
+TextMate output is lexical only; it does not infer comments, host lexer rules,
+or semantic classifications. Diagnostics without a source location or tied to
 another file are not published as diagnostics for the current document.

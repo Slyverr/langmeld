@@ -24,11 +24,13 @@ candidates. The `langmeld-lsp` crate provides full-text LSP synchronization,
 diagnostics, and completion for declarative languages, plus host-backed
 definition and references queries. Hosts can also provide full-document
 semantic tokens through the same LSP adapter. The `langmeld lsp` CLI command
-serves manifest-backed declarative projects. The optional `langmeld-textmate` crate
-exports lexical highlighting rules for declarative syntax. Tree-sitter export
-is not available yet. The `langmeld-project` crate provides a directory-backed
-resolver for modular `.lm` projects, with project-root confinement and source
-snapshots for diagnostic display.
+serves manifest-backed declarative projects. The optional `langmeld-textmate`
+crate exports lexical highlighting rules for declarative syntax. Tree-sitter
+export is not available yet. The `langmeld-project` crate provides a
+directory-backed resolver for modular `.lm` projects, with project-root
+confinement and source snapshots for diagnostic display. The core, expression,
+language, and TextMate crates compile for `wasm32-unknown-unknown`; Langmeld does
+not yet provide browser bindings or a browser editor adapter.
 
 ## Requirements
 
