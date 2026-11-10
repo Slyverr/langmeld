@@ -969,7 +969,9 @@ fn project_definitions_lsp_refreshes_references_when_a_closed_import_changes() {
     assert_eq!(watcher["globPattern"]["pattern"], "**/*.langmeld");
     assert_eq!(
         watcher["globPattern"]["baseUri"],
-        url::Url::from_directory_path(&project).unwrap().as_str()
+        url::Url::from_directory_path(fs::canonicalize(&project).unwrap())
+            .unwrap()
+            .as_str()
     );
     send_lsp_message(
         &mut stdin,
