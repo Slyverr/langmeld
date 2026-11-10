@@ -21,6 +21,18 @@ cargo run \
   --locked
 ```
 
+The generated TextMate grammar is also tokenized with VS Code's TextMate
+engine. This check requires Node.js 22:
+
+```sh
+npm ci --prefix tests/textmate --ignore-scripts
+cargo run -p langmeld-cli --locked -- generate textmate \
+  --manifest-path examples/toy-language/langmeld.toml \
+  --scope-name source.widgetscript \
+  --file-type widget |
+npm --prefix tests/textmate test
+```
+
 Verify crate archives before a release with:
 
 ```sh

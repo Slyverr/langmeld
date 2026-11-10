@@ -67,6 +67,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/textmate/package-lock.json
+      - name: Install TextMate validation dependencies
+        run: npm ci --prefix tests/textmate --ignore-scripts
+      - name: Generate and tokenize the example grammar
+        run: |
+          set -o pipefail
+          cargo run -p langmeld-cli --locked -- generate textmate \
+            --manifest-path examples/toy-language/langmeld.toml \
+            --scope-name source.widgetscript \
+            --file-type widget |
+          npm --prefix tests/textmate test
       - name: Check reusable libraries for WebAssembly
         run: >-
           cargo check --target wasm32-unknown-unknown

@@ -97,7 +97,11 @@ let grammar_json = generate(&language, &options)?;
 The output highlights declared literal words and punctuation, decimal
 integers, and double-quoted strings. It is lexical highlighting, not a generated
 parser: comments, semantic roles, and host-specific lexer rules are not
-inferred. Use the LSP for semantic diagnostics and navigation. See the
+inferred. CI tokenizes the generated example grammar with VS Code's TextMate
+engine and checks representative keyword, punctuation, number, string, escape,
+and non-keyword scopes. This validates the emitted grammar's behavior in the
+TextMate tokenizer; it does not test VS Code extension packaging, themes, or
+editor UI. Use the LSP for semantic diagnostics and navigation. See the
 [VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
 for TextMate grammar integration details.
 

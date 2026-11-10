@@ -1,0 +1,12 @@
+{
+  "name": "langmeld-textmate-validation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node validate.mjs"
+  },
+  "devDependencies": {
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.3.2"
+  }
+}
