@@ -49,8 +49,8 @@ precedence and expression trees.
 The [`aster-language`](examples/aster-language) example adds a host-owned AST,
 scope-aware name resolution, and basic type checks.
 The [`schema-language`](examples/schema-language) example uses a global type
-namespace with forward and recursive references, showing a different
-host-owned semantic policy.
+namespace with forward and recursive references, then completes field types
+from the existing semantic result through `LanguageCompleter`.
 
 Create a starter language project with
 `cargo run -p langmeld-cli -- init my-language`. The initializer prompts for

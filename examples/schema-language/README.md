@@ -4,7 +4,9 @@ This consumer implements a compact `record Name { field: Type }` language with
 its own lexer, parser, AST, and semantic analysis. It uses Langmeld's source,
 diagnostic, host-parser, and host-analyzer contracts. Its analyzer collects a
 global record namespace before resolving field types, so forward and recursive
-references work without Aster's lexical-scope rules.
+references work without Aster's lexical-scope rules. Its `SchemaCompleter`
+suggests record types for a partially typed field type using the existing
+analysis result rather than reparsing or reanalyzing the document.
 
 Run it with:
 

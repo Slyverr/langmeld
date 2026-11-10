@@ -1,6 +1,23 @@
-use langmeld_core::SourceFile;
-use langmeld_language::LanguageAnalyzer;
-use langmeld_schema_language_example::{SchemaAnalyzer, analyze, parse_schema};
+use langmeld_core::{SourceFile, Span};
+use langmeld_language::{LanguageAnalyzer, complete_with};
+use langmeld_schema_language_example::{SchemaAnalyzer, SchemaCompleter, analyze, parse_schema};
+
+#[test]
+fn completes_field_types_from_the_current_schema_symbols() {
+    let source = SourceFile::new(
+        "schema.lang",
+        "record User { manager: Man } record Manager {}",
+    );
+    let parsed = parse_schema(&source);
+    let analysis = SchemaAnalyzer.analyze(&source, &parsed);
+    let offset = source.text.find("Man").unwrap() + "Man".len();
+
+    let candidates = complete_with(&source, &parsed, Some(&analysis), offset, &SchemaCompleter);
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].text, "Manager");
+    assert_eq!(candidates[0].replace, Span::new(offset - 3, offset));
+}
 
 #[test]
 fn resolves_forward_and_recursive_record_types() {
