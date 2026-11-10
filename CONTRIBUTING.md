@@ -130,7 +130,15 @@ For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
 checks above and the archive verification command. Use
-`chore(release): prepare vX.Y.Z` for the release-preparation commit.
+`chore(release): prepare vX.Y.Z` for the release-preparation commit. After that
+commit passes CI, push the matching `vX.Y.Z` tag. The release workflow reruns
+CI and publishes the eight crates in dependency order through crates.io Trusted
+Publishing; no long-lived registry token is stored in GitHub Actions secrets.
+Configure each crate's Trusted Publisher for `Slyverr/langmeld`, workflow
+`release.yml`, and the GitHub Actions environment `crates-io` before publishing.
+The publish job is disabled unless the repository variable
+`LANGMELD_CRATES_IO_PUBLISH_ENABLED` is set to `true`; without it, release tags
+still run version validation and CI but do not publish packages.
 
 ## Commit conventions
 
