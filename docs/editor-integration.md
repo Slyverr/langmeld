@@ -55,10 +55,12 @@ matching file events through `did_change_watched_files`. Configuration and file
 watchers are dynamically registered only when the client advertises support;
 callbacks begin only after the client accepts the registration. The backend
 owns indexing and decides how these events affect project state. These hooks
-report changes; they do not load files or rebuild indexes automatically. The
-initial workspace context reports whether the client supports relative watcher
-patterns. If the backend requests any relative pattern from a client that does
-not support them, Langmeld skips that file-watcher registration.
+report changes; they do not load files or rebuild indexes automatically. After
+each accepted workspace event, Langmeld reanalyzes open documents and republishes
+their diagnostics. The initial workspace context reports whether the client
+supports relative watcher patterns. If the backend requests any relative
+pattern from a client that does not support them, Langmeld skips that
+file-watcher registration.
 For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and

@@ -32,6 +32,13 @@ struct OpenDocument<D> {
     analysis: BackendDocument<D>,
 }
 
+#[derive(Clone, Copy)]
+enum WorkspaceRefreshTrigger {
+    DocumentChanged,
+    DocumentClosed,
+    WorkspaceChanged,
+}
+
 const WORKSPACE_REGISTRATION_REQUEST_ID: &str = "langmeld-workspace-registration";
 
 #[derive(Clone, Copy)]
@@ -186,6 +193,11 @@ pub fn run_connection<B: LanguageBackend>(
                     )
                 {
                     server.backend.did_change_workspace_folders(&params.event);
+                    server.refresh_workspace(
+                        None,
+                        WorkspaceRefreshTrigger::WorkspaceChanged,
+                        &connection,
+                    )?;
                 } else if server.configuration_registered
                     && let Some(params) = parse_notification::<DidChangeConfigurationParams>(
                         &notification,
@@ -193,6 +205,11 @@ pub fn run_connection<B: LanguageBackend>(
                     )
                 {
                     server.backend.did_change_configuration(&params.settings);
+                    server.refresh_workspace(
+                        None,
+                        WorkspaceRefreshTrigger::WorkspaceChanged,
+                        &connection,
+                    )?;
                 } else if server.watched_files_registered
                     && let Some(params) = parse_notification::<DidChangeWatchedFilesParams>(
                         &notification,
@@ -200,6 +217,11 @@ pub fn run_connection<B: LanguageBackend>(
                     )
                 {
                     server.backend.did_change_watched_files(&params.changes);
+                    server.refresh_workspace(
+                        None,
+                        WorkspaceRefreshTrigger::WorkspaceChanged,
+                        &connection,
+                    )?;
                 }
             }
             Message::Response(response) => {
@@ -595,7 +617,7 @@ impl<B: LanguageBackend> ServerState<B> {
             }
             self.sources.remove(document.source_id);
             publish_diagnostics(connection, uri, None, Vec::new())?;
-            self.refresh_workspace(None, connection)?;
+            self.refresh_workspace(None, WorkspaceRefreshTrigger::DocumentClosed, connection)?;
         }
         Ok(())
     }
@@ -607,12 +629,17 @@ impl<B: LanguageBackend> ServerState<B> {
         version: i32,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        self.refresh_workspace(Some((uri, source_id, version)), connection)
+        self.refresh_workspace(
+            Some((uri, source_id, version)),
+            WorkspaceRefreshTrigger::DocumentChanged,
+            connection,
+        )
     }
 
     fn refresh_workspace(
         &mut self,
         updated: Option<(Uri, SourceId, i32)>,
+        trigger: WorkspaceRefreshTrigger,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let updated_uri = updated.as_ref().map(|(uri, _, _)| uri);
@@ -687,6 +714,22 @@ impl<B: LanguageBackend> ServerState<B> {
         }
 
         let Some((uri, source_id, version)) = updated else {
+            if !matches!(trigger, WorkspaceRefreshTrigger::WorkspaceChanged) {
+                return Ok(());
+            }
+            for (uri, source_id, version, source) in entries {
+                let analysis = self.backend.analyze(&source);
+                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
+                self.documents.insert(
+                    uri.clone(),
+                    OpenDocument {
+                        source_id,
+                        version,
+                        analysis,
+                    },
+                );
+                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+            }
             return Ok(());
         };
         let source = self

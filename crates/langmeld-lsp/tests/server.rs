@@ -418,13 +418,28 @@ struct WorkspaceLifecycleBackend {
     configuration: Arc<Mutex<Vec<Value>>>,
     file_changes: Arc<Mutex<Vec<Vec<lsp_types::FileEvent>>>>,
     relative_watchers: bool,
+    workspace_revision: Arc<AtomicUsize>,
 }
 
 impl LanguageBackend for WorkspaceLifecycleBackend {
     type Document = ();
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
-        BackendDocument::new(source, (), Vec::new())
+        let revision = self.workspace_revision.load(Ordering::Relaxed);
+        BackendDocument::new(
+            source,
+            (),
+            vec![Diagnostic::error(
+                format!("REV-{revision}"),
+                "workspace revision",
+                source,
+                Span::new(0, 0),
+            )],
+        )
+    }
+
+    fn did_change_workspace_folders(&self, _event: &lsp_types::WorkspaceFoldersChangeEvent) {
+        self.workspace_revision.fetch_add(1, Ordering::Relaxed);
     }
 
     fn capabilities(&self) -> BackendCapabilities {
@@ -444,6 +459,7 @@ impl LanguageBackend for WorkspaceLifecycleBackend {
             lsp_types::GlobPattern::String("**/*.lm".into())
         };
         BackendWorkspaceCapabilities {
+            workspace_folders: true,
             configuration_changes: true,
             watched_files: vec![lsp_types::FileSystemWatcher {
                 glob_pattern,
@@ -453,16 +469,17 @@ impl LanguageBackend for WorkspaceLifecycleBackend {
                         | lsp_types::WatchKind::Delete,
                 ),
             }],
-            ..BackendWorkspaceCapabilities::default()
         }
     }
 
     fn did_change_configuration(&self, settings: &Value) {
         self.configuration.lock().unwrap().push(settings.clone());
+        self.workspace_revision.fetch_add(1, Ordering::Relaxed);
     }
 
     fn did_change_watched_files(&self, changes: &[lsp_types::FileEvent]) {
         self.file_changes.lock().unwrap().push(changes.to_vec());
+        self.workspace_revision.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -655,6 +672,110 @@ fn skips_relative_watcher_registration_when_client_does_not_support_it() {
             Value::Null,
         )))
         .unwrap();
+    send_request(&client, 2, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[test]
+fn refreshes_open_document_diagnostics_after_workspace_events() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = WorkspaceLifecycleBackend::default();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({
+            "capabilities": {
+                "workspace": {
+                    "workspaceFolders": true,
+                    "didChangeConfiguration": { "dynamicRegistration": true },
+                    "didChangeWatchedFiles": { "dynamicRegistration": true }
+                }
+            }
+        }),
+    );
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    let registration = match receive(&client) {
+        Message::Request(request) => request,
+        message => panic!("expected capability registration request, got {message:?}"),
+    };
+    client
+        .sender
+        .send(Message::Response(lsp_server::Response::new_ok(
+            registration.id,
+            Value::Null,
+        )))
+        .unwrap();
+
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": "file:///workspace/main.lm",
+                "languageId": "test",
+                "version": 1,
+                "text": "program"
+            }
+        }),
+    );
+    assert_eq!(
+        receive_diagnostics(&client)["diagnostics"][0]["code"],
+        "REV-0"
+    );
+
+    send_notification(
+        &client,
+        "workspace/didChangeConfiguration",
+        json!({ "settings": { "strict": true } }),
+    );
+    assert_eq!(
+        receive_diagnostics(&client)["diagnostics"][0]["code"],
+        "REV-1"
+    );
+
+    send_notification(
+        &client,
+        "workspace/didChangeWatchedFiles",
+        json!({
+            "changes": [{ "uri": "file:///workspace/defs/shared.lm", "type": 2 }]
+        }),
+    );
+    assert_eq!(
+        receive_diagnostics(&client)["diagnostics"][0]["code"],
+        "REV-2"
+    );
+
+    send_notification(
+        &client,
+        "workspace/didChangeWorkspaceFolders",
+        json!({
+            "event": {
+                "added": [],
+                "removed": [{ "uri": "file:///workspace", "name": "workspace" }]
+            }
+        }),
+    );
+    assert_eq!(
+        receive_diagnostics(&client)["diagnostics"][0]["code"],
+        "REV-3"
+    );
+
     send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
