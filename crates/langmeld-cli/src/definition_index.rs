@@ -1,0 +1,236 @@
+use langmeld_core::{SourceFile, SourceLocation, Span};
+use langmeld_language::{
+    CapturedValue, ParseResult, ParsedConstruct, language_definition_grammar, parse,
+};
+
+#[derive(Clone, Default)]
+pub(crate) struct DefinitionIndex {
+    constructs: Vec<String>,
+    categories: Vec<String>,
+    occurrences: Vec<DefinitionOccurrence>,
+}
+
+impl DefinitionIndex {
+    pub(crate) fn from_sources(sources: &[SourceFile]) -> Self {
+        let mut index = Self::default();
+        for source in sources {
+            let parsed = parse(source, language_definition_grammar());
+            index.add_constructs(source, &parsed.constructs);
+        }
+        index
+    }
+
+    pub(crate) fn constructs(&self) -> &[String] {
+        &self.constructs
+    }
+
+    pub(crate) fn categories(&self) -> &[String] {
+        &self.categories
+    }
+
+    pub(crate) fn definitions_at(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        offset: usize,
+    ) -> Vec<SourceLocation> {
+        let Some((namespace, name)) = symbol_at(&parsed.constructs, offset) else {
+            return Vec::new();
+        };
+        self.occurrences
+            .iter()
+            .filter(|occurrence| {
+                occurrence.declaration
+                    && occurrence.namespace == namespace
+                    && occurrence.name == name
+            })
+            .map(|occurrence| occurrence.location.clone())
+            .filter(|location| valid_location(source, location))
+            .collect()
+    }
+
+    pub(crate) fn references_at(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        let Some((namespace, name)) = symbol_at(&parsed.constructs, offset) else {
+            return Vec::new();
+        };
+        self.occurrences
+            .iter()
+            .filter(|occurrence| {
+                occurrence.namespace == namespace
+                    && occurrence.name == name
+                    && (include_declaration || !occurrence.declaration)
+            })
+            .map(|occurrence| occurrence.location.clone())
+            .filter(|location| valid_location(source, location))
+            .collect()
+    }
+
+    fn add_constructs(&mut self, source: &SourceFile, constructs: &[ParsedConstruct]) {
+        for construct in constructs {
+            match construct.name.as_str() {
+                "construct" => {
+                    if let Some((name, field)) = string_field(construct, "name") {
+                        Self::add_completion(&mut self.constructs, &name);
+                        self.add_occurrence(
+                            source,
+                            IndexNamespace::Construct,
+                            name,
+                            field.span,
+                            true,
+                        );
+                    }
+                }
+                "implements" => {
+                    if let Some((category, field)) = string_field(construct, "category") {
+                        Self::add_completion(&mut self.categories, &category);
+                        self.add_occurrence(
+                            source,
+                            IndexNamespace::Category,
+                            category,
+                            field.span,
+                            true,
+                        );
+                    }
+                }
+                "root" | "allow" => {
+                    if let Some((name, field)) = string_field(construct, "name") {
+                        self.add_occurrence(
+                            source,
+                            IndexNamespace::Construct,
+                            name,
+                            field.span,
+                            false,
+                        );
+                    }
+                }
+                "allow_category" => {
+                    if let Some((category, field)) = string_field(construct, "category") {
+                        self.add_occurrence(
+                            source,
+                            IndexNamespace::Category,
+                            category,
+                            field.span,
+                            false,
+                        );
+                    }
+                }
+                _ => {}
+            }
+            self.add_constructs(source, &construct.children);
+        }
+    }
+
+    fn add_completion(values: &mut Vec<String>, name: &str) {
+        if !values.iter().any(|value| value == name) {
+            values.push(name.to_owned());
+        }
+    }
+
+    fn add_occurrence(
+        &mut self,
+        source: &SourceFile,
+        namespace: IndexNamespace,
+        name: String,
+        span: Span,
+        declaration: bool,
+    ) {
+        self.occurrences.push(DefinitionOccurrence {
+            namespace,
+            name,
+            declaration,
+            location: SourceLocation {
+                source_name: source.name.clone(),
+                identity: source.identity(),
+                span,
+            },
+        });
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IndexNamespace {
+    Construct,
+    Category,
+}
+
+#[derive(Clone)]
+struct DefinitionOccurrence {
+    namespace: IndexNamespace,
+    name: String,
+    declaration: bool,
+    location: SourceLocation,
+}
+
+fn symbol_at(constructs: &[ParsedConstruct], offset: usize) -> Option<(IndexNamespace, String)> {
+    for construct in constructs {
+        for field in &construct.fields {
+            if field.span.start <= offset
+                && offset <= field.span.end
+                && let Some(namespace) =
+                    reference_field(construct.name.as_str(), field.name.as_str())
+                && let CapturedValue::String(raw_name) = &field.value
+            {
+                return Some((namespace, decode_quoted(raw_name)?));
+            }
+        }
+        if let Some(symbol) = symbol_at(&construct.children, offset) {
+            return Some(symbol);
+        }
+    }
+    None
+}
+
+fn reference_field(construct: &str, field: &str) -> Option<IndexNamespace> {
+    match (construct, field) {
+        ("construct", "name") | ("root" | "allow", "name") => Some(IndexNamespace::Construct),
+        ("implements" | "allow_category", "category") => Some(IndexNamespace::Category),
+        _ => None,
+    }
+}
+
+fn string_field<'a>(
+    construct: &'a ParsedConstruct,
+    name: &str,
+) -> Option<(String, &'a langmeld_language::CapturedField)> {
+    let field = construct.fields.iter().find(|field| field.name == name)?;
+    let CapturedValue::String(value) = &field.value else {
+        return None;
+    };
+    Some((decode_quoted(value)?, field))
+}
+
+fn decode_quoted(value: &str) -> Option<String> {
+    let inner = value.strip_prefix('"')?.strip_suffix('"')?;
+    let mut decoded = String::with_capacity(inner.len());
+    let mut characters = inner.chars();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            decoded.push(character);
+            continue;
+        }
+        match characters.next()? {
+            '\\' => decoded.push('\\'),
+            '"' => decoded.push('"'),
+            'n' => decoded.push('\n'),
+            'r' => decoded.push('\r'),
+            't' => decoded.push('\t'),
+            _ => return None,
+        }
+    }
+    Some(decoded)
+}
+
+fn valid_location(source: &SourceFile, location: &SourceLocation) -> bool {
+    location.source_name != source.name
+        || (location.identity == source.identity()
+            && location.span.start <= location.span.end
+            && location.span.end <= source.text.len()
+            && source.text.is_char_boundary(location.span.start)
+            && source.text.is_char_boundary(location.span.end))
+}

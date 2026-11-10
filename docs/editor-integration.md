@@ -27,7 +27,8 @@ available in the working directory or passed with `--manifest-path`, the
 backend validates the complete imported definition graph using all open
 project files as overlays; unopened files are read from disk. When any open
 file changes or closes, diagnostics are refreshed for every remaining open
-project file. Use
+project file. Project mode also provides go-to-definition and references for
+construct and category names across imported definition files. Use
 `langmeld check --manifest-path langmeld.toml` to validate the complete on-disk
 project definition and imports.
 

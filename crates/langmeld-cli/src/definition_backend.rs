@@ -5,18 +5,19 @@ use std::{
     sync::{Mutex, RwLock},
 };
 
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, SourceLocation};
 use langmeld_language::{
     DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
 };
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, BackendWorkspaceCapabilities, DocumentSymbolInfo,
-    LanguageBackend, LanguageDefinitionBackend,
+    BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
+    DocumentSymbolInfo, LanguageBackend, LanguageDefinitionBackend,
 };
 use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest};
 use url::Url;
 
-use crate::definition_completion::{DefinitionCompletionIndex, complete_definition_field};
+use crate::definition_completion::complete_definition_field;
+use crate::definition_index::DefinitionIndex;
 use crate::project::DefinitionProjectContext;
 
 pub(crate) struct ProjectDefinitionBackend {
@@ -24,7 +25,7 @@ pub(crate) struct ProjectDefinitionBackend {
     root_definition: String,
     resolver: DirectoryDefinitionResolver,
     syntax_backend: LanguageDefinitionBackend,
-    references: RwLock<Option<DefinitionCompletionIndex>>,
+    definition_index: RwLock<Option<DefinitionIndex>>,
 }
 
 impl ProjectDefinitionBackend {
@@ -36,7 +37,7 @@ impl ProjectDefinitionBackend {
             root_definition,
             resolver: project.resolver,
             syntax_backend: LanguageDefinitionBackend,
-            references: RwLock::new(None),
+            definition_index: RwLock::new(None),
         })
     }
 }
@@ -85,10 +86,10 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .map(|(_, source)| source.clone())
             .collect::<Vec<_>>();
         *self
-            .references
+            .definition_index
             .write()
             .expect("definition reference lock is not poisoned") =
-            Some(DefinitionCompletionIndex::from_sources(&loaded_sources));
+            Some(DefinitionIndex::from_sources(&loaded_sources));
         let loaded = resolver
             .loaded
             .lock()
@@ -120,7 +121,11 @@ impl LanguageBackend for ProjectDefinitionBackend {
     }
 
     fn capabilities(&self) -> BackendCapabilities {
-        self.syntax_backend.capabilities()
+        BackendCapabilities {
+            definition: true,
+            references: true,
+            ..self.syntax_backend.capabilities()
+        }
     }
 
     fn workspace_capabilities(&self) -> BackendWorkspaceCapabilities {
@@ -152,8 +157,8 @@ impl LanguageBackend for ProjectDefinitionBackend {
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        let references = self
-            .references
+        let definition_index = self
+            .definition_index
             .read()
             .expect("definition reference lock is not poisoned")
             .clone();
@@ -162,11 +167,63 @@ impl LanguageBackend for ProjectDefinitionBackend {
             source,
             &document.state,
             offset,
-            references.as_ref(),
+            definition_index.as_ref(),
         ) {
             return completions;
         }
         self.syntax_backend.complete(source, document, offset)
+    }
+
+    fn definition(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Vec<SourceLocation> {
+        if self.source_key(source).is_none() {
+            return Vec::new();
+        }
+        self.definition_index
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map_or_else(Vec::new, |index| {
+                index.definitions_at(source, &document.state, offset)
+            })
+    }
+
+    fn references(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        if self.source_key(source).is_none() {
+            return Vec::new();
+        }
+        self.definition_index
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map_or_else(Vec::new, |index| {
+                index.references_at(source, &document.state, offset, include_declaration)
+            })
+    }
+
+    fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
+        let resolved = self.resolver.load(&location.source_name).ok()?;
+        if resolved.source.identity() != location.identity
+            || resolved.source.name != location.source_name
+        {
+            return None;
+        }
+        let path = self.root.join(&location.source_name).canonicalize().ok()?;
+        if !path.starts_with(&self.root) {
+            return None;
+        }
+        let uri = Url::from_file_path(path).ok()?.as_str().parse().ok()?;
+        Some(BackendSource::new(uri, resolved.source))
     }
 
     fn format_document(
