@@ -11,8 +11,8 @@ use std::{
 
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{
-    AnalysisDocument, CompletionCandidate, ConstructSpec, LanguageAnalyzer, LanguageParser,
-    LanguageSpec, ParsedDocument, PatternPart,
+    AnalysisDocument, CompletionCandidate, ConstructSpec, LanguageAnalyzer, LanguageCompleter,
+    LanguageNavigator, LanguageParser, LanguageSpec, ParsedDocument, PatternPart,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, DeclarativeBackend, DocumentSymbolInfo,
@@ -761,15 +761,82 @@ impl LanguageAnalyzer<DiagnosticParser> for DiagnosticAnalyzer {
     }
 }
 
+struct DiagnosticCompleter;
+
+impl LanguageCompleter<DiagnosticParser> for DiagnosticCompleter {
+    type Analysis = usize;
+
+    fn complete(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<bool>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        assert!(parsed.tree);
+        assert_eq!(analysis.unwrap().result, source.text.len());
+        vec![CompletionCandidate {
+            text: "suggestion".into(),
+            replace: Span::new(7, source.text.len()),
+        }]
+    }
+}
+
+struct DiagnosticNavigator;
+
+impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
+    type Analysis = usize;
+
+    fn definition(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<bool>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+    ) -> Vec<SourceLocation> {
+        assert!(parsed.tree);
+        assert_eq!(analysis.unwrap().result, source.text.len());
+        vec![SourceLocation {
+            source_name: source.name.clone(),
+            identity: source.identity(),
+            span: Span::new(7, source.text.len()),
+        }]
+    }
+
+    fn references(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<bool>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+        include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        assert!(parsed.tree);
+        assert_eq!(analysis.unwrap().result, source.text.len());
+        include_declaration
+            .then(|| SourceLocation {
+                source_name: source.name.clone(),
+                identity: source.identity(),
+                span: Span::new(7, source.text.len()),
+            })
+            .into_iter()
+            .collect()
+    }
+}
+
 #[test]
-fn host_language_backend_publishes_parser_and_analysis_diagnostics() {
+fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     let parser_only = HostLanguageBackend::new(DiagnosticParser);
     let parsed = parser_only.analyze(&SourceFile::new("file:///parser.test", "syntax"));
     assert_eq!(parsed.diagnostics[0].code, "HOST-PARSE");
+    assert_eq!(parser_only.capabilities(), BackendCapabilities::default());
 
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
-    let backend = HostLanguageBackend::new(DiagnosticParser).with_analyzer(DiagnosticAnalyzer);
+    let backend = HostLanguageBackend::new(DiagnosticParser)
+        .with_analyzer(DiagnosticAnalyzer)
+        .with_completer(DiagnosticCompleter)
+        .with_navigator(DiagnosticNavigator);
     let server_thread = thread::spawn(move || {
         let result = run_connection(server_connection, backend);
         server_sender
@@ -794,7 +861,34 @@ fn host_language_backend_publishes_parser_and_analysis_diagnostics() {
         .collect::<Vec<_>>();
     assert_eq!(codes, ["HOST-PARSE", "HOST-SEMANTIC"]);
 
-    send_request(&client, 2, "shutdown", Value::Null);
+    send_request(
+        &client,
+        2,
+        "textDocument/completion",
+        json!({"textDocument":{"uri":"file:///host.test"},"position":{"line":0,"character":10}}),
+    );
+    let completion = receive_response(&client);
+    assert_eq!(completion[0]["label"], "suggestion");
+
+    send_request(
+        &client,
+        3,
+        "textDocument/definition",
+        json!({"textDocument":{"uri":"file:///host.test"},"position":{"line":0,"character":10}}),
+    );
+    let definition = receive_response(&client);
+    assert_eq!(definition[0]["uri"], "file:///host.test");
+
+    send_request(
+        &client,
+        4,
+        "textDocument/references",
+        json!({"textDocument":{"uri":"file:///host.test"},"position":{"line":0,"character":10},"context":{"includeDeclaration":true}}),
+    );
+    let references = receive_response(&client);
+    assert_eq!(references.as_array().unwrap().len(), 1);
+
+    send_request(&client, 5, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

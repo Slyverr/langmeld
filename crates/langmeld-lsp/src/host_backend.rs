@@ -1,5 +1,8 @@
-use langmeld_core::SourceFile;
-use langmeld_language::{AnalysisDocument, LanguageAnalyzer, LanguageParser, ParsedDocument};
+use langmeld_core::{SourceFile, SourceLocation};
+use langmeld_language::{
+    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
+    ParsedDocument,
+};
 
 use crate::{BackendCapabilities, BackendDocument, LanguageBackend};
 
@@ -28,35 +31,76 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
     }
 }
 
-/// Connects a host parser and optional analyzer to LSP diagnostics.
+/// Connects host parser and analysis contracts to an LSP backend.
 ///
-/// This adapter retains both results and publishes their diagnostics. It
-/// advertises no completion, navigation, or other editor queries; implement
-/// [`LanguageBackend`] directly when a language provides those features.
-pub struct HostLanguageBackend<P, A = NoAnalyzer> {
+/// Parser and semantic diagnostics are always published. Completion and
+/// navigation capabilities are enabled only when their providers are attached.
+/// Workspace analysis, rename, formatting, hover, and other queries remain
+/// available through a custom [`LanguageBackend`] implementation.
+pub struct HostLanguageBackend<P, A = NoAnalyzer>
+where
+    P: LanguageParser,
+    A: LanguageAnalyzer<P>,
+{
     parser: P,
     analyzer: A,
+    completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync>>,
+    navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
 }
 
-impl<P> HostLanguageBackend<P, NoAnalyzer> {
+impl<P> HostLanguageBackend<P, NoAnalyzer>
+where
+    P: LanguageParser,
+{
     /// Creates a backend that publishes parser diagnostics only.
     #[must_use]
     pub fn new(parser: P) -> Self {
         Self {
             parser,
             analyzer: NoAnalyzer,
+            completer: None,
+            navigator: None,
+        }
+    }
+
+    /// Adds host semantic analysis to this backend.
+    #[must_use]
+    pub fn with_analyzer<A>(self, analyzer: A) -> HostLanguageBackend<P, A>
+    where
+        A: LanguageAnalyzer<P>,
+    {
+        HostLanguageBackend {
+            parser: self.parser,
+            analyzer,
+            completer: None,
+            navigator: None,
         }
     }
 }
 
-impl<P, A> HostLanguageBackend<P, A> {
-    /// Adds host semantic analysis to this backend.
+impl<P, A> HostLanguageBackend<P, A>
+where
+    P: LanguageParser,
+    A: LanguageAnalyzer<P>,
+{
+    /// Adds completion using the retained parse and analysis results.
     #[must_use]
-    pub fn with_analyzer<Next>(self, analyzer: Next) -> HostLanguageBackend<P, Next> {
-        HostLanguageBackend {
-            parser: self.parser,
-            analyzer,
-        }
+    pub fn with_completer<C>(mut self, completer: C) -> Self
+    where
+        C: LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync + 'static,
+    {
+        self.completer = Some(Box::new(completer));
+        self
+    }
+
+    /// Adds definition and references queries using retained parse and analysis results.
+    #[must_use]
+    pub fn with_navigator<N>(mut self, navigator: N) -> Self
+    where
+        N: LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync + 'static,
+    {
+        self.navigator = Some(Box::new(navigator));
+        self
     }
 }
 
@@ -82,6 +126,61 @@ where
     }
 
     fn capabilities(&self) -> BackendCapabilities {
-        BackendCapabilities::default()
+        BackendCapabilities {
+            completion: self.completer.is_some(),
+            definition: self.navigator.is_some(),
+            references: self.navigator.is_some(),
+            ..BackendCapabilities::default()
+        }
+    }
+
+    fn complete(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Vec<langmeld_language::CompletionCandidate> {
+        self.completer.as_ref().map_or_else(Vec::new, |completer| {
+            completer.complete(
+                source,
+                &document.state.parsed,
+                Some(&document.state.analysis),
+                offset,
+            )
+        })
+    }
+
+    fn definition(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Vec<SourceLocation> {
+        self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
+            navigator.definition(
+                source,
+                &document.state.parsed,
+                Some(&document.state.analysis),
+                offset,
+            )
+        })
+    }
+
+    fn references(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
+            navigator.references(
+                source,
+                &document.state.parsed,
+                Some(&document.state.analysis),
+                offset,
+                include_declaration,
+            )
+        })
     }
 }

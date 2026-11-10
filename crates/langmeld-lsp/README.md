@@ -22,7 +22,8 @@ formatting from syntax. Hosts return document outline entries with UTF-8 byte
 ranges; the adapter validates and converts them, and selects nested or flat
 output to match the client. `HostLanguageBackend` connects the existing
 `LanguageParser` and optional `LanguageAnalyzer` contracts to parser and
-semantic diagnostics; it does not claim completion or navigation support.
+semantic diagnostics, and can attach host completion and navigation
+providers. Other editor queries remain host-owned.
 
 See [Editor integration](../../docs/editor-integration.md) for the current
 scope and embedding API.
