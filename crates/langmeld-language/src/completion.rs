@@ -13,6 +13,8 @@ pub struct CompletionCandidate {
     pub text: String,
     /// Optional display label; defaults to [`Self::text`].
     pub label: Option<String>,
+    /// Optional matching text; defaults to [`Self::text`].
+    pub filter_text: Option<String>,
     /// Source range to replace, empty when completing at a token boundary.
     pub replace: Span,
     /// Optional short explanation shown beside the candidate in editors.
@@ -26,6 +28,7 @@ impl CompletionCandidate {
         Self {
             text: text.into(),
             label: None,
+            filter_text: None,
             replace,
             detail: None,
         }
@@ -35,6 +38,13 @@ impl CompletionCandidate {
     #[must_use]
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// Sets text that editors use to match this candidate while filtering.
+    #[must_use]
+    pub fn with_filter_text(mut self, filter_text: impl Into<String>) -> Self {
+        self.filter_text = Some(filter_text.into());
         self
     }
 

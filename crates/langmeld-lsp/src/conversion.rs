@@ -94,9 +94,13 @@ pub(crate) fn completion_items(
                 return None;
             }
             let label = candidate.label.unwrap_or_else(|| candidate.text.clone());
+            let filter_text = candidate
+                .filter_text
+                .unwrap_or_else(|| candidate.text.clone());
             Some(CompletionItem {
                 label,
                 detail: candidate.detail,
+                filter_text: Some(filter_text),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range,
                     new_text: candidate.text,

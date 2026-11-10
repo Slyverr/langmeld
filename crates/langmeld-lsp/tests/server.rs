@@ -72,6 +72,9 @@ impl LanguageBackend for Backend {
             CompletionCandidate::new("good", Span::new("😀".len(), source.text.len()))
                 .with_label("Good value")
                 .with_detail("Suggested item"),
+            CompletionCandidate::new("great", Span::new("😀".len(), source.text.len()))
+                .with_label("Great value")
+                .with_filter_text("preferred"),
         ]
     }
 
@@ -1045,6 +1048,10 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     assert_eq!(completion[0]["label"], "Good value");
     assert_eq!(completion[0]["detail"], "Suggested item");
     assert_eq!(completion[0]["textEdit"]["newText"], "good");
+    assert_eq!(completion[0]["filterText"], "good");
+    assert_eq!(completion[1]["label"], "Great value");
+    assert_eq!(completion[1]["textEdit"]["newText"], "great");
+    assert_eq!(completion[1]["filterText"], "preferred");
     assert_eq!(completion[0]["textEdit"]["range"]["start"]["character"], 2);
     assert_eq!(completion[0]["textEdit"]["range"]["end"]["character"], 5);
 
