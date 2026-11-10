@@ -14,7 +14,7 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let root_key = "language/toy.lm";
+    let root_key = "language/toy.langmeld";
     let resolver =
         DirectoryDefinitionResolver::new(project_root).map_err(|error| error.to_string())?;
     let root = resolver.load(root_key).map_err(|error| error.to_string())?;
@@ -59,6 +59,7 @@ fn format_field(field: &CapturedField) -> String {
         | CapturedValue::Identifier(text)
         | CapturedValue::Integer(text)
         | CapturedValue::String(text) => text,
+        CapturedValue::Expression => "<expression>",
     };
     format!("{}={value}", field.name)
 }

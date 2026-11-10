@@ -82,7 +82,7 @@ impl Error for ProjectLoadError {
     }
 }
 
-/// Resolves `.lm` imports from files under a project directory.
+/// Resolves `.langmeld` imports from files under a project directory.
 ///
 /// Imports are interpreted relative to the importing file. Parent-directory
 /// segments are allowed when their canonical target remains inside the

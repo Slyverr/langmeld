@@ -85,6 +85,11 @@ pub enum CapturedValue {
     Integer(String),
     /// Quoted string text preserved as written.
     String(String),
+    /// Expression source captured before a top-level pattern terminator.
+    ///
+    /// The corresponding [`CapturedField::span`] identifies the exact source
+    /// range. Use that range with an expression parser chosen by the host.
+    Expression,
 }
 
 /// A named source value captured by a construct.
@@ -94,7 +99,7 @@ pub struct CapturedField {
     pub name: String,
     /// Captured lexical value.
     pub value: CapturedValue,
-    /// Source range of the captured token.
+    /// Source range of the captured value, excluding surrounding syntax.
     pub span: Span,
 }
 
@@ -646,6 +651,30 @@ fn match_sequence<'a>(
                 });
                 cursor += 1;
             }
+            PatternPart::Expression { name, terminator } => {
+                let Some(end) = expression_end(tokens, cursor, terminator, remaining_steps)? else {
+                    return Ok(MatchAttempt {
+                        fields,
+                        end: tokens.len(),
+                        complete: false,
+                        expected: Some(part),
+                    });
+                };
+                if end == cursor {
+                    return Ok(MatchAttempt {
+                        fields,
+                        end: cursor,
+                        complete: false,
+                        expected: Some(part),
+                    });
+                }
+                fields.push(CapturedField {
+                    name: name.clone(),
+                    value: CapturedValue::Expression,
+                    span: Span::new(tokens[cursor].span.start, tokens[end - 1].span.end),
+                });
+                cursor = end + 1;
+            }
             PatternPart::Optional(parts) => {
                 let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                 if attempt.complete {
@@ -717,8 +746,39 @@ fn describe_pattern(part: &PatternPart) -> &'static str {
             kind: FieldKind::String,
             ..
         } => "a quoted string",
+        PatternPart::Expression { .. } => "an expression",
         PatternPart::Optional(_) | PatternPart::Repeat { .. } => "the expected syntax sequence",
     }
+}
+
+fn expression_end(
+    tokens: &[LexedToken],
+    start: usize,
+    terminator: &str,
+    remaining_steps: &mut usize,
+) -> Result<Option<usize>, ()> {
+    let mut closing = Vec::new();
+    let mut cursor = start;
+    while let Some(token) = tokens.get(cursor) {
+        if *remaining_steps == 0 {
+            return Err(());
+        }
+        *remaining_steps -= 1;
+        if closing.is_empty() && token.kind != TokenKind::Invalid && token.text == terminator {
+            return Ok(Some(cursor));
+        }
+        match token.text.as_str() {
+            "(" => closing.push(")"),
+            "[" => closing.push("]"),
+            "{" => closing.push("}"),
+            ")" | "]" | "}" if closing.last() == Some(&token.text.as_str()) => {
+                closing.pop();
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    Ok(None)
 }
 
 fn accepts(expected: FieldKind, actual: TokenKind) -> bool {

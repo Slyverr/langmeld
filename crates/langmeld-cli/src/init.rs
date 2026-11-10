@@ -44,7 +44,7 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         Some(template) => template,
         None if interactive => {
             let choices = [
-                "Declarative `.lm` grammar with a Rust host",
+                "Declarative `.langmeld` grammar with a Rust host",
                 "Custom Rust parser with full syntax control",
             ];
             match Select::with_theme(&ColorfulTheme::default())
@@ -191,12 +191,12 @@ fn project_files(
                 (
                     "README.md".to_owned(),
                     format!(
-                        "# {language_name}\n\nA Rust-hosted language project built with Langmeld.\n\n## Run\n\n```sh\ncargo run\ncargo run -- path/to/program.widget\ncargo test\n```\n\nWithout a path, the CLI parses a small built-in sample. Pass a source file to\nparse your own program. Edit `language/language.lm` and files in\n`language/constructs/` to change the syntax. The reusable loader lives in\n`src/lib.rs`, the CLI entry point in `src/main.rs`, and public behavior tests\nin `tests/`. Add language-specific analysis and execution to the Rust host.\n"
+                        "# {language_name}\n\nA Rust-hosted language project built with Langmeld.\n\n## Run\n\n```sh\ncargo run\ncargo run -- path/to/program.widget\ncargo test\n```\n\nWithout a path, the CLI parses a small built-in sample. Pass a source file to\nparse your own program. Edit `language/language.langmeld` and files in\n`language/constructs/` to change the syntax. The reusable loader lives in\n`src/lib.rs`, the CLI entry point in `src/main.rs`, and public behavior tests\nin `tests/`. Add language-specific analysis and execution to the Rust host.\n"
                     ),
                 ),
                 (
                     "langmeld.toml".to_owned(),
-                    "format = 1\ndefinition = \"language/language.lm\"\n".to_owned(),
+                    "format = 1\ndefinition = \"language/language.langmeld\"\n".to_owned(),
                 ),
                 ("src/lib.rs".to_owned(), declarative_library_template().to_owned()),
                 ("src/main.rs".to_owned(), main_template().to_owned()),
@@ -205,14 +205,14 @@ fn project_files(
                     declarative_test_template().to_owned(),
                 ),
                 (
-                    "language/language.lm".to_owned(),
+                    "language/language.langmeld".to_owned(),
                     format!(
-                        "language {} {{\n    import \"constructs/statements.lm\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
+                        "language {} {{\n    import \"constructs/statements.langmeld\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
                         quote_lm(language_name)
                     ),
                 ),
                 (
-                    "language/constructs/statements.lm".to_owned(),
+                    "language/constructs/statements.langmeld".to_owned(),
                     "construct \"let\" {\n    syntax {\n        literal \"let\";\n        identifier \"name\";\n        literal \"=\";\n        string \"value\";\n        literal \";\";\n    }\n}\n\nconstruct \"print\" {\n    syntax {\n        literal \"print\";\n        identifier \"name\";\n        literal \";\";\n    }\n}\n"
                         .to_owned(),
                 ),

@@ -454,10 +454,10 @@ impl LanguageBackend for WorkspaceLifecycleBackend {
                     uri: "file:///workspace".parse().unwrap(),
                     name: "workspace".into(),
                 }),
-                pattern: "**/*.lm".into(),
+                pattern: "**/*.langmeld".into(),
             })
         } else {
-            lsp_types::GlobPattern::String("**/*.lm".into())
+            lsp_types::GlobPattern::String("**/*.langmeld".into())
         };
         BackendWorkspaceCapabilities {
             workspace_folders: true,
@@ -528,7 +528,7 @@ fn registers_and_forwards_supported_workspace_lifecycle_events() {
     );
     assert_eq!(
         registration.params["registrations"][1]["registerOptions"]["watchers"][0]["globPattern"],
-        "**/*.lm"
+        "**/*.langmeld"
     );
     send_notification(
         &client,
@@ -553,7 +553,7 @@ fn registers_and_forwards_supported_workspace_lifecycle_events() {
         &client,
         "workspace/didChangeWatchedFiles",
         json!({
-            "changes": [{ "uri": "file:///workspace/defs/main.lm", "type": 2 }]
+            "changes": [{ "uri": "file:///workspace/defs/main.langmeld", "type": 2 }]
         }),
     );
     send_request(&client, 2, "shutdown", Value::Null);
@@ -571,7 +571,7 @@ fn registers_and_forwards_supported_workspace_lifecycle_events() {
     assert_eq!(file_changes[0].len(), 1);
     assert_eq!(
         file_changes[0][0].uri.as_str(),
-        "file:///workspace/defs/main.lm"
+        "file:///workspace/defs/main.langmeld"
     );
     assert_eq!(file_changes[0][0].typ, lsp_types::FileChangeType::CHANGED);
 }
@@ -601,7 +601,7 @@ fn ignores_workspace_events_when_client_does_not_support_dynamic_registration() 
         &client,
         "workspace/didChangeWatchedFiles",
         json!({
-            "changes": [{ "uri": "file:///workspace/defs/main.lm", "type": 2 }]
+            "changes": [{ "uri": "file:///workspace/defs/main.langmeld", "type": 2 }]
         }),
     );
     send_request(&client, 2, "shutdown", Value::Null);
@@ -728,7 +728,7 @@ fn refreshes_open_document_diagnostics_after_workspace_events() {
         "textDocument/didOpen",
         json!({
             "textDocument": {
-                "uri": "file:///workspace/main.lm",
+                "uri": "file:///workspace/main.langmeld",
                 "languageId": "test",
                 "version": 1,
                 "text": "program"
@@ -754,7 +754,7 @@ fn refreshes_open_document_diagnostics_after_workspace_events() {
         &client,
         "workspace/didChangeWatchedFiles",
         json!({
-            "changes": [{ "uri": "file:///workspace/defs/shared.lm", "type": 2 }]
+            "changes": [{ "uri": "file:///workspace/defs/shared.langmeld", "type": 2 }]
         }),
     );
     assert_eq!(
@@ -1162,7 +1162,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert!(initialized["capabilities"]["documentSymbolProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
-    let uri = "file:///declarative.lm";
+    let uri = "file:///declarative.langmeld";
     send_notification(
         &client,
         "textDocument/didOpen",

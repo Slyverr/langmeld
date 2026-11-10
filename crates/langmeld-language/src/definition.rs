@@ -1,4 +1,4 @@
-//! Frontend for the first user-facing `.lm` language-definition syntax.
+//! Frontend for the first user-facing `.langmeld` language-definition syntax.
 
 use std::sync::OnceLock;
 
@@ -26,7 +26,7 @@ impl DefinitionResult {
     }
 }
 
-/// A named `.lm` source supplied to a language-definition project.
+/// A named `.langmeld` source supplied to a language-definition project.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DefinitionSource {
     /// Stable resolver key used to detect duplicate imports and cycles.
@@ -49,7 +49,7 @@ impl DefinitionSource {
     }
 }
 
-/// Host-controlled loading of explicitly imported `.lm` files.
+/// Host-controlled loading of explicitly imported `.langmeld` files.
 pub trait DefinitionResolver {
     /// Resolves `import` relative to `from_key` and returns a stable source key.
     ///
@@ -102,7 +102,7 @@ pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
     )
 }
 
-/// Returns Langmeld's built-in grammar for `.lm` language definitions.
+/// Returns Langmeld's built-in grammar for `.langmeld` language definitions.
 ///
 /// The grammar accepts root declarations and constrains nested syntax through
 /// explicit blocks. It is used by the definition parser and can also drive
@@ -555,6 +555,21 @@ fn lower_pattern(
                 _ => return None,
             })
         }
+        "expression" => {
+            let (Some(name), Some(terminator)) = (
+                string_field(node, "name").and_then(decode_quoted),
+                string_field(node, "terminator").and_then(decode_quoted),
+            ) else {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-006",
+                    "expression syntax requires a field name and a valid quoted terminator",
+                    source,
+                    node.span,
+                ));
+                return None;
+            };
+            Some(PatternPart::expression(name, terminator))
+        }
         "optional" | "zero_or_more" | "one_or_more" => {
             let parts = node
                 .children
@@ -617,6 +632,7 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         SpecError::InvalidLiteral { construct, .. } | SpecError::EmptyFieldName(construct) => {
             Some(construct)
         }
+        SpecError::InvalidExpressionTerminator { construct, .. } => Some(construct),
         SpecError::DuplicateField { construct, .. }
         | SpecError::UnknownChildConstruct { construct, .. }
         | SpecError::DuplicateChildConstruct { construct, .. }
@@ -668,6 +684,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         "identifier",
                         "integer",
                         "string",
+                        "expression",
                         "optional",
                         "zero_or_more",
                         "one_or_more",
@@ -691,6 +708,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         "identifier",
                         "integer",
                         "string",
+                        "expression",
                         "optional",
                         "zero_or_more",
                         "one_or_more",
@@ -705,6 +723,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         "identifier",
                         "integer",
                         "string",
+                        "expression",
                         "optional",
                         "zero_or_more",
                         "one_or_more",
@@ -719,6 +738,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         "identifier",
                         "integer",
                         "string",
+                        "expression",
                         "optional",
                         "zero_or_more",
                         "one_or_more",
@@ -761,6 +781,16 @@ fn definition_grammar() -> &'static LanguageSpec {
                     [
                         PatternPart::literal("string"),
                         PatternPart::string("value"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "expression",
+                    [
+                        PatternPart::literal("expression"),
+                        PatternPart::string("name"),
+                        PatternPart::literal("until"),
+                        PatternPart::string("terminator"),
                         PatternPart::literal(";"),
                     ],
                 ),

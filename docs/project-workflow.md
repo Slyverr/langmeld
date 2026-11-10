@@ -42,12 +42,12 @@ my-language/
 ├── tests/
 │   └── language.rs
 └── language/
-    ├── language.lm
+    ├── language.langmeld
     └── constructs/
-        └── statements.lm
+        └── statements.langmeld
 ```
 
-The starter `.lm` files describe a small `program` block with `let` and `print`
+The starter `.langmeld` files describe a small `program` block with `let` and `print`
 statements. `src/lib.rs` loads the modular definition and formats diagnostics;
 `src/main.rs` provides a runnable CLI that parses a built-in sample or a source
 file path. Public behavior tests live in `tests/language.rs`. Language-specific
@@ -65,21 +65,21 @@ The custom parser template creates a library in `src/lib.rs`, a demonstration
 binary in `src/main.rs`, a stdio LSP binary in `src/bin/language-lsp.rs`, and
 an integration test in `tests/parser.rs`. Its `SayParser` implements
 `LanguageParser` directly, demonstrating a host-owned syntax and parse tree
-without `.lm` files or a Langmeld manifest. The LSP binary publishes parser
+without `.langmeld` files or a Langmeld manifest. The LSP binary publishes parser
 diagnostics through `HostLanguageBackend`; add host analysis, completion, or
 navigation providers there as needed. Both generated CLIs parse a built-in
 sample with `cargo run` or a source file with `cargo run -- path/to/source`.
 Use `cargo test` to run the generated integration tests.
 
-`langmeld.toml` points to the root `.lm` file and has a format version:
+`langmeld.toml` points to the root `.langmeld` file and has a format version:
 
 ```toml
 format = 1
-definition = "language/language.lm"
+definition = "language/language.langmeld"
 ```
 
 Format `1` accepts only these two fields. The definition path must be a
-project-relative `.lm` path without parent-directory segments.
+project-relative `.langmeld` path without parent-directory segments.
 
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. It
@@ -98,7 +98,7 @@ After installing the Langmeld CLI, run `langmeld check` from a declarative
 project directory. The command validates the manifest and complete imported
 definition tree; it does not parse user program files or run language-specific
 semantics. Custom parser projects should use Cargo to build and run the host.
-Run `langmeld format` from a project directory to format every `.lm` file
+Run `langmeld format` from a project directory to format every `.langmeld` file
 reachable from its manifest. Use `--manifest-path path/to/langmeld.toml` when
 running it elsewhere. Pass a file path to format one standalone definition.
 Use `--check` in CI to verify formatting without changing files; project mode
@@ -107,7 +107,7 @@ validates the import graph before formatting any file. Set indentation with
 For declarative projects, `langmeld lsp` starts an editor server that publishes
 parse diagnostics and grammar-scoped syntax completions. Run
 `langmeld lsp --definitions` to get parser diagnostics and contextual syntax
-completion while editing `.lm` files. It automatically uses `langmeld.toml` in
+completion while editing `.langmeld` files. It automatically uses `langmeld.toml` in
 the current directory when present, or accepts an explicit `--manifest-path`
 to validate the imported project graph against all open project file buffers.
 See
@@ -133,5 +133,5 @@ cd my-language
 cargo run
 ```
 
-For `.lm` syntax and import behavior, see
+For `.langmeld` syntax and import behavior, see
 [Language definitions](language-definitions.md).

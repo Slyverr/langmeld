@@ -11,7 +11,7 @@ pub(crate) struct LspArgs {
     /// Project manifest path; definition mode discovers ./langmeld.toml when omitted.
     #[arg(long)]
     manifest_path: Option<PathBuf>,
-    /// Edit Langmeld `.lm` files; uses a project manifest when available.
+    /// Edit Langmeld `.langmeld` files; uses a project manifest when available.
     #[arg(long)]
     definitions: bool,
 }

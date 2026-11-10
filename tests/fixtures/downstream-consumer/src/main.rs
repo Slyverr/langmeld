@@ -11,7 +11,7 @@ fn main() {
     let resolver = DirectoryDefinitionResolver::new(project_root)
         .expect("downstream fixture should be a valid project root");
     let root = resolver
-        .load("language/main.lm")
+        .load("language/main.langmeld")
         .expect("root definition should load");
     let definition = parse_language_definition_project(root, &resolver);
     assert!(definition.is_valid(), "{:?}", definition.diagnostics);

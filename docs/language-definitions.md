@@ -1,6 +1,6 @@
 # Language definitions
 
-Langmeld's `.lm` frontend currently describes token-pattern grammars. It is a
+Langmeld's `.langmeld` frontend currently describes token-pattern grammars. It is a
 small declarative layer over the validated Rust grammar model, not a complete
 grammar notation or a language runtime. Hosts keep control of lexing, parsing,
 semantics, and execution when the declarative subset is not a fit.
@@ -11,19 +11,19 @@ Keep a root language file and split constructs into files by responsibility:
 
 ```text
 language/
-├── language.lm
+├── language.langmeld
 └── constructs/
-    ├── statements.lm
-    └── expressions.lm
+    ├── statements.langmeld
+    └── expressions.langmeld
 ```
 
 The root file declares the language and imports construct files. Imported
 files contain top-level `construct` and `import` declarations; they do not
 declare another language. Imports are explicit and may be nested.
 
-```lm
+```langmeld
 language "WidgetScript" {
-    import "constructs/statements.lm";
+    import "constructs/statements.langmeld";
 
     construct "program" {
         syntax {
@@ -37,7 +37,7 @@ language "WidgetScript" {
 }
 ```
 
-`constructs/statements.lm` can import `expressions.lm` and declare constructs
+`constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
 used by the root block. See the complete consumer in
 [`examples/toy-language`](../examples/toy-language).
 
@@ -47,7 +47,7 @@ Every construct has at least one `syntax` block. Multiple blocks are
 alternatives for the same construct; a parsed node records the zero-based
 alternative index in `variant`.
 
-```lm
+```langmeld
 construct "function" {
     syntax {
         literal "fn";
@@ -74,6 +74,9 @@ Pattern items match lexer tokens in order:
   text and `TokenKind` in the parsed field.
 - `identifier "field";`, `integer "field";`, and `string "field";`
   capture one token of that lexical category under a field name.
+- `expression "field" until ";";` captures the source span up to a top-level
+  terminator and consumes that terminator. Nested `()`, `[]`, and `{}` groups
+  may contain the same token without ending the capture.
 - `optional { ... }` matches its sequence zero or one times.
 - `zero_or_more { ... }` and `one_or_more { ... }` repeat a sequence; fields
   from each match are captured in source order.
@@ -86,16 +89,19 @@ and leaves classification or validation to the host.
 
 The definition validator rejects duplicate names, invalid literals, empty or
 nullable patterns, and ambiguous syntax boundaries it can identify. It does
-not implement arbitrary CFG/PEG/regex grammar features. In particular, the
-generic parser is not an expression parser: use `langmeld-expression` for its
-supported expression forms or write a host parser for another grammar.
+not implement arbitrary CFG/PEG/regex grammar features. Expression captures
+only identify a bounded source span; the host still chooses how to parse,
+validate, and interpret it. Use `langmeld-expression` for its supported
+expression forms or write a host parser for another grammar. The Tree-sitter
+exporter reports these host-parsed captures as unsupported because it cannot
+infer the embedded expression grammar.
 
 ## Blocks
 
 A construct may declare one delimited block. The delimiters are exact lexer
 tokens, and `allow` lists the construct names permitted as direct children:
 
-```lm
+```langmeld
 construct "conditional" {
     syntax {
         literal "if";
@@ -176,7 +182,7 @@ use langmeld_language::parse_language_definition_project;
 use langmeld_project::DirectoryDefinitionResolver;
 
 let resolver = DirectoryDefinitionResolver::new(".")?;
-let root = resolver.load("language/language.lm")?;
+let root = resolver.load("language/language.langmeld")?;
 let result = parse_language_definition_project(root, &resolver);
 let diagnostic_sources = resolver.sources();
 ```
@@ -192,7 +198,7 @@ root; it rejects absolute paths, backslash separators, and symlink escapes.
 
 ## When to use Rust hooks
 
-Use `.lm` when the language can be described by ordered token patterns and
+Use `.langmeld` when the language can be described by ordered token patterns and
 explicit child blocks. Provide a custom `Lexer` when tokenization differs from
 the built-in identifiers, decimal integers, quoted strings, and punctuation.
 Implement `LanguageParser` when syntax requires a different grammar strategy

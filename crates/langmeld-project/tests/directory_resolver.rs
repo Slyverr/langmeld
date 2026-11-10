@@ -41,30 +41,35 @@ impl Drop for TestDirectory {
 #[test]
 fn resolves_nested_imports_and_retains_source_snapshots() {
     let project = TestDirectory::new();
-    project.write("language/main.lm", "language \"Example\"");
-    project.write("language/constructs/items.lm", "construct \"item\"");
+    project.write("language/main.langmeld", "language \"Example\"");
+    project.write("language/constructs/items.langmeld", "construct \"item\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("language/main.lm").unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
 
-    let imported = resolver.resolve(&root.key, "constructs/items.lm").unwrap();
+    let imported = resolver
+        .resolve(&root.key, "constructs/items.langmeld")
+        .unwrap();
 
-    assert_eq!(imported.key, "language/constructs/items.lm");
+    assert_eq!(imported.key, "language/constructs/items.langmeld");
     assert_eq!(
         resolver
             .sources()
             .iter()
             .map(|source| source.name.as_str())
             .collect::<Vec<_>>(),
-        ["language/constructs/items.lm", "language/main.lm"]
+        [
+            "language/constructs/items.langmeld",
+            "language/main.langmeld"
+        ]
     );
 }
 
 #[test]
 fn requires_an_existing_directory_as_project_root() {
     let project = TestDirectory::new();
-    project.write("file.lm", "language \"Example\"");
+    project.write("file.langmeld", "language \"Example\"");
 
-    assert!(DirectoryDefinitionResolver::new(project.path().join("file.lm")).is_err());
+    assert!(DirectoryDefinitionResolver::new(project.path().join("file.langmeld")).is_err());
     assert!(DirectoryDefinitionResolver::new(project.path().join("missing")).is_err());
 }
 
@@ -72,12 +77,12 @@ fn requires_an_existing_directory_as_project_root() {
 fn imported_definition_diagnostics_keep_the_imported_source_name() {
     let project = TestDirectory::new();
     project.write(
-        "language.lm",
-        "language \"Example\" { import \"constructs/item.lm\"; }",
+        "language.langmeld",
+        "language \"Example\" { import \"constructs/item.langmeld\"; }",
     );
-    project.write("constructs/item.lm", "construct \"item\" {}");
+    project.write("constructs/item.langmeld", "construct \"item\" {}");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("language.lm").unwrap();
+    let root = resolver.load("language.langmeld").unwrap();
 
     let result = parse_language_definition_project(root, &resolver);
 
@@ -86,37 +91,37 @@ fn imported_definition_diagnostics_keep_the_imported_source_name() {
         diagnostic
             .location
             .as_ref()
-            .is_some_and(|location| location.source_name == "constructs/item.lm")
+            .is_some_and(|location| location.source_name == "constructs/item.langmeld")
     }));
 }
 
 #[test]
 fn allows_parent_segments_while_target_remains_inside_project() {
     let project = TestDirectory::new();
-    project.write("language/main.lm", "language \"Example\"");
-    project.write("constructs/items.lm", "construct \"item\"");
+    project.write("language/main.langmeld", "language \"Example\"");
+    project.write("constructs/items.langmeld", "construct \"item\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("language/main.lm").unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
 
-    let imported = resolver.resolve(&root.key, "../constructs/items.lm");
+    let imported = resolver.resolve(&root.key, "../constructs/items.langmeld");
 
-    assert_eq!(imported.unwrap().key, "constructs/items.lm");
+    assert_eq!(imported.unwrap().key, "constructs/items.langmeld");
 }
 
 #[test]
 fn rejects_imports_that_escape_the_project_root() {
     let project = TestDirectory::new();
     let outside = TestDirectory::new();
-    project.write("language/main.lm", "language \"Example\"");
-    outside.write("private.lm", "construct \"secret\"");
+    project.write("language/main.langmeld", "language \"Example\"");
+    outside.write("private.langmeld", "construct \"secret\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("language/main.lm").unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
     let outside_name = outside
         .path()
         .file_name()
         .and_then(|name| name.to_str())
         .expect("temporary directory name should be UTF-8");
-    let relative = format!("../../{outside_name}/private.lm");
+    let relative = format!("../../{outside_name}/private.langmeld");
 
     let result = resolver.resolve(&root.key, &relative);
 
@@ -126,14 +131,18 @@ fn rejects_imports_that_escape_the_project_root() {
 #[test]
 fn rejects_absolute_and_non_portable_import_paths() {
     let project = TestDirectory::new();
-    project.write("main.lm", "language \"Example\"");
+    project.write("main.langmeld", "language \"Example\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("main.lm").unwrap();
+    let root = resolver.load("main.langmeld").unwrap();
 
     assert!(resolver.resolve(&root.key, "/etc/passwd").is_err());
-    assert!(resolver.resolve(&root.key, "C:/outside.lm").is_err());
-    assert!(resolver.resolve(&root.key, "folder\\items.lm").is_err());
-    assert!(resolver.load("../main.lm").is_err());
+    assert!(resolver.resolve(&root.key, "C:/outside.langmeld").is_err());
+    assert!(
+        resolver
+            .resolve(&root.key, "folder\\items.langmeld")
+            .is_err()
+    );
+    assert!(resolver.load("../main.langmeld").is_err());
 }
 
 #[cfg(unix)]
@@ -141,17 +150,17 @@ fn rejects_absolute_and_non_portable_import_paths() {
 fn rejects_symlinks_that_escape_the_project_root() {
     let project = TestDirectory::new();
     let outside = TestDirectory::new();
-    project.write("language/main.lm", "language \"Example\"");
-    outside.write("secret.lm", "construct \"secret\"");
+    project.write("language/main.langmeld", "language \"Example\"");
+    outside.write("secret.langmeld", "construct \"secret\"");
     std::os::unix::fs::symlink(
-        outside.path().join("secret.lm"),
-        project.path().join("secret.lm"),
+        outside.path().join("secret.langmeld"),
+        project.path().join("secret.langmeld"),
     )
     .expect("test symlink should be created");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
-    let root = resolver.load("language/main.lm").unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
 
-    let result = resolver.resolve(&root.key, "../secret.lm");
+    let result = resolver.resolve(&root.key, "../secret.langmeld");
 
     assert!(result.unwrap_err().contains("outside the project root"));
 }

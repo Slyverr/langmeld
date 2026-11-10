@@ -1,4 +1,4 @@
-import "draw.lm";
+import "draw.langmeld";
 
 construct "let" {
     syntax {

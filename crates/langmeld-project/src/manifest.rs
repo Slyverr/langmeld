@@ -15,7 +15,7 @@ pub const PROJECT_MANIFEST_FORMAT: i64 = 1;
 /// Parsed project settings needed to locate the language definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectManifest {
-    /// Project-relative path to the root `.lm` definition.
+    /// Project-relative path to the root `.langmeld` definition.
     pub definition: String,
 }
 
@@ -23,7 +23,7 @@ impl ProjectManifest {
     /// Parses and validates a Langmeld project manifest.
     ///
     /// The current manifest has two required fields: `format = 1` and a
-    /// project-relative `.lm` path in `definition`. Unknown fields are rejected
+    /// project-relative `.langmeld` path in `definition`. Unknown fields are rejected
     /// so misspellings do not silently change project behavior.
     pub fn parse(source: &str) -> Result<Self, ProjectManifestError> {
         let document =
@@ -94,7 +94,7 @@ pub enum ProjectManifestError {
     UnsupportedFormat(i64),
     /// A field not defined by this manifest format was found.
     UnknownField(String),
-    /// The root definition path is absolute, non-portable, or not an `.lm` file.
+    /// The root definition path is absolute, non-portable, or not an `.langmeld` file.
     InvalidDefinitionPath(String),
     /// The manifest file could not be read.
     Read {
@@ -129,7 +129,7 @@ impl fmt::Display for ProjectManifestError {
             }
             Self::InvalidDefinitionPath(path) => write!(
                 formatter,
-                "`definition` must be a project-relative `.lm` path without parent segments, got `{path}`"
+                "`definition` must be a project-relative `.langmeld` path without parent segments, got `{path}`"
             ),
             Self::Read { path, source } => write!(
                 formatter,
@@ -157,7 +157,7 @@ impl Error for ProjectManifestError {
 fn is_definition_path(path: &str) -> bool {
     !path.contains('\\')
         && !has_windows_drive_prefix(path)
-        && path.ends_with(".lm")
+        && path.ends_with(".langmeld")
         && !path.is_empty()
         && Path::new(path)
             .components()

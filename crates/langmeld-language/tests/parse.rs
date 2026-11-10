@@ -55,6 +55,71 @@ fn parses_multiple_declarations_and_captures_values_with_spans() {
 }
 
 #[test]
+fn captures_expression_span_and_consumes_its_top_level_terminator() {
+    let grammar = LanguageSpec::new(
+        "Expressions",
+        [ConstructSpec::new(
+            "print",
+            [
+                PatternPart::literal("print"),
+                PatternPart::expression("value", ";"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("main", "print call(a + nested(b)) + { let x = 3; x };");
+
+    let result = parse(&source, &grammar);
+
+    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    let construct = &result.constructs[0];
+    let field = &construct.fields[0];
+    assert_eq!(field.value, CapturedValue::Expression);
+    assert_eq!(
+        &source.text[field.span.start..field.span.end],
+        "call(a + nested(b)) + { let x = 3; x }"
+    );
+    assert_eq!(
+        &source.text[construct.span.start..construct.span.end],
+        "print call(a + nested(b)) + { let x = 3; x };"
+    );
+}
+
+#[test]
+fn expression_capture_rejects_empty_or_unterminated_expressions() {
+    let grammar = LanguageSpec::new(
+        "Expressions",
+        [ConstructSpec::new(
+            "print",
+            [
+                PatternPart::literal("print"),
+                PatternPart::expression("value", ";"),
+            ],
+        )],
+    )
+    .unwrap();
+
+    for input in ["print ;", "print call(1)"] {
+        let result = parse(&SourceFile::new("main", input), &grammar);
+        assert!(result.constructs.is_empty(), "accepted {input:?}");
+        assert!(
+            !result.diagnostics.is_empty(),
+            "no diagnostic for {input:?}"
+        );
+    }
+}
+
+#[test]
+fn rejects_expression_terminators_that_are_not_single_tokens() {
+    let construct = ConstructSpec::new("print", [PatternPart::expression("value", "; ;")]);
+
+    assert!(matches!(
+        LanguageSpec::new("Expressions", [construct]),
+        Err(langmeld_language::SpecError::InvalidExpressionTerminator { .. })
+    ));
+}
+
+#[test]
 fn reports_unmatched_tokens_and_keeps_parsing_after_them() {
     let source = SourceFile::new("main", "? print value;");
     let result = parse(&source, &language());

@@ -8,7 +8,7 @@ use crate::project::{format_diagnostics, load_definition_project};
 
 #[derive(Debug, Args)]
 pub(crate) struct FormatArgs {
-    /// Format one `.lm` file instead of the project import graph.
+    /// Format one `.langmeld` file instead of the project import graph.
     file: Option<PathBuf>,
     /// Project manifest to use when formatting the complete definition graph.
     #[arg(long, conflicts_with = "file")]

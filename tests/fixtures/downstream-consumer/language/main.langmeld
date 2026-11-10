@@ -1,5 +1,5 @@
 language "Mini" {
-    import "constructs/statements.lm";
+    import "constructs/statements.langmeld";
 
     construct "program" {
         syntax {

@@ -84,11 +84,12 @@ pub fn generate(
     .expect("writing to a string cannot fail");
 
     for construct in language.constructs() {
+        let expression = construct_expression(construct, &rules)?;
         writeln!(
             output,
             "    {}: $ => {},",
             rule_reference(&rules, construct.name()).expect("construct has a generated rule"),
-            construct_expression(construct, &rules)
+            expression
         )
         .expect("writing to a string cannot fail");
     }
@@ -143,12 +144,15 @@ fn rule_reference<'a>(rules: &'a [(String, String)], name: &str) -> Option<&'a s
         .map(|(_, rule)| rule.as_str())
 }
 
-fn construct_expression(construct: &ConstructSpec, rules: &[(String, String)]) -> String {
+fn construct_expression(
+    construct: &ConstructSpec,
+    rules: &[(String, String)],
+) -> Result<String, TreeSitterError> {
     let variants = construct
         .variants()
         .iter()
         .map(|pattern| {
-            let mut parts = vec![sequence(pattern)];
+            let mut parts = vec![sequence(pattern, construct.name())?];
             if let Some(block) = construct.block_spec() {
                 parts.push(js_string(block.open()));
                 let children = block
@@ -167,14 +171,18 @@ fn construct_expression(construct: &ConstructSpec, rules: &[(String, String)]) -
                 }
                 parts.push(js_string(block.close()));
             }
-            sequence_strings(&parts)
+            Ok(sequence_strings(&parts))
         })
-        .collect::<Vec<_>>();
-    choice(&variants)
+        .collect::<Result<Vec<_>, TreeSitterError>>()?;
+    Ok(choice(&variants))
 }
 
-fn sequence(parts: &[PatternPart]) -> String {
-    sequence_strings(&parts.iter().map(pattern_part).collect::<Vec<_>>())
+fn sequence(parts: &[PatternPart], construct: &str) -> Result<String, TreeSitterError> {
+    let items = parts
+        .iter()
+        .map(|part| pattern_part(part, construct))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(sequence_strings(&items))
 }
 
 fn sequence_strings(parts: &[String]) -> String {
@@ -184,8 +192,8 @@ fn sequence_strings(parts: &[String]) -> String {
     }
 }
 
-fn pattern_part(part: &PatternPart) -> String {
-    match part {
+fn pattern_part(part: &PatternPart, construct: &str) -> Result<String, TreeSitterError> {
+    Ok(match part {
         PatternPart::Literal(literal) => js_string(literal),
         PatternPart::Field { name, kind } => {
             let symbol = match kind {
@@ -196,15 +204,21 @@ fn pattern_part(part: &PatternPart) -> String {
             };
             format!("field({}, $.{symbol})", js_string(name))
         }
-        PatternPart::Optional(parts) => format!("optional({})", sequence(parts)),
+        PatternPart::Expression { name, .. } => {
+            return Err(TreeSitterError::UnsupportedExpressionCapture {
+                construct: construct.to_owned(),
+                field: name.clone(),
+            });
+        }
+        PatternPart::Optional(parts) => format!("optional({})", sequence(parts, construct)?),
         PatternPart::Repeat { parts, minimum } => {
             let function = match minimum {
                 RepeatMinimum::Zero => "repeat",
                 RepeatMinimum::One => "repeat1",
             };
-            format!("{function}({})", sequence(parts))
+            format!("{function}({})", sequence(parts, construct)?)
         }
-    }
+    })
 }
 
 fn choice(rules: &[String]) -> String {
@@ -296,7 +310,7 @@ fn collect_lexer_needs(
             PatternPart::Optional(group) | PatternPart::Repeat { parts: group, .. } => {
                 collect_lexer_needs(group, needs_integer, needs_string, needs_punctuation);
             }
-            PatternPart::Literal(_) => {}
+            PatternPart::Literal(_) | PatternPart::Expression { .. } => {}
         }
     }
 }
@@ -308,6 +322,13 @@ pub enum TreeSitterError {
     InvalidGrammarName(String),
     /// The language has no root constructs from which to build a source rule.
     NoRootConstructs,
+    /// A host-parsed expression capture cannot be represented by the exporter.
+    UnsupportedExpressionCapture {
+        /// Construct containing the unsupported capture.
+        construct: String,
+        /// Name of the expression field.
+        field: String,
+    },
 }
 
 impl std::fmt::Display for TreeSitterError {
@@ -320,6 +341,10 @@ impl std::fmt::Display for TreeSitterError {
             Self::NoRootConstructs => {
                 formatter.write_str("cannot export a grammar with no root constructs")
             }
+            Self::UnsupportedExpressionCapture { construct, field } => write!(
+                formatter,
+                "cannot export expression field `{field}` in construct `{construct}`; use a host-authored Tree-sitter grammar for expression syntax"
+            ),
         }
     }
 }

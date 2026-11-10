@@ -295,7 +295,7 @@ impl LanguageBackend for DeclarativeBackend {
     }
 }
 
-/// Backend for editing Langmeld's own `.lm` language definitions.
+/// Backend for editing Langmeld's own `.langmeld` language definitions.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LanguageDefinitionBackend;
 

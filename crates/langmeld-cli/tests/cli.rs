@@ -41,16 +41,16 @@ fn write_widget_project(project: &Path) {
     fs::create_dir_all(project.join("language/constructs")).unwrap();
     fs::write(
         project.join("langmeld.toml"),
-        "format = 1\ndefinition = \"language/language.lm\"\n",
+        "format = 1\ndefinition = \"language/language.langmeld\"\n",
     )
     .unwrap();
     fs::write(
-        project.join("language/language.lm"),
-        "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }",
+        project.join("language/language.langmeld"),
+        "language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }",
     )
     .unwrap();
     fs::write(
-        project.join("language/constructs/statements.lm"),
+        project.join("language/constructs/statements.langmeld"),
         "construct \"print\" { syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }",
     )
     .unwrap();
@@ -173,18 +173,22 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(project.join("src/lib.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("tests/language.rs").is_file());
-    assert!(project.join("language/language.lm").is_file());
-    assert!(project.join("language/constructs/statements.lm").is_file());
+    assert!(project.join("language/language.langmeld").is_file());
+    assert!(
+        project
+            .join("language/constructs/statements.langmeld")
+            .is_file()
+    );
     let main = fs::read_to_string(project.join("src/main.rs")).expect("CLI should be generated");
     assert!(main.contains("args_os()"));
     assert!(main.contains("fs::read_to_string"));
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));
-    let definition = fs::read_to_string(project.join("language/language.lm"))
+    let definition = fs::read_to_string(project.join("language/language.langmeld"))
         .expect("definition should be generated");
     assert!(definition.starts_with("language \"Widget Script\""));
-    assert!(definition.contains("import \"constructs/statements.lm\";"));
+    assert!(definition.contains("import \"constructs/statements.langmeld\";"));
 }
 
 #[test]
@@ -194,11 +198,11 @@ fn check_uses_the_project_manifest_and_reports_the_language_name() {
     fs::create_dir_all(project.join("language")).expect("language directory should be created");
     fs::write(
         project.join("langmeld.toml"),
-        "format = 1\ndefinition = \"language/language.lm\"\n",
+        "format = 1\ndefinition = \"language/language.langmeld\"\n",
     )
     .expect("manifest should be written");
     fs::write(
-        project.join("language/language.lm"),
+        project.join("language/language.langmeld"),
         "language \"Widget Script\" { construct \"item\" { syntax { literal \"item\"; } } }",
     )
     .expect("definition should be written");
@@ -230,11 +234,11 @@ fn check_reports_definition_diagnostics_with_source_locations() {
     fs::create_dir_all(project.join("language")).expect("language directory should be created");
     fs::write(
         project.join("langmeld.toml"),
-        "format = 1\ndefinition = \"language/language.lm\"\n",
+        "format = 1\ndefinition = \"language/language.langmeld\"\n",
     )
     .expect("manifest should be written");
     fs::write(
-        project.join("language/language.lm"),
+        project.join("language/language.langmeld"),
         "not a language definition",
     )
     .expect("invalid definition should be written");
@@ -253,7 +257,7 @@ fn check_reports_definition_diagnostics_with_source_locations() {
 
     assert!(!output.status.success());
     let error = String::from_utf8_lossy(&output.stderr);
-    assert!(error.contains("language/language.lm:1:"));
+    assert!(error.contains("language/language.langmeld:1:"));
     assert!(error.contains("LM-DEF-"));
 }
 
@@ -325,7 +329,9 @@ fn help_lists_init_and_the_non_interactive_mode() {
 
     assert!(output.status.success());
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Serve editor support for a language project or `.lm` definitions"));
+    assert!(
+        help.contains("Serve editor support for a language project or `.langmeld` definitions")
+    );
     assert!(help.contains("--manifest-path"));
     assert!(help.contains("--definitions"));
 
@@ -336,7 +342,7 @@ fn help_lists_init_and_the_non_interactive_mode() {
 
     assert!(output.status.success());
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Format a language project's `.lm` definitions"));
+    assert!(help.contains("Format a language project's `.langmeld` definitions"));
     assert!(help.contains("--check"));
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
@@ -353,7 +359,7 @@ fn help_lists_init_and_the_non_interactive_mode() {
 #[test]
 fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
     let parent = TestDirectory::new();
-    let definition = parent.path().join("language.lm");
+    let definition = parent.path().join("language.langmeld");
     let original = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";
     fs::write(&definition, original).unwrap();
 
@@ -384,7 +390,7 @@ fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
         .expect("CLI should start");
     assert!(output.status.success());
 
-    let invalid_definition = parent.path().join("incomplete.lm");
+    let invalid_definition = parent.path().join("incomplete.langmeld");
     let invalid_source = "language \"Toy\" {";
     fs::write(&invalid_definition, invalid_source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
@@ -404,8 +410,8 @@ fn format_command_checks_and_formats_every_imported_project_definition() {
     let parent = TestDirectory::new();
     let project = parent.path();
     write_widget_project(project);
-    let root = project.join("language/language.lm");
-    let module = project.join("language/constructs/statements.lm");
+    let root = project.join("language/language.langmeld");
+    let module = project.join("language/constructs/statements.langmeld");
     let original_root = fs::read_to_string(&root).unwrap();
     let original_module = fs::read_to_string(&module).unwrap();
     let manifest = project.join("langmeld.toml");
@@ -449,8 +455,8 @@ fn format_command_does_not_write_a_project_with_invalid_imports() {
     let parent = TestDirectory::new();
     let project = parent.path();
     write_widget_project(project);
-    let root = project.join("language/language.lm");
-    let module = project.join("language/constructs/statements.lm");
+    let root = project.join("language/language.langmeld");
+    let module = project.join("language/constructs/statements.langmeld");
     let original_root = fs::read_to_string(&root).unwrap();
     let invalid_module = "construct \"print\" { syntax { literal \"print\";";
     fs::write(&module, invalid_module).unwrap();
@@ -526,7 +532,7 @@ fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
 }
 
 #[test]
-fn lsp_definitions_mode_serves_context_aware_lm_completions() {
+fn lsp_definitions_mode_serves_context_aware_langmeld_completions() {
     let parent = TestDirectory::new();
     let (mut child, mut stdin, receiver) =
         start_lsp(&["lsp", "--definitions"], Some(parent.path()));
@@ -551,7 +557,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
-                "textDocument":{"uri":"file:///language.lm","languageId":"lm","version":1,"text":root_source}
+                "textDocument":{"uri":"file:///language.langmeld","languageId":"langmeld","version":1,"text":root_source}
             }
         }),
     );
@@ -563,7 +569,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
-                "textDocument":{"uri":"file:///language.lm"},"position":{"line":0,"character":3}
+                "textDocument":{"uri":"file:///language.langmeld"},"position":{"line":0,"character":3}
             }
         }),
     );
@@ -576,7 +582,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
-                "textDocument":{"uri":"file:///constructs.lm","languageId":"lm","version":1,"text":nested_source}
+                "textDocument":{"uri":"file:///constructs.langmeld","languageId":"langmeld","version":1,"text":nested_source}
             }
         }),
     );
@@ -588,7 +594,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","id":3,"method":"textDocument/completion","params":{
-                "textDocument":{"uri":"file:///constructs.lm"},"position":{"line":0,"character":nested_source.len()}
+                "textDocument":{"uri":"file:///constructs.langmeld"},"position":{"line":0,"character":nested_source.len()}
             }
         }),
     );
@@ -601,7 +607,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
-                "textDocument":{"uri":"file:///format.lm","languageId":"lm","version":1,"text":format_source}
+                "textDocument":{"uri":"file:///format.langmeld","languageId":"langmeld","version":1,"text":format_source}
             }
         }),
     );
@@ -613,7 +619,7 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
         &mut stdin,
         json!({
             "jsonrpc":"2.0","id":4,"method":"textDocument/formatting","params":{
-                "textDocument":{"uri":"file:///format.lm"},
+                "textDocument":{"uri":"file:///format.langmeld"},
                 "options":{"tabSize":2,"insertSpaces":true}
             }
         }),
@@ -643,8 +649,8 @@ fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
     let parent = TestDirectory::new();
     let project = parent.path().join("project with spaces");
     write_widget_project(&project);
-    let module = project.join("language/constructs/statements.lm");
-    let root = project.join("language/language.lm");
+    let module = project.join("language/constructs/statements.langmeld");
+    let root = project.join("language/language.langmeld");
     let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
     let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
@@ -664,7 +670,7 @@ fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
             "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
                 "textDocument":{
                     "uri":module_uri,
-                    "languageId":"lm",
+                    "languageId":"langmeld",
                     "version":1,
                     "text":"construct \"program\" { syntax { literal \"program\"; } }"
                 }
@@ -684,9 +690,9 @@ fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
             "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
                 "textDocument":{
                     "uri":root_uri,
-                    "languageId":"lm",
+                    "languageId":"langmeld",
                     "version":1,
-                    "text":"language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }"
+                    "text":"language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }"
                 }
             }
         }),
@@ -724,8 +730,8 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
     let parent = TestDirectory::new();
     let project = parent.path().join("project with spaces");
     write_widget_project(&project);
-    let module = project.join("language/constructs/statements.lm");
-    let root = project.join("language/language.lm");
+    let module = project.join("language/constructs/statements.langmeld");
+    let root = project.join("language/language.langmeld");
     let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
     let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
@@ -740,10 +746,10 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
     );
 
-    let root_allows_missing = "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }";
+    let root_allows_missing = "language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }";
     send_lsp_message(
         &mut stdin,
-        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"lm","version":1,"text":root_allows_missing}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"langmeld","version":1,"text":root_allows_missing}}}),
     );
     let root_diagnostics = receive_lsp_message(&receiver);
     assert_eq!(root_diagnostics["params"]["uri"], root_uri);
@@ -755,7 +761,7 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
     let module_defines_missing = "construct \"missing\" { syntax { literal \"missing\"; } }";
     send_lsp_message(
         &mut stdin,
-        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":module_uri,"languageId":"lm","version":1,"text":module_defines_missing}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":module_uri,"languageId":"langmeld","version":1,"text":module_defines_missing}}}),
     );
     let opened_module_messages = [
         receive_lsp_message(&receiver),
@@ -772,7 +778,7 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
             .is_empty()
     );
 
-    let root_allows_print = "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
+    let root_allows_print = "language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":root_uri,"version":2},"contentChanges":[{"text":root_allows_print}]}}),

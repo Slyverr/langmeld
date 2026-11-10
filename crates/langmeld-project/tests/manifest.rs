@@ -33,21 +33,23 @@ impl Drop for TestDirectory {
 #[test]
 fn parses_the_root_definition_from_a_supported_manifest() {
     let manifest =
-        ProjectManifest::parse("format = 1\ndefinition = \"language/language.lm\"\n").unwrap();
+        ProjectManifest::parse("format = 1\ndefinition = \"language/language.langmeld\"\n")
+            .unwrap();
 
-    assert_eq!(manifest.definition, "language/language.lm");
+    assert_eq!(manifest.definition, "language/language.langmeld");
 }
 
 #[test]
 fn rejects_unsupported_formats_and_unknown_fields() {
-    let version = ProjectManifest::parse("format = 2\ndefinition = \"language.lm\"\n");
+    let version = ProjectManifest::parse("format = 2\ndefinition = \"language.langmeld\"\n");
     assert!(matches!(
         version,
         Err(ProjectManifestError::UnsupportedFormat(2))
     ));
 
-    let unknown =
-        ProjectManifest::parse("format = 1\ndefinition = \"language.lm\"\nlangauge = \"typo\"\n");
+    let unknown = ProjectManifest::parse(
+        "format = 1\ndefinition = \"language.langmeld\"\nlangauge = \"typo\"\n",
+    );
     assert!(matches!(
         unknown,
         Err(ProjectManifestError::UnknownField(_))
@@ -59,10 +61,11 @@ fn rejects_invalid_or_non_portable_definition_paths() {
     for path in [
         "",
         "language.txt",
-        "/absolute/language.lm",
-        "../language.lm",
-        "C:/language.lm",
-        "language\\root.lm",
+        "language.lm",
+        "/absolute/language.langmeld",
+        "../language.langmeld",
+        "C:/language.langmeld",
+        "language\\root.langmeld",
     ] {
         let manifest = format!("format = 1\ndefinition = {path:?}\n");
         assert!(
@@ -80,11 +83,11 @@ fn reads_the_conventional_manifest_from_a_project_root() {
     let project = TestDirectory::new();
     fs::write(
         project.0.join(PROJECT_MANIFEST_FILE),
-        "format = 1\ndefinition = \"lang/main.lm\"\n",
+        "format = 1\ndefinition = \"lang/main.langmeld\"\n",
     )
     .expect("manifest should be written");
 
     let manifest = read_project_manifest(&project.0).unwrap();
 
-    assert_eq!(manifest.definition, "lang/main.lm");
+    assert_eq!(manifest.definition, "lang/main.langmeld");
 }

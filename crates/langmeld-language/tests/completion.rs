@@ -52,10 +52,14 @@ fn language() -> LanguageSpec {
 }
 
 fn suggestions(source: &str, offset: usize) -> Vec<String> {
-    complete_at(&SourceFile::new("main.lm", source), &language(), offset)
-        .into_iter()
-        .map(|candidate| candidate.text)
-        .collect()
+    complete_at(
+        &SourceFile::new("main.langmeld", source),
+        &language(),
+        offset,
+    )
+    .into_iter()
+    .map(|candidate| candidate.text)
+    .collect()
 }
 
 #[test]
@@ -79,7 +83,7 @@ fn suggests_children_immediately_after_an_opening_delimiter() {
 fn filters_by_partial_token_and_replaces_the_whole_token() {
     let source = "program { pri";
     let candidates = complete_at(
-        &SourceFile::new("main.lm", source),
+        &SourceFile::new("main.langmeld", source),
         &language(),
         source.len(),
     );
@@ -131,7 +135,7 @@ fn offers_root_constructs_when_the_source_is_empty() {
 #[test]
 fn definition_grammar_completions_follow_root_and_nested_scopes() {
     let grammar = language_definition_grammar();
-    let root = complete_at(&SourceFile::new("language.lm", ""), grammar, 0);
+    let root = complete_at(&SourceFile::new("language.langmeld", ""), grammar, 0);
     assert_eq!(
         root.iter()
             .map(|candidate| candidate.text.as_str())
@@ -141,7 +145,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
 
     let source = "language \"Toy\" { construct \"item\" { syntax { ";
     let nested = complete_at(
-        &SourceFile::new("language.lm", source),
+        &SourceFile::new("language.langmeld", source),
         grammar,
         source.len(),
     );
@@ -156,6 +160,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
             "identifier",
             "integer",
             "string",
+            "expression",
             "optional",
             "zero_or_more",
             "one_or_more",
@@ -166,7 +171,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
 
 #[test]
 fn rejects_offsets_outside_the_source_or_inside_a_utf8_codepoint() {
-    let source = SourceFile::new("main.lm", "é");
+    let source = SourceFile::new("main.langmeld", "é");
 
     assert!(complete_at(&source, &language(), source.text.len() + 1).is_empty());
     assert!(complete_at(&source, &language(), 1).is_empty());
@@ -207,7 +212,7 @@ impl Lexer for KeywordAsPunctuation {
 
 #[test]
 fn custom_lexer_can_filter_partial_textual_tokens() {
-    let source = SourceFile::new("main.lm", "program { pri");
+    let source = SourceFile::new("main.langmeld", "program { pri");
     let candidates = complete_at_with_lexer(
         &source,
         &language(),

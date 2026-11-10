@@ -16,7 +16,7 @@ hover, rename, document symbols, formatting, or semantic highlighting.
 
 ## Langmeld definitions
 
-Run `langmeld lsp --definitions` to edit `.lm` files with the built-in
+Run `langmeld lsp --definitions` to edit `.langmeld` files with the built-in
 definition grammar. This mode publishes parser diagnostics, context-aware
 syntax completions for root declarations and nested construct syntax, and
 formatting edits that honor the editor's indentation options. Formatting is

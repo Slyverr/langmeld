@@ -49,7 +49,7 @@ language "Toy" {
 
 #[test]
 fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
-    let definition = parse_language_definition(&SourceFile::new("language.lm", DEFINITION));
+    let definition = parse_language_definition(&SourceFile::new("language.langmeld", DEFINITION));
 
     assert!(
         definition.diagnostics.is_empty(),
@@ -72,7 +72,7 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
 #[test]
 fn definition_errors_have_source_locations() {
     let source = SourceFile::new(
-        "language.lm",
+        "language.langmeld",
         r#"language "Toy" { construct "program" { syntax { literal "program"; } block "{" "}" { allow "missing"; } } }"#,
     );
 
@@ -88,7 +88,7 @@ fn definition_errors_have_source_locations() {
 #[test]
 fn reports_invalid_definition_string_escapes() {
     let source = SourceFile::new(
-        "language.lm",
+        "language.langmeld",
         r#"language "Toy\q" { construct "item" { syntax { literal "item"; } } }"#,
     );
 
@@ -105,7 +105,10 @@ fn reports_invalid_definition_string_escapes() {
 
 #[test]
 fn requires_at_least_one_syntax_block_per_construct() {
-    let source = SourceFile::new("language.lm", r#"language "Toy" { construct "item" { } }"#);
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Toy" { construct "item" { } }"#,
+    );
 
     let result = parse_language_definition(&source);
 
@@ -121,7 +124,7 @@ fn requires_at_least_one_syntax_block_per_construct() {
 #[test]
 fn definition_frontend_lowers_multiple_syntax_variants() {
     let source = SourceFile::new(
-        "functions.lm",
+        "functions.langmeld",
         r#"language "Functions" {
             construct "function" {
                 syntax {
@@ -152,7 +155,7 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
 #[test]
 fn definition_frontend_lowers_generic_token_captures() {
     let source = SourceFile::new(
-        "language.lm",
+        "language.langmeld",
         r#"language "TaggedTokens" {
             construct "emit" {
                 syntax {
@@ -182,14 +185,42 @@ fn definition_frontend_lowers_generic_token_captures() {
 }
 
 #[test]
+fn definition_frontend_lowers_expression_captures_with_consumed_terminators() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Expressions" {
+            construct "print" {
+                syntax {
+                    literal "print";
+                    expression "value" until ";";
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let program = SourceFile::new("main.expr", "print call(a + nested(b)) + 3;");
+    let parsed = parse(&program, definition.language.as_ref().unwrap());
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    let field = &parsed.constructs[0].fields[0];
+    assert_eq!(field.value, CapturedValue::Expression);
+    assert_eq!(
+        &program.text[field.span.start..field.span.end],
+        "call(a + nested(b)) + 3"
+    );
+}
+
+#[test]
 fn composes_nested_imports_and_keeps_construct_source_locations() {
     let root = DefinitionSource::new(
         "root",
         SourceFile::new(
-            "language/main.lm",
+            "language/main.langmeld",
             r#"language "Widget" {
-                import "statements.lm";
-                import "statements.lm";
+                import "statements.langmeld";
+                import "statements.langmeld";
                 construct "program" {
                     syntax { literal "program"; }
                     block "{" "}" { allow "print"; }
@@ -199,12 +230,12 @@ fn composes_nested_imports_and_keeps_construct_source_locations() {
     );
     let mut resolver = Resolver::default();
     resolver.0.insert(
-        "statements.lm".into(),
+        "statements.langmeld".into(),
         DefinitionSource::new(
             "statements",
             SourceFile::new(
-                "language/statements.lm",
-                r#"import "values.lm";
+                "language/statements.langmeld",
+                r#"import "values.langmeld";
                 construct "print" {
                     syntax { literal "print"; identifier "name"; literal ";"; }
                 }"#,
@@ -212,11 +243,11 @@ fn composes_nested_imports_and_keeps_construct_source_locations() {
         ),
     );
     resolver.0.insert(
-        "values.lm".into(),
+        "values.langmeld".into(),
         DefinitionSource::new(
             "values",
             SourceFile::new(
-                "language/values.lm",
+                "language/values.langmeld",
                 r#"construct "let" {
                     syntax { literal "let"; identifier "name"; literal "="; integer "value"; literal ";"; }
                 }"#,
@@ -238,21 +269,27 @@ fn composes_nested_imports_and_keeps_construct_source_locations() {
 fn reports_import_cycles_and_missing_imports_at_the_import_site() {
     let root = DefinitionSource::new(
         "root",
-        SourceFile::new("main.lm", r#"language "Cycle" { import "module.lm"; }"#),
+        SourceFile::new(
+            "main.langmeld",
+            r#"language "Cycle" { import "module.langmeld"; }"#,
+        ),
     );
     let mut resolver = Resolver::default();
     resolver.0.insert(
-        "module.lm".into(),
+        "module.langmeld".into(),
         DefinitionSource::new(
             "module",
-            SourceFile::new("module.lm", r#"import "root.lm";"#),
+            SourceFile::new("module.langmeld", r#"import "root.langmeld";"#),
         ),
     );
     resolver.0.insert(
-        "root.lm".into(),
+        "root.langmeld".into(),
         DefinitionSource::new(
             "root",
-            SourceFile::new("main.lm", r#"language "Cycle" { import "module.lm"; }"#),
+            SourceFile::new(
+                "main.langmeld",
+                r#"language "Cycle" { import "module.langmeld"; }"#,
+            ),
         ),
     );
 
@@ -263,14 +300,17 @@ fn reports_import_cycles_and_missing_imports_at_the_import_site() {
     assert!(cycle.diagnostics.iter().any(|d| {
         d.code == "LM-DEF-020"
             && d.location.as_ref().is_some_and(|location| {
-                location.span.end > location.span.start && location.source_name == "module.lm"
+                location.span.end > location.span.start && location.source_name == "module.langmeld"
             })
     }));
 
     let missing = parse_language_definition_project(
         DefinitionSource::new(
             "missing-root",
-            SourceFile::new("main.lm", r#"language "Missing" { import "none.lm"; }"#),
+            SourceFile::new(
+                "main.langmeld",
+                r#"language "Missing" { import "none.langmeld"; }"#,
+            ),
         ),
         &Resolver::default(),
     );
@@ -283,9 +323,9 @@ fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
     let root = DefinitionSource::new(
         "root",
         SourceFile::new(
-            "language/main.lm",
+            "language/main.langmeld",
             r#"language "Duplicate" {
-                import "constructs.lm";
+                import "constructs.langmeld";
                 construct "print" {
                     syntax { literal "print"; identifier "name"; }
                 }
@@ -294,11 +334,11 @@ fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
     );
     let mut resolver = Resolver::default();
     resolver.0.insert(
-        "constructs.lm".into(),
+        "constructs.langmeld".into(),
         DefinitionSource::new(
             "constructs",
             SourceFile::new(
-                "language/constructs.lm",
+                "language/constructs.langmeld",
                 r#"construct "print" {
                     syntax { literal "print"; identifier "value"; }
                 }"#,
@@ -319,15 +359,15 @@ fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
             .location
             .as_ref()
             .map(|location| location.source_name.as_str()),
-        Some("language/constructs.lm")
+        Some("language/constructs.langmeld")
     );
 }
 
 #[test]
 fn single_file_definition_api_reports_when_imports_need_a_resolver() {
     let source = SourceFile::new(
-        "main.lm",
-        r#"language "Imported" { import "constructs.lm"; }"#,
+        "main.langmeld",
+        r#"language "Imported" { import "constructs.langmeld"; }"#,
     );
 
     let result = parse_language_definition(&source);
@@ -339,7 +379,7 @@ fn single_file_definition_api_reports_when_imports_need_a_resolver() {
 #[test]
 fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
     let source = SourceFile::new(
-        "functions.lm",
+        "functions.langmeld",
         r#"language "Functions" {
             construct "function" {
                 syntax {

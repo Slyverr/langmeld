@@ -163,7 +163,7 @@ fn collect_literals(parts: &[PatternPart], output: &mut Vec<String>, seen: &mut 
                     output.push(literal.clone());
                 }
             }
-            PatternPart::Field { .. } => {}
+            PatternPart::Field { .. } | PatternPart::Expression { .. } => {}
             PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => {
                 collect_literals(parts, output, seen);
             }

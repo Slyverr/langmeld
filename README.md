@@ -6,8 +6,8 @@ syntax, parsing source, and building language-specific behavior in Rust.
 The current libraries provide source snapshots, revision-aware diagnostics,
 UTF-8/UTF-16/UTF-32 editor position conversion, a validated syntax model, and
 a generic parser for token patterns, typed and generic captures, alternative
-forms, optional and repeated groups, and scoped blocks. The `.lm` frontend is
-itself parsed by that generic parser. The framework does not prescribe
+forms, optional and repeated groups, and scoped blocks. The `.langmeld` frontend
+is itself parsed by that generic parser. The framework does not prescribe
 language-specific semantics, execution, or code generation; authors implement
 those behaviors in Rust. Rust hosts can provide a custom
 lexer while reusing the generic parser, or implement `LanguageParser` and keep
@@ -25,15 +25,15 @@ diagnostics, and completion for declarative languages, plus host-backed
 definition, references, rename, formatting, hover, document symbols, and
 semantic tokens through the same LSP adapter. The `langmeld lsp` CLI command
 serves manifest-backed projects, and `langmeld lsp --definitions` assists with
-editing `.lm` syntax with project validation, diagnostics, scoped completion,
-and formatting.
+editing `.langmeld` syntax with project validation, diagnostics, scoped
+completion, and formatting.
 `langmeld format` formats all definitions reachable through the project
 manifest; pass a file path to format one file. The optional
 `langmeld-textmate` crate exports lexical highlighting rules, and
 `langmeld-tree-sitter` exports parser grammars for compatible declarative
-syntax. The `langmeld-project` crate
-provides a directory-backed resolver for modular `.lm` projects, with project-root
-confinement and source snapshots for diagnostic display. The core, expression,
+syntax. The `langmeld-project` crate provides a directory-backed resolver for
+modular `.langmeld` projects, with project-root confinement and source snapshots
+for diagnostic display. The core, expression,
 language, TextMate, and Tree-sitter crates compile for `wasm32-unknown-unknown`;
 Langmeld does not yet provide browser bindings or a browser editor adapter.
 
@@ -56,8 +56,8 @@ cargo run -p langmeld-custom-parser-example --locked
 cargo run -p langmeld-schema-language-example --locked
 ```
 
-The [`toy-language`](examples/toy-language) example shows a multi-file `.lm`
-definition project and nested constructs. The
+The [`toy-language`](examples/toy-language) example shows a multi-file
+`.langmeld` definition project and nested constructs. The
 [`custom-lexer`](examples/custom-lexer) example shows host-defined raw strings
 and comment skipping.
 The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
@@ -75,18 +75,29 @@ completion, definition, and references across open files.
 
 Create a starter language project with
 `cargo run -p langmeld-cli -- init my-language`. The initializer prompts for
-project and language names, then lets you choose a declarative `.lm` grammar
-or a custom Rust parser. Validate declarative manifests and definitions with
+project and language names, then lets you choose a declarative `.langmeld`
+grammar or a custom Rust parser. Validate declarative manifests and definitions with
 `cargo run -p langmeld-cli -- check --manifest-path my-language/langmeld.toml`.
-Generate lexical highlighting JSON with
-`cargo run -p langmeld-cli -- generate textmate --manifest-path my-language/langmeld.toml --scope-name source.my_language`.
-Generate a Tree-sitter `grammar.js` file with
-`cargo run -p langmeld-cli -- generate tree-sitter --manifest-path my-language/langmeld.toml --grammar-name my_language`.
+Generate lexical highlighting JSON with:
+
+```sh
+cargo run -p langmeld-cli -- generate textmate \
+  --manifest-path my-language/langmeld.toml \
+  --scope-name source.my_language
+```
+
+Generate a Tree-sitter `grammar.js` file with:
+
+```sh
+cargo run -p langmeld-cli -- generate tree-sitter \
+  --manifest-path my-language/langmeld.toml \
+  --grammar-name my_language
+```
 See [Project workflow](docs/project-workflow.md) for generated files and
 non-interactive options.
 
-See [Language definitions](docs/language-definitions.md) for the current `.lm`
-syntax and its extension boundaries.
+See [Language definitions](docs/language-definitions.md) for the current
+`.langmeld` syntax and its extension boundaries.
 
 ## License
 

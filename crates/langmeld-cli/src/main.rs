@@ -23,9 +23,9 @@ enum Command {
     Init(init::InitArgs),
     /// Validate the project manifest and language definition.
     Check(check::CheckArgs),
-    /// Format a language project's `.lm` definitions.
+    /// Format a language project's `.langmeld` definitions.
     Format(format::FormatArgs),
-    /// Serve editor support for a language project or `.lm` definitions.
+    /// Serve editor support for a language project or `.langmeld` definitions.
     Lsp(lsp::LspArgs),
     /// Generate editor tooling from a declarative language project.
     Generate(generate::GenerateArgs),

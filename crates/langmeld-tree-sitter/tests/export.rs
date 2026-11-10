@@ -67,3 +67,31 @@ fn rejects_invalid_grammar_names_and_languages_without_root_constructs() {
         .expect("an empty root list is valid for parsing");
     assert!(generate(&no_roots, &TreeSitterOptions::new("widget_script")).is_err());
 }
+
+#[test]
+fn reports_host_parsed_expression_captures_as_unsupported() {
+    let grammar = LanguageSpec::new(
+        "Expressions",
+        [ConstructSpec::new(
+            "print",
+            [
+                PatternPart::literal("print"),
+                PatternPart::expression("value", ";"),
+            ],
+        )],
+    )
+    .unwrap()
+    .with_root_constructs(&["print"])
+    .unwrap();
+
+    let error = generate(&grammar, &TreeSitterOptions::new("expressions"))
+        .expect_err("host-parsed expression captures need an explicit Tree-sitter grammar");
+
+    assert!(matches!(
+        error,
+        langmeld_tree_sitter::TreeSitterError::UnsupportedExpressionCapture {
+            construct,
+            field
+        } if construct == "print" && field == "value"
+    ));
+}

@@ -1,4 +1,4 @@
-import "values.lm";
+import "values.langmeld";
 
 construct "draw" {
     syntax {

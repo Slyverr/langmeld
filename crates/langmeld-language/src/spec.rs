@@ -27,6 +27,17 @@ pub enum PatternPart {
         /// Required lexical category.
         kind: FieldKind,
     },
+    /// Captures the source span before a top-level terminator token.
+    ///
+    /// The terminator is consumed by the parser but excluded from the captured
+    /// span. Nested `()`, `[]`, and `{}` groups do not end the capture. The
+    /// host can parse the captured span with its selected expression parser.
+    Expression {
+        /// Name exposed in parsed construct fields.
+        name: String,
+        /// Single token that ends the expression at delimiter depth zero.
+        terminator: String,
+    },
     /// A sequence that is included when it matches, and otherwise omitted.
     Optional(Vec<PatternPart>),
     /// A sequence matched repeatedly as one unit. Captured fields are appended
@@ -89,6 +100,18 @@ impl PatternPart {
         Self::Field {
             name: name.into(),
             kind: FieldKind::String,
+        }
+    }
+
+    /// Captures tokens before a top-level terminator as an expression span.
+    ///
+    /// The terminator is consumed but excluded from the captured source range.
+    /// The generic parser does not parse or type-check the expression.
+    #[must_use]
+    pub fn expression(name: impl Into<String>, terminator: impl Into<String>) -> Self {
+        Self::Expression {
+            name: name.into(),
+            terminator: terminator.into(),
         }
     }
 
@@ -413,6 +436,13 @@ pub enum SpecError {
         /// Literal value that is not a single token.
         literal: String,
     },
+    /// An expression terminator is empty or not a single lexer token.
+    InvalidExpressionTerminator {
+        /// Construct containing the invalid terminator.
+        construct: String,
+        /// Invalid terminator text.
+        terminator: String,
+    },
     /// A captured field name is blank.
     EmptyFieldName(String),
     /// A construct cannot capture a field twice.
@@ -459,7 +489,9 @@ fn patterns_overlap(left: &[PatternPart], right: &[PatternPart]) -> bool {
 fn has_group(pattern: &[PatternPart]) -> bool {
     pattern.iter().any(|part| match part {
         PatternPart::Optional(_) | PatternPart::Repeat { .. } => true,
-        PatternPart::Literal(_) | PatternPart::Field { .. } => false,
+        PatternPart::Literal(_) | PatternPart::Field { .. } | PatternPart::Expression { .. } => {
+            false
+        }
     })
 }
 
@@ -469,6 +501,7 @@ fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
         (PatternPart::Field { kind: left, .. }, PatternPart::Field { kind: right, .. }) => {
             field_kinds_overlap(*left, *right)
         }
+        (PatternPart::Expression { .. }, _) | (_, PatternPart::Expression { .. }) => true,
         (PatternPart::Literal(literal), PatternPart::Field { kind, .. })
         | (PatternPart::Field { kind, .. }, PatternPart::Literal(literal)) => {
             *kind == FieldKind::Token || literal_kind(literal) == Some(*kind)
@@ -508,6 +541,23 @@ fn validate_pattern(
                     });
                 }
             }
+            PatternPart::Expression { name, terminator } => {
+                if name.trim().is_empty() {
+                    return Err(SpecError::EmptyFieldName(construct.to_owned()));
+                }
+                if !fields.insert(name.clone()) {
+                    return Err(SpecError::DuplicateField {
+                        construct: construct.to_owned(),
+                        field: name.clone(),
+                    });
+                }
+                if !is_single_token(terminator) {
+                    return Err(SpecError::InvalidExpressionTerminator {
+                        construct: construct.to_owned(),
+                        terminator: terminator.clone(),
+                    });
+                }
+            }
             PatternPart::Optional(parts) => {
                 if parts.is_empty() {
                     return Err(SpecError::EmptyPatternGroup(construct.to_owned()));
@@ -533,7 +583,9 @@ fn validate_pattern(
 
 fn sequence_is_nullable(parts: &[PatternPart]) -> bool {
     parts.iter().all(|part| match part {
-        PatternPart::Literal(_) | PatternPart::Field { .. } => false,
+        PatternPart::Literal(_) | PatternPart::Field { .. } | PatternPart::Expression { .. } => {
+            false
+        }
         PatternPart::Optional(_) => true,
         PatternPart::Repeat { minimum, .. } => *minimum == RepeatMinimum::Zero,
     })
@@ -555,6 +607,10 @@ fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
             }
             PatternPart::Field { kind, .. } => {
                 first.push(FirstMatcher::Field(*kind));
+                break;
+            }
+            PatternPart::Expression { .. } => {
+                first.push(FirstMatcher::Field(FieldKind::Token));
                 break;
             }
             PatternPart::Optional(parts) => first.extend(first_set(parts)),
@@ -588,7 +644,9 @@ fn validate_decision_points(pattern: &[PatternPart], construct: &str) -> Result<
     for (index, part) in pattern.iter().enumerate() {
         let group = match part {
             PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => Some(parts),
-            PatternPart::Literal(_) | PatternPart::Field { .. } => None,
+            PatternPart::Literal(_)
+            | PatternPart::Field { .. }
+            | PatternPart::Expression { .. } => None,
         };
         if let Some(group) = group {
             let group_first = first_set(group);
@@ -712,6 +770,13 @@ impl std::fmt::Display for SpecError {
             Self::InvalidLiteral { construct, literal } => write!(
                 f,
                 "construct `{construct}` literal `{literal}` is not one lexer token"
+            ),
+            Self::InvalidExpressionTerminator {
+                construct,
+                terminator,
+            } => write!(
+                f,
+                "construct `{construct}` expression terminator `{terminator}` is not one lexer token"
             ),
             Self::EmptyFieldName(name) => write!(f, "construct `{name}` has an empty field name"),
             Self::DuplicateField { construct, field } => write!(

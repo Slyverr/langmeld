@@ -7,7 +7,7 @@ use langmeld_project::DirectoryDefinitionResolver;
 fn load_language() -> langmeld_language::LanguageSpec {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let resolver = DirectoryDefinitionResolver::new(project_root).unwrap();
-    let root = resolver.load("language/toy.lm").unwrap();
+    let root = resolver.load("language/toy.langmeld").unwrap();
     let definition = parse_language_definition_project(root, &resolver);
     assert!(
         definition.diagnostics.is_empty(),

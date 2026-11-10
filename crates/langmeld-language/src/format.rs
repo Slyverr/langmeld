@@ -7,7 +7,7 @@ use crate::{
     parse,
 };
 
-/// Indentation settings for formatting a `.lm` definition.
+/// Indentation settings for formatting a `.langmeld` definition.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DefinitionFormatOptions {
     /// Spaces per indentation level when `insert_spaces` is true, clamped to
@@ -26,9 +26,9 @@ impl Default for DefinitionFormatOptions {
     }
 }
 
-/// Formats one syntactically valid `.lm` definition source.
+/// Formats one syntactically valid `.langmeld` definition source.
 ///
-/// String tokens are preserved exactly. The current `.lm` grammar does not
+/// String tokens are preserved exactly. The current `.langmeld` grammar does not
 /// accept comments. Invalid or incomplete definitions return their parser
 /// diagnostics rather than a potentially destructive partial rewrite.
 pub fn format_language_definition(

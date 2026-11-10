@@ -1,13 +1,13 @@
 # Toy language
 
-This example shows a small declarative language split across importable `.lm`
+This example shows a small declarative language split across importable `.langmeld`
 files and parsed with Langmeld's generic parser. It demonstrates grammar
 composition and captured syntax fields; it does not define symbol resolution,
 types, or runtime behavior.
 
-`language/toy.lm` declares the language and its `program` block. It imports
-`language/constructs/statements.lm`, which in turn imports
-`language/constructs/values.lm`. The root block lists which statement
+`language/toy.langmeld` declares the language and its `program` block. It imports
+`language/constructs/statements.langmeld`, which in turn imports
+`language/constructs/values.langmeld`. The root block lists which statement
 constructs it accepts.
 
 Run it from the workspace root:

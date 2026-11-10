@@ -190,7 +190,7 @@ fn collect_first_literals(parts: &[PatternPart], output: &mut Vec<String>) {
                 output.push(text.clone());
                 return;
             }
-            PatternPart::Field { .. } => return,
+            PatternPart::Field { .. } | PatternPart::Expression { .. } => return,
             PatternPart::Optional(parts) => collect_first_literals(parts, output),
             PatternPart::Repeat { parts, minimum } => {
                 collect_first_literals(parts, output);
