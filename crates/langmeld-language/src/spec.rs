@@ -25,6 +25,26 @@ pub enum PatternPart {
         /// Required lexical category.
         kind: FieldKind,
     },
+    /// A sequence that is included when it matches, and otherwise omitted.
+    Optional(Vec<PatternPart>),
+    /// A sequence matched repeatedly as one unit. Captured fields are appended
+    /// in source order for every match, so a field inside this group can occur
+    /// multiple times in a construct's capture list.
+    Repeat {
+        /// Sequence consumed by each repetition.
+        parts: Vec<PatternPart>,
+        /// Whether zero repetitions are accepted.
+        minimum: RepeatMinimum,
+    },
+}
+
+/// Minimum number of repetitions for a repeated pattern sequence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepeatMinimum {
+    /// Accept zero or more repetitions.
+    Zero,
+    /// Require at least one repetition.
+    One,
 }
 
 impl PatternPart {
@@ -58,6 +78,30 @@ impl PatternPart {
         Self::Field {
             name: name.into(),
             kind: FieldKind::String,
+        }
+    }
+
+    /// Creates an optional sequence of syntax parts.
+    #[must_use]
+    pub fn optional(parts: impl IntoIterator<Item = PatternPart>) -> Self {
+        Self::Optional(parts.into_iter().collect())
+    }
+
+    /// Creates a sequence that may repeat zero or more times.
+    #[must_use]
+    pub fn zero_or_more(parts: impl IntoIterator<Item = PatternPart>) -> Self {
+        Self::Repeat {
+            parts: parts.into_iter().collect(),
+            minimum: RepeatMinimum::Zero,
+        }
+    }
+
+    /// Creates a sequence that must repeat at least once.
+    #[must_use]
+    pub fn one_or_more(parts: impl IntoIterator<Item = PatternPart>) -> Self {
+        Self::Repeat {
+            parts: parts.into_iter().collect(),
+            minimum: RepeatMinimum::One,
         }
     }
 }
@@ -200,30 +244,12 @@ impl LanguageSpec {
             if construct.pattern.is_empty() {
                 return Err(SpecError::EmptyPattern(construct.name.clone()));
             }
-            let mut fields = HashSet::new();
-            for part in &construct.pattern {
-                match part {
-                    PatternPart::Literal(value) if value.is_empty() => {
-                        return Err(SpecError::EmptyLiteral(construct.name.clone()));
-                    }
-                    PatternPart::Literal(value) if !is_single_token(value) => {
-                        return Err(SpecError::InvalidLiteral {
-                            construct: construct.name.clone(),
-                            literal: value.clone(),
-                        });
-                    }
-                    PatternPart::Field { name, .. } if name.trim().is_empty() => {
-                        return Err(SpecError::EmptyFieldName(construct.name.clone()));
-                    }
-                    PatternPart::Field { name, .. } if !fields.insert(name.as_str()) => {
-                        return Err(SpecError::DuplicateField {
-                            construct: construct.name.clone(),
-                            field: name.clone(),
-                        });
-                    }
-                    _ => {}
-                }
+            if sequence_is_nullable(&construct.pattern) {
+                return Err(SpecError::EmptyPattern(construct.name.clone()));
             }
+            let mut fields = HashSet::new();
+            validate_pattern(&construct.pattern, &construct.name, &mut fields)?;
+            validate_decision_points(&construct.pattern, &construct.name)?;
         }
         for construct in &constructs {
             if let Some(block) = &construct.block {
@@ -254,7 +280,10 @@ impl LanguageSpec {
         }
         for (index, left) in constructs.iter().enumerate() {
             for right in &constructs[index + 1..] {
-                if patterns_overlap(&left.pattern, &right.pattern) {
+                if !has_group(&left.pattern)
+                    && !has_group(&right.pattern)
+                    && patterns_overlap(&left.pattern, &right.pattern)
+                {
                     return Err(SpecError::AmbiguousConstructs(
                         left.name.clone(),
                         right.name.clone(),
@@ -309,6 +338,14 @@ pub enum SpecError {
         /// Repeated field name.
         field: String,
     },
+    /// An optional or repeated group contains no syntax parts.
+    EmptyPatternGroup(String),
+    /// An optional group can match without consuming a token.
+    EmptyOptional(String),
+    /// A repeated group can match without consuming a token.
+    EmptyRepetition(String),
+    /// An optional or repeated group overlaps with the syntax that follows it.
+    AmbiguousPatternBoundary(String),
     /// Two constructs can match the same token sequence prefix.
     AmbiguousConstructs(String, String),
     /// A block opening or closing token is empty.
@@ -335,6 +372,13 @@ fn patterns_overlap(left: &[PatternPart], right: &[PatternPart]) -> bool {
         .all(|(left, right)| parts_overlap(left, right))
 }
 
+fn has_group(pattern: &[PatternPart]) -> bool {
+    pattern.iter().any(|part| match part {
+        PatternPart::Optional(_) | PatternPart::Repeat { .. } => true,
+        PatternPart::Literal(_) | PatternPart::Field { .. } => false,
+    })
+}
+
 fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
     match (left, right) {
         (PatternPart::Literal(left), PatternPart::Literal(right)) => left == right,
@@ -345,7 +389,133 @@ fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
         | (PatternPart::Field { kind, .. }, PatternPart::Literal(literal)) => {
             literal_kind(literal) == Some(*kind)
         }
+        (PatternPart::Optional(_), _)
+        | (PatternPart::Repeat { .. }, _)
+        | (_, PatternPart::Optional(_))
+        | (_, PatternPart::Repeat { .. }) => true,
     }
+}
+
+fn validate_pattern(
+    pattern: &[PatternPart],
+    construct: &str,
+    fields: &mut HashSet<String>,
+) -> Result<(), SpecError> {
+    for part in pattern {
+        match part {
+            PatternPart::Literal(literal) if literal.is_empty() => {
+                return Err(SpecError::EmptyLiteral(construct.to_owned()));
+            }
+            PatternPart::Literal(literal) if !is_single_token(literal) => {
+                return Err(SpecError::InvalidLiteral {
+                    construct: construct.to_owned(),
+                    literal: literal.clone(),
+                });
+            }
+            PatternPart::Literal(_) => {}
+            PatternPart::Field { name, .. } => {
+                if name.trim().is_empty() {
+                    return Err(SpecError::EmptyFieldName(construct.to_owned()));
+                }
+                if !fields.insert(name.clone()) {
+                    return Err(SpecError::DuplicateField {
+                        construct: construct.to_owned(),
+                        field: name.clone(),
+                    });
+                }
+            }
+            PatternPart::Optional(parts) => {
+                if parts.is_empty() {
+                    return Err(SpecError::EmptyPatternGroup(construct.to_owned()));
+                }
+                if sequence_is_nullable(parts) {
+                    return Err(SpecError::EmptyOptional(construct.to_owned()));
+                }
+                validate_pattern(parts, construct, fields)?;
+            }
+            PatternPart::Repeat { parts, .. } => {
+                if parts.is_empty() {
+                    return Err(SpecError::EmptyPatternGroup(construct.to_owned()));
+                }
+                if sequence_is_nullable(parts) {
+                    return Err(SpecError::EmptyRepetition(construct.to_owned()));
+                }
+                validate_pattern(parts, construct, fields)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn sequence_is_nullable(parts: &[PatternPart]) -> bool {
+    parts.iter().all(|part| match part {
+        PatternPart::Literal(_) | PatternPart::Field { .. } => false,
+        PatternPart::Optional(_) => true,
+        PatternPart::Repeat { minimum, .. } => *minimum == RepeatMinimum::Zero,
+    })
+}
+
+#[derive(Clone, Copy)]
+enum FirstMatcher<'a> {
+    Literal(&'a str),
+    Field(FieldKind),
+}
+
+fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
+    let mut first = Vec::new();
+    for part in pattern {
+        match part {
+            PatternPart::Literal(value) => {
+                first.push(FirstMatcher::Literal(value));
+                break;
+            }
+            PatternPart::Field { kind, .. } => {
+                first.push(FirstMatcher::Field(*kind));
+                break;
+            }
+            PatternPart::Optional(parts) => first.extend(first_set(parts)),
+            PatternPart::Repeat { parts, minimum } => {
+                first.extend(first_set(parts));
+                if *minimum == RepeatMinimum::One {
+                    break;
+                }
+            }
+        }
+    }
+    first
+}
+
+fn first_matchers_overlap(left: FirstMatcher<'_>, right: FirstMatcher<'_>) -> bool {
+    match (left, right) {
+        (FirstMatcher::Literal(left), FirstMatcher::Literal(right)) => left == right,
+        (FirstMatcher::Field(left), FirstMatcher::Field(right)) => left == right,
+        (FirstMatcher::Literal(literal), FirstMatcher::Field(kind))
+        | (FirstMatcher::Field(kind), FirstMatcher::Literal(literal)) => {
+            literal_kind(literal) == Some(kind)
+        }
+    }
+}
+
+fn validate_decision_points(pattern: &[PatternPart], construct: &str) -> Result<(), SpecError> {
+    for (index, part) in pattern.iter().enumerate() {
+        let group = match part {
+            PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => Some(parts),
+            PatternPart::Literal(_) | PatternPart::Field { .. } => None,
+        };
+        if let Some(group) = group {
+            let group_first = first_set(group);
+            let suffix_first = first_set(&pattern[index + 1..]);
+            if group_first.iter().any(|left| {
+                suffix_first
+                    .iter()
+                    .any(|right| first_matchers_overlap(*left, *right))
+            }) {
+                return Err(SpecError::AmbiguousPatternBoundary(construct.to_owned()));
+            }
+            validate_decision_points(group, construct)?;
+        }
+    }
+    Ok(())
 }
 
 fn literal_kind(literal: &str) -> Option<FieldKind> {
@@ -449,6 +619,26 @@ impl std::fmt::Display for SpecError {
             Self::DuplicateField { construct, field } => write!(
                 f,
                 "construct `{construct}` captures field `{field}` more than once"
+            ),
+            Self::EmptyPatternGroup(construct) => {
+                write!(
+                    f,
+                    "construct `{construct}` contains an empty optional or repeated group"
+                )
+            }
+            Self::EmptyOptional(construct) => write!(
+                f,
+                "construct `{construct}` contains an optional group that can match no tokens"
+            ),
+            Self::EmptyRepetition(construct) => {
+                write!(
+                    f,
+                    "construct `{construct}` repeats a group that can match no tokens"
+                )
+            }
+            Self::AmbiguousPatternBoundary(construct) => write!(
+                f,
+                "construct `{construct}` has an optional or repeated group that overlaps following syntax"
             ),
             Self::AmbiguousConstructs(left, right) => write!(
                 f,

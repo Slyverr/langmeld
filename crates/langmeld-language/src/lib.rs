@@ -8,4 +8,6 @@ mod spec;
 pub use definition::{DefinitionResult, parse_language_definition};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{CapturedField, CapturedValue, ParseResult, ParsedConstruct, parse};
-pub use spec::{BlockSpec, ConstructSpec, FieldKind, LanguageSpec, PatternPart, SpecError};
+pub use spec::{
+    BlockSpec, ConstructSpec, FieldKind, LanguageSpec, PatternPart, RepeatMinimum, SpecError,
+};

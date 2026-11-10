@@ -152,30 +152,8 @@ fn lower_construct(
 
     let mut pattern = Vec::new();
     for part in &syntax_nodes[0].children {
-        let Some(value) = string_field(part, "value").and_then(decode_quoted) else {
-            diagnostics.push(Diagnostic::error(
-                "LM-DEF-006",
-                "syntax item requires a valid quoted value",
-                source,
-                part.span,
-            ));
-            continue;
-        };
-        match part.name.as_str() {
-            "literal" => pattern.push(PatternPart::literal(value)),
-            "identifier" => pattern.push(PatternPart::Field {
-                name: value,
-                kind: FieldKind::Identifier,
-            }),
-            "integer" => pattern.push(PatternPart::Field {
-                name: value,
-                kind: FieldKind::Integer,
-            }),
-            "string" => pattern.push(PatternPart::Field {
-                name: value,
-                kind: FieldKind::String,
-            }),
-            _ => {}
+        if let Some(pattern_part) = lower_pattern(part, source, diagnostics) {
+            pattern.push(pattern_part);
         }
     }
 
@@ -227,6 +205,56 @@ fn lower_construct(
     Some(construct)
 }
 
+fn lower_pattern(
+    node: &ParsedConstruct,
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<PatternPart> {
+    match node.name.as_str() {
+        "literal" | "identifier" | "integer" | "string" => {
+            let Some(value) = string_field(node, "value").and_then(decode_quoted) else {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-006",
+                    "syntax item requires a valid quoted value",
+                    source,
+                    node.span,
+                ));
+                return None;
+            };
+            Some(match node.name.as_str() {
+                "literal" => PatternPart::literal(value),
+                "identifier" => PatternPart::Field {
+                    name: value,
+                    kind: FieldKind::Identifier,
+                },
+                "integer" => PatternPart::Field {
+                    name: value,
+                    kind: FieldKind::Integer,
+                },
+                "string" => PatternPart::Field {
+                    name: value,
+                    kind: FieldKind::String,
+                },
+                _ => return None,
+            })
+        }
+        "optional" | "zero_or_more" | "one_or_more" => {
+            let parts = node
+                .children
+                .iter()
+                .filter_map(|child| lower_pattern(child, source, diagnostics))
+                .collect::<Vec<_>>();
+            Some(match node.name.as_str() {
+                "optional" => PatternPart::optional(parts),
+                "zero_or_more" => PatternPart::zero_or_more(parts),
+                "one_or_more" => PatternPart::one_or_more(parts),
+                _ => return None,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn string_field<'a>(node: &'a ParsedConstruct, name: &str) -> Option<&'a str> {
     node.fields
         .iter()
@@ -272,7 +300,11 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         }
         SpecError::DuplicateField { construct, .. }
         | SpecError::UnknownChildConstruct { construct, .. }
-        | SpecError::DuplicateChildConstruct { construct, .. } => Some(construct),
+        | SpecError::DuplicateChildConstruct { construct, .. }
+        | SpecError::EmptyPatternGroup(construct)
+        | SpecError::EmptyOptional(construct)
+        | SpecError::EmptyRepetition(construct)
+        | SpecError::AmbiguousPatternBoundary(construct) => Some(construct),
         SpecError::AmbiguousConstructs(left, _) => Some(left),
     }
 }
@@ -302,7 +334,15 @@ fn definition_grammar() -> &'static LanguageSpec {
                 ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
                     "{",
                     "}",
-                    &["literal", "identifier", "integer", "string"],
+                    &[
+                        "literal",
+                        "identifier",
+                        "integer",
+                        "string",
+                        "optional",
+                        "zero_or_more",
+                        "one_or_more",
+                    ],
                 ),
                 ConstructSpec::new(
                     "block",
@@ -313,6 +353,45 @@ fn definition_grammar() -> &'static LanguageSpec {
                     ],
                 )
                 .block("{", "}", &["allow"]),
+                ConstructSpec::new("optional", [PatternPart::literal("optional")]).block(
+                    "{",
+                    "}",
+                    &[
+                        "literal",
+                        "identifier",
+                        "integer",
+                        "string",
+                        "optional",
+                        "zero_or_more",
+                        "one_or_more",
+                    ],
+                ),
+                ConstructSpec::new("zero_or_more", [PatternPart::literal("zero_or_more")]).block(
+                    "{",
+                    "}",
+                    &[
+                        "literal",
+                        "identifier",
+                        "integer",
+                        "string",
+                        "optional",
+                        "zero_or_more",
+                        "one_or_more",
+                    ],
+                ),
+                ConstructSpec::new("one_or_more", [PatternPart::literal("one_or_more")]).block(
+                    "{",
+                    "}",
+                    &[
+                        "literal",
+                        "identifier",
+                        "integer",
+                        "string",
+                        "optional",
+                        "zero_or_more",
+                        "one_or_more",
+                    ],
+                ),
                 ConstructSpec::new(
                     "literal",
                     [

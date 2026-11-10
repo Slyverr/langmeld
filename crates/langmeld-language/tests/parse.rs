@@ -265,3 +265,130 @@ fn block_child_names_must_resolve_to_language_constructs() {
         Err(langmeld_language::SpecError::UnknownChildConstruct { .. })
     ));
 }
+
+#[test]
+fn parses_function_signatures_with_optional_and_repeated_parameters() {
+    use PatternPart as P;
+
+    let function = ConstructSpec::new(
+        "function",
+        [
+            P::literal("fn"),
+            P::identifier("name"),
+            P::literal("("),
+            P::optional([
+                P::identifier("first_parameter"),
+                P::literal(":"),
+                P::identifier("first_type"),
+                P::zero_or_more([
+                    P::literal(","),
+                    P::identifier("parameter"),
+                    P::literal(":"),
+                    P::identifier("parameter_type"),
+                ]),
+            ]),
+            P::literal(")"),
+            P::optional([P::literal("->"), P::identifier("return_type")]),
+        ],
+    );
+    let grammar = LanguageSpec::new("Functions", [function]).unwrap();
+
+    let empty = parse(&SourceFile::new("empty", "fn empty()"), &grammar);
+    assert!(empty.diagnostics.is_empty());
+    assert_eq!(empty.constructs[0].fields.len(), 1);
+    assert_eq!(empty.constructs[0].fields[0].name, "name");
+
+    let multiple = parse(
+        &SourceFile::new(
+            "multiple",
+            "fn combine(left: Number, right: Text) -> Result",
+        ),
+        &grammar,
+    );
+    assert!(
+        multiple.diagnostics.is_empty(),
+        "{:?}",
+        multiple.diagnostics
+    );
+    assert_eq!(multiple.constructs[0].fields.len(), 6);
+    assert_eq!(multiple.constructs[0].fields[3].name, "parameter");
+    assert_eq!(multiple.constructs[0].fields[5].name, "return_type");
+}
+
+#[test]
+fn rejects_optional_or_repeated_groups_with_ambiguous_boundaries() {
+    let construct = ConstructSpec::new(
+        "ambiguous",
+        [
+            PatternPart::literal("item"),
+            PatternPart::optional([PatternPart::literal("name")]),
+            PatternPart::identifier("next"),
+        ],
+    );
+
+    assert!(matches!(
+        LanguageSpec::new("Ambiguous", [construct]),
+        Err(langmeld_language::SpecError::AmbiguousPatternBoundary(_))
+    ));
+}
+
+#[test]
+fn rejects_optional_groups_that_can_match_without_tokens() {
+    let construct = ConstructSpec::new(
+        "empty_optional",
+        [
+            PatternPart::literal("item"),
+            PatternPart::optional([PatternPart::optional([PatternPart::literal("name")])]),
+        ],
+    );
+
+    assert!(matches!(
+        LanguageSpec::new("Invalid", [construct]),
+        Err(langmeld_language::SpecError::EmptyOptional(_))
+    ));
+}
+
+#[test]
+fn reports_ambiguity_between_complete_patterns_at_parse_time() {
+    let optional = ConstructSpec::new(
+        "optional",
+        [
+            PatternPart::literal("item"),
+            PatternPart::optional([PatternPart::literal("name")]),
+        ],
+    );
+    let explicit = ConstructSpec::new(
+        "explicit",
+        [PatternPart::literal("item"), PatternPart::literal("name")],
+    );
+    let grammar = LanguageSpec::new("Ambiguous", [optional, explicit]).unwrap();
+
+    let result = parse(&SourceFile::new("input", "item name"), &grammar);
+
+    assert!(result.constructs.is_empty());
+    assert_eq!(result.diagnostics[0].code, "LM-PARSE-006");
+}
+
+#[test]
+fn one_or_more_requires_an_item_and_captures_each_match() {
+    let grammar = LanguageSpec::new(
+        "Pair",
+        [ConstructSpec::new(
+            "pair",
+            [
+                PatternPart::literal("pair"),
+                PatternPart::integer("first"),
+                PatternPart::one_or_more([PatternPart::literal(","), PatternPart::integer("next")]),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+
+    let valid = parse(&SourceFile::new("valid", "pair 1,2,3;"), &grammar);
+    assert!(valid.diagnostics.is_empty());
+    assert_eq!(valid.constructs[0].fields.len(), 3);
+
+    let invalid = parse(&SourceFile::new("invalid", "pair 1;"), &grammar);
+    assert_eq!(invalid.diagnostics[0].code, "LM-PARSE-002");
+}

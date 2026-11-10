@@ -100,3 +100,45 @@ fn requires_one_syntax_block_per_construct() {
             .any(|diagnostic| diagnostic.code == "LM-DEF-005")
     );
 }
+
+#[test]
+fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
+    let source = SourceFile::new(
+        "functions.lm",
+        r#"language "Functions" {
+            construct "function" {
+                syntax {
+                    literal "fn";
+                    identifier "name";
+                    literal "(";
+                    optional {
+                        identifier "first_parameter";
+                        literal ":";
+                        identifier "first_type";
+                        zero_or_more {
+                            literal ",";
+                            identifier "parameter";
+                            literal ":";
+                            identifier "parameter_type";
+                        }
+                    }
+                    literal ")";
+                    optional {
+                        literal "->";
+                        identifier "return_type";
+                    }
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let parsed = parse(
+        &SourceFile::new("functions", "fn join(left: Text, right: Text) -> Text"),
+        definition.language.as_ref().unwrap(),
+    );
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].fields.len(), 6);
+}

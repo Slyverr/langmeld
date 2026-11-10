@@ -2,7 +2,7 @@
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
 
-use crate::{FieldKind, LanguageSpec, PatternPart};
+use crate::{FieldKind, LanguageSpec, PatternPart, RepeatMinimum};
 
 #[derive(Clone, Debug)]
 struct Token {
@@ -127,33 +127,48 @@ impl Parser<'_> {
         depth: usize,
     ) -> Option<ParsedConstruct> {
         let start_index = self.cursor;
-        let mut best_partial: Option<(&crate::ConstructSpec, MatchAttempt)> = None;
+        let mut best_partial: Option<(&crate::ConstructSpec, MatchAttempt<'_>)> = None;
         let mut matched = None;
+        let mut ambiguous = false;
         for spec in allowed {
-            let attempt = match_construct(spec, &self.tokens, self.cursor);
-            if attempt.matched == spec.pattern.len() {
+            let attempt = match_sequence(&spec.pattern, &self.tokens, self.cursor);
+            if attempt.complete {
+                if matched.is_some() {
+                    ambiguous = true;
+                    break;
+                }
                 matched = Some((*spec, attempt));
-                break;
+                continue;
             }
-            if attempt.matched > 0
+            if attempt.end > self.cursor
                 && best_partial
                     .as_ref()
-                    .is_none_or(|(_, best)| attempt.matched > best.matched)
+                    .is_none_or(|(_, best)| attempt.end > best.end)
             {
                 best_partial = Some((*spec, attempt));
             }
         }
 
+        if ambiguous {
+            let token = &self.tokens[self.cursor];
+            self.diagnostics.push(Diagnostic::error(
+                "LM-PARSE-006",
+                "source matches more than one construct at this position",
+                self.source,
+                token.span,
+            ));
+            self.cursor += 1;
+            return None;
+        }
+
         let Some((spec, attempt)) = matched else {
             if let Some((spec, attempt)) = best_partial {
-                let error_index = self.cursor + attempt.matched;
-                let span = self.tokens.get(error_index).map_or_else(
+                let span = self.tokens.get(attempt.end).map_or_else(
                     || Span::new(self.source.text.len(), self.source.text.len()),
                     |token| token.span,
                 );
-                let expected = spec
-                    .pattern
-                    .get(attempt.matched)
+                let expected = attempt
+                    .expected
                     .map_or("end of construct", describe_pattern);
                 self.diagnostics.push(Diagnostic::error(
                     "LM-PARSE-002",
@@ -161,7 +176,7 @@ impl Parser<'_> {
                     self.source,
                     span,
                 ));
-                self.cursor = (error_index + usize::from(error_index < self.tokens.len()))
+                self.cursor = (attempt.end + usize::from(attempt.end < self.tokens.len()))
                     .max(self.cursor + 1)
                     .min(self.tokens.len());
             } else if let Some(token) = self.tokens.get(self.cursor) {
@@ -176,7 +191,7 @@ impl Parser<'_> {
             return None;
         };
 
-        self.cursor += attempt.matched;
+        self.cursor = attempt.end;
         let start = self.tokens[start_index].span.start;
         let mut end = self.tokens[self.cursor - 1].span.end;
         let mut children = Vec::new();
@@ -280,21 +295,49 @@ impl Parser<'_> {
     }
 }
 
-struct MatchAttempt {
+struct MatchAttempt<'a> {
     fields: Vec<CapturedField>,
-    matched: usize,
+    end: usize,
+    complete: bool,
+    expected: Option<&'a PatternPart>,
 }
 
-fn match_construct(spec: &crate::ConstructSpec, tokens: &[Token], start: usize) -> MatchAttempt {
+fn match_sequence<'a>(
+    pattern: &'a [PatternPart],
+    tokens: &[Token],
+    start: usize,
+) -> MatchAttempt<'a> {
     let mut fields = Vec::new();
-    for (matched, part) in spec.pattern.iter().enumerate() {
-        let Some(token) = tokens.get(start + matched) else {
-            return MatchAttempt { fields, matched };
-        };
+    let mut cursor = start;
+    for part in pattern {
         match part {
-            PatternPart::Literal(literal) if token.text == *literal => {}
-            PatternPart::Literal(_) => return MatchAttempt { fields, matched },
-            PatternPart::Field { name, kind } if accepts(*kind, token.kind) => {
+            PatternPart::Literal(literal) => {
+                if tokens
+                    .get(cursor)
+                    .is_some_and(|token| token.text == *literal)
+                {
+                    cursor += 1;
+                } else {
+                    return MatchAttempt {
+                        fields,
+                        end: cursor,
+                        complete: false,
+                        expected: Some(part),
+                    };
+                }
+            }
+            PatternPart::Field { name, kind } => {
+                let Some(token) = tokens
+                    .get(cursor)
+                    .filter(|token| accepts(*kind, token.kind))
+                else {
+                    return MatchAttempt {
+                        fields,
+                        end: cursor,
+                        complete: false,
+                        expected: Some(part),
+                    };
+                };
                 fields.push(CapturedField {
                     name: name.clone(),
                     value: match kind {
@@ -303,14 +346,58 @@ fn match_construct(spec: &crate::ConstructSpec, tokens: &[Token], start: usize) 
                         FieldKind::String => CapturedValue::String(token.text.clone()),
                     },
                     span: token.span,
-                })
+                });
+                cursor += 1;
             }
-            PatternPart::Field { .. } => return MatchAttempt { fields, matched },
+            PatternPart::Optional(parts) => {
+                let attempt = match_sequence(parts, tokens, cursor);
+                if attempt.complete {
+                    fields.extend(attempt.fields);
+                    cursor = attempt.end;
+                } else if attempt.end > cursor {
+                    return MatchAttempt {
+                        fields,
+                        end: attempt.end,
+                        complete: false,
+                        expected: attempt.expected,
+                    };
+                }
+            }
+            PatternPart::Repeat { parts, minimum } => {
+                let mut repetitions = 0;
+                loop {
+                    let attempt = match_sequence(parts, tokens, cursor);
+                    if attempt.complete && attempt.end > cursor {
+                        fields.extend(attempt.fields);
+                        cursor = attempt.end;
+                        repetitions += 1;
+                    } else if attempt.end > cursor {
+                        return MatchAttempt {
+                            fields,
+                            end: attempt.end,
+                            complete: false,
+                            expected: attempt.expected,
+                        };
+                    } else {
+                        if *minimum == RepeatMinimum::One && repetitions == 0 {
+                            return MatchAttempt {
+                                fields,
+                                end: cursor,
+                                complete: false,
+                                expected: parts.first(),
+                            };
+                        }
+                        break;
+                    }
+                }
+            }
         }
     }
     MatchAttempt {
         fields,
-        matched: spec.pattern.len(),
+        end: cursor,
+        complete: true,
+        expected: None,
     }
 }
 
@@ -329,6 +416,7 @@ fn describe_pattern(part: &PatternPart) -> &'static str {
             kind: FieldKind::String,
             ..
         } => "a quoted string",
+        PatternPart::Optional(_) | PatternPart::Repeat { .. } => "the expected syntax sequence",
     }
 }
 

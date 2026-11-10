@@ -14,7 +14,7 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - Source snapshots, stable source identities, revisions, byte spans, and
   structured diagnostics in `langmeld-core`.
 - A validated grammar model and recovering generic parser for token patterns,
-  primitive captures, and explicitly scoped nested blocks in
-  `langmeld-language`.
+  primitive captures, optional and repeated syntax groups, and explicitly
+  scoped nested blocks in `langmeld-language`.
 - A first `.lm` definition frontend parsed through the generic engine, plus a
   root-level Toy language consumer example.
