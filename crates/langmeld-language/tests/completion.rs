@@ -98,6 +98,39 @@ fn category_members_are_suggested_only_in_blocks_that_allow_the_category() {
 }
 
 #[test]
+fn shared_start_tokens_drop_conflicting_completion_kinds() {
+    let language = LanguageSpec::new(
+        "SharedStarts",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["assign", "configure"],
+            ),
+            ConstructSpec::new(
+                "assign",
+                [PatternPart::literal("set"), PatternPart::identifier("name")],
+            )
+            .with_completion_kind(CompletionKind::Keyword),
+            ConstructSpec::new(
+                "configure",
+                [PatternPart::literal("set"), PatternPart::string("value")],
+            )
+            .with_completion_kind(CompletionKind::Function),
+        ],
+    )
+    .unwrap();
+    let source = "program { ";
+
+    let candidates = complete_at(&SourceFile::new("main", source), &language, source.len());
+
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0].text, "set");
+    assert_eq!(candidates[0].kind, None);
+    assert_eq!(candidates[1].text, "}");
+}
+
+#[test]
 fn completion_ignores_configured_comments_before_the_cursor() {
     let language = LanguageSpec::new(
         "Comments",

@@ -329,10 +329,18 @@ fn push_candidate(
     replacement: Span,
     kind: Option<CompletionKind>,
 ) {
-    if !text.starts_with(prefix)
-        || text == prefix
-        || candidates.iter().any(|candidate| candidate.text == text)
+    if !text.starts_with(prefix) || text == prefix {
+        return;
+    }
+    if let Some(existing) = candidates
+        .iter_mut()
+        .find(|candidate| candidate.text == text)
     {
+        // A shared token has a meaningful kind only when all matching
+        // constructs agree on its category.
+        if existing.kind != kind {
+            existing.kind = None;
+        }
         return;
     }
     let candidate = CompletionCandidate::new(text, replacement);
