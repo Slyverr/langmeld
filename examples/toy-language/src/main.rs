@@ -1,5 +1,5 @@
 use langmeld_core::SourceFile;
-use langmeld_language::{parse, parse_language_definition_project};
+use langmeld_language::{CapturedField, CapturedValue, parse, parse_language_definition_project};
 use langmeld_project::DirectoryDefinitionResolver;
 use std::path::Path;
 
@@ -36,11 +36,31 @@ fn run() -> Result<(), String> {
     }
 
     println!("Language: {}", language.name());
-    println!("Root construct: {}", parsed.constructs[0].name);
-    for construct in &parsed.constructs[0].children {
-        println!("  {} {:?}", construct.name, construct.fields);
+    let root = parsed
+        .constructs
+        .first()
+        .ok_or_else(|| "program did not produce a root construct".to_owned())?;
+    println!("Root construct: {}", root.name);
+    for construct in &root.children {
+        let fields = construct
+            .fields
+            .iter()
+            .map(format_field)
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("  {}: {fields}", construct.name);
     }
     Ok(())
+}
+
+fn format_field(field: &CapturedField) -> String {
+    let value = match &field.value {
+        CapturedValue::Token { text, .. }
+        | CapturedValue::Identifier(text)
+        | CapturedValue::Integer(text)
+        | CapturedValue::String(text) => text,
+    };
+    format!("{}={value}", field.name)
 }
 
 fn format_diagnostics(sources: &[SourceFile], diagnostics: &[langmeld_core::Diagnostic]) -> String {
