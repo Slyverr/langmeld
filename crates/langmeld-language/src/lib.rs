@@ -3,6 +3,7 @@
 
 mod completion;
 mod definition;
+mod format;
 mod host;
 mod navigation;
 mod parser;
@@ -13,6 +14,7 @@ pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
     language_definition_grammar, parse_language_definition, parse_language_definition_project,
 };
+pub use format::{DefinitionFormatOptions, format_language_definition};
 pub use host::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     ParsedDocument,

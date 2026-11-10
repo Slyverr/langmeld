@@ -1,8 +1,7 @@
 use std::{error::Error, path::PathBuf};
 
 use clap::Args;
-use langmeld_language::language_definition_grammar;
-use langmeld_lsp::DeclarativeBackend;
+use langmeld_lsp::{DeclarativeBackend, LanguageDefinitionBackend};
 
 use crate::project::load_language_definition;
 
@@ -17,15 +16,16 @@ pub(crate) struct LspArgs {
 }
 
 pub(crate) fn run(args: LspArgs) -> Result<(), Box<dyn Error>> {
-    let language = if args.definitions {
-        language_definition_grammar().clone()
+    if args.definitions {
+        langmeld_lsp::run_stdio(LanguageDefinitionBackend)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
     } else {
         let manifest_path = args
             .manifest_path
             .unwrap_or_else(|| PathBuf::from("langmeld.toml"));
-        load_language_definition(&manifest_path)?
-    };
-    langmeld_lsp::run_stdio(DeclarativeBackend::new(language))
-        .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let language = load_language_definition(&manifest_path)?;
+        langmeld_lsp::run_stdio(DeclarativeBackend::new(language))
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+    }
     Ok(())
 }

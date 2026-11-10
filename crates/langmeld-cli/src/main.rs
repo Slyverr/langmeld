@@ -1,4 +1,5 @@
 mod check;
+mod format;
 mod generate;
 mod init;
 mod lsp;
@@ -21,6 +22,8 @@ enum Command {
     Init(init::InitArgs),
     /// Validate the project manifest and language definition.
     Check(check::CheckArgs),
+    /// Format one Langmeld `.lm` definition file.
+    Format(format::FormatArgs),
     /// Serve editor support for a language project or `.lm` definitions.
     Lsp(lsp::LspArgs),
     /// Generate editor tooling from a declarative language project.
@@ -47,6 +50,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Command::Init(args) => init::run(args)?,
         Command::Check(args) => check::run(args)?,
+        Command::Format(args) => format::run(args)?,
         Command::Lsp(args) => lsp::run(args)?,
         Command::Generate(args) => generate::run(args)?,
     }

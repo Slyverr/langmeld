@@ -17,11 +17,13 @@ hover, rename, document symbols, formatting, or semantic highlighting.
 ## Langmeld definitions
 
 Run `langmeld lsp --definitions` to edit `.lm` files with the built-in
-definition grammar. This mode publishes parser diagnostics and context-aware
-syntax completions for root declarations and nested construct syntax. It does
-not run definition-level semantic checks or resolve imports from unsaved
-buffers; use `langmeld check --manifest-path langmeld.toml` to validate the
-complete project definition and its imports.
+definition grammar. This mode publishes parser diagnostics, context-aware
+syntax completions for root declarations and nested construct syntax, and
+formatting edits that honor the editor's indentation options. Formatting is
+available only for syntactically valid files. This mode does not run
+definition-level semantic checks or resolve imports from unsaved buffers; use
+`langmeld check --manifest-path langmeld.toml` to validate the complete project
+definition and its imports.
 
 ## Rust hosts
 

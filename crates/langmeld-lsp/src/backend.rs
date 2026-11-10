@@ -1,5 +1,8 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
-use langmeld_language::{CompletionCandidate, LanguageSpec, ParseResult, complete_at, parse};
+use langmeld_language::{
+    CompletionCandidate, DefinitionFormatOptions, LanguageSpec, ParseResult, complete_at,
+    format_language_definition, language_definition_grammar, parse,
+};
 use lsp_types::FormattingOptions;
 
 use crate::{
@@ -224,5 +227,52 @@ impl LanguageBackend for DeclarativeBackend {
         offset: usize,
     ) -> Vec<CompletionCandidate> {
         complete_at(source, &self.language, offset)
+    }
+}
+
+/// Backend for editing Langmeld's own `.lm` language definitions.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LanguageDefinitionBackend;
+
+impl LanguageBackend for LanguageDefinitionBackend {
+    type Document = ParseResult;
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        let parsed = parse(source, language_definition_grammar());
+        BackendDocument::new(source, parsed.clone(), parsed.diagnostics)
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            completion: true,
+            formatting: true,
+            ..BackendCapabilities::default()
+        }
+    }
+
+    fn complete(
+        &self,
+        source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        complete_at(source, language_definition_grammar(), offset)
+    }
+
+    fn format_document(
+        &self,
+        source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        options: &FormattingOptions,
+    ) -> Option<String> {
+        format_language_definition(
+            source,
+            DefinitionFormatOptions {
+                tab_size: options.tab_size,
+                insert_spaces: options.insert_spaces,
+            },
+        )
+        .ok()
+        .filter(|formatted| formatted != &source.text)
     }
 }

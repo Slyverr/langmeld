@@ -8,7 +8,10 @@ mod hover;
 mod semantic;
 mod server;
 
-pub use backend::{BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend};
+pub use backend::{
+    BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend,
+    LanguageDefinitionBackend,
+};
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};
 pub use hover::{HoverContent, HoverInfo};
 pub use semantic::{SemanticToken, SemanticTokenLegend};

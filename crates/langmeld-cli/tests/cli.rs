@@ -325,6 +325,16 @@ fn help_lists_init_and_the_non_interactive_mode() {
     assert!(help.contains("--definitions"));
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--help"])
+        .output()
+        .expect("CLI should start");
+
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("Format one Langmeld `.lm` definition file"));
+    assert!(help.contains("--check"));
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(["generate", "textmate", "--help"])
         .output()
         .expect("CLI should start");
@@ -333,6 +343,55 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Generate a lexical TextMate grammar"));
     assert!(help.contains("--scope-name"));
+}
+
+#[test]
+fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
+    let parent = TestDirectory::new();
+    let definition = parent.path().join("language.lm");
+    let original = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";
+    fs::write(&definition, original).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--check"])
+        .arg(&definition)
+        .output()
+        .expect("CLI should start");
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(&definition).unwrap(), original);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format"])
+        .arg(&definition)
+        .output()
+        .expect("CLI should start");
+    assert!(output.status.success());
+    let formatted = fs::read_to_string(&definition).unwrap();
+    assert_eq!(
+        formatted,
+        "language \"Toy\" {\n    construct \"item\" {\n        syntax {\n            literal \"item\";\n        }\n    }\n}\n"
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--check"])
+        .arg(&definition)
+        .output()
+        .expect("CLI should start");
+    assert!(output.status.success());
+
+    let invalid_definition = parent.path().join("incomplete.lm");
+    let invalid_source = "language \"Toy\" {";
+    fs::write(&invalid_definition, invalid_source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format"])
+        .arg(&invalid_definition)
+        .output()
+        .expect("CLI should start");
+    assert!(!output.status.success());
+    assert_eq!(
+        fs::read_to_string(&invalid_definition).unwrap(),
+        invalid_source
+    );
 }
 
 #[test]
@@ -405,6 +464,10 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
     );
     let initialized = receive_lsp_message(&receiver);
     assert!(initialized["result"]["capabilities"]["completionProvider"].is_object());
+    assert_eq!(
+        initialized["result"]["capabilities"]["documentFormattingProvider"],
+        true
+    );
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
@@ -460,11 +523,40 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
     assert_eq!(nested_completions.as_array().unwrap().len(), 1);
     assert_eq!(nested_completions[0]["label"], "literal");
 
+    let format_source = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";
     send_lsp_message(
         &mut stdin,
-        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":"file:///format.lm","languageId":"lm","version":1,"text":format_source}
+            }
+        }),
     );
-    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","id":4,"method":"textDocument/formatting","params":{
+                "textDocument":{"uri":"file:///format.lm"},
+                "options":{"tabSize":2,"insertSpaces":true}
+            }
+        }),
+    );
+    let edits = receive_lsp_message(&receiver)["result"].clone();
+    assert_eq!(edits.as_array().unwrap().len(), 1);
+    assert_eq!(
+        edits[0]["newText"],
+        "language \"Toy\" {\n  construct \"item\" {\n    syntax {\n      literal \"item\";\n    }\n  }\n}\n"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 5);
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
