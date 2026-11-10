@@ -15,7 +15,7 @@ use langmeld_language::{
     LanguageNavigator, LanguageParser, LanguageSpec, ParsedDocument, PatternPart,
 };
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, DeclarativeBackend, DocumentSymbolInfo,
+    BackendCapabilities, BackendDocument, BackendWorkspace, DeclarativeBackend, DocumentSymbolInfo,
     DocumentSymbolKind, HostLanguageBackend, HoverInfo, LanguageBackend, SemanticToken,
     SemanticTokenLegend, run_connection,
 };
@@ -56,6 +56,7 @@ impl LanguageBackend for Backend {
             hover: true,
             rename: true,
             document_symbols: true,
+            ..BackendCapabilities::default()
         }
     }
 
@@ -300,6 +301,115 @@ fn receive_diagnostics(connection: &Connection) -> Value {
     }
 }
 
+#[derive(Clone, Default)]
+struct WorkspaceBackend {
+    initialized: Arc<Mutex<Option<BackendWorkspace>>>,
+    changes: Arc<Mutex<Vec<lsp_types::WorkspaceFoldersChangeEvent>>>,
+}
+
+impl LanguageBackend for WorkspaceBackend {
+    type Document = ();
+
+    fn initialize_workspace(&self, workspace: &BackendWorkspace) {
+        *self.initialized.lock().unwrap() = Some(workspace.clone());
+    }
+
+    fn did_change_workspace_folders(&self, event: &lsp_types::WorkspaceFoldersChangeEvent) {
+        self.changes.lock().unwrap().push(event.clone());
+    }
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        BackendDocument::new(source, (), Vec::new())
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            workspace_folders: true,
+            ..BackendCapabilities::default()
+        }
+    }
+}
+
+#[test]
+fn forwards_initial_workspace_context_and_folder_changes_to_opted_in_backends() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = WorkspaceBackend::default();
+    let observed = backend.clone();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({
+            "rootUri": "file:///workspace",
+            "workspaceFolders": [
+                { "uri": "file:///workspace", "name": "workspace" }
+            ],
+            "initializationOptions": { "target": "web" },
+            "capabilities": {
+                "workspace": { "workspaceFolders": true }
+            }
+        }),
+    );
+
+    let initialized = receive_response(&client);
+    assert_eq!(
+        initialized["capabilities"]["workspace"]["workspaceFolders"]["supported"],
+        true
+    );
+    assert_eq!(
+        initialized["capabilities"]["workspace"]["workspaceFolders"]["changeNotifications"],
+        true
+    );
+    let context = observed.initialized.lock().unwrap().clone().unwrap();
+    assert_eq!(context.root_uri.unwrap().as_str(), "file:///workspace");
+    assert_eq!(context.workspace_folders.as_ref().unwrap().len(), 1);
+    assert_eq!(
+        context.workspace_folders.as_ref().unwrap()[0].name,
+        "workspace"
+    );
+    assert_eq!(
+        context.initialization_options,
+        Some(json!({ "target": "web" }))
+    );
+
+    send_notification(&client, "initialized", json!({}));
+    send_notification(
+        &client,
+        "workspace/didChangeWorkspaceFolders",
+        json!({
+            "event": {
+                "added": [
+                    { "uri": "file:///workspace/packages/new", "name": "new" }
+                ],
+                "removed": [
+                    { "uri": "file:///workspace/packages/old", "name": "old" }
+                ]
+            }
+        }),
+    );
+    send_request(&client, 2, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+
+    let changes = observed.changes.lock().unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].added[0].name, "new");
+    assert_eq!(changes[0].removed[0].name, "old");
+}
+
 #[test]
 fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let (server_connection, client) = Connection::memory();
@@ -327,6 +437,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     );
     let initialized = receive_response(&client);
     assert_eq!(initialized["capabilities"]["positionEncoding"], "utf-16");
+    assert!(initialized["capabilities"].get("workspace").is_none());
     assert!(initialized["capabilities"]["completionProvider"].is_object());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);

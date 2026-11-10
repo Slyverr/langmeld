@@ -4,18 +4,18 @@ use langmeld_core::{PositionEncoding, SourceDatabase, SourceId};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
-    HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
-    PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, RenameParams,
-    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult, Location,
+    MarkupContent, MarkupKind, PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams,
+    RenameParams, SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
     ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    Uri, WorkspaceEdit,
+    Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde_json::{Value, json};
 
 use crate::{
-    backend::{BackendCapabilities, BackendDocument, LanguageBackend},
+    backend::{BackendCapabilities, BackendDocument, BackendWorkspace, LanguageBackend},
     conversion::{byte_offset, completion_items, diagnostics_for, lsp_location, to_lsp_range},
     hover::{HoverContent, HoverInfo},
     semantic::{SemanticTokenLegend, encode},
@@ -44,6 +44,22 @@ pub fn run_connection<B: LanguageBackend>(
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
     let encoding = negotiate_encoding(&initialize_params);
+    let client_supports_workspace_folders = initialize_params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.workspace_folders)
+        .unwrap_or(false);
+    #[expect(
+        deprecated,
+        reason = "rootUri remains part of the LSP initialize compatibility contract"
+    )]
+    let workspace = BackendWorkspace {
+        root_uri: initialize_params.root_uri.clone(),
+        workspace_folders: initialize_params.workspace_folders.clone(),
+        supports_workspace_folders: client_supports_workspace_folders,
+        initialization_options: initialize_params.initialization_options.clone(),
+    };
     let supports_markdown_hover = initialize_params
         .capabilities
         .text_document
@@ -69,8 +85,14 @@ pub fn run_connection<B: LanguageBackend>(
             .validate()
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
     }
+    backend.initialize_workspace(&workspace);
     let result = InitializeResult {
-        capabilities: server_capabilities(capabilities, encoding, &semantic_legend),
+        capabilities: server_capabilities(
+            capabilities,
+            encoding,
+            &semantic_legend,
+            client_supports_workspace_folders,
+        ),
         server_info: Some(ServerInfo {
             name: "langmeld".into(),
             version: Some(env!("CARGO_PKG_VERSION").into()),
@@ -117,6 +139,13 @@ pub fn run_connection<B: LanguageBackend>(
                     "textDocument/didClose",
                 ) {
                     server.close(params, &connection)?;
+                } else if server.capabilities.workspace_folders
+                    && let Some(params) = parse_notification::<DidChangeWorkspaceFoldersParams>(
+                        &notification,
+                        "workspace/didChangeWorkspaceFolders",
+                    )
+                {
+                    server.backend.did_change_workspace_folders(&params.event);
                 }
             }
             Message::Response(_) => {}
@@ -607,6 +636,7 @@ fn server_capabilities(
     backend: BackendCapabilities,
     encoding: PositionEncoding,
     semantic_legend: &SemanticTokenLegend,
+    client_supports_workspace_folders: bool,
 ) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(match encoding {
@@ -647,6 +677,16 @@ fn server_capabilities(
         document_symbol_provider: backend
             .document_symbols
             .then_some(lsp_types::OneOf::Left(true)),
+        workspace: backend
+            .workspace_folders
+            .then(|| WorkspaceServerCapabilities {
+                workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                    supported: Some(true),
+                    change_notifications: client_supports_workspace_folders
+                        .then_some(lsp_types::OneOf::Left(true)),
+                }),
+                ..WorkspaceServerCapabilities::default()
+            }),
         ..ServerCapabilities::default()
     }
 }

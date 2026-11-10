@@ -9,8 +9,9 @@ and document symbols for the capabilities a backend declares.
 diagnostics and scoped syntax completions. Rust hosts can implement
 `LanguageBackend` to retain their own AST and semantic state and supply
 language-specific editor queries. Backend lifecycle hooks include document
-close notification and optional workspace analysis so hosts can account for
-unsaved changes across open documents. The LSP layer handles protocol
+close notification, initial workspace context, workspace-folder changes, and
+optional workspace analysis so hosts can account for unsaved changes across
+open documents. The LSP layer handles protocol
 positions, document versions, semantic-token encoding, and capability
 advertisement. Semantic token names and source spans come from the host; the
 adapter validates the legend, splits multiline spans into line-local tokens,

@@ -42,6 +42,13 @@ result per source in the same order. This lets a host include unsaved imports
 and refresh diagnostics together. The default leaves per-document analysis
 unchanged. `LanguageBackend::did_close` receives the last snapshot when a
 document closes, allowing hosts to remove it from workspace indexes.
+`initialize_workspace` receives the client's root URI, initial workspace
+folders, folder-support flag, and initialization options before the server
+finishes initialization. Set `BackendCapabilities::workspace_folders` when the
+backend uses workspace context and handles folder changes; the server then
+advertises workspace-folder support and forwards
+`workspace/didChangeWorkspaceFolders` events when the client supports them.
+The backend owns indexing and decides how folder changes affect project state.
 For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and

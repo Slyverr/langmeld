@@ -3,7 +3,8 @@ use langmeld_language::{
     CompletionCandidate, DefinitionFormatOptions, LanguageSpec, ParseResult, complete_at,
     format_language_definition, language_definition_grammar, parse,
 };
-use lsp_types::FormattingOptions;
+use lsp_types::{FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent};
+use serde_json::Value;
 
 use crate::{
     document_symbol::DocumentSymbolInfo,
@@ -53,6 +54,22 @@ pub struct BackendCapabilities {
     pub rename: bool,
     /// The backend provides document outline symbols.
     pub document_symbols: bool,
+    /// The backend uses workspace roots and handles workspace-folder changes.
+    pub workspace_folders: bool,
+}
+
+/// Workspace information supplied by the editor during LSP initialization.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BackendWorkspace {
+    /// Legacy root URI supplied by clients that do not send workspace folders.
+    pub root_uri: Option<Uri>,
+    /// Initial workspace folders. Use `supports_workspace_folders` to distinguish
+    /// unsupported clients from supported workspaces with no configured folders.
+    pub workspace_folders: Option<Vec<WorkspaceFolder>>,
+    /// Whether the client advertises workspace-folder support.
+    pub supports_workspace_folders: bool,
+    /// Client-provided initialization data for the host language backend.
+    pub initialization_options: Option<Value>,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -63,6 +80,13 @@ pub struct BackendCapabilities {
 pub trait LanguageBackend: Send + Sync + 'static {
     /// Backend-owned state retained for an open document.
     type Document: Send + Sync + 'static;
+
+    /// Receives the editor's initial workspace context before initialization
+    /// completes. Hosts may use it to prepare project indexes or configuration.
+    fn initialize_workspace(&self, _workspace: &BackendWorkspace) {}
+
+    /// Receives workspace-folder changes when `workspace_folders` is enabled.
+    fn did_change_workspace_folders(&self, _event: &WorkspaceFoldersChangeEvent) {}
 
     /// Parses and analyzes one immutable source snapshot.
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document>;

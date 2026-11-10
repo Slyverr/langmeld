@@ -10,7 +10,7 @@ mod semantic;
 mod server;
 
 pub use backend::{
-    BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend,
+    BackendCapabilities, BackendDocument, BackendWorkspace, DeclarativeBackend, LanguageBackend,
     LanguageDefinitionBackend,
 };
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};
