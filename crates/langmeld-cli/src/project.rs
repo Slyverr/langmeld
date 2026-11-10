@@ -1,8 +1,11 @@
 use std::{error::Error, path::Path};
 
 use langmeld_core::SourceFile;
-use langmeld_language::{LanguageSpec, parse_language_definition_project};
-use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest, read_project_manifest_file};
+use langmeld_language::LanguageSpec;
+use langmeld_project::{
+    DirectoryDefinitionResolver, ProjectManifest, load_definition_project_from_manifest,
+    read_project_manifest_file,
+};
 
 pub(crate) struct DefinitionProjectContext {
     pub(crate) root: std::path::PathBuf,
@@ -43,20 +46,18 @@ pub(crate) fn load_language_definition(
 pub(crate) fn load_definition_project(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, Box<dyn Error>> {
-    let project = DefinitionProjectContext::new(manifest_path)?;
-    let root = project.resolver.load(&project.manifest.definition)?;
-    let definition = parse_language_definition_project(root, &project.resolver);
-    let sources = project.resolver.sources();
-    if !definition.is_valid() {
-        return Err(format_diagnostics(&sources, &definition.diagnostics).into());
+    let project = load_definition_project_from_manifest(manifest_path)?;
+    if !project.definition.is_valid() {
+        return Err(format_diagnostics(&project.sources, &project.definition.diagnostics).into());
     }
-    let language = definition
+    let language = project
+        .definition
         .language
         .ok_or("validated definition did not produce a language")?;
     Ok(LoadedDefinitionProject {
         root: project.root,
         language,
-        sources,
+        sources: project.sources,
     })
 }
 

@@ -294,24 +294,19 @@ fn declarative_library_template() -> &'static str {
     r#"use std::path::Path;
 
 use langmeld_core::{Diagnostic, SourceFile};
-use langmeld_language::{LanguageSpec, parse_language_definition_project};
-use langmeld_project::{DirectoryDefinitionResolver, read_project_manifest};
+use langmeld_language::LanguageSpec;
+use langmeld_project::load_definition_project;
 
 pub fn load_language(project_root: &Path) -> Result<LanguageSpec, String> {
-    let resolver =
-        DirectoryDefinitionResolver::new(project_root).map_err(|error| error.to_string())?;
-    let manifest = read_project_manifest(project_root).map_err(|error| error.to_string())?;
-    let root = resolver
-        .load(&manifest.definition)
-        .map_err(|error| error.to_string())?;
-    let definition = parse_language_definition_project(root, &resolver);
-    if !definition.is_valid() {
+    let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
+    if !project.is_valid() {
         return Err(format_diagnostics(
-            &resolver.sources(),
-            &definition.diagnostics,
+            &project.sources,
+            &project.definition.diagnostics,
         ));
     }
-    definition
+    project
+        .definition
         .language
         .ok_or_else(|| "validated definition did not produce a language".to_owned())
 }

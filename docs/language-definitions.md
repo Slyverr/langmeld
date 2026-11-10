@@ -222,9 +222,30 @@ use it own their resource policy.
 ## Loading a project
 
 `parse_language_definition` handles one source file and reports an error if
-that file contains imports. The `langmeld-project` crate provides
-`DirectoryDefinitionResolver` for filesystem projects. It confines resolved
-imports to the selected root and retains snapshots for diagnostics:
+that file contains imports. For a normal manifest-backed filesystem project,
+`langmeld-project` loads the manifest, resolves imports, and returns the parsed
+definition together with all source snapshots:
+
+```rust,ignore
+use langmeld_project::load_definition_project;
+
+let project = load_definition_project(".")?;
+if !project.is_valid() {
+    for diagnostic in &project.definition.diagnostics {
+        eprintln!("{}: {}", diagnostic.code, diagnostic.message);
+    }
+}
+let language = project.definition.language;
+```
+
+Definition syntax and validation errors stay in the returned diagnostics so
+the caller can render them with the included `project.sources`. File-system
+and manifest failures are returned as errors. Use `load_definition_project_from_manifest`
+when the manifest is not at the project root.
+
+For custom source storage or editor overlays, implement `DefinitionResolver`
+directly or use `DirectoryDefinitionResolver`, which confines imports to the
+selected root and retains source snapshots:
 
 ```rust,ignore
 use langmeld_language::parse_language_definition_project;

@@ -4,8 +4,13 @@
 //! [`DirectoryDefinitionResolver`] confines imports to one canonical project
 //! root and retains loaded source snapshots for diagnostic rendering.
 
+mod definition_project;
 mod manifest;
 
+pub use definition_project::{
+    DefinitionProjectError, LoadedDefinitionProject, load_definition_project,
+    load_definition_project_from_manifest,
+};
 pub use manifest::{
     PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError, read_project_manifest,
     read_project_manifest_file,
@@ -111,6 +116,10 @@ impl DirectoryDefinitionResolver {
             root,
             sources: Mutex::new(BTreeMap::new()),
         })
+    }
+
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
     }
 
     /// Loads a project-relative root definition file.
