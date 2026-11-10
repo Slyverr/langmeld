@@ -21,7 +21,7 @@ exclude = ["tests/fixtures/downstream-consumer"]
 resolver = "3"
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
@@ -35,13 +35,13 @@ lsp-server = "0.10.0"
 lsp-types = "0.97.0"
 serde_json = "1.0.140"
 serde = "1.0.229"
-langmeld-core = { path = "crates/langmeld-core", version = "0.4.0" }
-langmeld-expression = { path = "crates/langmeld-expression", version = "0.4.0" }
-langmeld-language = { path = "crates/langmeld-language", version = "0.4.0" }
-langmeld-lsp = { path = "crates/langmeld-lsp", version = "0.4.0" }
-langmeld-project = { path = "crates/langmeld-project", version = "0.4.0" }
-langmeld-textmate = { path = "crates/langmeld-textmate", version = "0.4.0" }
-langmeld-tree-sitter = { path = "crates/langmeld-tree-sitter", version = "0.4.0" }
+langmeld-core = { path = "crates/langmeld-core", version = "0.5.0" }
+langmeld-expression = { path = "crates/langmeld-expression", version = "0.5.0" }
+langmeld-language = { path = "crates/langmeld-language", version = "0.5.0" }
+langmeld-lsp = { path = "crates/langmeld-lsp", version = "0.5.0" }
+langmeld-project = { path = "crates/langmeld-project", version = "0.5.0" }
+langmeld-textmate = { path = "crates/langmeld-textmate", version = "0.5.0" }
+langmeld-tree-sitter = { path = "crates/langmeld-tree-sitter", version = "0.5.0" }
 url = "2.5.7"
 
 [workspace.lints.rust]

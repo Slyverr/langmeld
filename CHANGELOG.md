@@ -7,6 +7,24 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-10
+
+### Added
+
+- Usable declarative and custom-Rust `langmeld init` starters with CLI/LSP
+  workflows, clean-template CI coverage, and documented project commands.
+- Modular `.langmeld` definitions with imports, embedded and overlay sources,
+  construct categories, root declarations, comments, finite choices, and
+  delimiter-bounded host expression captures.
+- Project-aware definition authoring with context-sensitive completion for
+  references, imports, and choice values, plus watched-file refresh.
+- A bundled-definition extension example showing crate-provided constructs.
+
+### Fixed
+
+- Starter validation, package-name defaults, generated licenses, and recovery
+  from malformed explicit-root input.
+
 ## [0.4.0] - 2026-11-10
 
 ### Added
