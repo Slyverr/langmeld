@@ -1135,7 +1135,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
                 "print",
                 [
                     PatternPart::literal("print"),
-                    PatternPart::identifier("value"),
+                    PatternPart::choice("speed", ["fast", "slow"]),
                     PatternPart::literal(";"),
                 ],
             ),
@@ -1196,7 +1196,40 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
         .collect::<Vec<_>>();
     assert_eq!(labels, ["print"]);
 
-    send_request(&client, 3, "shutdown", Value::Null);
+    let choice_source = "program { print f";
+    send_notification(
+        &client,
+        "textDocument/didChange",
+        json!({
+            "textDocument": { "uri": uri, "version": 2 },
+            "contentChanges": [{ "text": choice_source }]
+        }),
+    );
+    receive_diagnostics(&client);
+    send_request(
+        &client,
+        3,
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": choice_source.len() }
+        }),
+    );
+    let completions = receive_response(&client);
+    let choices = completions
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["label"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(choices, ["fast"]);
+    assert_eq!(
+        completions[0]["textEdit"]["range"]["start"]["character"],
+        16
+    );
+    assert_eq!(completions[0]["textEdit"]["range"]["end"]["character"], 17);
+
+    send_request(&client, 4, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
