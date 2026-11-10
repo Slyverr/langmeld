@@ -489,6 +489,29 @@ fn lower_construct(
     for pattern in patterns {
         construct = construct.variant(pattern);
     }
+    let mut implemented_categories = Vec::new();
+    for implementation in node
+        .children
+        .iter()
+        .filter(|child| child.name == "implements")
+    {
+        if let Some(category) = string_field(implementation, "category").and_then(decode_quoted) {
+            implemented_categories.push(category);
+        } else {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-022",
+                "`implements` requires a valid quoted category name",
+                source,
+                implementation.span,
+            ));
+        }
+    }
+    construct = construct.implements(
+        &implemented_categories
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+    );
     if let Some(block) = block_nodes.first() {
         let (Some(open), Some(close)) = (
             string_field(block, "open").and_then(decode_quoted),
@@ -503,6 +526,7 @@ fn lower_construct(
             return None;
         };
         let mut children = Vec::new();
+        let mut categories = Vec::new();
         for child in block.children.iter().filter(|child| child.name == "allow") {
             let name = string_field(child, "name").and_then(decode_quoted);
             if let Some(name) = name {
@@ -516,7 +540,23 @@ fn lower_construct(
                 ));
             }
         }
-        construct = construct.block_names(open, close, children);
+        for child in block
+            .children
+            .iter()
+            .filter(|child| child.name == "allow_category")
+        {
+            if let Some(category) = string_field(child, "category").and_then(decode_quoted) {
+                categories.push(category);
+            } else {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-023",
+                    "`allow_category` requires a valid quoted category name",
+                    source,
+                    child.span,
+                ));
+            }
+        }
+        construct = construct.block_names_with_categories(open, close, children, categories);
     }
     Some(construct)
 }
@@ -636,6 +676,10 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         SpecError::DuplicateField { construct, .. }
         | SpecError::UnknownChildConstruct { construct, .. }
         | SpecError::DuplicateChildConstruct { construct, .. }
+        | SpecError::EmptyCategoryName(construct)
+        | SpecError::DuplicateImplementedCategory { construct, .. }
+        | SpecError::DuplicateBlockCategory { construct, .. }
+        | SpecError::UnknownBlockCategory { construct, .. }
         | SpecError::EmptyPatternGroup(construct)
         | SpecError::EmptyOptional(construct)
         | SpecError::EmptyRepetition(construct)
@@ -674,7 +718,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["syntax", "block"]),
+                .block("{", "}", &["syntax", "block", "implements"]),
                 ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
                     "{",
                     "}",
@@ -698,7 +742,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("close"),
                     ],
                 )
-                .block("{", "}", &["allow"]),
+                .block("{", "}", &["allow", "allow_category"]),
                 ConstructSpec::new("optional", [PatternPart::literal("optional")]).block(
                     "{",
                     "}",
@@ -799,6 +843,22 @@ fn definition_grammar() -> &'static LanguageSpec {
                     [
                         PatternPart::literal("allow"),
                         PatternPart::string("name"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "allow_category",
+                    [
+                        PatternPart::literal("allow_category"),
+                        PatternPart::string("category"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "implements",
+                    [
+                        PatternPart::literal("implements"),
+                        PatternPart::string("category"),
                         PatternPart::literal(";"),
                     ],
                 ),

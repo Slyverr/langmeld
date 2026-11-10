@@ -417,3 +417,84 @@ fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     assert_eq!(parsed.constructs[0].fields.len(), 6);
 }
+
+#[test]
+fn imported_construct_categories_can_populate_root_block_children() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.langmeld",
+            r#"language "Toy" {
+                import "constructs.langmeld";
+                construct "program" {
+                    syntax { literal "program"; }
+                    block "{" "}" { allow_category "statement"; }
+                }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "constructs.langmeld".into(),
+        DefinitionSource::new(
+            "constructs",
+            SourceFile::new(
+                "language/constructs.langmeld",
+                r#"construct "let" {
+                    syntax { literal "let"; identifier "name"; }
+                    implements "statement";
+                }
+                construct "print" {
+                    syntax { literal "print"; identifier "name"; }
+                    implements "statement";
+                }"#,
+            ),
+        ),
+    );
+
+    let definition = parse_language_definition_project(root, &resolver);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let language = definition.language.unwrap();
+    let block = language
+        .constructs()
+        .iter()
+        .find(|construct| construct.name() == "program")
+        .unwrap()
+        .block_spec()
+        .unwrap();
+    assert_eq!(block.constructs(), ["let", "print"]);
+
+    let parsed = parse(
+        &SourceFile::new("main.toy", "program { let answer print answer }"),
+        &language,
+    );
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].children.len(), 2);
+}
+
+#[test]
+fn unknown_block_category_has_a_definition_diagnostic() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Toy" {
+            construct "program" {
+                syntax { literal "program"; }
+                block "{" "}" { allow_category "statement"; }
+            }
+            construct "let" {
+                syntax { literal "let"; }
+                implements "declaration";
+            }
+        }"#,
+    );
+
+    let result = parse_language_definition(&source);
+
+    assert!(result.language.is_none());
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "LM-DEF-004"
+            && diagnostic
+                .message
+                .contains("category `statement` with no members")
+    }));
+}

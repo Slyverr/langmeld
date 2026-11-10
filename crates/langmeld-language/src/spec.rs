@@ -1,6 +1,6 @@
 //! Minimal validated grammar model.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// The token category accepted by a captured syntax field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -147,6 +147,8 @@ pub struct ConstructSpec {
     pub(crate) name: String,
     /// Ordered syntax alternatives that make up this construct.
     pub(crate) patterns: Vec<Vec<PatternPart>>,
+    /// Named structural groups this construct belongs to.
+    pub(crate) categories: Vec<String>,
     /// Optional delimited child-construct body.
     pub(crate) block: Option<BlockSpec>,
 }
@@ -158,8 +160,20 @@ impl ConstructSpec {
         Self {
             name: name.into(),
             patterns: vec![pattern.into_iter().collect()],
+            categories: Vec::new(),
             block: None,
         }
+    }
+
+    /// Marks this construct as a member of the named structural groups.
+    ///
+    /// Categories only group constructs for block allowlists. They do not
+    /// assign semantics, scopes, or runtime behavior.
+    #[must_use]
+    pub fn implements(mut self, categories: &[&str]) -> Self {
+        self.categories
+            .extend(categories.iter().map(|category| (*category).to_owned()));
+        self
     }
 
     /// Adds another syntax alternative for this construct.
@@ -181,6 +195,46 @@ impl ConstructSpec {
             open: open.into(),
             close: close.into(),
             constructs: constructs.iter().map(|name| (*name).to_owned()).collect(),
+            categories: Vec::new(),
+        });
+        self
+    }
+
+    /// Adds a delimited block that accepts named constructs and category members.
+    #[must_use]
+    pub fn block_with_categories(
+        mut self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: &[&str],
+        categories: &[&str],
+    ) -> Self {
+        self.block = Some(BlockSpec {
+            open: open.into(),
+            close: close.into(),
+            constructs: constructs.iter().map(|name| (*name).to_owned()).collect(),
+            categories: categories
+                .iter()
+                .map(|category| (*category).to_owned())
+                .collect(),
+        });
+        self
+    }
+
+    /// Adds a delimited block from dynamically collected child names and categories.
+    #[must_use]
+    pub fn block_names_with_categories(
+        mut self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: impl IntoIterator<Item = String>,
+        categories: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.block = Some(BlockSpec {
+            open: open.into(),
+            close: close.into(),
+            constructs: constructs.into_iter().collect(),
+            categories: categories.into_iter().collect(),
         });
         self
     }
@@ -197,6 +251,7 @@ impl ConstructSpec {
             open: open.into(),
             close: close.into(),
             constructs: constructs.into_iter().collect(),
+            categories: Vec::new(),
         });
         self
     }
@@ -205,6 +260,12 @@ impl ConstructSpec {
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns the structural categories this construct implements.
+    #[must_use]
+    pub fn categories(&self) -> &[String] {
+        &self.categories
     }
 
     /// Returns all syntax alternatives in declaration order.
@@ -235,6 +296,8 @@ pub struct BlockSpec {
     pub(crate) close: String,
     /// Child constructs accepted in this body.
     pub(crate) constructs: Vec<String>,
+    /// Categories expanded into child constructs when the language is built.
+    pub(crate) categories: Vec<String>,
 }
 
 impl BlockSpec {
@@ -254,6 +317,12 @@ impl BlockSpec {
     #[must_use]
     pub fn constructs(&self) -> &[String] {
         &self.constructs
+    }
+
+    /// Returns category names used to expand this block's accepted child set.
+    #[must_use]
+    pub fn categories(&self) -> &[String] {
+        &self.categories
     }
 }
 
@@ -275,7 +344,7 @@ impl LanguageSpec {
         constructs: impl IntoIterator<Item = ConstructSpec>,
     ) -> Result<Self, SpecError> {
         let name = name.into();
-        let constructs: Vec<_> = constructs.into_iter().collect();
+        let mut constructs: Vec<_> = constructs.into_iter().collect();
         if name.trim().is_empty() {
             return Err(SpecError::EmptyLanguageName);
         }
@@ -283,12 +352,29 @@ impl LanguageSpec {
             return Err(SpecError::NoConstructs);
         }
         let mut names = HashSet::new();
+        let mut category_members: HashMap<String, Vec<String>> = HashMap::new();
         for construct in &constructs {
             if construct.name.trim().is_empty() {
                 return Err(SpecError::EmptyConstructName);
             }
-            if !names.insert(construct.name.as_str()) {
+            if !names.insert(construct.name.clone()) {
                 return Err(SpecError::DuplicateConstruct(construct.name.clone()));
+            }
+            let mut categories = HashSet::new();
+            for category in &construct.categories {
+                if category.trim().is_empty() {
+                    return Err(SpecError::EmptyCategoryName(construct.name.clone()));
+                }
+                if !categories.insert(category.as_str()) {
+                    return Err(SpecError::DuplicateImplementedCategory {
+                        construct: construct.name.clone(),
+                        category: category.clone(),
+                    });
+                }
+                category_members
+                    .entry(category.clone())
+                    .or_default()
+                    .push(construct.name.clone());
             }
             if construct.patterns.is_empty() {
                 return Err(SpecError::EmptyPattern(construct.name.clone()));
@@ -309,8 +395,8 @@ impl LanguageSpec {
                 }
             }
         }
-        for construct in &constructs {
-            if let Some(block) = &construct.block {
+        for construct in &mut constructs {
+            if let Some(block) = &mut construct.block {
                 if block.open.trim().is_empty()
                     || block.close.trim().is_empty()
                     || block.open == block.close
@@ -327,13 +413,38 @@ impl LanguageSpec {
                             child: child.clone(),
                         });
                     }
-                    if !children.insert(child.as_str()) {
+                    if !children.insert(child.clone()) {
                         return Err(SpecError::DuplicateChildConstruct {
                             construct: construct.name.clone(),
                             child: child.clone(),
                         });
                     }
                 }
+                let mut categories = HashSet::new();
+                let mut expanded_children = block.constructs.clone();
+                for category in &block.categories {
+                    if category.trim().is_empty() {
+                        return Err(SpecError::EmptyCategoryName(construct.name.clone()));
+                    }
+                    if !categories.insert(category.as_str()) {
+                        return Err(SpecError::DuplicateBlockCategory {
+                            construct: construct.name.clone(),
+                            category: category.clone(),
+                        });
+                    }
+                    let Some(members) = category_members.get(category) else {
+                        return Err(SpecError::UnknownBlockCategory {
+                            construct: construct.name.clone(),
+                            category: category.clone(),
+                        });
+                    };
+                    for member in members {
+                        if children.insert(member.clone()) {
+                            expanded_children.push(member.clone());
+                        }
+                    }
+                }
+                block.constructs = expanded_children;
             }
         }
         for (index, left) in constructs.iter().enumerate() {
@@ -477,6 +588,29 @@ pub enum SpecError {
         construct: String,
         /// Repeated child construct name.
         child: String,
+    },
+    /// A construct or block category name is blank.
+    EmptyCategoryName(String),
+    /// A construct lists the same category more than once.
+    DuplicateImplementedCategory {
+        /// Construct that repeats the category.
+        construct: String,
+        /// Repeated category name.
+        category: String,
+    },
+    /// A block lists the same category more than once.
+    DuplicateBlockCategory {
+        /// Construct with the repeated block category.
+        construct: String,
+        /// Repeated category name.
+        category: String,
+    },
+    /// A block refers to a category with no implementing constructs.
+    UnknownBlockCategory {
+        /// Construct with the invalid block declaration.
+        construct: String,
+        /// Missing category name.
+        category: String,
     },
 }
 
@@ -817,6 +951,30 @@ impl std::fmt::Display for SpecError {
             Self::DuplicateChildConstruct { construct, child } => write!(
                 f,
                 "block for `{construct}` lists child `{child}` more than once"
+            ),
+            Self::EmptyCategoryName(construct) => {
+                write!(f, "construct `{construct}` uses an empty category name")
+            }
+            Self::DuplicateImplementedCategory {
+                construct,
+                category,
+            } => write!(
+                f,
+                "construct `{construct}` implements category `{category}` more than once"
+            ),
+            Self::DuplicateBlockCategory {
+                construct,
+                category,
+            } => write!(
+                f,
+                "block for `{construct}` allows category `{category}` more than once"
+            ),
+            Self::UnknownBlockCategory {
+                construct,
+                category,
+            } => write!(
+                f,
+                "block for `{construct}` references category `{category}` with no members"
             ),
         }
     }

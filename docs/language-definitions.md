@@ -99,7 +99,9 @@ infer the embedded expression grammar.
 ## Blocks
 
 A construct may declare one delimited block. The delimiters are exact lexer
-tokens, and `allow` lists the construct names permitted as direct children:
+tokens. `allow` lists construct names permitted as direct children. When
+several blocks share the same child group, constructs can implement a named
+category and a block can allow that category:
 
 ```langmeld
 construct "conditional" {
@@ -108,14 +110,30 @@ construct "conditional" {
         identifier "condition";
     }
     block "{" "}" {
-        allow "draw";
+        allow_category "statement";
     }
+}
+
+construct "draw" {
+    syntax {
+        literal "draw";
+        identifier "shape";
+        literal ";";
+    }
+    implements "statement";
 }
 ```
 
-This is a parser boundary, not a semantic scope. Langmeld does not infer
-variable visibility, declaration order, name resolution, or control-flow
-meaning from blocks.
+The first `implements` membership implicitly introduces the category; there is
+no separate category declaration to keep in sync. Imported constructs can
+implement a category used by the root definition. A block may combine `allow`
+and `allow_category`; direct entries are kept first, then category members are
+added in language declaration order, with overlapping entries included once.
+An unknown or empty category is a validation error.
+
+Categories only group grammar constructs. They do not infer variable
+visibility, declaration order, name resolution, or control-flow meaning from
+blocks.
 
 ## Parser resource limits
 

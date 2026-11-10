@@ -585,6 +585,56 @@ fn block_child_names_must_resolve_to_language_constructs() {
 }
 
 #[test]
+fn category_members_expand_into_block_children_in_construct_order() {
+    let grammar =
+        LanguageSpec::new(
+            "Grouped",
+            [
+                ConstructSpec::new("program", [PatternPart::literal("program")])
+                    .block_with_categories("{", "}", &["standalone"], &["statement"]),
+                ConstructSpec::new("let", [PatternPart::literal("let")]).implements(&["statement"]),
+                ConstructSpec::new("standalone", [PatternPart::literal("standalone")]),
+                ConstructSpec::new("print", [PatternPart::literal("print")])
+                    .implements(&["statement"]),
+            ],
+        )
+        .unwrap();
+
+    let block = grammar.constructs()[0].block_spec().unwrap();
+    assert_eq!(block.categories(), ["statement"]);
+    assert_eq!(block.constructs(), ["standalone", "let", "print"]);
+    assert_eq!(grammar.constructs()[1].categories(), ["statement"]);
+
+    let parsed = parse(
+        &SourceFile::new("main", "program { standalone let print }"),
+        &grammar,
+    );
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0]
+            .children
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect::<Vec<_>>(),
+        ["standalone", "let", "print"]
+    );
+}
+
+#[test]
+fn rejects_block_categories_without_members() {
+    let grammar = ConstructSpec::new("program", [PatternPart::literal("program")])
+        .block_with_categories("{", "}", &[], &["statement"]);
+
+    assert!(matches!(
+        LanguageSpec::new("Grouped", [grammar]),
+        Err(langmeld_language::SpecError::UnknownBlockCategory {
+            category,
+            ..
+        }) if category == "statement"
+    ));
+}
+
+#[test]
 fn parses_function_signatures_with_optional_and_repeated_parameters() {
     use PatternPart as P;
 

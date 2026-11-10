@@ -6,8 +6,7 @@ language "WidgetScript" {
             literal "program";
         }
         block "{" "}" {
-            allow "let";
-            allow "draw";
+            allow_category "statement";
         }
     }
 

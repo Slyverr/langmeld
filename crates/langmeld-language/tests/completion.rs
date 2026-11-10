@@ -70,6 +70,33 @@ fn suggests_only_constructs_allowed_in_the_current_nested_block() {
 }
 
 #[test]
+fn category_members_are_suggested_only_in_blocks_that_allow_the_category() {
+    let language =
+        LanguageSpec::new(
+            "Categorized",
+            [
+                ConstructSpec::new("program", [PatternPart::literal("program")])
+                    .block_with_categories("{", "}", &[], &["statement"]),
+                ConstructSpec::new("print", [PatternPart::literal("print")])
+                    .implements(&["statement"]),
+                ConstructSpec::new("function", [PatternPart::literal("fn")]),
+            ],
+        )
+        .unwrap();
+    let source = "program { ";
+
+    let candidates = complete_at(&SourceFile::new("main", source), &language, source.len());
+
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["print", "}"]
+    );
+}
+
+#[test]
 fn suggests_children_immediately_after_an_opening_delimiter() {
     let source = "program {";
 
@@ -166,6 +193,35 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
             "one_or_more",
             "}"
         ]
+    );
+
+    let source = "language \"Toy\" { construct \"item\" { ";
+    let nested = complete_at(
+        &SourceFile::new("language.langmeld", source),
+        grammar,
+        source.len(),
+    );
+    assert_eq!(
+        nested
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["syntax", "block", "implements", "}"]
+    );
+
+    let source =
+        "language \"Toy\" { construct \"item\" { syntax { literal \"x\"; } block \"{\" \"}\" { ";
+    let nested = complete_at(
+        &SourceFile::new("language.langmeld", source),
+        grammar,
+        source.len(),
+    );
+    assert_eq!(
+        nested
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["allow", "allow_category", "}"]
     );
 }
 

@@ -6,4 +6,5 @@ construct "let" {
         string "value";
         literal ";";
     }
+    implements "statement";
 }

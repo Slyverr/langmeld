@@ -7,8 +7,8 @@ types, or runtime behavior.
 
 `language/toy.langmeld` declares the language and its `program` block. It imports
 `language/constructs/statements.langmeld`, which in turn imports
-`language/constructs/values.langmeld`. The root block lists which statement
-constructs it accepts.
+`language/constructs/values.langmeld`. Both imported constructs implement the
+`statement` category, which the root block accepts as a group.
 
 Run it from the workspace root:
 

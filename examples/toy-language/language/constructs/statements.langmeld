@@ -6,4 +6,5 @@ construct "draw" {
         identifier "shape";
         literal ";";
     }
+    implements "statement";
 }
