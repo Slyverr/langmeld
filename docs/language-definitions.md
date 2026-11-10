@@ -376,3 +376,9 @@ provide a replacement range. Use `complete_at_with_lexer` with a custom lexer.
 These completions come from declared syntax only; field values and semantic
 suggestions require host-provided analysis. Custom parsers do not receive these
 grammar-derived suggestions.
+
+The built-in definition LSP also completes construct names in `root` and
+`allow` references, and category names in `implements` and `allow_category`
+references. With a project manifest, these suggestions come from the composed
+definition, including imported files. While the current project has invalid
+edits, the LSP retains its last valid reference index.

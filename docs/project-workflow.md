@@ -110,6 +110,8 @@ parse diagnostics and grammar-scoped syntax completions. Run
 completion while editing `.langmeld` files. It automatically uses `langmeld.toml` in
 the current directory when present, or accepts an explicit `--manifest-path`
 to validate the imported project graph against all open project file buffers.
+In manifest mode, it also suggests composed construct and category names in
+definition reference fields.
 See
 [Editor integration](editor-integration.md) for supported features and host
 extension points.
