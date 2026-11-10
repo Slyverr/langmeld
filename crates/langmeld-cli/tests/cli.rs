@@ -892,6 +892,7 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     assert!(!project.join("language").exists());
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
+    assert!(manifest.contains("default-run = \"custom-language\""));
     assert!(!manifest.contains("langmeld-project"));
     assert!(manifest.contains("langmeld-lsp = "));
     let parser =

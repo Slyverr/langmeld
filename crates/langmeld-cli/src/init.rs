@@ -180,8 +180,12 @@ fn project_files(
         Template::Declarative => "",
         Template::CustomParser => "\n[lib]\nname = \"language\"\n",
     };
+    let default_run = match template {
+        Template::Declarative => String::new(),
+        Template::CustomParser => format!("default-run = {package_name:?}\n"),
+    };
     let manifest = format!(
-        "[package]\nname = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n{library}\n[dependencies]\n{dependencies}\n[workspace]\n"
+        "[package]\nname = {package_name:?}\n{default_run}version = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n{library}\n[dependencies]\n{dependencies}\n[workspace]\n"
     );
     let mut files = vec![
         ("Cargo.toml".to_owned(), manifest),
