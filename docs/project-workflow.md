@@ -82,9 +82,11 @@ After installing the Langmeld CLI, run `langmeld check` from a declarative
 project directory. The command validates the manifest and complete imported
 definition tree; it does not parse user program files or run language-specific
 semantics. Custom parser projects should use Cargo to build and run the host.
-Format one `.lm` file in place with `langmeld format language/language.lm`.
-Use `--check` in CI to verify formatting without changing files; the formatter
-rejects syntactically invalid or incomplete definitions. Set indentation with
+Run `langmeld format` from a project directory to format every `.lm` file
+reachable from its manifest. Use `--manifest-path path/to/langmeld.toml` when
+running it elsewhere. Pass a file path to format one standalone definition.
+Use `--check` in CI to verify formatting without changing files; project mode
+validates the import graph before formatting any file. Set indentation with
 `--tab-width 2` or use `--tabs`.
 For declarative projects, `langmeld lsp` starts an editor server that publishes
 parse diagnostics and grammar-scoped syntax completions. Run

@@ -331,7 +331,7 @@ fn help_lists_init_and_the_non_interactive_mode() {
 
     assert!(output.status.success());
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Format one Langmeld `.lm` definition file"));
+    assert!(help.contains("Format a language project's `.lm` definitions"));
     assert!(help.contains("--check"));
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
@@ -392,6 +392,74 @@ fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
         fs::read_to_string(&invalid_definition).unwrap(),
         invalid_source
     );
+}
+
+#[test]
+fn format_command_checks_and_formats_every_imported_project_definition() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    write_widget_project(project);
+    let root = project.join("language/language.lm");
+    let module = project.join("language/constructs/statements.lm");
+    let original_root = fs::read_to_string(&root).unwrap();
+    let original_module = fs::read_to_string(&module).unwrap();
+    let manifest = project.join("langmeld.toml");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--check"])
+        .current_dir(project)
+        .output()
+        .expect("CLI should start");
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(&root).unwrap(), original_root);
+    assert_eq!(fs::read_to_string(&module).unwrap(), original_module);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--manifest-path"])
+        .arg(&manifest)
+        .output()
+        .expect("CLI should start");
+    assert!(output.status.success());
+    assert!(
+        fs::read_to_string(&root)
+            .unwrap()
+            .contains("\n    construct \"program\" {")
+    );
+    assert!(
+        fs::read_to_string(&module)
+            .unwrap()
+            .starts_with("construct \"print\" {\n")
+    );
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--check", "--manifest-path"])
+        .arg(&manifest)
+        .output()
+        .expect("CLI should start");
+    assert!(output.status.success());
+}
+
+#[test]
+fn format_command_does_not_write_a_project_with_invalid_imports() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    write_widget_project(project);
+    let root = project.join("language/language.lm");
+    let module = project.join("language/constructs/statements.lm");
+    let original_root = fs::read_to_string(&root).unwrap();
+    let invalid_module = "construct \"print\" { syntax { literal \"print\";";
+    fs::write(&module, invalid_module).unwrap();
+    let manifest = project.join("langmeld.toml");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format", "--manifest-path"])
+        .arg(&manifest)
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    assert_eq!(fs::read_to_string(&root).unwrap(), original_root);
+    assert_eq!(fs::read_to_string(&module).unwrap(), invalid_module);
 }
 
 #[test]

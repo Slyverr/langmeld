@@ -4,12 +4,15 @@ use clap::Args;
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionFormatOptions, format_language_definition};
 
-use crate::project::format_diagnostics;
+use crate::project::{format_diagnostics, load_definition_project};
 
 #[derive(Debug, Args)]
 pub(crate) struct FormatArgs {
-    /// `.lm` definition file to format.
-    file: PathBuf,
+    /// Format one `.lm` file instead of the project import graph.
+    file: Option<PathBuf>,
+    /// Project manifest to use when formatting the complete definition graph.
+    #[arg(long, conflicts_with = "file")]
+    manifest_path: Option<PathBuf>,
     /// Check formatting without modifying the file.
     #[arg(long)]
     check: bool,
@@ -22,26 +25,51 @@ pub(crate) struct FormatArgs {
 }
 
 pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
-    let text = fs::read_to_string(&args.file)?;
-    let source = SourceFile::new(args.file.display().to_string(), text);
     let options = DefinitionFormatOptions {
         tab_size: args.tab_width.unwrap_or(4),
         insert_spaces: !args.tabs,
     };
-    let formatted = format_language_definition(&source, options)
-        .map_err(|diagnostics| format_diagnostics(std::slice::from_ref(&source), &diagnostics))?;
+    let files = if let Some(file) = args.file {
+        let text = fs::read_to_string(&file)?;
+        let source = SourceFile::new(file.display().to_string(), text);
+        vec![(file, source)]
+    } else {
+        let manifest_path = args
+            .manifest_path
+            .unwrap_or_else(|| PathBuf::from("langmeld.toml"));
+        let project = load_definition_project(&manifest_path)?;
+        project
+            .sources
+            .into_iter()
+            .map(|source| (project.root.join(&source.name), source))
+            .collect()
+    };
+    let mut outputs = Vec::with_capacity(files.len());
+    for (path, source) in files {
+        let formatted = format_language_definition(&source, options).map_err(|diagnostics| {
+            format_diagnostics(std::slice::from_ref(&source), &diagnostics)
+        })?;
+        outputs.push((path, source.text, formatted));
+    }
 
     if args.check {
-        if formatted != source.text {
-            return Err(format!("{} needs formatting", args.file.display()).into());
+        let unformatted = outputs
+            .iter()
+            .filter(|(_, original, formatted)| original != formatted)
+            .map(|(path, _, _)| path.display().to_string())
+            .collect::<Vec<_>>();
+        if !unformatted.is_empty() {
+            return Err(format!("files need formatting:\n{}", unformatted.join("\n")).into());
         }
-        println!("{} is formatted", args.file.display());
+        println!("All {} definition file(s) are formatted", outputs.len());
         return Ok(());
     }
 
-    if formatted != source.text {
-        fs::write(&args.file, formatted)?;
-        println!("Formatted {}", args.file.display());
+    for (path, original, formatted) in outputs {
+        if formatted != original {
+            fs::write(&path, formatted)?;
+            println!("Formatted {}", path.display());
+        }
     }
     Ok(())
 }

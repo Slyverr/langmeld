@@ -22,7 +22,7 @@ enum Command {
     Init(init::InitArgs),
     /// Validate the project manifest and language definition.
     Check(check::CheckArgs),
-    /// Format one Langmeld `.lm` definition file.
+    /// Format a language project's `.lm` definitions.
     Format(format::FormatArgs),
     /// Serve editor support for a language project or `.lm` definitions.
     Lsp(lsp::LspArgs),
