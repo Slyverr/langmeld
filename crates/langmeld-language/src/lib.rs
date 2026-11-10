@@ -2,10 +2,12 @@
 #![deny(missing_docs)]
 
 mod definition;
+mod host;
 mod parser;
 mod spec;
 
 pub use definition::{DefinitionResult, parse_language_definition};
+pub use host::{LanguageParser, ParsedDocument};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
     CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseResult,

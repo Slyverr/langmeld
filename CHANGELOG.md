@@ -20,4 +20,6 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   root-level Toy language consumer example.
 - A host lexer contract that validates token text and source ranges before the
   generic parser consumes them.
+- A host parser contract that keeps a language's own AST alongside source
+  identity and structured diagnostics.
 - A separate custom-lexer consumer example for raw strings and comments.

@@ -9,7 +9,9 @@ forms, optional and repeated groups, and scoped blocks. The `.lm` frontend is
 itself parsed by that generic parser. The parser does not yet provide
 expressions, type checking, execution, code generation, or editor integrations;
 language authors own those behaviors in Rust. Rust hosts can provide a custom
-lexer while reusing the generic parser.
+lexer while reusing the generic parser, or implement `LanguageParser` and keep
+their own parse-tree type. Arbitrary host trees do not receive automatic editor
+tooling yet.
 
 ## Requirements
 
