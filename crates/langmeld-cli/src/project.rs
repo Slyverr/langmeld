@@ -1,0 +1,54 @@
+use std::{error::Error, path::Path};
+
+use langmeld_core::SourceFile;
+use langmeld_language::{LanguageSpec, parse_language_definition_project};
+use langmeld_project::{DirectoryDefinitionResolver, read_project_manifest_file};
+
+pub(crate) fn load_language_definition(
+    manifest_path: impl AsRef<Path>,
+) -> Result<LanguageSpec, Box<dyn Error>> {
+    let manifest_path = manifest_path.as_ref();
+    let manifest = read_project_manifest_file(manifest_path)?;
+    let project_root = manifest_path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let resolver = DirectoryDefinitionResolver::new(project_root)?;
+    let root = resolver.load(&manifest.definition)?;
+    let definition = parse_language_definition_project(root, &resolver);
+    if !definition.is_valid() {
+        return Err(format_diagnostics(&resolver.sources(), &definition.diagnostics).into());
+    }
+    definition
+        .language
+        .ok_or_else(|| "validated definition did not produce a language".into())
+}
+
+pub(crate) fn format_diagnostics(
+    sources: &[SourceFile],
+    diagnostics: &[langmeld_core::Diagnostic],
+) -> String {
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let location = diagnostic.location.as_ref();
+            let source = location.and_then(|location| {
+                sources
+                    .iter()
+                    .find(|source| source.name == location.source_name)
+            });
+            let (line, column) = match (source, location) {
+                (Some(source), Some(location)) => source.line_column(location.span.start),
+                _ => (1, 1),
+            };
+            let source_name = location
+                .map(|location| location.source_name.as_str())
+                .unwrap_or("<project>");
+            format!(
+                "{source_name}:{line}:{column}: {}: {}",
+                diagnostic.code, diagnostic.message
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}

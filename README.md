@@ -64,6 +64,8 @@ Create a starter language project with
 project and language names, then lets you choose a declarative `.lm` grammar
 or a custom Rust parser. Validate declarative manifests and definitions with
 `cargo run -p langmeld-cli -- check --manifest-path my-language/langmeld.toml`.
+Generate lexical highlighting JSON with
+`cargo run -p langmeld-cli -- generate textmate --manifest-path my-language/langmeld.toml --scope-name source.my_language`.
 See [Project workflow](docs/project-workflow.md) for generated files and
 non-interactive options.
 

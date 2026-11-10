@@ -85,6 +85,19 @@ For declarative projects, `langmeld lsp` starts an editor server that publishes
 parse diagnostics and grammar-scoped syntax completions. See
 [Editor integration](editor-integration.md) for supported features and host
 extension points.
+Generate a lexical TextMate grammar to standard output with:
+
+```sh
+langmeld generate textmate \
+  --manifest-path langmeld.toml \
+  --scope-name source.widget \
+  --file-type widget
+```
+
+The command resolves imported definitions through the project manifest. The
+scope name is required; file types are optional and can be repeated. Redirect
+the output to a file or pipe it to another tool. See the editor integration
+guide for the grammar's lexical-only limits.
 For the declarative example host, run:
 
 ```sh

@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{self, BufRead, BufReader, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -35,6 +35,25 @@ impl Drop for TestDirectory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+fn write_widget_project(project: &Path) {
+    fs::create_dir_all(project.join("language/constructs")).unwrap();
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/language.lm\"\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("language/language.lm"),
+        "language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }",
+    )
+    .unwrap();
+    fs::write(
+        project.join("language/constructs/statements.lm"),
+        "construct \"print\" { syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }",
+    )
+    .unwrap();
 }
 
 struct ChildGuard(Child);
@@ -271,23 +290,23 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Start an LSP server for a declarative language project"));
     assert!(help.contains("--manifest-path"));
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["generate", "textmate", "--help"])
+        .output()
+        .expect("CLI should start");
+
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("Generate a lexical TextMate grammar"));
+    assert!(help.contains("--scope-name"));
 }
 
 #[test]
 fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
     let parent = TestDirectory::new();
     let project = parent.path();
-    fs::create_dir_all(project.join("language")).unwrap();
-    fs::write(
-        project.join("langmeld.toml"),
-        "format = 1\ndefinition = \"language/language.lm\"\n",
-    )
-    .unwrap();
-    fs::write(
-        project.join("language/language.lm"),
-        "language \"Widget\" { construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } construct \"print\" { syntax { literal \"print\"; identifier \"name\"; literal \";\"; } } }",
-    )
-    .unwrap();
+    write_widget_project(project);
 
     let mut child = ChildGuard(
         Command::new(env!("CARGO_BIN_EXE_langmeld"))
@@ -360,6 +379,47 @@ fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
     );
     drop(stdin);
     assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
+fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    write_widget_project(project);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "textmate",
+            "--manifest-path",
+            project.join("langmeld.toml").to_str().unwrap(),
+            "--scope-name",
+            "source.widget",
+            "--file-type",
+            "widget",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let grammar: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(grammar["name"], "Widget");
+    assert_eq!(grammar["scopeName"], "source.widget");
+    assert_eq!(grammar["fileTypes"], json!(["widget"]));
+    assert!(
+        grammar["patterns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|pattern| {
+                pattern["name"] == "keyword.other.widget"
+                    && pattern["match"].as_str().unwrap().contains("print")
+            })
+    );
 }
 
 #[test]

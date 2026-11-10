@@ -18,6 +18,7 @@ langmeld-core.workspace = true
 langmeld-language.workspace = true
 langmeld-lsp.workspace = true
 langmeld-project.workspace = true
+langmeld-textmate.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

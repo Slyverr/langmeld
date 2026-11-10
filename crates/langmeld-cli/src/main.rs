@@ -1,6 +1,8 @@
 mod check;
+mod generate;
 mod init;
 mod lsp;
+mod project;
 
 use std::process::ExitCode;
 
@@ -21,6 +23,8 @@ enum Command {
     Check(check::CheckArgs),
     /// Start an LSP server for a declarative language project.
     Lsp(lsp::LspArgs),
+    /// Generate editor tooling from a declarative language project.
+    Generate(generate::GenerateArgs),
 }
 
 fn main() -> ExitCode {
@@ -44,6 +48,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Init(args) => init::run(args)?,
         Command::Check(args) => check::run(args)?,
         Command::Lsp(args) => lsp::run(args)?,
+        Command::Generate(args) => generate::run(args)?,
     }
     Ok(())
 }
