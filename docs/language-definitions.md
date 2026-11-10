@@ -107,6 +107,30 @@ Pattern items match lexer tokens in order:
 - `zero_or_more { ... }` and `one_or_more { ... }` repeat a sequence; fields
   from each match are captured in source order.
 
+## Completion kinds
+
+Construct-start suggestions have no assumed semantic kind because a leading
+literal may be a keyword, operator, or punctuation. Declare a kind on the
+construct when the distinction is known:
+
+```langmeld
+construct "print" {
+    completion "keyword";
+    syntax {
+        literal "print";
+        identifier "value";
+        literal ";";
+    }
+}
+```
+
+This metadata affects editor presentation only; it does not change parsing.
+Finite-choice values are automatically presented as enum members. Supported
+kinds are `text`, `method`, `function`, `constructor`, `field`, `variable`,
+`class`, `interface`, `module`, `property`, `unit`, `value`, `enum`, `keyword`,
+`snippet`, `color`, `file`, `reference`, `folder`, `enum_member`, `constant`,
+`struct`, `event`, `operator`, and `type_parameter`.
+
 ## Lexical comments
 
 The built-in lexer accepts optional line and non-nested block-comment markers.

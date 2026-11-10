@@ -3,8 +3,9 @@
 This example shows a small declarative language split across importable
 `.langmeld` files and parsed with Langmeld's generic parser. It demonstrates
 grammar composition, primitive and finite-choice captures, and
-delimiter-bounded expression capture. The host passes the captured source span
-to `langmeld-expression` with its own operator table; Langmeld does not infer
+delimiter-bounded expression capture. Its construct declarations also mark
+keyword completions explicitly. The host passes the captured source span to
+`langmeld-expression` with its own operator table; Langmeld does not infer
 expression meaning, types, or runtime behavior.
 
 `language/toy.langmeld` declares the language and its `program` block. It imports

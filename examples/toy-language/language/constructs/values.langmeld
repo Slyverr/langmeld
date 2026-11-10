@@ -1,4 +1,5 @@
 construct "let" {
+    completion "keyword";
     syntax {
         literal "let";
         identifier "name";

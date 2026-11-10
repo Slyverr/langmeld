@@ -283,7 +283,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
             .iter()
             .map(|candidate| candidate.text.as_str())
             .collect::<Vec<_>>(),
-        ["syntax", "block", "implements", "}"]
+        ["syntax", "block", "implements", "completion", "}"]
     );
 
     let source =

@@ -2,6 +2,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::completion::CompletionKind;
+
 /// Comment delimiters used by Langmeld's built-in lexer.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LexicalRules {
@@ -244,6 +246,8 @@ pub struct ConstructSpec {
     pub(crate) patterns: Vec<Vec<PatternPart>>,
     /// Named structural groups this construct belongs to.
     pub(crate) categories: Vec<String>,
+    /// Optional semantic kind for construct-start completion candidates.
+    pub(crate) completion_kind: Option<CompletionKind>,
     /// Optional delimited child-construct body.
     pub(crate) block: Option<BlockSpec>,
 }
@@ -256,6 +260,7 @@ impl ConstructSpec {
             name: name.into(),
             patterns: vec![pattern.into_iter().collect()],
             categories: Vec::new(),
+            completion_kind: None,
             block: None,
         }
     }
@@ -268,6 +273,13 @@ impl ConstructSpec {
     pub fn implements(mut self, categories: &[&str]) -> Self {
         self.categories
             .extend(categories.iter().map(|category| (*category).to_owned()));
+        self
+    }
+
+    /// Sets the semantic kind used for completion candidates that start this construct.
+    #[must_use]
+    pub fn with_completion_kind(mut self, kind: CompletionKind) -> Self {
+        self.completion_kind = Some(kind);
         self
     }
 
@@ -361,6 +373,12 @@ impl ConstructSpec {
     #[must_use]
     pub fn categories(&self) -> &[String] {
         &self.categories
+    }
+
+    /// Returns the optional kind used for this construct's completion candidates.
+    #[must_use]
+    pub fn completion_kind(&self) -> Option<CompletionKind> {
+        self.completion_kind
     }
 
     /// Returns all syntax alternatives in declaration order.

@@ -5,8 +5,8 @@ use std::sync::OnceLock;
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{
-    CapturedValue, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, ParsedConstruct,
-    PatternPart, SpecError, parse,
+    CapturedValue, CompletionKind, ConstructSpec, FieldKind, LanguageSpec, LexicalRules,
+    ParsedConstruct, PatternPart, SpecError, parse,
 };
 
 /// Result of parsing and validating one language-definition source.
@@ -600,6 +600,44 @@ fn lower_construct(
         patterns.push(pattern);
     }
 
+    let completion_nodes: Vec<_> = node
+        .children
+        .iter()
+        .filter(|child| child.name == "completion")
+        .collect();
+    if completion_nodes.len() > 1 {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-029",
+            format!("construct `{name}` may declare only one completion kind"),
+            source,
+            completion_nodes[1].span,
+        ));
+        return None;
+    }
+    let completion_kind = if let Some(completion) = completion_nodes.first() {
+        let Some(value) = string_field(completion, "kind").and_then(decode_quoted) else {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-030",
+                "completion requires a valid quoted kind",
+                source,
+                completion.span,
+            ));
+            return None;
+        };
+        let Some(kind) = parse_completion_kind(&value) else {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-031",
+                format!("unknown completion kind `{value}`"),
+                source,
+                completion.span,
+            ));
+            return None;
+        };
+        Some(kind)
+    } else {
+        None
+    };
+
     let block_nodes: Vec<_> = node
         .children
         .iter()
@@ -617,6 +655,9 @@ fn lower_construct(
 
     let mut patterns = patterns.into_iter();
     let mut construct = ConstructSpec::new(name, patterns.next().unwrap_or_default());
+    if let Some(kind) = completion_kind {
+        construct = construct.with_completion_kind(kind);
+    }
     for pattern in patterns {
         construct = construct.variant(pattern);
     }
@@ -806,6 +847,37 @@ fn string_field<'a>(node: &'a ParsedConstruct, name: &str) -> Option<&'a str> {
         })
 }
 
+fn parse_completion_kind(value: &str) -> Option<CompletionKind> {
+    Some(match value {
+        "text" => CompletionKind::Text,
+        "method" => CompletionKind::Method,
+        "function" => CompletionKind::Function,
+        "constructor" => CompletionKind::Constructor,
+        "field" => CompletionKind::Field,
+        "variable" => CompletionKind::Variable,
+        "class" => CompletionKind::Class,
+        "interface" => CompletionKind::Interface,
+        "module" => CompletionKind::Module,
+        "property" => CompletionKind::Property,
+        "unit" => CompletionKind::Unit,
+        "value" => CompletionKind::Value,
+        "enum" => CompletionKind::Enum,
+        "keyword" => CompletionKind::Keyword,
+        "snippet" => CompletionKind::Snippet,
+        "color" => CompletionKind::Color,
+        "file" => CompletionKind::File,
+        "reference" => CompletionKind::Reference,
+        "folder" => CompletionKind::Folder,
+        "enum_member" => CompletionKind::EnumMember,
+        "constant" => CompletionKind::Constant,
+        "struct" => CompletionKind::Struct,
+        "event" => CompletionKind::Event,
+        "operator" => CompletionKind::Operator,
+        "type_parameter" => CompletionKind::TypeParameter,
+        _ => return None,
+    })
+}
+
 fn decode_quoted(value: &str) -> Option<String> {
     let inner = value.strip_prefix('"')?.strip_suffix('"')?;
     let mut decoded = String::with_capacity(inner.len());
@@ -935,7 +1007,15 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["syntax", "block", "implements"]),
+                .block("{", "}", &["syntax", "block", "implements", "completion"]),
+                ConstructSpec::new(
+                    "completion",
+                    [
+                        PatternPart::literal("completion"),
+                        PatternPart::string("kind"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
                 ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
                     "{",
                     "}",

@@ -279,7 +279,13 @@ pub fn complete_at_with_lexer(
             let mut literals = Vec::new();
             collect_first_literals(pattern, &mut literals);
             for text in literals {
-                push_candidate(&mut candidates, &text, &prefix, replacement, None);
+                push_candidate(
+                    &mut candidates,
+                    &text,
+                    &prefix,
+                    replacement,
+                    construct.completion_kind(),
+                );
             }
         }
     }

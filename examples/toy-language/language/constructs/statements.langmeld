@@ -1,6 +1,7 @@
 import "values.langmeld";
 
 construct "draw" {
+    completion "keyword";
     syntax {
         literal "draw";
         choice "shape" {
@@ -13,6 +14,7 @@ construct "draw" {
 }
 
 construct "compute" {
+    completion "keyword";
     syntax {
         literal "compute";
         expression "value" until ";";
