@@ -7,6 +7,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-10
+
 ### Added
 
 - Source snapshots, stable source identities, revisions, byte spans, and
