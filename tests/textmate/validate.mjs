@@ -39,11 +39,12 @@ function scopesAt(line, tokens, text) {
   return token.scopes;
 }
 
-const source = 'program { let title = "Hello"; draw title; }';
+const source = 'program { let title = "Hello"; draw circle; }';
 const line = tokenizeLine(source);
 assert.ok(scopesAt(source, line.tokens, "program").includes("keyword.other.widgetscript"));
 assert.ok(scopesAt(source, line.tokens, "let").includes("keyword.other.widgetscript"));
 assert.ok(scopesAt(source, line.tokens, "draw").includes("keyword.other.widgetscript"));
+assert.ok(scopesAt(source, line.tokens, "circle").includes("keyword.other.widgetscript"));
 assert.ok(scopesAt(source, line.tokens, "{").includes("punctuation.widgetscript"));
 assert.ok(scopesAt(source, line.tokens, "Hello").includes("string.quoted.double.widgetscript"));
 assert.ok(!scopesAt(source, line.tokens, "title").includes("keyword.other.widgetscript"));
