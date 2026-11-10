@@ -177,7 +177,8 @@ pub trait LanguageBackend: Send + Sync + 'static {
     ///
     /// Ranges and selection ranges use UTF-8 byte offsets. Their source
     /// bounds, nesting, and conversion to the negotiated LSP position encoding
-    /// are validated by the adapter.
+    /// are validated by the adapter. Invalid symbols are omitted while valid
+    /// siblings remain available to the editor.
     fn document_symbols(
         &self,
         _source: &SourceFile,

@@ -196,12 +196,40 @@ impl LanguageBackend for Backend {
         _document: &BackendDocument<String>,
     ) -> Vec<DocumentSymbolInfo> {
         if source.name == "file:///invalid-symbol.test" {
-            return vec![DocumentSymbolInfo::new(
-                "invalid",
-                DocumentSymbolKind::Variable,
-                Span::new(0, 4),
-                Span::new(0, 1),
-            )];
+            return vec![
+                DocumentSymbolInfo::new(
+                    "invalid",
+                    DocumentSymbolKind::Variable,
+                    Span::new(0, 4),
+                    Span::new(0, 1),
+                ),
+                DocumentSymbolInfo::new(
+                    "valid",
+                    DocumentSymbolKind::Variable,
+                    Span::new(4, 7),
+                    Span::new(4, 7),
+                ),
+                DocumentSymbolInfo::new(
+                    "root",
+                    DocumentSymbolKind::Module,
+                    Span::new(0, 7),
+                    Span::new(4, 7),
+                )
+                .with_children([
+                    DocumentSymbolInfo::new(
+                        "invalid-child",
+                        DocumentSymbolKind::Variable,
+                        Span::new(4, 8),
+                        Span::new(4, 7),
+                    ),
+                    DocumentSymbolInfo::new(
+                        "valid-child",
+                        DocumentSymbolKind::Variable,
+                        Span::new(4, 7),
+                        Span::new(4, 7),
+                    ),
+                ]),
+            ];
         }
         vec![
             DocumentSymbolInfo::new(
@@ -365,7 +393,11 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         "textDocument/documentSymbol",
         json!({ "textDocument": { "uri": "file:///invalid-symbol.test" } }),
     );
-    assert!(receive_response(&client).is_null());
+    let symbols = receive_response(&client);
+    assert_eq!(symbols.as_array().unwrap().len(), 2);
+    assert_eq!(symbols[0]["name"], "valid");
+    assert_eq!(symbols[1]["children"].as_array().unwrap().len(), 1);
+    assert_eq!(symbols[1]["children"][0]["name"], "valid-child");
 
     send_request(
         &client,

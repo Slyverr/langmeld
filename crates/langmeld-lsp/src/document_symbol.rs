@@ -120,8 +120,8 @@ pub(crate) fn convert(
 ) -> Option<DocumentSymbolResponse> {
     let symbols = symbols
         .into_iter()
-        .map(|symbol| convert_symbol(source, symbol, encoding, None))
-        .collect::<Option<Vec<_>>>()?;
+        .filter_map(|symbol| convert_symbol(source, symbol, encoding, None))
+        .collect::<Vec<_>>();
     if hierarchical {
         Some(DocumentSymbolResponse::Nested(symbols))
     } else {
@@ -150,8 +150,8 @@ fn convert_symbol(
     let children = symbol
         .children
         .into_iter()
-        .map(|child| convert_symbol(source, child, encoding, Some(symbol.range)))
-        .collect::<Option<Vec<_>>>()?;
+        .filter_map(|child| convert_symbol(source, child, encoding, Some(symbol.range)))
+        .collect::<Vec<_>>();
     #[expect(
         deprecated,
         reason = "lsp-types 0.97 requires the deprecated field during construction"
