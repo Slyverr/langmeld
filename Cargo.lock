@@ -51,6 +51,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-schema-language-example"
+version = "0.2.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-language",
+]
+
+[[package]]
 name = "langmeld-toy-language-example"
 version = "0.2.0"
 dependencies = [

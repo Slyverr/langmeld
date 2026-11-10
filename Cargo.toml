@@ -7,6 +7,7 @@ members = [
     "examples/aster-language",
     "examples/custom-lexer",
     "examples/custom-parser",
+    "examples/schema-language",
     "examples/toy-language",
 ]
 default-members = ["crates/langmeld-cli"]

@@ -29,6 +29,7 @@ cargo run -p langmeld-aster-language-example --locked
 cargo run -p langmeld-toy-language-example --locked
 cargo run -p langmeld-custom-lexer-example --locked
 cargo run -p langmeld-custom-parser-example --locked
+cargo run -p langmeld-schema-language-example --locked
 ```
 
 The [`toy-language`](examples/toy-language) example shows a multi-file `.lm`
@@ -40,6 +41,9 @@ declaration parser and runtime with `langmeld-expression` for operator
 precedence and expression trees.
 The [`aster-language`](examples/aster-language) example adds a host-owned AST,
 scope-aware name resolution, and basic type checks.
+The [`schema-language`](examples/schema-language) example uses a global type
+namespace with forward and recursive references, showing a different
+host-owned semantic policy.
 
 See [Language definitions](docs/language-definitions.md) for the current `.lm`
 syntax and its extension boundaries.
