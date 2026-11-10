@@ -1153,6 +1153,81 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
 }
 
 #[test]
+fn incremental_document_changes_use_negotiated_utf8_and_utf32_positions() {
+    assert_incremental_edit_uses_position_encoding("utf-8", 4, 7);
+    assert_incremental_edit_uses_position_encoding("utf-32", 1, 4);
+}
+
+fn assert_incremental_edit_uses_position_encoding(
+    encoding: &str,
+    start_character: u32,
+    end_character: u32,
+) {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = Backend::default();
+    let observed = Backend(backend.0.clone());
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({ "capabilities": { "general": { "positionEncodings": [encoding] } } }),
+    );
+    let initialized = receive_response(&client);
+    assert_eq!(initialized["capabilities"]["positionEncoding"], encoding);
+    send_notification(&client, "initialized", json!({}));
+
+    let uri = format!("file:///{encoding}.test");
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": uri,
+                "languageId": "test",
+                "version": 1,
+                "text": "😀bad"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+
+    send_notification(
+        &client,
+        "textDocument/didChange",
+        json!({
+            "textDocument": { "uri": uri, "version": 2 },
+            "contentChanges": [{
+                "range": {
+                    "start": { "line": 0, "character": start_character },
+                    "end": { "line": 0, "character": end_character }
+                },
+                "text": "ok"
+            }]
+        }),
+    );
+    let changed = receive_diagnostics(&client);
+    assert!(changed["diagnostics"].as_array().unwrap().is_empty());
+    assert_eq!(observed.0.lock().unwrap().get(&uri).unwrap().text, "😀ok");
+
+    send_request(&client, 2, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[test]
 fn declarative_backend_provides_scoped_completion_over_lsp() {
     let language = LanguageSpec::new(
         "Demo",
