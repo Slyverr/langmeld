@@ -11,9 +11,9 @@ use std::{
 
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{
-    AnalysisDocument, CompletionCandidate, ConstructSpec, LanguageAnalyzer, LanguageCompleter,
-    LanguageNavigator, LanguageParser, LanguageSpec, LanguageWorkspaceAnalyzer, ParsedDocument,
-    PatternPart,
+    AnalysisDocument, CompletionCandidate, CompletionKind, ConstructSpec, LanguageAnalyzer,
+    LanguageCompleter, LanguageNavigator, LanguageParser, LanguageSpec, LanguageWorkspaceAnalyzer,
+    ParsedDocument, PatternPart,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendWorkspace, BackendWorkspaceCapabilities,
@@ -74,6 +74,7 @@ impl LanguageBackend for Backend {
                 .with_detail("Suggested item"),
             CompletionCandidate::new("great", Span::new("😀".len(), source.text.len()))
                 .with_label("Great value")
+                .with_kind(CompletionKind::Struct)
                 .with_filter_text("preferred"),
         ]
     }
@@ -1050,6 +1051,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     assert_eq!(completion[0]["textEdit"]["newText"], "good");
     assert_eq!(completion[0]["filterText"], "good");
     assert_eq!(completion[1]["label"], "Great value");
+    assert_eq!(completion[1]["kind"], 22);
     assert_eq!(completion[1]["textEdit"]["newText"], "great");
     assert_eq!(completion[1]["filterText"], "preferred");
     assert_eq!(completion[0]["textEdit"]["range"]["start"]["character"], 2);

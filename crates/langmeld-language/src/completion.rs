@@ -6,6 +6,61 @@ use crate::{
     PatternPart, RepeatMinimum,
 };
 
+/// Semantic category for a completion suggestion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompletionKind {
+    /// Plain text or an unspecified item.
+    Text,
+    /// A method.
+    Method,
+    /// A function.
+    Function,
+    /// A constructor.
+    Constructor,
+    /// A field.
+    Field,
+    /// A variable.
+    Variable,
+    /// A class.
+    Class,
+    /// An interface.
+    Interface,
+    /// A module.
+    Module,
+    /// A property.
+    Property,
+    /// A unit.
+    Unit,
+    /// A value.
+    Value,
+    /// An enumeration.
+    Enum,
+    /// A keyword.
+    Keyword,
+    /// A snippet.
+    Snippet,
+    /// A color.
+    Color,
+    /// A file.
+    File,
+    /// A reference.
+    Reference,
+    /// A folder.
+    Folder,
+    /// An enumeration member.
+    EnumMember,
+    /// A constant.
+    Constant,
+    /// A structure or record type.
+    Struct,
+    /// An event.
+    Event,
+    /// An operator.
+    Operator,
+    /// A type parameter.
+    TypeParameter,
+}
+
 /// A completion suggestion and the source range it replaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionCandidate {
@@ -15,6 +70,8 @@ pub struct CompletionCandidate {
     pub label: Option<String>,
     /// Optional matching text; defaults to [`Self::text`].
     pub filter_text: Option<String>,
+    /// Optional semantic category for editor presentation.
+    pub kind: Option<CompletionKind>,
     /// Source range to replace, empty when completing at a token boundary.
     pub replace: Span,
     /// Optional short explanation shown beside the candidate in editors.
@@ -22,13 +79,15 @@ pub struct CompletionCandidate {
 }
 
 impl CompletionCandidate {
-    /// Creates a candidate with no editor detail.
+    /// Creates a candidate whose label and filter text default to its
+    /// inserted text.
     #[must_use]
     pub fn new(text: impl Into<String>, replace: Span) -> Self {
         Self {
             text: text.into(),
             label: None,
             filter_text: None,
+            kind: None,
             replace,
             detail: None,
         }
@@ -45,6 +104,13 @@ impl CompletionCandidate {
     #[must_use]
     pub fn with_filter_text(mut self, filter_text: impl Into<String>) -> Self {
         self.filter_text = Some(filter_text.into());
+        self
+    }
+
+    /// Sets the candidate's semantic category for editor presentation.
+    #[must_use]
+    pub fn with_kind(mut self, kind: CompletionKind) -> Self {
+        self.kind = Some(kind);
         self
     }
 

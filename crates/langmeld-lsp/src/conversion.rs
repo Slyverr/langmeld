@@ -1,9 +1,10 @@
 use langmeld_core::{
     Diagnostic as LangmeldDiagnostic, PositionEncoding, Severity, SourceFile, SourceLocation, Span,
 };
+use langmeld_language::CompletionKind;
 use lsp_types::{
-    CompletionItem, CompletionTextEdit, Diagnostic, DiagnosticSeverity, NumberOrString, Position,
-    Range, TextEdit, Uri,
+    CompletionItem, CompletionItemKind, CompletionTextEdit, Diagnostic, DiagnosticSeverity,
+    NumberOrString, Position, Range, TextEdit, Uri,
 };
 
 use crate::backend::BackendDocument;
@@ -99,6 +100,7 @@ pub(crate) fn completion_items(
                 .unwrap_or_else(|| candidate.text.clone());
             Some(CompletionItem {
                 label,
+                kind: candidate.kind.map(to_lsp_completion_kind),
                 detail: candidate.detail,
                 filter_text: Some(filter_text),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
@@ -109,6 +111,36 @@ pub(crate) fn completion_items(
             })
         })
         .collect()
+}
+
+fn to_lsp_completion_kind(kind: CompletionKind) -> CompletionItemKind {
+    match kind {
+        CompletionKind::Text => CompletionItemKind::TEXT,
+        CompletionKind::Method => CompletionItemKind::METHOD,
+        CompletionKind::Function => CompletionItemKind::FUNCTION,
+        CompletionKind::Constructor => CompletionItemKind::CONSTRUCTOR,
+        CompletionKind::Field => CompletionItemKind::FIELD,
+        CompletionKind::Variable => CompletionItemKind::VARIABLE,
+        CompletionKind::Class => CompletionItemKind::CLASS,
+        CompletionKind::Interface => CompletionItemKind::INTERFACE,
+        CompletionKind::Module => CompletionItemKind::MODULE,
+        CompletionKind::Property => CompletionItemKind::PROPERTY,
+        CompletionKind::Unit => CompletionItemKind::UNIT,
+        CompletionKind::Value => CompletionItemKind::VALUE,
+        CompletionKind::Enum => CompletionItemKind::ENUM,
+        CompletionKind::Keyword => CompletionItemKind::KEYWORD,
+        CompletionKind::Snippet => CompletionItemKind::SNIPPET,
+        CompletionKind::Color => CompletionItemKind::COLOR,
+        CompletionKind::File => CompletionItemKind::FILE,
+        CompletionKind::Reference => CompletionItemKind::REFERENCE,
+        CompletionKind::Folder => CompletionItemKind::FOLDER,
+        CompletionKind::EnumMember => CompletionItemKind::ENUM_MEMBER,
+        CompletionKind::Constant => CompletionItemKind::CONSTANT,
+        CompletionKind::Struct => CompletionItemKind::STRUCT,
+        CompletionKind::Event => CompletionItemKind::EVENT,
+        CompletionKind::Operator => CompletionItemKind::OPERATOR,
+        CompletionKind::TypeParameter => CompletionItemKind::TYPE_PARAMETER,
+    }
 }
 
 pub(crate) fn lsp_location(

@@ -1,5 +1,7 @@
 use langmeld_core::SourceFile;
-use langmeld_language::{AnalysisDocument, CompletionCandidate, LanguageCompleter, ParsedDocument};
+use langmeld_language::{
+    AnalysisDocument, CompletionCandidate, CompletionKind, LanguageCompleter, ParsedDocument,
+};
 
 use crate::{Analysis, Schema, SchemaParser};
 
@@ -42,6 +44,7 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
             .filter(|symbol| symbol.name.starts_with(prefix))
             .map(|symbol| {
                 CompletionCandidate::new(symbol.name.clone(), reference.span)
+                    .with_kind(CompletionKind::Struct)
                     .with_detail("Record type")
             })
             .collect()
