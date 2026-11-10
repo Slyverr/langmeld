@@ -4,8 +4,35 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{Associativity, ExpressionGrammar, OperatorFixity};
 
-/// Maximum recursive expression nesting accepted by the parser.
+/// Maximum nested expression-tree depth accepted by the parser.
 pub const MAX_EXPRESSION_NESTING_DEPTH: usize = 128;
+
+/// Input and expression-tree bounds for the expression parser.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExpressionLimits {
+    /// Maximum byte length of the selected source range.
+    pub max_source_bytes: usize,
+    /// Maximum number of tokens emitted from the selected range.
+    pub max_tokens: usize,
+    /// Maximum nested expression-tree depth. Values above
+    /// [`MAX_EXPRESSION_NESTING_DEPTH`] are capped.
+    pub max_nesting_depth: usize,
+}
+
+impl ExpressionLimits {
+    /// Default bounds used by [`ExpressionParser::new`].
+    pub const DEFAULT: Self = Self {
+        max_source_bytes: 4 * 1024 * 1024,
+        max_tokens: 250_000,
+        max_nesting_depth: MAX_EXPRESSION_NESTING_DEPTH,
+    };
+}
+
+impl Default for ExpressionLimits {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 /// A parsed expression and its source range.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -75,18 +102,30 @@ pub struct ExpressionParseResult {
     pub consumed: Span,
     /// Lexical and syntax diagnostics.
     pub diagnostics: Vec<Diagnostic>,
+    /// Whether a parser resource limit stopped or truncated the result.
+    pub resource_limited: bool,
 }
 
 /// Parses source ranges with one validated operator table.
 pub struct ExpressionParser<'a> {
     grammar: &'a ExpressionGrammar,
+    limits: ExpressionLimits,
 }
 
 impl<'a> ExpressionParser<'a> {
     /// Creates a parser backed by an expression grammar.
     #[must_use]
     pub const fn new(grammar: &'a ExpressionGrammar) -> Self {
-        Self { grammar }
+        Self {
+            grammar,
+            limits: ExpressionLimits::DEFAULT,
+        }
+    }
+
+    /// Creates a parser with caller-selected input and expression-tree limits.
+    #[must_use]
+    pub const fn with_limits(grammar: &'a ExpressionGrammar, limits: ExpressionLimits) -> Self {
+        Self { grammar, limits }
     }
 
     /// Parses one expression and requires the selected range to end there.
@@ -127,10 +166,33 @@ impl<'a> ExpressionParser<'a> {
                     "LM-EXPR-001",
                     "expression range is outside the source or not on UTF-8 boundaries",
                 )],
+                resource_limited: false,
             };
         }
 
-        let (tokens, mut diagnostics) = lex(source, range, self.grammar);
+        if range.end - range.start > self.limits.max_source_bytes {
+            let offset =
+                source_limit_offset(source, range.start, self.limits.max_source_bytes, range.end);
+            return ExpressionParseResult {
+                expression: None,
+                consumed: Span::new(range.start, range.start),
+                diagnostics: vec![Diagnostic::error(
+                    "LM-EXPR-012",
+                    format!(
+                        "expression source range exceeds the configured limit of {} bytes",
+                        self.limits.max_source_bytes
+                    ),
+                    source,
+                    Span::new(offset, offset),
+                )],
+                resource_limited: true,
+            };
+        }
+
+        let (tokens, mut diagnostics) = lex(source, range, self.grammar, self.limits.max_tokens);
+        let resource_limited = diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-EXPR-013");
         let mut parser = Parser {
             source,
             tokens,
@@ -138,12 +200,17 @@ impl<'a> ExpressionParser<'a> {
             range_end: range.end,
             diagnostics: &mut diagnostics,
             grammar: self.grammar,
+            max_nesting_depth: self
+                .limits
+                .max_nesting_depth
+                .min(MAX_EXPRESSION_NESTING_DEPTH),
+            resource_limited,
         };
-        let expression = parser.parse_expression(0, terminators, 0);
-        if expression.is_none() && parser.diagnostics.is_empty() {
+        let parsed = parser.parse_expression(0, terminators, 0);
+        if parsed.is_none() && parser.diagnostics.is_empty() {
             parser.error_at("LM-EXPR-002", "expected an expression", range.start);
         }
-        if expression.is_some()
+        if parsed.is_some()
             && let Some(token) = parser.current()
             && !terminators.contains(&parser.token_text(token))
         {
@@ -153,13 +220,17 @@ impl<'a> ExpressionParser<'a> {
                 token.span,
             );
         }
-        let consumed = expression
+        let consumed = parsed
             .as_ref()
-            .map_or(Span::new(range.start, range.start), |root| root.span);
+            .map_or(Span::new(range.start, range.start), |root| {
+                root.expression.span
+            });
+        let resource_limited = parser.resource_limited;
         ExpressionParseResult {
-            expression,
+            expression: parsed.map(|parsed| parsed.expression),
             consumed,
             diagnostics,
+            resource_limited,
         }
     }
 }
@@ -180,6 +251,18 @@ struct Token {
     span: Span,
 }
 
+struct ParsedExpression {
+    expression: Expression,
+    depth: usize,
+}
+
+fn parsed_leaf(expression: Expression) -> ParsedExpression {
+    ParsedExpression {
+        expression,
+        depth: 1,
+    }
+}
+
 struct Parser<'a> {
     source: &'a SourceFile,
     tokens: Vec<Token>,
@@ -187,6 +270,8 @@ struct Parser<'a> {
     range_end: usize,
     diagnostics: &'a mut Vec<Diagnostic>,
     grammar: &'a ExpressionGrammar,
+    max_nesting_depth: usize,
+    resource_limited: bool,
 }
 
 impl Parser<'_> {
@@ -195,11 +280,9 @@ impl Parser<'_> {
         minimum_binding_power: u64,
         terminators: &[&str],
         depth: usize,
-    ) -> Option<Expression> {
-        if depth >= MAX_EXPRESSION_NESTING_DEPTH {
-            self.error_at(
-                "LM-EXPR-004",
-                "maximum expression nesting depth exceeded",
+    ) -> Option<ParsedExpression> {
+        if depth >= self.max_nesting_depth {
+            self.report_depth_limit(
                 self.current()
                     .map_or(self.range_end, |token| token.span.start),
             );
@@ -217,40 +300,50 @@ impl Parser<'_> {
         {
             let expression =
                 self.parse_expression(u64::from(operator.precedence), terminators, depth + 1)?;
-            Expression {
-                span: Span::new(token.span.start, expression.span.end),
-                kind: ExpressionKind::Prefix {
-                    operator: operator.token.clone(),
-                    operand: Box::new(expression),
+            let node_depth = expression.depth + 1;
+            self.ensure_depth(node_depth, token.span)?;
+            ParsedExpression {
+                depth: node_depth,
+                expression: Expression {
+                    span: Span::new(token.span.start, expression.expression.span.end),
+                    kind: ExpressionKind::Prefix {
+                        operator: operator.token.clone(),
+                        operand: Box::new(expression.expression),
+                    },
                 },
             }
         } else {
             match token.kind {
-                TokenKind::Identifier => Expression {
+                TokenKind::Identifier => parsed_leaf(Expression {
                     kind: ExpressionKind::Name(self.token_text(token).to_owned()),
                     span: token.span,
-                },
-                TokenKind::Integer => Expression {
+                }),
+                TokenKind::Integer => parsed_leaf(Expression {
                     kind: ExpressionKind::Integer(self.token_text(token).to_owned()),
                     span: token.span,
-                },
-                TokenKind::String => Expression {
+                }),
+                TokenKind::String => parsed_leaf(Expression {
                     kind: ExpressionKind::String(self.token_text(token).to_owned()),
                     span: token.span,
-                },
+                }),
                 TokenKind::Punctuation if self.token_text(token) == "(" => {
                     let inner = self.parse_expression(0, &[")"], depth + 1)?;
                     let Some(close) = self
                         .current()
                         .filter(|token| self.token_text(*token) == ")")
                     else {
-                        self.error_at("LM-EXPR-005", "expected `)`", inner.span.end);
+                        self.error_at("LM-EXPR-005", "expected `)`", inner.expression.span.end);
                         return None;
                     };
                     self.cursor += 1;
-                    Expression {
-                        span: Span::new(token.span.start, close.span.end),
-                        kind: ExpressionKind::Group(Box::new(inner)),
+                    let node_depth = inner.depth + 1;
+                    self.ensure_depth(node_depth, token.span)?;
+                    ParsedExpression {
+                        depth: node_depth,
+                        expression: Expression {
+                            span: Span::new(token.span.start, close.span.end),
+                            kind: ExpressionKind::Group(Box::new(inner.expression)),
+                        },
                     }
                 }
                 _ => {
@@ -284,11 +377,16 @@ impl Parser<'_> {
                         return None;
                     };
                     self.cursor += 1;
-                    left = Expression {
-                        span: Span::new(left.span.start, name.span.end),
-                        kind: ExpressionKind::Member {
-                            target: Box::new(left),
-                            name: self.token_text(name).to_owned(),
+                    let node_depth = left.depth + 1;
+                    self.ensure_depth(node_depth, next.span)?;
+                    left = ParsedExpression {
+                        depth: node_depth,
+                        expression: Expression {
+                            span: Span::new(left.expression.span.start, name.span.end),
+                            kind: ExpressionKind::Member {
+                                target: Box::new(left.expression),
+                                name: self.token_text(name).to_owned(),
+                            },
                         },
                     };
                     continue;
@@ -300,15 +398,24 @@ impl Parser<'_> {
                         .current()
                         .filter(|token| self.token_text(*token) == "]")
                     else {
-                        self.error_at("LM-EXPR-007", "expected `]` after index", index.span.end);
+                        self.error_at(
+                            "LM-EXPR-007",
+                            "expected `]` after index",
+                            index.expression.span.end,
+                        );
                         return None;
                     };
                     self.cursor += 1;
-                    left = Expression {
-                        span: Span::new(left.span.start, close.span.end),
-                        kind: ExpressionKind::Index {
-                            target: Box::new(left),
-                            index: Box::new(index),
+                    let node_depth = left.depth.max(index.depth) + 1;
+                    self.ensure_depth(node_depth, next.span)?;
+                    left = ParsedExpression {
+                        depth: node_depth,
+                        expression: Expression {
+                            span: Span::new(left.expression.span.start, close.span.end),
+                            kind: ExpressionKind::Index {
+                                target: Box::new(left.expression),
+                                index: Box::new(index.expression),
+                            },
                         },
                     };
                     continue;
@@ -336,28 +443,35 @@ impl Parser<'_> {
                 Associativity::Right => u64::from(operator.precedence),
             };
             let right = self.parse_expression(right_binding_power, terminators, depth + 1)?;
-            left = Expression {
-                span: Span::new(left.span.start, right.span.end),
-                kind: ExpressionKind::Infix {
-                    operator: operator.token,
-                    left: Box::new(left),
-                    right: Box::new(right),
+            let node_depth = left.depth.max(right.depth) + 1;
+            self.ensure_depth(node_depth, operator_span)?;
+            left = ParsedExpression {
+                depth: node_depth,
+                expression: Expression {
+                    span: Span::new(left.expression.span.start, right.expression.span.end),
+                    kind: ExpressionKind::Infix {
+                        operator: operator.token,
+                        left: Box::new(left.expression),
+                        right: Box::new(right.expression),
+                    },
                 },
             };
         }
         Some(left)
     }
 
-    fn parse_call(&mut self, callee: Expression, depth: usize) -> Option<Expression> {
+    fn parse_call(&mut self, callee: ParsedExpression, depth: usize) -> Option<ParsedExpression> {
         let open = self.advance()?;
         let mut arguments = Vec::new();
+        let mut child_depth = callee.depth;
         if self
             .current()
             .is_some_and(|token| self.token_text(token) != ")")
         {
             loop {
                 let argument = self.parse_expression(0, &[",", ")"], depth + 1)?;
-                arguments.push(argument);
+                child_depth = child_depth.max(argument.depth);
+                arguments.push(argument.expression);
                 if self
                     .current()
                     .is_some_and(|token| self.token_text(token) == ",")
@@ -382,13 +496,36 @@ impl Parser<'_> {
             return None;
         };
         self.cursor += 1;
-        Some(Expression {
-            span: Span::new(callee.span.start, close.span.end),
-            kind: ExpressionKind::Call {
-                callee: Box::new(callee),
-                arguments,
+        let node_depth = child_depth + 1;
+        self.ensure_depth(node_depth, open.span)?;
+        Some(ParsedExpression {
+            depth: node_depth,
+            expression: Expression {
+                span: Span::new(callee.expression.span.start, close.span.end),
+                kind: ExpressionKind::Call {
+                    callee: Box::new(callee.expression),
+                    arguments,
+                },
             },
         })
+    }
+
+    fn ensure_depth(&mut self, depth: usize, span: Span) -> Option<()> {
+        if depth <= self.max_nesting_depth {
+            Some(())
+        } else {
+            self.report_depth_limit(span.start);
+            None
+        }
+    }
+
+    fn report_depth_limit(&mut self, offset: usize) {
+        self.resource_limited = true;
+        self.error_at(
+            "LM-EXPR-004",
+            "maximum expression nesting depth exceeded",
+            offset,
+        );
     }
 
     fn current(&self) -> Option<Token> {
@@ -419,6 +556,7 @@ fn lex(
     source: &SourceFile,
     range: Span,
     grammar: &ExpressionGrammar,
+    max_tokens: usize,
 ) -> (Vec<Token>, Vec<Diagnostic>) {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
@@ -433,6 +571,15 @@ fn lex(
             continue;
         }
         let start = cursor;
+        if tokens.len() == max_tokens {
+            diagnostics.push(Diagnostic::error(
+                "LM-EXPR-013",
+                format!("expression token count exceeds the configured limit of {max_tokens}"),
+                source,
+                Span::new(start, start + character.len_utf8()),
+            ));
+            break;
+        }
         let (kind, end) = if character == '"' {
             let mut escaped = false;
             let mut end = cursor + character.len_utf8();
@@ -513,4 +660,12 @@ fn lex(
         cursor = end;
     }
     (tokens, diagnostics)
+}
+
+fn source_limit_offset(source: &SourceFile, start: usize, limit: usize, end: usize) -> usize {
+    let mut offset = start + limit.min(end - start);
+    while !source.text.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    offset
 }

@@ -1,6 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_expression::{
-    Associativity, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
+    Associativity, ExpressionGrammar, ExpressionKind, ExpressionLimits, ExpressionParser,
+    OperatorSpec,
 };
 
 fn arithmetic() -> ExpressionGrammar {
@@ -119,6 +120,102 @@ fn caps_nested_expression_depth() {
     let parsed = ExpressionParser::new(&grammar).parse(&source, Span::new(0, source.text.len()));
 
     assert!(parsed.diagnostics.iter().any(|d| d.code == "LM-EXPR-004"));
+    assert!(parsed.resource_limited);
+}
+
+#[test]
+fn rejects_expression_ranges_over_the_configured_source_limit() {
+    let source = SourceFile::new("expression", "prefix 1 + 2 suffix");
+    let grammar = arithmetic();
+    let parser = ExpressionParser::with_limits(
+        &grammar,
+        ExpressionLimits {
+            max_source_bytes: 4,
+            ..ExpressionLimits::default()
+        },
+    );
+
+    let parsed = parser.parse(&source, Span::new(7, 12));
+
+    assert!(parsed.resource_limited);
+    assert!(parsed.expression.is_none());
+    assert_eq!(parsed.diagnostics[0].code, "LM-EXPR-012");
+    assert_eq!(
+        parsed.diagnostics[0].location.as_ref().unwrap().span,
+        Span::new(11, 11)
+    );
+}
+
+#[test]
+fn token_limit_keeps_the_parsed_expression_prefix_and_marks_it_limited() {
+    let source = SourceFile::new("expression", "1 + 2 + 3");
+    let grammar = arithmetic();
+    let parser = ExpressionParser::with_limits(
+        &grammar,
+        ExpressionLimits {
+            max_tokens: 3,
+            ..ExpressionLimits::default()
+        },
+    );
+
+    let parsed = parser.parse(&source, Span::new(0, source.text.len()));
+
+    assert!(parsed.resource_limited);
+    assert!(parsed.expression.is_some());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-EXPR-013")
+    );
+}
+
+#[test]
+fn limits_left_associative_and_postfix_tree_depth() {
+    let grammar = arithmetic();
+    let source = SourceFile::new("expression", "a.b.c.d");
+    let parser = ExpressionParser::with_limits(
+        &grammar,
+        ExpressionLimits {
+            max_nesting_depth: 3,
+            ..ExpressionLimits::default()
+        },
+    );
+
+    let parsed = parser.parse(&source, Span::new(0, source.text.len()));
+
+    assert!(parsed.resource_limited);
+    assert!(parsed.expression.is_none());
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-EXPR-004")
+    );
+}
+
+#[test]
+fn configured_expression_depth_cannot_raise_the_hard_limit() {
+    let grammar = arithmetic();
+    let nested = format!("{}1{}", "(".repeat(140), ")".repeat(140));
+    let source = SourceFile::new("nested", nested);
+    let parser = ExpressionParser::with_limits(
+        &grammar,
+        ExpressionLimits {
+            max_nesting_depth: usize::MAX,
+            ..ExpressionLimits::default()
+        },
+    );
+
+    let parsed = parser.parse(&source, Span::new(0, source.text.len()));
+
+    assert!(parsed.resource_limited);
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-EXPR-004")
+    );
 }
 
 #[test]

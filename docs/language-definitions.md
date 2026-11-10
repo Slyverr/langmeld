@@ -142,6 +142,28 @@ valid prefix. These limits do not constrain custom `LanguageParser`
 implementations, which own their parsing behavior and must choose their own
 resource policy.
 
+The expression parser defaults to a 4 MiB selected-range limit, 250,000 tokens,
+and 128 levels of expression-tree depth. Configure these limits when creating
+the parser:
+
+```rust,ignore
+use langmeld_expression::{ExpressionLimits, ExpressionParser};
+
+let parser = ExpressionParser::with_limits(
+    &grammar,
+    ExpressionLimits {
+        max_tokens: 50_000,
+        ..ExpressionLimits::default()
+    },
+);
+let result = parser.parse(&source, range);
+```
+
+`ExpressionParseResult::resource_limited` distinguishes a truncated token stream
+or depth-limited parse. The expression parser caps configured expression-tree
+depth at 128, including long member or operator chains; host parsers that do not
+use it own their resource policy.
+
 ## Loading a project
 
 `parse_language_definition` handles one source file and reports an error if

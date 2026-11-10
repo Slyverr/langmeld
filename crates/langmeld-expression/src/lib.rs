@@ -6,6 +6,6 @@ mod parser;
 
 pub use grammar::{Associativity, ExpressionGrammar, GrammarError, OperatorFixity, OperatorSpec};
 pub use parser::{
-    Expression, ExpressionKind, ExpressionParseResult, ExpressionParser,
+    Expression, ExpressionKind, ExpressionLimits, ExpressionParseResult, ExpressionParser,
     MAX_EXPRESSION_NESTING_DEPTH,
 };
