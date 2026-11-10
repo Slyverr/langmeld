@@ -73,7 +73,9 @@ pub trait LanguageBackend: Send + Sync + 'static {
     /// same order, for every supplied source. Each result must carry that
     /// source's identity. Returning `None` keeps the server's default
     /// per-document analysis behavior. Workspace-aware backends can use this
-    /// hook to account for unsaved changes in related open files.
+    /// hook to account for unsaved changes in related open files. If a
+    /// returned workspace does not match the supplied snapshots, the server
+    /// falls back to analyzing each open document separately.
     fn analyze_workspace(
         &self,
         _sources: &[SourceFile],

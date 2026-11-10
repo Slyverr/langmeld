@@ -495,6 +495,7 @@ impl<B: LanguageBackend> ServerState<B> {
             .map(|(_, _, _, source)| source.clone())
             .collect::<Vec<_>>();
         let workspace = self.backend.analyze_workspace(&sources);
+        let has_workspace_result = workspace.is_some();
         if let Some(analyses) = workspace.filter(|analyses| {
             analyses.len() == entries.len()
                 && analyses
@@ -503,6 +504,23 @@ impl<B: LanguageBackend> ServerState<B> {
                     .all(|(analysis, (_, _, _, source))| analysis.source == source.identity())
         }) {
             for ((uri, source_id, version, source), analysis) in entries.into_iter().zip(analyses) {
+                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
+                self.documents.insert(
+                    uri.clone(),
+                    OpenDocument {
+                        source_id,
+                        version,
+                        analysis,
+                    },
+                );
+                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+            }
+            return Ok(());
+        }
+
+        if has_workspace_result {
+            for (uri, source_id, version, source) in entries {
+                let analysis = self.backend.analyze(&source);
                 let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
                 self.documents.insert(
                     uri.clone(),

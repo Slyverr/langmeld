@@ -1,6 +1,10 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
     thread,
     time::Duration,
 };
@@ -702,6 +706,98 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert_eq!(labels, ["print"]);
 
     send_request(&client, 3, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[derive(Clone, Default)]
+struct InvalidWorkspaceBackend(Arc<AtomicUsize>);
+
+impl LanguageBackend for InvalidWorkspaceBackend {
+    type Document = ();
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        let count = self.0.load(Ordering::Relaxed);
+        BackendDocument::new(
+            source,
+            (),
+            vec![Diagnostic::error(
+                format!("OPEN-{count}"),
+                "workspace fallback analysis",
+                source,
+                Span::new(0, 0),
+            )],
+        )
+    }
+
+    fn analyze_workspace(
+        &self,
+        sources: &[SourceFile],
+    ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        self.0.store(sources.len(), Ordering::Relaxed);
+        Some(
+            sources
+                .iter()
+                .map(|_| BackendDocument {
+                    source: None,
+                    state: (),
+                    diagnostics: Vec::new(),
+                })
+                .collect(),
+        )
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities::default()
+    }
+}
+
+#[test]
+fn invalid_workspace_results_reanalyze_every_open_document() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, InvalidWorkspaceBackend::default());
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({"capabilities": {}}));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":"file:///first.test","languageId":"test","version":1,"text":"first"}}),
+    );
+    let first = receive_diagnostics(&client);
+    assert_eq!(first["uri"], "file:///first.test");
+    assert_eq!(first["diagnostics"][0]["code"], "OPEN-1");
+
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":"file:///second.test","languageId":"test","version":1,"text":"second"}}),
+    );
+    let refreshed = [receive_diagnostics(&client), receive_diagnostics(&client)];
+    let first_after_refresh = refreshed
+        .iter()
+        .find(|diagnostics| diagnostics["uri"] == "file:///first.test")
+        .expect("fallback refreshes the previously open source");
+    let second_after_refresh = refreshed
+        .iter()
+        .find(|diagnostics| diagnostics["uri"] == "file:///second.test")
+        .expect("fallback analyzes the newly opened source");
+    assert_eq!(first_after_refresh["diagnostics"][0]["code"], "OPEN-2");
+    assert_eq!(second_after_refresh["diagnostics"][0]["code"], "OPEN-2");
+
+    send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
