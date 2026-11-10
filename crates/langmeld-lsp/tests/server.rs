@@ -793,11 +793,13 @@ fn refreshes_open_document_diagnostics_after_workspace_events() {
 }
 
 #[test]
-fn serves_diagnostics_completion_navigation_and_full_document_changes() {
+fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
+    let backend = Backend::default();
+    let observed = Backend(backend.0.clone());
     let server_thread = thread::spawn(move || {
-        let result = run_connection(server_connection, Backend::default());
+        let result = run_connection(server_connection, backend);
         server_sender
             .send(result.map_err(|error| error.to_string()))
             .unwrap();
@@ -819,6 +821,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     );
     let initialized = receive_response(&client);
     assert_eq!(initialized["capabilities"]["positionEncoding"], "utf-16");
+    assert_eq!(initialized["capabilities"]["textDocumentSync"], 2);
     assert!(initialized["capabilities"].get("workspace").is_none());
     assert!(initialized["capabilities"]["completionProvider"].is_object());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
@@ -1088,12 +1091,28 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         "textDocument/didChange",
         json!({
             "textDocument": { "uri": uri, "version": 2 },
-            "contentChanges": [{ "text": "f😀\r\nx" }]
+            "contentChanges": [
+                {
+                    "range": {
+                        "start": { "line": 0, "character": 2 },
+                        "end": { "line": 0, "character": 5 }
+                    },
+                    "text": "good"
+                },
+                {
+                    "range": {
+                        "start": { "line": 0, "character": 6 },
+                        "end": { "line": 0, "character": 6 }
+                    },
+                    "text": "!"
+                }
+            ]
         }),
     );
     let changed = receive_diagnostics(&client);
     assert!(changed["diagnostics"].as_array().unwrap().is_empty());
     assert_eq!(changed["version"], 2);
+    assert_eq!(observed.0.lock().unwrap().get(uri).unwrap().text, "😀good!");
 
     send_request(
         &client,
@@ -1102,7 +1121,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         json!({ "textDocument": { "uri": uri } }),
     );
     let tokens = receive_response(&client);
-    assert_eq!(tokens["data"], json!([0, 0, 3, 0, 0, 1, 0, 1, 0, 0]));
+    assert_eq!(tokens["data"], json!([0, 0, 2, 0, 1, 0, 2, 3, 0, 0]));
 
     // Older document versions must not replace the current snapshot or publish
     // stale diagnostics.

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error};
 
-use langmeld_core::{PositionEncoding, SourceDatabase, SourceId};
+use langmeld_core::{PositionEncoding, SourceDatabase, SourceFile, SourceId};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeConfigurationParams,
@@ -10,9 +10,9 @@ use lsp_types::{
     HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
     PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, Registration,
     RegistrationParams, RenameParams, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    TextDocumentContentChangeEvent, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde_json::{Value, json};
 
@@ -598,10 +598,15 @@ impl<B: LanguageBackend> ServerState<B> {
         if params.text_document.version <= current.version {
             return Ok(());
         }
-        let Some(change) = params.content_changes.last() else {
+        let Some(source) = self.sources.get(current.source_id) else {
             return Ok(());
         };
-        let source_id = self.sources.upsert(uri.as_str(), change.text.clone())?;
+        let Some(text) =
+            apply_content_changes(source.text.clone(), &params.content_changes, self.encoding)
+        else {
+            return Ok(());
+        };
+        let source_id = self.sources.upsert(uri.as_str(), text)?;
         self.refresh(uri, source_id, params.text_document.version, connection)
     }
 
@@ -778,6 +783,27 @@ fn parse_notification<T: serde::de::DeserializeOwned>(
         .flatten()
 }
 
+fn apply_content_changes(
+    mut text: String,
+    changes: &[TextDocumentContentChangeEvent],
+    encoding: PositionEncoding,
+) -> Option<String> {
+    for change in changes {
+        let Some(range) = change.range.as_ref() else {
+            text.clone_from(&change.text);
+            continue;
+        };
+        let source = SourceFile::new("", text.clone());
+        let start = byte_offset(&source, range.start, encoding)?;
+        let end = byte_offset(&source, range.end, encoding)?;
+        if start > end {
+            return None;
+        }
+        text.replace_range(start..end, &change.text);
+    }
+    Some(text)
+}
+
 fn negotiate_encoding(params: &InitializeParams) -> PositionEncoding {
     params
         .capabilities
@@ -810,7 +836,9 @@ fn server_capabilities(
             PositionEncoding::Utf16 => PositionEncodingKind::UTF16,
             PositionEncoding::Utf32 => PositionEncodingKind::UTF32,
         }),
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(
+            TextDocumentSyncKind::INCREMENTAL,
+        )),
         completion_provider: backend.completion.then(CompletionOptions::default),
         definition_provider: backend.definition.then_some(lsp_types::OneOf::Left(true)),
         references_provider: backend.references.then_some(lsp_types::OneOf::Left(true)),
