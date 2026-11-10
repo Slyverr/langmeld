@@ -11,6 +11,7 @@ license.workspace = true
 langmeld-core.workspace = true
 langmeld-language.workspace = true
 langmeld-project.workspace = true
+geometry-language-extension-example = { path = "../geometry-extension" }
 
 [lints]
 workspace = true

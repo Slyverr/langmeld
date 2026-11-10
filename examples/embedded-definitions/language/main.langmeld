@@ -1,5 +1,5 @@
 language "Geometry" {
-    import "extensions/drawing.langmeld";
+    import "extensions/geometry/drawing.langmeld";
     root "program";
 
     construct "program" {

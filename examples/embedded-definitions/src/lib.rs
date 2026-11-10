@@ -3,8 +3,6 @@ use langmeld_language::{ParseResult, parse, parse_language_definition_project};
 use langmeld_project::InMemoryDefinitionResolver;
 
 const ROOT_KEY: &str = "language/main.langmeld";
-const DRAWING_KEY: &str = "language/extensions/drawing.langmeld";
-const DRAWING_DEFINITION: &str = include_str!("../language/extensions/drawing.langmeld");
 const PROGRAM: &str = "program { draw circle; }";
 
 /// Loads a project definition with a Rust-embedded module and parses its sample.
@@ -14,12 +12,11 @@ pub fn parse_example() -> Result<ParseResult, String> {
     resolver
         .insert(ROOT_KEY, root_source)
         .map_err(|error| error.to_string())?;
-    resolver
-        .insert(
-            DRAWING_KEY,
-            SourceFile::new(DRAWING_KEY, DRAWING_DEFINITION),
-        )
-        .map_err(|error| error.to_string())?;
+    for &(key, text) in geometry_language_extension_example::DEFINITION_SOURCES {
+        resolver
+            .insert(key, SourceFile::new(key, text))
+            .map_err(|error| error.to_string())?;
+    }
     let root = resolver.load(ROOT_KEY).map_err(|error| error.to_string())?;
     let definition = parse_language_definition_project(root, &resolver);
     if !definition.is_valid() {
