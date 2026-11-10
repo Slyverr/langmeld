@@ -1,6 +1,6 @@
 //! Contracts for host-owned parsers and parse trees.
 
-use langmeld_core::{Diagnostic, SourceFile, SourceIdentity};
+use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 
 use crate::CompletionCandidate;
 
@@ -113,4 +113,33 @@ pub trait LanguageCompleter<P: LanguageParser> {
         analysis: Option<&AnalysisDocument<Self::Analysis>>,
         offset: usize,
     ) -> Vec<CompletionCandidate>;
+}
+
+/// Host-defined symbol navigation for a parser-owned syntax tree.
+///
+/// Name resolution stays with the host language, which can use lexical scopes,
+/// global namespaces, or another policy. Results use source locations so
+/// editor adapters can navigate without interpreting the host's analysis type.
+pub trait LanguageNavigator<P: LanguageParser> {
+    /// Language-specific semantic result used by this provider.
+    type Analysis;
+
+    /// Finds declaration locations for the symbol at `offset`.
+    fn definition(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<P::Tree>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        offset: usize,
+    ) -> Vec<SourceLocation>;
+
+    /// Finds uses of the symbol at `offset`, optionally including its declaration.
+    fn references(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<P::Tree>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<SourceLocation>;
 }

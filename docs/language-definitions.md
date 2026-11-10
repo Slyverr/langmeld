@@ -165,6 +165,15 @@ completion does not need semantic analysis. This keeps completion behavior
 with the host language while allowing an editor integration to reuse its
 current parse and analysis results.
 
+For definition and references queries, implement `LanguageNavigator<P>`. The
+host receives the same parsed and optional analyzed snapshot and returns
+`SourceLocation`s for the selected symbol. This supports different resolution
+policies while keeping the result consumable by editor adapters. `definition_at`
+and `references_at` reject stale database-managed snapshots, invalid query
+offsets, malformed spans, and invalid locations in the current source. Hosts
+remain responsible for validating locations in other source files. Detached
+sources have no revision identity, as with completions.
+
 ## Syntax completions
 
 `complete_at` returns grammar-derived construct-start tokens accepted at a byte

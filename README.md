@@ -14,13 +14,14 @@ lexer while reusing the generic parser, or implement `LanguageParser` and keep
 their own parse-tree type. A host can optionally implement `LanguageAnalyzer`
 to return its own semantic result and diagnostics without adopting
 framework-defined symbol or type rules, and `LanguageCompleter` to provide
-completion candidates from an existing parse and optional analysis result. The
+completion candidates and `LanguageNavigator` to provide definition and
+reference queries from an existing parse and optional analysis result. The
 separate `langmeld-expression` crate provides a configurable, source-spanned
-expression parser; typing and evaluation remain host-owned. Project definitions
-can explicitly import local construct files through a host-provided resolver.
-Declarative grammars also provide scoped syntax-token completion candidates;
-editor protocols and other host-tree tooling remain future work. The
-`langmeld-project` crate provides a
+expression parser; typing and evaluation remain host-owned. Project
+definitions can explicitly import local construct files through a host-provided
+resolver. Declarative grammars also provide scoped syntax-token completion
+candidates. Langmeld does not yet provide an editor protocol server or generated
+editor artifacts. The `langmeld-project` crate provides a
 directory-backed resolver for modular `.lm` projects, with project-root
 confinement and source snapshots for diagnostic display.
 

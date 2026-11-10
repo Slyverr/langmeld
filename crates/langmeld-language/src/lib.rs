@@ -4,6 +4,7 @@
 mod completion;
 mod definition;
 mod host;
+mod navigation;
 mod parser;
 mod spec;
 
@@ -13,8 +14,10 @@ pub use definition::{
     parse_language_definition, parse_language_definition_project,
 };
 pub use host::{
-    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageParser, ParsedDocument,
+    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
+    ParsedDocument,
 };
+pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
     CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseResult,
