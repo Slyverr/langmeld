@@ -70,6 +70,8 @@ construct "function" {
 Pattern items match lexer tokens in order:
 
 - `literal "...";` matches an exact token.
+- `token "field";` captures any valid token from the lexer and preserves its
+  text and `TokenKind` in the parsed field.
 - `identifier "field";`, `integer "field";`, and `string "field";`
   capture one token of that lexical category under a field name.
 - `optional { ... }` matches its sequence zero or one times.
@@ -78,7 +80,9 @@ Pattern items match lexer tokens in order:
 
 Captured values preserve their lexical text. For example, integer captures
 are not parsed into numeric values and strings retain their quotes. Hosts
-decide how to validate or interpret them.
+decide how to validate or interpret them. `token` is useful for a host lexer
+that recognizes a language-specific form; it accepts any non-invalid token
+and leaves classification or validation to the host.
 
 The definition validator rejects duplicate names, invalid literals, empty or
 nullable patterns, and ambiguous syntax boundaries it can identify. It does

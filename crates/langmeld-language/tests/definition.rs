@@ -150,6 +150,38 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
 }
 
 #[test]
+fn definition_frontend_lowers_generic_token_captures() {
+    let source = SourceFile::new(
+        "language.lm",
+        r#"language "TaggedTokens" {
+            construct "emit" {
+                syntax {
+                    literal "emit";
+                    token "value";
+                    literal ";";
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let parsed = parse(
+        &SourceFile::new("main.tag", "emit @;"),
+        definition.language.as_ref().unwrap(),
+    );
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::Token {
+            text: "@".into(),
+            kind: langmeld_language::TokenKind::Punctuation,
+        }
+    );
+}
+
+#[test]
 fn composes_nested_imports_and_keeps_construct_source_locations() {
     let root = DefinitionSource::new(
         "root",

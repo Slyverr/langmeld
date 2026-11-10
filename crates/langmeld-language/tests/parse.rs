@@ -407,6 +407,72 @@ fn custom_lexer_can_supply_host_specific_string_tokens() {
 }
 
 #[test]
+fn generic_token_capture_preserves_custom_lexer_text_and_kind() {
+    struct TaggedTokenLexer;
+
+    impl Lexer for TaggedTokenLexer {
+        fn lex(&self, _source: &SourceFile) -> LexOutput {
+            LexOutput {
+                tokens: vec![
+                    LexedToken {
+                        text: "emit".into(),
+                        kind: TokenKind::Identifier,
+                        span: Span::new(0, 4),
+                    },
+                    LexedToken {
+                        text: "@tag".into(),
+                        kind: TokenKind::Punctuation,
+                        span: Span::new(5, 9),
+                    },
+                    LexedToken {
+                        text: ";".into(),
+                        kind: TokenKind::Punctuation,
+                        span: Span::new(9, 10),
+                    },
+                ],
+                diagnostics: Vec::new(),
+            }
+        }
+    }
+
+    let grammar = LanguageSpec::new(
+        "TaggedTokens",
+        [ConstructSpec::new(
+            "emit",
+            [
+                PatternPart::literal("emit"),
+                PatternPart::token("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("tags", "emit @tag;");
+
+    let parsed = parse_with_lexer(&source, &grammar, &TaggedTokenLexer);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::Token {
+            text: "@tag".into(),
+            kind: TokenKind::Punctuation,
+        }
+    );
+}
+
+#[test]
+fn generic_token_patterns_are_checked_for_ambiguity() {
+    let wildcard = ConstructSpec::new("wildcard", [PatternPart::token("value")]);
+    let literal = ConstructSpec::new("keyword", [PatternPart::literal("while")]);
+
+    assert!(matches!(
+        LanguageSpec::new("Ambiguous", [wildcard, literal]),
+        Err(langmeld_language::SpecError::AmbiguousConstructs(_, _))
+    ));
+}
+
+#[test]
 fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
     struct IncorrectLexer;
 

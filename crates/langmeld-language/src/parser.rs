@@ -58,6 +58,13 @@ impl Lexer for DefaultLexer {
 /// A field value captured by a syntax pattern.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CapturedValue {
+    /// Text and lexical category captured without narrowing its token type.
+    Token {
+        /// Exact source text of the token.
+        text: String,
+        /// Lexical category provided by the lexer.
+        kind: TokenKind,
+    },
     /// Identifier text without transformation.
     Identifier(String),
     /// Decimal integer text preserved as written.
@@ -108,7 +115,7 @@ pub const MAX_NESTING_DEPTH: usize = 128;
 
 /// Parses source using a validated token-pattern language specification.
 ///
-/// The generic parser supports token patterns, primitive lexical captures,
+/// The generic parser supports token patterns, typed and generic captures,
 /// and nested blocks whose child constructs are explicitly listed in the
 /// grammar. Expressions, custom lexers, and custom parser hooks remain host or
 /// future API concerns.
@@ -403,6 +410,10 @@ fn match_sequence<'a>(
                 fields.push(CapturedField {
                     name: name.clone(),
                     value: match kind {
+                        FieldKind::Token => CapturedValue::Token {
+                            text: token.text.clone(),
+                            kind: token.kind,
+                        },
                         FieldKind::Identifier => CapturedValue::Identifier(token.text.clone()),
                         FieldKind::Integer => CapturedValue::Integer(token.text.clone()),
                         FieldKind::String => CapturedValue::String(token.text.clone()),
@@ -467,6 +478,10 @@ fn describe_pattern(part: &PatternPart) -> &'static str {
     match part {
         PatternPart::Literal(_) => "the expected token",
         PatternPart::Field {
+            kind: FieldKind::Token,
+            ..
+        } => "a token",
+        PatternPart::Field {
             kind: FieldKind::Identifier,
             ..
         } => "an identifier",
@@ -483,6 +498,9 @@ fn describe_pattern(part: &PatternPart) -> &'static str {
 }
 
 fn accepts(expected: FieldKind, actual: TokenKind) -> bool {
+    if expected == FieldKind::Token {
+        return actual != TokenKind::Invalid;
+    }
     matches!(
         (expected, actual),
         (FieldKind::Identifier, TokenKind::Identifier)

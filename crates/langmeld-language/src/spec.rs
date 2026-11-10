@@ -5,6 +5,8 @@ use std::collections::HashSet;
 /// The token category accepted by a captured syntax field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldKind {
+    /// Any valid token, including punctuation and host-defined lexical forms.
+    Token,
     /// A language identifier token.
     Identifier,
     /// A decimal integer token, preserved as written.
@@ -52,6 +54,15 @@ impl PatternPart {
     #[must_use]
     pub fn literal(value: impl Into<String>) -> Self {
         Self::Literal(value.into())
+    }
+
+    /// Captures any valid token under a field name.
+    #[must_use]
+    pub fn token(name: impl Into<String>) -> Self {
+        Self::Field {
+            name: name.into(),
+            kind: FieldKind::Token,
+        }
     }
 
     /// Captures an identifier token under a field name.
@@ -411,11 +422,11 @@ fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
     match (left, right) {
         (PatternPart::Literal(left), PatternPart::Literal(right)) => left == right,
         (PatternPart::Field { kind: left, .. }, PatternPart::Field { kind: right, .. }) => {
-            left == right
+            field_kinds_overlap(*left, *right)
         }
         (PatternPart::Literal(literal), PatternPart::Field { kind, .. })
         | (PatternPart::Field { kind, .. }, PatternPart::Literal(literal)) => {
-            literal_kind(literal) == Some(*kind)
+            *kind == FieldKind::Token || literal_kind(literal) == Some(*kind)
         }
         (PatternPart::Optional(_), _)
         | (PatternPart::Repeat { .. }, _)
@@ -516,12 +527,16 @@ fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
 fn first_matchers_overlap(left: FirstMatcher<'_>, right: FirstMatcher<'_>) -> bool {
     match (left, right) {
         (FirstMatcher::Literal(left), FirstMatcher::Literal(right)) => left == right,
-        (FirstMatcher::Field(left), FirstMatcher::Field(right)) => left == right,
+        (FirstMatcher::Field(left), FirstMatcher::Field(right)) => field_kinds_overlap(left, right),
         (FirstMatcher::Literal(literal), FirstMatcher::Field(kind))
         | (FirstMatcher::Field(kind), FirstMatcher::Literal(literal)) => {
-            literal_kind(literal) == Some(kind)
+            kind == FieldKind::Token || literal_kind(literal) == Some(kind)
         }
     }
+}
+
+fn field_kinds_overlap(left: FieldKind, right: FieldKind) -> bool {
+    left == right || left == FieldKind::Token || right == FieldKind::Token
 }
 
 fn validate_decision_points(pattern: &[PatternPart], construct: &str) -> Result<(), SpecError> {

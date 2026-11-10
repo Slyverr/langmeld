@@ -517,7 +517,7 @@ fn lower_pattern(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<PatternPart> {
     match node.name.as_str() {
-        "literal" | "identifier" | "integer" | "string" => {
+        "literal" | "token" | "identifier" | "integer" | "string" => {
             let Some(value) = string_field(node, "value").and_then(decode_quoted) else {
                 diagnostics.push(Diagnostic::error(
                     "LM-DEF-006",
@@ -529,6 +529,7 @@ fn lower_pattern(
             };
             Some(match node.name.as_str() {
                 "literal" => PatternPart::literal(value),
+                "token" => PatternPart::token(value),
                 "identifier" => PatternPart::Field {
                     name: value,
                     kind: FieldKind::Identifier,
@@ -651,6 +652,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "}",
                     &[
                         "literal",
+                        "token",
                         "identifier",
                         "integer",
                         "string",
@@ -673,6 +675,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "}",
                     &[
                         "literal",
+                        "token",
                         "identifier",
                         "integer",
                         "string",
@@ -686,6 +689,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "}",
                     &[
                         "literal",
+                        "token",
                         "identifier",
                         "integer",
                         "string",
@@ -699,6 +703,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "}",
                     &[
                         "literal",
+                        "token",
                         "identifier",
                         "integer",
                         "string",
@@ -711,6 +716,14 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "literal",
                     [
                         PatternPart::literal("literal"),
+                        PatternPart::string("value"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "token",
+                    [
+                        PatternPart::literal("token"),
                         PatternPart::string("value"),
                         PatternPart::literal(";"),
                     ],
