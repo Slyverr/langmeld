@@ -85,3 +85,6 @@ jobs:
           --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
           --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
           --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"'
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Check the minimum supported Rust version
+        run: cargo +1.88.0 check --workspace --locked
