@@ -217,6 +217,7 @@ dependencies = [
  "langmeld-core",
  "langmeld-language",
  "langmeld-project",
+ "serde_json",
 ]
 
 [[package]]

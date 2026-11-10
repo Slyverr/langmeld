@@ -1,9 +1,17 @@
 use std::{
     fs,
+    io::{self, BufRead, BufReader, Write},
     path::PathBuf,
-    process::Command,
-    sync::atomic::{AtomicUsize, Ordering},
+    process::{Child, Command, Stdio},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
+    thread,
+    time::Duration,
 };
+
+use serde_json::{Value, json};
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
 
@@ -27,6 +35,64 @@ impl Drop for TestDirectory {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+struct ChildGuard(Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn send_lsp_message(writer: &mut impl Write, message: Value) {
+    let body = serde_json::to_vec(&message).expect("message should serialize");
+    write!(writer, "Content-Length: {}\r\n\r\n", body.len()).unwrap();
+    writer.write_all(&body).unwrap();
+    writer.flush().unwrap();
+}
+
+fn read_lsp_message(reader: &mut impl BufRead) -> io::Result<Value> {
+    let mut content_length = None;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "language server closed stdout",
+            ));
+        }
+        if line == "\r\n" {
+            break;
+        }
+        if let Some((header, value)) = line.split_once(':')
+            && header.eq_ignore_ascii_case("Content-Length")
+        {
+            content_length = Some(
+                value
+                    .trim()
+                    .parse::<usize>()
+                    .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?,
+            );
+        }
+    }
+
+    let mut body = vec![
+        0;
+        content_length.ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "missing Content-Length header")
+        })?
+    ];
+    reader.read_exact(&mut body)?;
+    serde_json::from_slice(&body).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+fn receive_lsp_message(receiver: &mpsc::Receiver<io::Result<Value>>) -> Value {
+    receiver
+        .recv_timeout(Duration::from_secs(3))
+        .expect("language server should respond before timeout")
+        .expect("language server should send a valid LSP message")
 }
 
 #[test]
@@ -205,6 +271,95 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Start an LSP server for a declarative language project"));
     assert!(help.contains("--manifest-path"));
+}
+
+#[test]
+fn lsp_command_loads_the_manifest_and_serves_scoped_completion() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    fs::create_dir_all(project.join("language")).unwrap();
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/language.lm\"\n",
+    )
+    .unwrap();
+    fs::write(
+        project.join("language/language.lm"),
+        "language \"Widget\" { construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } construct \"print\" { syntax { literal \"print\"; identifier \"name\"; literal \";\"; } } }",
+    )
+    .unwrap();
+
+    let mut child = ChildGuard(
+        Command::new(env!("CARGO_BIN_EXE_langmeld"))
+            .args([
+                "lsp",
+                "--manifest-path",
+                project.join("langmeld.toml").to_str().unwrap(),
+            ])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("CLI should start"),
+    );
+    let mut stdin = child.0.stdin.take().unwrap();
+    let stdout = child.0.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        while let Ok(message) = read_lsp_message(&mut reader) {
+            if sender.send(Ok(message)).is_err() {
+                break;
+            }
+        }
+    });
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    let initialized = receive_lsp_message(&receiver);
+    assert_eq!(initialized["id"], 1);
+    assert!(initialized["result"]["capabilities"]["completionProvider"].is_object());
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":"file:///main.widget","languageId":"widget","version":1,"text":"program { pri"}
+            }
+        }),
+    );
+    let diagnostics = receive_lsp_message(&receiver);
+    assert_eq!(diagnostics["method"], "textDocument/publishDiagnostics");
+
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{
+                "textDocument":{"uri":"file:///main.widget"},"position":{"line":0,"character":13}
+            }
+        }),
+    );
+    let completion = receive_lsp_message(&receiver);
+    assert_eq!(completion["id"], 2);
+    assert_eq!(completion["result"][0]["label"], "print");
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 3);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
 }
 
 #[test]
