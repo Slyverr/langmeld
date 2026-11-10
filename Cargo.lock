@@ -13,11 +13,11 @@ dependencies = [
 
 [[package]]
 name = "langmeld-cli"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "langmeld-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "langmeld-custom-lexer-example"
@@ -45,14 +45,14 @@ dependencies = [
 
 [[package]]
 name = "langmeld-language"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-toy-language-example"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
