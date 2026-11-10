@@ -83,6 +83,7 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     assert!(initialized["capabilities"]["completionProvider"].is_null());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);
+    assert_eq!(initialized["capabilities"]["renameProvider"], true);
     assert_eq!(
         initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
         json!(["function", "parameter", "variable"])
@@ -173,7 +174,34 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     let references = receive_response(&client);
     assert_eq!(references.as_array().unwrap().len(), 2);
 
-    send_request(&client, 5, "shutdown", Value::Null);
+    send_request(
+        &client,
+        5,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 1, "character": add_call },
+            "newName": "calculate"
+        }),
+    );
+    let rename = receive_response(&client);
+    assert_eq!(rename["changes"][uri].as_array().unwrap().len(), 2);
+    assert_eq!(rename["changes"][uri][0]["newText"], "calculate");
+    assert_eq!(rename["changes"][uri][1]["newText"], "calculate");
+
+    send_request(
+        &client,
+        6,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 1, "character": add_call },
+            "newName": "main"
+        }),
+    );
+    assert!(receive_response(&client).is_null());
+
+    send_request(&client, 7, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

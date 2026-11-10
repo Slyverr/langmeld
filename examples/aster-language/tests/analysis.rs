@@ -36,6 +36,35 @@ fn navigation_follows_the_resolved_shadowed_local() {
 }
 
 #[test]
+fn refuses_a_rename_that_would_capture_a_reference() {
+    let text = "fn main() -> i32 { let value = 1; { let other = 2; return value; } }";
+    let source = SourceFile::new("main.aster", text);
+    let parsed = parse_program(&source);
+    let analysis = AsterAnalyzer.analyze(&source, &parsed);
+    let value_use = text.rfind("return value").unwrap() + "return ".len();
+
+    let edits = AsterNavigator.rename(&source, &parsed, Some(&analysis), value_use + 1, "other");
+
+    assert!(edits.is_empty());
+}
+
+#[test]
+fn refuses_aster_keywords_and_invalid_identifier_text_as_rename_names() {
+    let text = "fn main() -> i32 { let value = 1; return value; }";
+    let source = SourceFile::new("main.aster", text);
+    let parsed = parse_program(&source);
+    let analysis = AsterAnalyzer.analyze(&source, &parsed);
+    let value_use = text.rfind("return value").unwrap() + "return ".len();
+
+    for new_name in ["return", "string", "not valid", ""] {
+        let edits =
+            AsterNavigator.rename(&source, &parsed, Some(&analysis), value_use + 1, new_name);
+
+        assert!(edits.is_empty(), "unexpected rename to {new_name:?}");
+    }
+}
+
+#[test]
 fn resolves_forward_calls_and_scoped_local_references() {
     let source = SourceFile::new(
         "main.aster",

@@ -39,6 +39,7 @@ impl LanguageBackend for AsterBackend {
         BackendCapabilities {
             definition: true,
             references: true,
+            rename: true,
             semantic_tokens: true,
             ..BackendCapabilities::default()
         }
@@ -101,6 +102,23 @@ impl LanguageBackend for AsterBackend {
             offset,
             include_declaration,
         )
+    }
+
+    fn rename(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        new_name: &str,
+    ) -> Option<Vec<SourceLocation>> {
+        let locations = AsterNavigator.rename(
+            source,
+            &document.state.parsed,
+            Some(&document.state.analysis),
+            offset,
+            new_name,
+        );
+        (!locations.is_empty()).then_some(locations)
     }
 }
 
