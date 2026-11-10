@@ -1010,7 +1010,12 @@ fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers
         &mut stdin,
         json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"didChangeWatchedFiles":{"dynamicRegistration":true,"relativePatternSupport":true}}}}}),
     );
-    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    let initialized = receive_lsp_message(&receiver);
+    assert_eq!(initialized["id"], 1);
+    assert_eq!(
+        initialized["result"]["capabilities"]["documentSymbolProvider"],
+        true
+    );
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
@@ -1038,6 +1043,21 @@ fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers
         receive_lsp_message(&receiver)["method"],
         "textDocument/publishDiagnostics"
     );
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":root_uri}}}),
+    );
+    let symbols = receive_lsp_message(&receiver)["result"].clone();
+    let symbol_names = symbols
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|symbol| symbol["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(symbol_names.contains(&"Widget"));
+    assert!(symbol_names.contains(&"constructs/statements.langmeld"));
+    assert!(symbol_names.contains(&"program"));
+
     let completion_position = root_source.find("allow \"").unwrap() + "allow \"".len();
     send_lsp_message(
         &mut stdin,

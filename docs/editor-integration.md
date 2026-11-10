@@ -3,9 +3,9 @@
 `langmeld-lsp` provides a Language Server Protocol adapter for Langmeld
 languages. It supports full-document replacements and incremental ranged
 changes, diagnostics, completion, go-to-definition, references, host-owned
-rename, hover, and host-provided document symbols and semantic tokens. It also
-supports host-provided full-document formatting and advertises only operations
-enabled by the backend.
+rename, hover, document symbols, and semantic tokens. It also supports
+host-provided full-document formatting and advertises only operations enabled
+by the backend.
 
 ## Declarative languages
 
@@ -18,7 +18,8 @@ hover, rename, document symbols, formatting, or semantic highlighting.
 
 Run `langmeld lsp --definitions` to edit `.langmeld` files with the built-in
 definition grammar. This mode publishes parser diagnostics, context-aware
-syntax completions for root declarations and nested construct syntax, and
+syntax completions for root declarations and nested construct syntax, a
+document outline for language, construct, and import declarations, and
 formatting edits that honor the editor's indentation options. Formatting is
 available only for syntactically valid files. This mode does not run
 definition-level semantic checks without a project manifest. When a manifest is

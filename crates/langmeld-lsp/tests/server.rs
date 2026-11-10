@@ -18,8 +18,8 @@ use langmeld_language::{
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind,
-    HostLanguageBackend, HoverInfo, LanguageBackend, SemanticToken, SemanticTokenLegend,
-    WorkspaceSymbolInfo, run_connection,
+    HostLanguageBackend, HoverInfo, LanguageBackend, LanguageDefinitionBackend, SemanticToken,
+    SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::Uri;
@@ -1648,6 +1648,46 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
         .recv_timeout(Duration::from_secs(2))
         .expect("server thread should finish")
         .expect("server should shut down cleanly");
+}
+
+#[test]
+fn language_definition_backend_exposes_declaration_outline_symbols() {
+    let source = SourceFile::new(
+        "file:///language.langmeld",
+        "language \"Widget\" {\n    root \"program\";\n    import \"constructs/shared.langmeld\";\n    construct \"program\" {\n        syntax { literal \"run\"; }\n    }\n}",
+    );
+    let backend = LanguageDefinitionBackend;
+    let document = backend.analyze(&source);
+
+    assert!(backend.capabilities().document_symbols);
+    let symbols = backend.document_symbols(&source, &document);
+    assert_eq!(symbols.len(), 1);
+    assert_eq!(symbols[0].name, "Widget");
+    assert_eq!(symbols[0].kind, DocumentSymbolKind::Module);
+    assert_eq!(
+        &source.text[symbols[0].selection_range.start..symbols[0].selection_range.end],
+        "\"Widget\""
+    );
+    assert_eq!(symbols[0].children.len(), 2);
+    assert_eq!(symbols[0].children[0].name, "constructs/shared.langmeld");
+    assert_eq!(symbols[0].children[0].kind, DocumentSymbolKind::File);
+    assert_eq!(symbols[0].children[1].name, "program");
+    assert_eq!(symbols[0].children[1].kind, DocumentSymbolKind::Struct);
+    assert_eq!(
+        &source.text[symbols[0].children[1].selection_range.start
+            ..symbols[0].children[1].selection_range.end],
+        "\"program\""
+    );
+
+    let module = SourceFile::new(
+        "file:///constructs/shared.langmeld",
+        r#"construct "draw \"line\"" { syntax { literal "draw"; } }"#,
+    );
+    let module_document = backend.analyze(&module);
+    let module_symbols = backend.document_symbols(&module, &module_document);
+    assert_eq!(module_symbols.len(), 1);
+    assert_eq!(module_symbols[0].name, "draw \"line\"");
+    assert_eq!(module_symbols[0].kind, DocumentSymbolKind::Struct);
 }
 
 #[test]

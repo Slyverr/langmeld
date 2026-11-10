@@ -10,8 +10,8 @@ use langmeld_language::{
     DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
 };
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, BackendWorkspaceCapabilities, LanguageBackend,
-    LanguageDefinitionBackend,
+    BackendCapabilities, BackendDocument, BackendWorkspaceCapabilities, DocumentSymbolInfo,
+    LanguageBackend, LanguageDefinitionBackend,
 };
 use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest};
 use url::Url;
@@ -177,6 +177,14 @@ impl LanguageBackend for ProjectDefinitionBackend {
     ) -> Option<String> {
         self.syntax_backend
             .format_document(source, document, options)
+    }
+
+    fn document_symbols(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+    ) -> Vec<DocumentSymbolInfo> {
+        self.syntax_backend.document_symbols(source, document)
     }
 }
 

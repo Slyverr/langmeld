@@ -14,15 +14,17 @@ opt-in configuration and watched-file events, and workspace analysis so hosts
 can account for unsaved changes across open documents. Configuration and file
 events are registered only when supported by the client. The LSP layer handles
 protocol positions, document versions, semantic-token encoding, and capability
-advertisement. Semantic token names and source spans come from the host; the
-adapter validates the legend, splits multiline spans into line-local tokens,
+advertisement. `LanguageDefinitionBackend` supplies an outline for language,
+construct, and import declarations in `.langmeld` files. Semantic token names
+and source spans come from the host; the adapter validates the legend, splits
+multiline spans into line-local tokens,
 and encodes them using the negotiated position encoding. Rename is
 also host-owned: the adapter validates every result against open snapshots and
 rejects the edit rather than applying only part of it. The adapter does not
-infer semantic classifications, document outline, or language-specific
-formatting from syntax. Hosts return document outline entries with UTF-8 byte
-ranges; the adapter validates and converts them, and selects nested or flat
-output to match the client. `HostLanguageBackend` connects the existing
+infer semantic classifications or language-specific formatting from syntax.
+Hosts return document outline entries with UTF-8 byte ranges; the adapter
+validates and converts them, and selects nested or flat output to match the
+client. `HostLanguageBackend` connects the existing
 `LanguageParser` and optional `LanguageAnalyzer` contracts to parser and
 semantic diagnostics, and can attach host completion and navigation
 providers. Other editor queries remain host-owned.
