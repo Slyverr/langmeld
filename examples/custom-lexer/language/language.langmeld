@@ -1,0 +1,9 @@
+language "RawSay" {
+    construct "say" {
+        syntax {
+            literal "say";
+            string "text";
+            literal ";";
+        }
+    }
+}

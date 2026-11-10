@@ -32,8 +32,8 @@ manifest; pass a file path to format one file. The optional
 `langmeld-textmate` crate exports lexical highlighting rules, and
 `langmeld-tree-sitter` exports parser grammars for compatible declarative
 syntax. The `langmeld-project` crate provides a directory-backed resolver for
-modular `.langmeld` projects, with project-root confinement and source snapshots
-for diagnostic display. The core, expression,
+modular `.langmeld` projects, with project-root confinement, manifest-backed
+loading, and source snapshots for diagnostic display. The core, expression,
 language, TextMate, and Tree-sitter crates compile for `wasm32-unknown-unknown`;
 Langmeld does not yet provide browser bindings or a browser editor adapter.
 
@@ -58,8 +58,8 @@ cargo run -p langmeld-schema-language-example --locked
 
 The [`toy-language`](examples/toy-language) example shows a multi-file
 `.langmeld` definition project and nested constructs. The
-[`custom-lexer`](examples/custom-lexer) example shows host-defined raw strings
-and comment skipping.
+[`custom-lexer`](examples/custom-lexer) example composes a `.langmeld`
+grammar with Rust-defined raw-string and comment tokenization.
 The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
 declaration parser and runtime with `langmeld-expression` for operator
 precedence and expression trees.
