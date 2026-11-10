@@ -1,0 +1,11 @@
+import "draw.lm";
+
+construct "let" {
+    syntax {
+        literal "let";
+        identifier "name";
+        literal "=";
+        integer "value";
+        literal ";";
+    }
+}

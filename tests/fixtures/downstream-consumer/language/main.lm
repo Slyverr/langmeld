@@ -1,0 +1,13 @@
+language "Mini" {
+    import "constructs/statements.lm";
+
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow "let";
+            allow "draw";
+        }
+    }
+}

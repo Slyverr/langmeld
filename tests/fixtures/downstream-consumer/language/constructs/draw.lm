@@ -1,0 +1,7 @@
+construct "draw" {
+    syntax {
+        literal "draw";
+        identifier "name";
+        literal ";";
+    }
+}

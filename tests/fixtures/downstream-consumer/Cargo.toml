@@ -9,4 +9,5 @@ publish = false
 langmeld-core = { path = "../../../crates/langmeld-core", version = "0.3.0" }
 langmeld-expression = { path = "../../../crates/langmeld-expression", version = "0.3.0" }
 langmeld-language = { path = "../../../crates/langmeld-language", version = "0.3.0" }
+langmeld-project = { path = "../../../crates/langmeld-project", version = "0.3.0" }
 langmeld-textmate = { path = "../../../crates/langmeld-textmate", version = "0.3.0" }
