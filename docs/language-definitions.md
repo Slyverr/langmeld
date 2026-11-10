@@ -163,3 +163,9 @@ Implement `LanguageParser` when syntax requires a different grammar strategy
 or the host needs its own AST. The host parser contract returns the host tree,
 source identity, and diagnostics; it does not automatically provide shared
 editor tooling for that tree.
+
+For optional semantic analysis, implement `LanguageAnalyzer<P>` for the parser.
+It receives the same source snapshot and parsed document, then returns an
+`AnalysisDocument<T>` containing the source identity, a host-defined result, and
+semantic diagnostics. The host chooses its analysis phases and policies;
+languages that do not need semantic analysis can use the parser alone.

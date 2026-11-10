@@ -33,6 +33,37 @@ impl<T> ParsedDocument<T> {
     }
 }
 
+/// A host-owned semantic result and findings for one source snapshot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnalysisDocument<T> {
+    /// Identity and revision of the analyzed source, if database-managed.
+    pub source: Option<SourceIdentity>,
+    /// Language-specific semantic result, such as symbols or typed facts.
+    pub analysis: T,
+    /// Semantic findings associated with the source snapshot.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl<T> AnalysisDocument<T> {
+    /// Creates an analysis document tied to the supplied source snapshot.
+    #[must_use]
+    pub fn new(source: &SourceFile, analysis: T, diagnostics: Vec<Diagnostic>) -> Self {
+        Self {
+            source: source.identity(),
+            analysis,
+            diagnostics,
+        }
+    }
+
+    /// Returns whether analysis produced no error diagnostics.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity != langmeld_core::Severity::Error)
+    }
+}
+
 /// Parsing behavior that retains a host language's own syntax tree.
 ///
 /// Implementations own grammar, recovery, and tree shape. Langmeld does not
@@ -44,4 +75,21 @@ pub trait LanguageParser {
 
     /// Parses one immutable source snapshot.
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree>;
+}
+
+/// Optional semantic analysis for a language parser's host-owned syntax tree.
+///
+/// The output type and semantic policies belong to the host language. Simple
+/// languages can omit this stage, while analyzers can inspect partial parse
+/// trees and parse diagnostics when recovery produced useful syntax.
+pub trait LanguageAnalyzer<P: LanguageParser> {
+    /// Language-specific analysis result.
+    type Analysis;
+
+    /// Analyzes one parsed source snapshot.
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<P::Tree>,
+    ) -> AnalysisDocument<Self::Analysis>;
 }
