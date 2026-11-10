@@ -310,7 +310,6 @@ pub fn load_language(project_root: &Path) -> Result<LanguageSpec, String> {
         .language
         .ok_or_else(|| "validated definition did not produce a language".to_owned())
 }
-
 "#
 }
 

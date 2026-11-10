@@ -182,6 +182,10 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     let main = fs::read_to_string(project.join("src/main.rs")).expect("CLI should be generated");
     assert!(main.contains("args_os()"));
     assert!(main.contains("fs::read_to_string"));
+    let library = fs::read_to_string(project.join("src/lib.rs"))
+        .expect("reusable language loader should be generated");
+    assert!(library.ends_with("}\n"));
+    assert!(!library.ends_with("}\n\n"));
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));
