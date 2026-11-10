@@ -40,6 +40,10 @@ not yet provide browser bindings or a browser editor adapter.
 
 - Rust 1.88 or newer
 
+Nix users can enter the development shell with `nix develop` and build the CLI
+with `nix build`. With direnv installed, run `direnv allow` once to activate
+the checked-in `.envrc`.
+
 ## Try the example
 
 ```sh

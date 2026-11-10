@@ -21,6 +21,9 @@ cargo run \
   --locked
 ```
 
+Nix users can use `nix develop` for the Rust linker and Node.js development
+tools, and `nix build` to build the `langmeld` CLI package.
+
 The generated TextMate grammar is also tokenized with VS Code's TextMate
 engine. This check requires Node.js 22:
 
