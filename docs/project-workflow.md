@@ -9,8 +9,9 @@ cargo run -p langmeld-cli -- init my-language
 ```
 
 In a terminal it prompts for a syntax approach, Cargo package name, and language
-display name. The directory name and package name provide defaults. To skip
-prompts for the declarative template:
+display name. The directory name and package name provide defaults, and invalid
+names are rejected in place so they can be corrected without restarting. To
+skip prompts for the declarative template:
 
 ```sh
 cargo run -p langmeld-cli -- init my-language \

@@ -65,6 +65,9 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         None if interactive => Input::<String>::with_theme(&ColorfulTheme::default())
             .with_prompt("Project name")
             .default(project_name_default.clone())
+            .validate_with(|name: &String| {
+                validate_package_name(name.as_str()).map_err(|error| error.to_string())
+            })
             .interact_text()?,
         None => project_name_default,
     };
@@ -76,6 +79,9 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         None if interactive => Input::<String>::with_theme(&ColorfulTheme::default())
             .with_prompt("Language name")
             .default(language_name_default)
+            .validate_with(|name: &String| {
+                validate_language_name(name.as_str()).map_err(|error| error.to_string())
+            })
             .interact_text()?,
         None => language_name_default,
     };
