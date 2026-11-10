@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use crate::LineIndex;
+
 /// A UTF-8 byte range in a source snapshot. The end offset is exclusive.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Span {
@@ -58,6 +60,13 @@ impl SourceFile {
     #[must_use]
     pub const fn identity(&self) -> Option<SourceIdentity> {
         self.identity
+    }
+
+    /// Builds a line index for converting between byte offsets and encoded
+    /// line/character positions in this immutable snapshot.
+    #[must_use]
+    pub fn line_index(&self) -> LineIndex<'_> {
+        LineIndex::new(self)
     }
 
     /// Converts a byte offset to one-based line and Unicode-scalar column.

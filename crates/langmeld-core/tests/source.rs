@@ -1,6 +1,64 @@
 use langmeld_core::{
-    Diagnostic, SourceDatabase, SourceDatabaseError, SourceFile, SourceIdentity, Span,
+    Diagnostic, PositionEncoding, SourceDatabase, SourceDatabaseError, SourceFile, SourceIdentity,
+    SourcePosition, Span,
 };
+
+#[test]
+fn line_index_converts_utf8_utf16_and_utf32_positions() {
+    let source = SourceFile::new("unicode", "a😀é");
+    let index = source.line_index();
+
+    assert_eq!(index.offset(0, 2, PositionEncoding::Utf16), Some(1));
+    assert_eq!(index.offset(0, 3, PositionEncoding::Utf16), Some(5));
+    assert_eq!(index.offset(0, 3, PositionEncoding::Utf8), Some(1));
+    assert_eq!(index.offset(0, 2, PositionEncoding::Utf32), Some(5));
+    assert_eq!(
+        index.position(5, PositionEncoding::Utf16),
+        Some(SourcePosition {
+            line: 0,
+            character: 3,
+        })
+    );
+    assert_eq!(
+        index
+            .position(1, PositionEncoding::Utf16)
+            .unwrap()
+            .character,
+        1
+    );
+    assert_eq!(
+        index
+            .position(2, PositionEncoding::Utf16)
+            .unwrap()
+            .character,
+        1
+    );
+}
+
+#[test]
+fn line_index_handles_crlf_trailing_lines_and_clamped_positions() {
+    let source = SourceFile::new("lines", "abc\r\ndef\n");
+    let index = source.line_index();
+
+    assert_eq!(index.offset(0, 20, PositionEncoding::Utf16), Some(3));
+    assert_eq!(index.offset(2, 0, PositionEncoding::Utf16), Some(9));
+    assert_eq!(index.offset(3, 0, PositionEncoding::Utf16), None);
+    assert_eq!(
+        index
+            .position(4, PositionEncoding::Utf16)
+            .unwrap()
+            .character,
+        3
+    );
+    assert_eq!(
+        index.position(5, PositionEncoding::Utf16),
+        Some(SourcePosition {
+            line: 1,
+            character: 0,
+        })
+    );
+    assert_eq!(index.position(10, PositionEncoding::Utf16), None);
+}
 
 #[test]
 fn source_locations_count_unicode_columns_and_lines() {
