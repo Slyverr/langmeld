@@ -1,0 +1,11 @@
+[package]
+name = "langmeld-downstream-smoke"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+langmeld-core = { path = "../../../crates/langmeld-core", version = "0.2.0" }
+langmeld-expression = { path = "../../../crates/langmeld-expression", version = "0.2.0" }
+langmeld-language = { path = "../../../crates/langmeld-language", version = "0.2.0" }
