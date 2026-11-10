@@ -7,7 +7,8 @@ use std::{
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{CompletionCandidate, ConstructSpec, LanguageSpec, PatternPart};
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend, run_connection,
+    BackendCapabilities, BackendDocument, DeclarativeBackend, LanguageBackend, SemanticToken,
+    SemanticTokenLegend, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use serde_json::{Value, json};
@@ -36,6 +37,7 @@ impl LanguageBackend for Backend {
             completion: true,
             definition: true,
             references: true,
+            semantic_tokens: true,
         }
     }
 
@@ -81,6 +83,23 @@ impl LanguageBackend for Backend {
             })
             .into_iter()
             .collect()
+    }
+
+    fn semantic_token_legend(&self) -> SemanticTokenLegend {
+        SemanticTokenLegend::new(["variable"], ["declaration"])
+    }
+
+    fn semantic_tokens(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<String>,
+    ) -> Vec<SemanticToken> {
+        vec![
+            SemanticToken::new(Span::new("😀".len(), "😀bad".len()), "variable"),
+            SemanticToken::new(Span::new(0, "😀".len()), "variable").with_modifier("declaration"),
+            SemanticToken::new(Span::new(2, 5), "variable"),
+            SemanticToken::new(Span::new(4, 7), "unknown"),
+        ]
     }
 }
 
@@ -155,6 +174,14 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     assert!(initialized["capabilities"]["completionProvider"].is_object());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);
+    assert_eq!(
+        initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
+        json!(["variable"])
+    );
+    assert_eq!(
+        initialized["capabilities"]["semanticTokensProvider"]["full"],
+        true
+    );
     assert!(initialized["capabilities"]["hoverProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
@@ -182,6 +209,15 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     send_request(
         &client,
         2,
+        "textDocument/semanticTokens/full",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let tokens = receive_response(&client);
+    assert_eq!(tokens["data"], json!([0, 0, 2, 0, 1, 0, 2, 3, 0, 0]));
+
+    send_request(
+        &client,
+        3,
         "textDocument/completion",
         json!({
             "textDocument": { "uri": uri },
@@ -195,7 +231,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        3,
+        4,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -208,7 +244,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        4,
+        5,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -250,7 +286,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 5, "shutdown", Value::Null);
+    send_request(&client, 6, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

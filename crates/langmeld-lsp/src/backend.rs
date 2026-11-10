@@ -1,6 +1,8 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::{CompletionCandidate, LanguageSpec, ParseResult, complete_at, parse};
 
+use crate::semantic::{SemanticToken, SemanticTokenLegend};
+
 /// A host's retained document state and diagnostics for one source revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackendDocument<T> {
@@ -33,6 +35,8 @@ pub struct BackendCapabilities {
     pub definition: bool,
     /// The backend supports find-references queries.
     pub references: bool,
+    /// The backend supplies host-defined semantic tokens.
+    pub semantic_tokens: bool,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -86,6 +90,27 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _offset: usize,
         _include_declaration: bool,
     ) -> Vec<SourceLocation> {
+        Vec::new()
+    }
+
+    /// Returns the semantic token names advertised to the editor.
+    ///
+    /// Names follow the LSP semantic token vocabulary. Custom names are also
+    /// allowed. This legend is used only when `semantic_tokens` is enabled.
+    fn semantic_token_legend(&self) -> SemanticTokenLegend {
+        SemanticTokenLegend::default()
+    }
+
+    /// Returns host-classified source spans for one analyzed document.
+    ///
+    /// Tokens must use names present in [`Self::semantic_token_legend`]. The
+    /// LSP adapter sorts tokens by source position and ignores malformed,
+    /// unknown, overlapping, or multi-line spans.
+    fn semantic_tokens(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+    ) -> Vec<SemanticToken> {
         Vec::new()
     }
 }

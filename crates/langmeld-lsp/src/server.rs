@@ -6,14 +6,16 @@ use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, GotoDefinitionParams,
     GotoDefinitionResponse, InitializeParams, InitializeResult, Location, PositionEncodingKind,
-    PublishDiagnosticsParams, ReferenceParams, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, Uri,
+    PublishDiagnosticsParams, ReferenceParams, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    TextDocumentSyncKind, Uri,
 };
 use serde_json::{Value, json};
 
 use crate::{
     backend::{BackendCapabilities, BackendDocument, LanguageBackend},
     conversion::{byte_offset, completion_items, diagnostics_for, lsp_location},
+    semantic::{SemanticTokenLegend, encode},
 };
 
 struct OpenDocument<D> {
@@ -40,8 +42,14 @@ pub fn run_connection<B: LanguageBackend>(
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
     let encoding = negotiate_encoding(&initialize_params);
     let capabilities = backend.capabilities();
+    let semantic_legend = backend.semantic_token_legend();
+    if capabilities.semantic_tokens {
+        semantic_legend
+            .validate()
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
+    }
     let result = InitializeResult {
-        capabilities: server_capabilities(capabilities, encoding),
+        capabilities: server_capabilities(capabilities, encoding, &semantic_legend),
         server_info: Some(ServerInfo {
             name: "langmeld".into(),
             version: Some(env!("CARGO_PKG_VERSION").into()),
@@ -52,6 +60,7 @@ pub fn run_connection<B: LanguageBackend>(
     let mut server = ServerState {
         backend,
         capabilities,
+        semantic_legend,
         encoding,
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
@@ -96,6 +105,7 @@ pub fn run_connection<B: LanguageBackend>(
 struct ServerState<B: LanguageBackend> {
     backend: B,
     capabilities: BackendCapabilities,
+    semantic_legend: SemanticTokenLegend,
     encoding: PositionEncoding,
     sources: SourceDatabase,
     documents: HashMap<Uri, OpenDocument<B::Document>>,
@@ -120,6 +130,10 @@ impl<B: LanguageBackend> ServerState<B> {
             "textDocument/references" if self.capabilities.references => {
                 serde_json::from_value::<ReferenceParams>(request.params)
                     .map(|params| self.references(params).map(|locations| json!(locations)))
+            }
+            "textDocument/semanticTokens/full" if self.capabilities.semantic_tokens => {
+                serde_json::from_value::<SemanticTokensParams>(request.params)
+                    .map(|params| self.semantic_tokens(params).map(|tokens| json!(tokens)))
             }
             _ => {
                 return Response::new_err(
@@ -188,6 +202,23 @@ impl<B: LanguageBackend> ServerState<B> {
                 .filter_map(|location| self.lsp_location(location))
                 .collect(),
         )
+    }
+
+    fn semantic_tokens(&self, params: SemanticTokensParams) -> Option<lsp_types::SemanticTokens> {
+        let document = self.documents.get(&params.text_document.uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if document.analysis.source != source.identity() {
+            return Some(lsp_types::SemanticTokens {
+                result_id: None,
+                data: Vec::new(),
+            });
+        }
+        Some(encode(
+            source,
+            &self.semantic_legend,
+            self.backend.semantic_tokens(source, &document.analysis),
+            self.encoding,
+        ))
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
@@ -325,6 +356,7 @@ fn negotiate_encoding(params: &InitializeParams) -> PositionEncoding {
 fn server_capabilities(
     backend: BackendCapabilities,
     encoding: PositionEncoding,
+    semantic_legend: &SemanticTokenLegend,
 ) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(match encoding {
@@ -336,6 +368,27 @@ fn server_capabilities(
         completion_provider: backend.completion.then(CompletionOptions::default),
         definition_provider: backend.definition.then_some(lsp_types::OneOf::Left(true)),
         references_provider: backend.references.then_some(lsp_types::OneOf::Left(true)),
+        semantic_tokens_provider: backend.semantic_tokens.then(|| {
+            SemanticTokensServerCapabilities::SemanticTokensOptions(SemanticTokensOptions {
+                work_done_progress_options: Default::default(),
+                legend: lsp_types::SemanticTokensLegend {
+                    token_types: semantic_legend
+                        .token_types
+                        .iter()
+                        .cloned()
+                        .map(Into::into)
+                        .collect(),
+                    token_modifiers: semantic_legend
+                        .token_modifiers
+                        .iter()
+                        .cloned()
+                        .map(Into::into)
+                        .collect(),
+                },
+                range: Some(false),
+                full: Some(lsp_types::SemanticTokensFullOptions::Bool(true)),
+            })
+        }),
         ..ServerCapabilities::default()
     }
 }
