@@ -1,0 +1,13 @@
+language "Geometry" {
+    import "extensions/drawing.langmeld";
+    root "program";
+
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow "draw";
+        }
+    }
+}

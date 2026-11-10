@@ -372,6 +372,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-embedded-definitions-example"
+version = "0.1.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-language",
+]
+
+[[package]]
 name = "langmeld-expression"
 version = "0.4.0"
 dependencies = [

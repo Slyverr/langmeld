@@ -1,0 +1,15 @@
+[package]
+name = "langmeld-embedded-definitions-example"
+description = "Shows how Rust hosts can embed and compose Langmeld definition modules."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+langmeld-core.workspace = true
+langmeld-language.workspace = true
+
+[lints]
+workspace = true

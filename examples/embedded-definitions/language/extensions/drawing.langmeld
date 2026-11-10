@@ -1,0 +1,11 @@
+construct "draw" {
+    completion keyword;
+    syntax {
+        literal "draw";
+        choice "shape" {
+            value "circle";
+            value "rectangle";
+        }
+        literal ";";
+    }
+}

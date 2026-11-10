@@ -69,6 +69,7 @@ cargo package --workspace \
   --exclude langmeld-aster-language-example \
   --exclude langmeld-custom-lexer-example \
   --exclude langmeld-custom-parser-example \
+  --exclude langmeld-embedded-definitions-example \
   --exclude langmeld-schema-language-example \
   --exclude langmeld-toy-language-example \
   --locked --allow-dirty \

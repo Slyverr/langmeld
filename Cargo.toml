@@ -11,6 +11,7 @@ members = [
     "examples/aster-language",
     "examples/custom-lexer",
     "examples/custom-parser",
+    "examples/embedded-definitions",
     "examples/schema-language",
     "examples/toy-language",
 ]
