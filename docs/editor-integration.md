@@ -1,11 +1,11 @@
 # Editor integration
 
-`langmeld-lsp` provides a synchronous Language Server Protocol adapter for
-Langmeld languages. It supports full-document synchronization, diagnostics,
-completion, go-to-definition, references, host-owned rename, hover, and
-host-provided document symbols and semantic tokens. It also supports
-host-provided full-document formatting and advertises only operations enabled
-by the backend.
+`langmeld-lsp` provides a Language Server Protocol adapter for Langmeld
+languages. It supports full-document replacements and incremental ranged
+changes, diagnostics, completion, go-to-definition, references, host-owned
+rename, hover, and host-provided document symbols and semantic tokens. It also
+supports host-provided full-document formatting and advertises only operations
+enabled by the backend.
 
 ## Declarative languages
 
