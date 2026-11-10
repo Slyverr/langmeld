@@ -1,21 +1,26 @@
 use std::{collections::HashMap, error::Error};
 
 use langmeld_core::{PositionEncoding, SourceDatabase, SourceId};
-use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
-    CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult, Location,
-    MarkupContent, MarkupKind, PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams,
-    RenameParams, SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    CompletionOptions, CompletionParams, CompletionResponse, DidChangeConfigurationParams,
+    DidChangeTextDocumentParams, DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+    HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
+    PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, Registration,
+    RegistrationParams, RenameParams, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use serde_json::{Value, json};
 
 use crate::{
-    backend::{BackendCapabilities, BackendDocument, BackendWorkspace, LanguageBackend},
+    backend::{
+        BackendCapabilities, BackendDocument, BackendWorkspace, BackendWorkspaceCapabilities,
+        LanguageBackend,
+    },
     conversion::{byte_offset, completion_items, diagnostics_for, lsp_location, to_lsp_range},
     hover::{HoverContent, HoverInfo},
     semantic::{SemanticTokenLegend, encode},
@@ -25,6 +30,14 @@ struct OpenDocument<D> {
     source_id: SourceId,
     version: i32,
     analysis: BackendDocument<D>,
+}
+
+const WORKSPACE_REGISTRATION_REQUEST_ID: &str = "langmeld-workspace-registration";
+
+#[derive(Clone, Copy)]
+struct PendingWorkspaceRegistration {
+    configuration_changes: bool,
+    watched_files: bool,
 }
 
 /// Runs the server over standard input and output.
@@ -50,6 +63,19 @@ pub fn run_connection<B: LanguageBackend>(
         .as_ref()
         .and_then(|workspace| workspace.workspace_folders)
         .unwrap_or(false);
+    let client_workspace = initialize_params.capabilities.workspace.as_ref();
+    let client_supports_configuration_registration = client_workspace
+        .and_then(|workspace| workspace.did_change_configuration.as_ref())
+        .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let client_supports_file_watcher_registration = client_workspace
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
+        .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let client_supports_relative_file_watcher_patterns = client_workspace
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
+        .and_then(|capabilities| capabilities.relative_pattern_support)
+        .unwrap_or(false);
     #[expect(
         deprecated,
         reason = "rootUri remains part of the LSP initialize compatibility contract"
@@ -58,6 +84,7 @@ pub fn run_connection<B: LanguageBackend>(
         root_uri: initialize_params.root_uri.clone(),
         workspace_folders: initialize_params.workspace_folders.clone(),
         supports_workspace_folders: client_supports_workspace_folders,
+        supports_relative_file_watcher_patterns: client_supports_relative_file_watcher_patterns,
         initialization_options: initialize_params.initialization_options.clone(),
     };
     let supports_markdown_hover = initialize_params
@@ -86,9 +113,11 @@ pub fn run_connection<B: LanguageBackend>(
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidInput, error))?;
     }
     backend.initialize_workspace(&workspace);
+    let workspace_capabilities = backend.workspace_capabilities();
     let result = InitializeResult {
         capabilities: server_capabilities(
             capabilities,
+            workspace_capabilities.workspace_folders,
             encoding,
             &semantic_legend,
             client_supports_workspace_folders,
@@ -103,6 +132,14 @@ pub fn run_connection<B: LanguageBackend>(
     let mut server = ServerState {
         backend,
         capabilities,
+        workspace_capabilities,
+        client_supports_workspace_folders,
+        client_supports_configuration_registration,
+        client_supports_file_watcher_registration,
+        client_supports_relative_file_watcher_patterns,
+        pending_workspace_registration: None,
+        configuration_registered: false,
+        watched_files_registered: false,
         semantic_legend,
         supports_markdown_hover,
         supports_hierarchical_document_symbols,
@@ -110,6 +147,8 @@ pub fn run_connection<B: LanguageBackend>(
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
     };
+    // initialize_finish consumes the client's `initialized` notification.
+    server.register_workspace_capabilities(&connection)?;
     loop {
         let message = connection.receiver.recv()?;
         match message {
@@ -139,16 +178,42 @@ pub fn run_connection<B: LanguageBackend>(
                     "textDocument/didClose",
                 ) {
                     server.close(params, &connection)?;
-                } else if server.capabilities.workspace_folders
+                } else if server.workspace_capabilities.workspace_folders
+                    && server.client_supports_workspace_folders
                     && let Some(params) = parse_notification::<DidChangeWorkspaceFoldersParams>(
                         &notification,
                         "workspace/didChangeWorkspaceFolders",
                     )
                 {
                     server.backend.did_change_workspace_folders(&params.event);
+                } else if server.configuration_registered
+                    && let Some(params) = parse_notification::<DidChangeConfigurationParams>(
+                        &notification,
+                        "workspace/didChangeConfiguration",
+                    )
+                {
+                    server.backend.did_change_configuration(&params.settings);
+                } else if server.watched_files_registered
+                    && let Some(params) = parse_notification::<DidChangeWatchedFilesParams>(
+                        &notification,
+                        "workspace/didChangeWatchedFiles",
+                    )
+                {
+                    server.backend.did_change_watched_files(&params.changes);
                 }
             }
-            Message::Response(_) => {}
+            Message::Response(response) => {
+                let Some(pending) = server.pending_workspace_registration else {
+                    continue;
+                };
+                if response.id == RequestId::from(WORKSPACE_REGISTRATION_REQUEST_ID.to_owned()) {
+                    server.pending_workspace_registration = None;
+                    if response.response_result.is_ok() {
+                        server.configuration_registered = pending.configuration_changes;
+                        server.watched_files_registered = pending.watched_files;
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -157,6 +222,14 @@ pub fn run_connection<B: LanguageBackend>(
 struct ServerState<B: LanguageBackend> {
     backend: B,
     capabilities: BackendCapabilities,
+    workspace_capabilities: BackendWorkspaceCapabilities,
+    client_supports_workspace_folders: bool,
+    client_supports_configuration_registration: bool,
+    client_supports_file_watcher_registration: bool,
+    client_supports_relative_file_watcher_patterns: bool,
+    pending_workspace_registration: Option<PendingWorkspaceRegistration>,
+    configuration_registered: bool,
+    watched_files_registered: bool,
     semantic_legend: SemanticTokenLegend,
     supports_markdown_hover: bool,
     supports_hierarchical_document_symbols: bool,
@@ -166,6 +239,55 @@ struct ServerState<B: LanguageBackend> {
 }
 
 impl<B: LanguageBackend> ServerState<B> {
+    fn register_workspace_capabilities(
+        &mut self,
+        connection: &Connection,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let register_configuration = self.workspace_capabilities.configuration_changes
+            && self.client_supports_configuration_registration;
+        let has_unsupported_relative_patterns = !self
+            .client_supports_relative_file_watcher_patterns
+            && self
+                .workspace_capabilities
+                .watched_files
+                .iter()
+                .any(|watcher| matches!(watcher.glob_pattern, lsp_types::GlobPattern::Relative(_)));
+        let register_file_watchers = !self.workspace_capabilities.watched_files.is_empty()
+            && self.client_supports_file_watcher_registration
+            && !has_unsupported_relative_patterns;
+        if !register_configuration && !register_file_watchers {
+            return Ok(());
+        }
+
+        let mut registrations = Vec::new();
+        if register_configuration {
+            registrations.push(Registration {
+                id: "langmeld-configuration".into(),
+                method: "workspace/didChangeConfiguration".into(),
+                register_options: None,
+            });
+        }
+        if register_file_watchers {
+            registrations.push(Registration {
+                id: "langmeld-watched-files".into(),
+                method: "workspace/didChangeWatchedFiles".into(),
+                register_options: Some(json!({
+                    "watchers": &self.workspace_capabilities.watched_files,
+                })),
+            });
+        }
+        connection.sender.send(Message::Request(Request {
+            id: WORKSPACE_REGISTRATION_REQUEST_ID.to_owned().into(),
+            method: "client/registerCapability".into(),
+            params: serde_json::to_value(RegistrationParams { registrations })?,
+        }))?;
+        self.pending_workspace_registration = Some(PendingWorkspaceRegistration {
+            configuration_changes: register_configuration,
+            watched_files: register_file_watchers,
+        });
+        Ok(())
+    }
+
     fn request(&self, request: Request) -> Response {
         let id = request.id.clone();
         let result = match request.method.as_str() {
@@ -634,6 +756,7 @@ fn negotiate_encoding(params: &InitializeParams) -> PositionEncoding {
 
 fn server_capabilities(
     backend: BackendCapabilities,
+    workspace_folders: bool,
     encoding: PositionEncoding,
     semantic_legend: &SemanticTokenLegend,
     client_supports_workspace_folders: bool,
@@ -677,16 +800,14 @@ fn server_capabilities(
         document_symbol_provider: backend
             .document_symbols
             .then_some(lsp_types::OneOf::Left(true)),
-        workspace: backend
-            .workspace_folders
-            .then(|| WorkspaceServerCapabilities {
-                workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                    supported: Some(true),
-                    change_notifications: client_supports_workspace_folders
-                        .then_some(lsp_types::OneOf::Left(true)),
-                }),
-                ..WorkspaceServerCapabilities::default()
+        workspace: workspace_folders.then(|| WorkspaceServerCapabilities {
+            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                supported: Some(true),
+                change_notifications: client_supports_workspace_folders
+                    .then_some(lsp_types::OneOf::Left(true)),
             }),
+            ..WorkspaceServerCapabilities::default()
+        }),
         ..ServerCapabilities::default()
     }
 }

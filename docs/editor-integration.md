@@ -44,11 +44,21 @@ unchanged. `LanguageBackend::did_close` receives the last snapshot when a
 document closes, allowing hosts to remove it from workspace indexes.
 `initialize_workspace` receives the client's root URI, initial workspace
 folders, folder-support flag, and initialization options before the server
-finishes initialization. Set `BackendCapabilities::workspace_folders` when the
-backend uses workspace context and handles folder changes; the server then
+finishes initialization. Return `BackendWorkspaceCapabilities` from
+`workspace_capabilities` to opt into workspace lifecycle events. Set
+`workspace_folders` when the backend handles folder changes; the server then
 advertises workspace-folder support and forwards
-`workspace/didChangeWorkspaceFolders` events when the client supports them.
-The backend owns indexing and decides how folder changes affect project state.
+`workspace/didChangeWorkspaceFolders` when the client supports it. Set
+`configuration_changes` to receive editor settings through
+`did_change_configuration`, and provide `watched_files` patterns to receive
+matching file events through `did_change_watched_files`. Configuration and file
+watchers are dynamically registered only when the client advertises support;
+callbacks begin only after the client accepts the registration. The backend
+owns indexing and decides how these events affect project state. These hooks
+report changes; they do not load files or rebuild indexes automatically. The
+initial workspace context reports whether the client supports relative watcher
+patterns. If the backend requests any relative pattern from a client that does
+not support them, Langmeld skips that file-watcher registration.
 For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and

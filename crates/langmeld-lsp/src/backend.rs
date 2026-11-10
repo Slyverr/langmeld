@@ -3,7 +3,9 @@ use langmeld_language::{
     CompletionCandidate, DefinitionFormatOptions, LanguageSpec, ParseResult, complete_at,
     format_language_definition, language_definition_grammar, parse,
 };
-use lsp_types::{FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent};
+use lsp_types::{
+    FileSystemWatcher, FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent,
+};
 use serde_json::Value;
 
 use crate::{
@@ -54,8 +56,17 @@ pub struct BackendCapabilities {
     pub rename: bool,
     /// The backend provides document outline symbols.
     pub document_symbols: bool,
-    /// The backend uses workspace roots and handles workspace-folder changes.
+}
+
+/// Workspace lifecycle events a backend wants to receive from the editor.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BackendWorkspaceCapabilities {
+    /// The backend handles workspace-folder changes.
     pub workspace_folders: bool,
+    /// The backend handles editor configuration changes.
+    pub configuration_changes: bool,
+    /// File events the backend needs for project files outside open documents.
+    pub watched_files: Vec<FileSystemWatcher>,
 }
 
 /// Workspace information supplied by the editor during LSP initialization.
@@ -68,6 +79,8 @@ pub struct BackendWorkspace {
     pub workspace_folders: Option<Vec<WorkspaceFolder>>,
     /// Whether the client advertises workspace-folder support.
     pub supports_workspace_folders: bool,
+    /// Whether the client supports relative patterns for watched files.
+    pub supports_relative_file_watcher_patterns: bool,
     /// Client-provided initialization data for the host language backend.
     pub initialization_options: Option<Value>,
 }
@@ -87,6 +100,18 @@ pub trait LanguageBackend: Send + Sync + 'static {
 
     /// Receives workspace-folder changes when `workspace_folders` is enabled.
     fn did_change_workspace_folders(&self, _event: &WorkspaceFoldersChangeEvent) {}
+
+    /// Reports which workspace lifecycle events the backend can handle.
+    fn workspace_capabilities(&self) -> BackendWorkspaceCapabilities {
+        BackendWorkspaceCapabilities::default()
+    }
+
+    /// Receives editor settings when configuration changes are registered.
+    fn did_change_configuration(&self, _settings: &Value) {}
+
+    /// Receives changes for the file patterns returned by
+    /// [`Self::workspace_capabilities`].
+    fn did_change_watched_files(&self, _changes: &[lsp_types::FileEvent]) {}
 
     /// Parses and analyzes one immutable source snapshot.
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document>;
