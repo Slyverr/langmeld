@@ -1,6 +1,8 @@
 use langmeld_core::{SourceFile, Span};
-use langmeld_language::{LanguageAnalyzer, complete_with};
-use langmeld_schema_language_example::{SchemaAnalyzer, SchemaCompleter, analyze, parse_schema};
+use langmeld_language::{LanguageAnalyzer, complete_with, definition_at, references_at};
+use langmeld_schema_language_example::{
+    SchemaAnalyzer, SchemaCompleter, SchemaNavigator, analyze, parse_schema,
+};
 
 #[test]
 fn completes_field_types_from_the_current_schema_symbols() {
@@ -17,6 +19,49 @@ fn completes_field_types_from_the_current_schema_symbols() {
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].text, "Manager");
     assert_eq!(candidates[0].replace, Span::new(offset - 3, offset));
+}
+
+#[test]
+fn navigates_forward_and_recursive_type_references() {
+    let text = "record User { manager: Manager } record Manager { user: User }";
+    let source = SourceFile::new("schema.lang", text);
+    let parsed = parse_schema(&source);
+    let analysis = SchemaAnalyzer.analyze(&source, &parsed);
+    let use_offset = text.rfind("User").unwrap() + 1;
+    let user_declaration = text.find("User").unwrap();
+
+    let definition = definition_at(
+        &source,
+        &parsed,
+        Some(&analysis),
+        use_offset,
+        &SchemaNavigator,
+    );
+    let references = references_at(
+        &source,
+        &parsed,
+        Some(&analysis),
+        user_declaration + 1,
+        true,
+        &SchemaNavigator,
+    );
+
+    assert_eq!(definition.len(), 1);
+    assert_eq!(
+        definition[0].span,
+        Span::new(user_declaration, user_declaration + 4)
+    );
+    assert_eq!(references.len(), 2);
+    assert!(
+        references
+            .iter()
+            .any(|location| location.span.start == user_declaration)
+    );
+    assert!(
+        references
+            .iter()
+            .any(|location| location.span.start == text.rfind("User").unwrap())
+    );
 }
 
 #[test]

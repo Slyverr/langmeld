@@ -7,6 +7,8 @@ global record namespace before resolving field types, so forward and recursive
 references work without Aster's lexical-scope rules. Its `SchemaCompleter`
 suggests record types for a partially typed field type using the existing
 analysis result rather than reparsing or reanalyzing the document.
+`SchemaNavigator` maps definition and references queries through the resolved
+global record namespace, including forward and recursive references.
 
 Run it with:
 

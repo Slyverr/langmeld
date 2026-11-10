@@ -48,10 +48,12 @@ The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
 declaration parser and runtime with `langmeld-expression` for operator
 precedence and expression trees.
 The [`aster-language`](examples/aster-language) example adds a host-owned AST,
-scope-aware name resolution, and basic type checks.
+scope-aware name resolution, basic type checks, and navigation that follows
+resolved references through shadowed lexical scopes.
 The [`schema-language`](examples/schema-language) example uses a global type
 namespace with forward and recursive references, then completes field types
-from the existing semantic result through `LanguageCompleter`.
+from the existing semantic result through `LanguageCompleter` and navigates
+those references through `LanguageNavigator`.
 
 Create a starter language project with
 `cargo run -p langmeld-cli -- init my-language`. The initializer prompts for

@@ -1,8 +1,39 @@
 use langmeld_aster_language_example::{
-    AsterAnalyzer, Statement, SymbolKind, ValueType, analyze, parse_program,
+    AsterAnalyzer, AsterNavigator, Statement, SymbolKind, ValueType, analyze, parse_program,
 };
 use langmeld_core::{SourceDatabase, SourceFile};
-use langmeld_language::LanguageAnalyzer;
+use langmeld_language::{LanguageAnalyzer, definition_at, references_at};
+
+#[test]
+fn navigation_follows_the_resolved_shadowed_local() {
+    let text = "fn main() -> i32 { let value = 1; { let value = value + 2; return value; } }";
+    let source = SourceFile::new("main.aster", text);
+    let parsed = parse_program(&source);
+    let analysis = AsterAnalyzer.analyze(&source, &parsed);
+    let inner_declaration = text.find("let value = value").unwrap() + "let ".len();
+    let inner_use = text.rfind("value").unwrap();
+
+    let definition = definition_at(
+        &source,
+        &parsed,
+        Some(&analysis),
+        inner_use + 1,
+        &AsterNavigator,
+    );
+    let references = references_at(
+        &source,
+        &parsed,
+        Some(&analysis),
+        inner_declaration + 1,
+        false,
+        &AsterNavigator,
+    );
+
+    assert_eq!(definition.len(), 1);
+    assert_eq!(definition[0].span.start, inner_declaration);
+    assert_eq!(references.len(), 1);
+    assert_eq!(references[0].span.start, inner_use);
+}
 
 #[test]
 fn resolves_forward_calls_and_scoped_local_references() {

@@ -2,6 +2,7 @@
 
 mod analysis;
 mod ast;
+mod navigation;
 mod parser;
 
 pub use analysis::{
@@ -9,4 +10,5 @@ pub use analysis::{
     analyze,
 };
 pub use ast::{Function, Parameter, Program, Statement, ValueType};
+pub use navigation::AsterNavigator;
 pub use parser::{AsterParser, parse_program};

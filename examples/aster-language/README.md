@@ -10,7 +10,10 @@ The example supports function declarations, `i32`/`bool`/`string` values,
 `let` bindings, returns, nested lexical blocks, function calls, and common
 arithmetic/comparison expressions. Its analyzer demonstrates forward function
 references, local declaration order, block scopes, shadowing, duplicate names,
-call arity, and type diagnostics. Aster has no runtime or compiler.
+call arity, and type diagnostics. `AsterNavigator` maps definition and
+references requests through the analyzer's resolved symbol IDs, so navigation
+respects shadowing instead of matching names textually. Aster has no runtime or
+compiler.
 
 Run it with:
 
