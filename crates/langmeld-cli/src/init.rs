@@ -79,6 +79,10 @@ fn create_project(path: &Path, package_name: &str, language_name: &str) -> io::R
             ),
         ),
         (
+            "langmeld.toml",
+            "format = 1\ndefinition = \"language/language.lm\"\n".to_owned(),
+        ),
+        (
             "src/main.rs",
             main_template().to_owned(),
         ),
@@ -201,7 +205,7 @@ fn main_template() -> &'static str {
 
 use langmeld_core::SourceFile;
 use langmeld_language::{parse, parse_language_definition_project};
-use langmeld_project::DirectoryDefinitionResolver;
+use langmeld_project::{DirectoryDefinitionResolver, read_project_manifest};
 
 const SAMPLE: &str = "program { let message = \"Hello, Langmeld!\"; print message; }";
 
@@ -216,8 +220,9 @@ fn run() -> Result<(), String> {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let resolver = DirectoryDefinitionResolver::new(project_root)
         .map_err(|error| error.to_string())?;
+    let manifest = read_project_manifest(project_root).map_err(|error| error.to_string())?;
     let root = resolver
-        .load("language/language.lm")
+        .load(&manifest.definition)
         .map_err(|error| error.to_string())?;
     let definition = parse_language_definition_project(root, &resolver);
     if !definition.is_valid() {

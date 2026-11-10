@@ -4,6 +4,13 @@
 //! [`DirectoryDefinitionResolver`] confines imports to one canonical project
 //! root and retains loaded source snapshots for diagnostic rendering.
 
+mod manifest;
+
+pub use manifest::{
+    PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError, read_project_manifest,
+    read_project_manifest_file,
+};
+
 use std::{
     collections::BTreeMap,
     error::Error,

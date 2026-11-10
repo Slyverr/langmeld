@@ -54,6 +54,8 @@ host-owned semantic policy.
 Create a starter language project with
 `cargo run -p langmeld-cli -- init my-language`. The initializer prompts for
 project and language names and writes a modular `.lm` plus Rust host project.
+Validate its manifest and `.lm` definitions with
+`cargo run -p langmeld-cli -- check --manifest-path my-language/langmeld.toml`.
 See [Project workflow](docs/project-workflow.md) for generated files and
 non-interactive options.
 

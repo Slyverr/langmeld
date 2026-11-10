@@ -52,6 +52,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(project.join("Cargo.toml").is_file());
+    assert!(project.join("langmeld.toml").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("language/language.lm").is_file());
     assert!(project.join("language/constructs/statements.lm").is_file());
@@ -62,6 +63,101 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         .expect("definition should be generated");
     assert!(definition.starts_with("language \"Widget Script\""));
     assert!(definition.contains("import \"constructs/statements.lm\";"));
+}
+
+#[test]
+fn check_uses_the_project_manifest_and_reports_the_language_name() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    fs::create_dir_all(project.join("language")).expect("language directory should be created");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/language.lm\"\n",
+    )
+    .expect("manifest should be written");
+    fs::write(
+        project.join("language/language.lm"),
+        "language \"Widget Script\" { construct \"item\" { syntax { literal \"item\"; } } }",
+    )
+    .expect("definition should be written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            project
+                .join("langmeld.toml")
+                .to_str()
+                .expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Widget Script"));
+}
+
+#[test]
+fn check_reports_definition_diagnostics_with_source_locations() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("invalid-language");
+    fs::create_dir_all(project.join("language")).expect("language directory should be created");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/language.lm\"\n",
+    )
+    .expect("manifest should be written");
+    fs::write(
+        project.join("language/language.lm"),
+        "not a language definition",
+    )
+    .expect("invalid definition should be written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            project
+                .join("langmeld.toml")
+                .to_str()
+                .expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("language/language.lm:1:"));
+    assert!(error.contains("LM-DEF-"));
+}
+
+#[cfg(unix)]
+#[test]
+fn init_refuses_symlinked_output_directories_and_rolls_back_its_files() {
+    let parent = TestDirectory::new();
+    let outside = TestDirectory::new();
+    let project = parent.path().join("symlinked-language");
+    fs::create_dir_all(&project).expect("project directory should be created");
+    std::os::unix::fs::symlink(outside.path(), project.join("src"))
+        .expect("test symlink should be created");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    assert!(!project.join("Cargo.toml").exists());
+    assert!(!project.join("README.md").exists());
+    assert!(!outside.path().join("main.rs").exists());
 }
 
 #[test]

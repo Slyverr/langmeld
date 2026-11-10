@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 langmeld-core.workspace = true
 langmeld-language.workspace = true
+toml.workspace = true
 
 [lints]
 workspace = true

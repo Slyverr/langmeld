@@ -1,3 +1,4 @@
+mod check;
 mod init;
 
 use std::process::ExitCode;
@@ -15,6 +16,8 @@ struct Cli {
 enum Command {
     /// Create a starter language project.
     Init(init::InitArgs),
+    /// Validate the project manifest and language definition.
+    Check(check::CheckArgs),
 }
 
 fn main() -> ExitCode {
@@ -36,6 +39,7 @@ fn main() -> ExitCode {
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Command::Init(args) => init::run(args)?,
+        Command::Check(args) => check::run(args)?,
     }
     Ok(())
 }
