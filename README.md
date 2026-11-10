@@ -51,6 +51,12 @@ The [`schema-language`](examples/schema-language) example uses a global type
 namespace with forward and recursive references, showing a different
 host-owned semantic policy.
 
+Create a starter language project with
+`cargo run -p langmeld-cli -- init my-language`. The initializer prompts for
+project and language names and writes a modular `.lm` plus Rust host project.
+See [Project workflow](docs/project-workflow.md) for generated files and
+non-interactive options.
+
 See [Language definitions](docs/language-definitions.md) for the current `.lm`
 syntax and its extension boundaries.
 

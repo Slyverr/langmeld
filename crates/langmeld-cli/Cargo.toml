@@ -11,5 +11,9 @@ repository.workspace = true
 name = "langmeld"
 path = "src/main.rs"
 
+[dependencies]
+clap.workspace = true
+dialoguer.workspace = true
+
 [lints]
 workspace = true
