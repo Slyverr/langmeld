@@ -36,8 +36,12 @@ Implement `LanguageBackend` when a language owns its AST or semantic rules. The
 backend's associated document state can retain the parse and analysis for each
 open source snapshot. Implement only the queries the language supports and
 return matching `BackendCapabilities`; the server uses that report to build
-its LSP capabilities. `LanguageBackend::did_close` receives the last snapshot
-when a document closes, allowing hosts to remove it from workspace indexes.
+its LSP capabilities. Implement `analyze_workspace` when analysis depends on
+multiple open files: the server supplies all current snapshots and expects one
+result per source in the same order. This lets a host include unsaved imports
+and refresh diagnostics together. The default leaves per-document analysis
+unchanged. `LanguageBackend::did_close` receives the last snapshot when a
+document closes, allowing hosts to remove it from workspace indexes.
 Hosts can implement `format_document` to return formatted text for a complete
 document. Langmeld passes through the editor's formatting options and returns
 one whole-document edit using the negotiated position encoding. Formatting
