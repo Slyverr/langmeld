@@ -11,6 +11,7 @@ publish = false
 [dependencies]
 langmeld-core.workspace = true
 langmeld-language.workspace = true
+langmeld-lsp.workspace = true
 
 [lints]
 workspace = true

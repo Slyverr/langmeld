@@ -1,7 +1,8 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{LanguageAnalyzer, complete_with, definition_at, references_at};
+use langmeld_lsp::{HostLanguageBackend, LanguageBackend};
 use langmeld_schema_language_example::{
-    SchemaAnalyzer, SchemaCompleter, SchemaNavigator, analyze, parse_schema,
+    SchemaAnalyzer, SchemaCompleter, SchemaNavigator, SchemaParser, analyze, parse_schema,
 };
 
 #[test]
@@ -19,6 +20,41 @@ fn completes_field_types_from_the_current_schema_symbols() {
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].text, "Manager");
     assert_eq!(candidates[0].replace, Span::new(offset - 3, offset));
+}
+
+#[test]
+fn host_backend_connects_schema_analysis_completion_and_navigation() {
+    let backend = HostLanguageBackend::new(SchemaParser)
+        .with_analyzer(SchemaAnalyzer)
+        .with_completer(SchemaCompleter)
+        .with_navigator(SchemaNavigator);
+    let source = SourceFile::new(
+        "schema.lang",
+        "record User { manager: Manager } record Manager {}",
+    );
+    let document = backend.analyze(&source);
+    let type_use = source.text.find("Manager").unwrap();
+    let completion_offset = type_use + "Man".len();
+    let declaration = source.text.rfind("Manager").unwrap();
+
+    assert!(backend.capabilities().completion);
+    assert!(backend.capabilities().definition);
+    assert!(backend.capabilities().references);
+    assert!(document.diagnostics.is_empty());
+    assert_eq!(
+        backend.complete(&source, &document, completion_offset)[0].text,
+        "Manager"
+    );
+    assert_eq!(
+        backend.definition(&source, &document, type_use + 1)[0].span,
+        Span::new(declaration, declaration + "Manager".len())
+    );
+    assert_eq!(
+        backend
+            .references(&source, &document, type_use + 1, true)
+            .len(),
+        2
+    );
 }
 
 #[test]

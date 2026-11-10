@@ -410,6 +410,7 @@ version = "0.3.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
+ "langmeld-lsp",
 ]
 
 [[package]]

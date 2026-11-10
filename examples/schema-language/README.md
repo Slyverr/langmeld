@@ -16,6 +16,17 @@ Run it with:
 cargo run -p langmeld-schema-language-example --locked
 ```
 
+Run the standalone LSP server using the host parser, analyzer, completion, and
+navigation contracts:
+
+```sh
+cargo run -p langmeld-schema-language-example --bin schema-lsp --locked
+```
+
+The server publishes parser and semantic diagnostics, completes field types
+from the global record namespace, and supports definition and reference
+queries.
+
 The example keeps schema-specific type rules in its host crate. It is intended
 to test which semantic policies might be reusable across language designs;
 Langmeld does not generate this analysis.
