@@ -84,6 +84,7 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);
     assert_eq!(initialized["capabilities"]["renameProvider"], true);
+    assert_eq!(initialized["capabilities"]["documentSymbolProvider"], true);
     assert_eq!(
         initialized["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"],
         json!(["function", "parameter", "variable"])
@@ -201,7 +202,29 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     );
     assert!(receive_response(&client).is_null());
 
-    send_request(&client, 7, "shutdown", Value::Null);
+    send_request(
+        &client,
+        7,
+        "textDocument/documentSymbol",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let symbols = receive_response(&client);
+    let symbol_names = symbols
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|symbol| symbol["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(symbol_names, ["add", "value", "main", "invalid"]);
+    assert_eq!(symbols[0]["kind"], 12);
+    assert_eq!(symbols[0]["location"]["range"]["start"]["character"], 0);
+    assert_eq!(
+        symbols[0]["location"]["range"]["end"]["character"],
+        text.find('\n').unwrap()
+    );
+    assert_eq!(symbols[1]["containerName"], "add");
+
+    send_request(&client, 8, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

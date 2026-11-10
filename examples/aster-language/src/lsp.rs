@@ -1,7 +1,8 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation};
 use langmeld_language::{AnalysisDocument, LanguageAnalyzer, LanguageNavigator, ParsedDocument};
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, LanguageBackend, SemanticToken, SemanticTokenLegend,
+    BackendCapabilities, BackendDocument, DocumentSymbolInfo, DocumentSymbolKind, LanguageBackend,
+    SemanticToken, SemanticTokenLegend,
 };
 
 use crate::{Analysis, AsterAnalyzer, AsterNavigator, Program, SymbolKind, parse_program};
@@ -40,6 +41,7 @@ impl LanguageBackend for AsterBackend {
             definition: true,
             references: true,
             rename: true,
+            document_symbols: true,
             semantic_tokens: true,
             ..BackendCapabilities::default()
         }
@@ -119,6 +121,47 @@ impl LanguageBackend for AsterBackend {
             new_name,
         );
         (!locations.is_empty()).then_some(locations)
+    }
+
+    fn document_symbols(
+        &self,
+        _source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+    ) -> Vec<DocumentSymbolInfo> {
+        let analysis = &document.state.analysis.result;
+        document
+            .state
+            .parsed
+            .tree
+            .functions
+            .iter()
+            .map(|function| {
+                let children = analysis
+                    .symbols
+                    .iter()
+                    .filter(|symbol| {
+                        symbol.kind != SymbolKind::Function
+                            && function.span.start <= symbol.declaration.start
+                            && symbol.declaration.end <= function.span.end
+                    })
+                    .map(|symbol| {
+                        DocumentSymbolInfo::new(
+                            symbol.name.clone(),
+                            DocumentSymbolKind::Variable,
+                            symbol.declaration,
+                            symbol.declaration,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                DocumentSymbolInfo::new(
+                    function.name.clone(),
+                    DocumentSymbolKind::Function,
+                    function.span,
+                    function.name_span,
+                )
+                .with_children(children)
+            })
+            .collect()
     }
 }
 
