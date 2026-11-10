@@ -8,8 +8,9 @@ Run the initializer from the Langmeld source checkout:
 cargo run -p langmeld-cli -- init my-language
 ```
 
-In a terminal it prompts for a Cargo package name and a language display name.
-The directory name and package name provide defaults. To skip prompts:
+In a terminal it prompts for a syntax approach, Cargo package name, and language
+display name. The directory name and package name provide defaults. To skip
+prompts for the declarative template:
 
 ```sh
 cargo run -p langmeld-cli -- init my-language \
@@ -18,11 +19,21 @@ cargo run -p langmeld-cli -- init my-language \
   --non-interactive
 ```
 
-The command creates a Cargo project with this layout:
+Choose the custom parser template when you want Rust to own all syntax and AST
+behavior:
+
+```sh
+cargo run -p langmeld-cli -- init my-language \
+  --template custom-parser \
+  --non-interactive
+```
+
+The declarative template creates this project layout:
 
 ```text
 my-language/
 ├── Cargo.toml
+├── .gitignore
 ├── langmeld.toml
 ├── README.md
 ├── src/
@@ -38,6 +49,11 @@ statements. The Rust host loads the modular definition, parses a sample program,
 and prints the result. Language-specific semantics and execution remain Rust
 code that the language author adds.
 
+The custom parser template creates `.gitignore`, `Cargo.toml`, `README.md`, and
+`src/main.rs`. Its `SayParser` implements `LanguageParser` directly,
+demonstrating a host-owned syntax and parse tree without `.lm` files or a
+Langmeld manifest. Use normal Cargo commands to build and run that template.
+
 `langmeld.toml` points to the root `.lm` file and has a format version:
 
 ```toml
@@ -50,8 +66,7 @@ project-relative `.lm` path without parent-directory segments.
 
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. It
-does not yet generate a project manifest, editor configuration, or build
-artifacts.
+does not yet generate editor configuration or build artifacts.
 
 ## Validate the project
 
@@ -62,10 +77,11 @@ cargo run -p langmeld-cli -- check \
   --manifest-path my-language/langmeld.toml
 ```
 
-After installing the Langmeld CLI, run `langmeld check` from the generated
+After installing the Langmeld CLI, run `langmeld check` from a declarative
 project directory. The command validates the manifest and complete imported
 definition tree; it does not parse user program files or run language-specific
-semantics. Run the example host from the generated project with:
+semantics. Custom parser projects should use Cargo to build and run the host.
+For the declarative example host, run:
 
 ```sh
 cd my-language

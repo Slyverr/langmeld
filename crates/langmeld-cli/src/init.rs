@@ -5,8 +5,16 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use clap::Args;
-use dialoguer::{Input, theme::ColorfulTheme};
+use clap::{Args, ValueEnum};
+use dialoguer::{Input, Select, theme::ColorfulTheme};
+
+#[derive(Clone, Copy, Debug, Default, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum Template {
+    #[default]
+    Declarative,
+    CustomParser,
+}
 
 #[derive(Debug, Args)]
 pub(crate) struct InitArgs {
@@ -16,9 +24,12 @@ pub(crate) struct InitArgs {
     /// Cargo package name. Defaults to the directory name.
     #[arg(long)]
     name: Option<String>,
-    /// Display name used in the language definition.
+    /// Display name used by the generated language host.
     #[arg(long)]
     language_name: Option<String>,
+    /// Syntax implementation to scaffold. Defaults to `declarative`.
+    #[arg(long, value_enum)]
+    template: Option<Template>,
     /// Skip prompts and use defaults for omitted names.
     #[arg(long)]
     non_interactive: bool,
@@ -28,6 +39,26 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     let project_name_default = default_project_name(&args.path);
     let interactive =
         !args.non_interactive && io::stdin().is_terminal() && io::stdout().is_terminal();
+
+    let template = match args.template {
+        Some(template) => template,
+        None if interactive => {
+            let choices = [
+                "Declarative `.lm` grammar with a Rust host",
+                "Custom Rust parser with full syntax control",
+            ];
+            match Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("How do you want to define the syntax?")
+                .items(choices)
+                .default(0)
+                .interact()?
+            {
+                0 => Template::Declarative,
+                _ => Template::CustomParser,
+            }
+        }
+        None => Template::default(),
+    };
 
     let package_name = match args.name {
         Some(name) => name,
@@ -50,8 +81,12 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     };
     validate_language_name(&language_name)?;
 
-    create_project(&args.path, &package_name, &language_name)?;
-    println!("Created Langmeld language project `{package_name}`.");
+    create_project(&args.path, &package_name, &language_name, template)?;
+    let template_name = match template {
+        Template::Declarative => "declarative grammar",
+        Template::CustomParser => "custom Rust parser",
+    };
+    println!("Created `{package_name}` with a {template_name}.");
     println!(
         "Next: cargo run --manifest-path {}/Cargo.toml",
         args.path.display()
@@ -59,47 +94,13 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn create_project(path: &Path, package_name: &str, language_name: &str) -> io::Result<()> {
-    let version = env!("CARGO_PKG_VERSION");
-    let files = [
-        (
-            "Cargo.toml",
-            format!(
-                "[package]\nname = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n\n[dependencies]\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n\n[workspace]\n"
-            ),
-        ),
-        (
-            ".gitignore",
-            "/target/\n".to_owned(),
-        ),
-        (
-            "README.md",
-            format!(
-                "# {language_name}\n\nA Rust-hosted language project built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\nEdit `language/language.lm` and files in `language/constructs/` to change\nthe syntax. Put language-specific analysis and execution in `src/main.rs` or\nmove them into Rust modules as the project grows.\n"
-            ),
-        ),
-        (
-            "langmeld.toml",
-            "format = 1\ndefinition = \"language/language.lm\"\n".to_owned(),
-        ),
-        (
-            "src/main.rs",
-            main_template().to_owned(),
-        ),
-        (
-            "language/language.lm",
-            format!(
-                "language {} {{\n    import \"constructs/statements.lm\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
-                quote_lm(language_name)
-            ),
-        ),
-        (
-            "language/constructs/statements.lm",
-            "construct \"let\" {\n    syntax {\n        literal \"let\";\n        identifier \"name\";\n        literal \"=\";\n        string \"value\";\n        literal \";\";\n    }\n}\n\nconstruct \"print\" {\n    syntax {\n        literal \"print\";\n        identifier \"name\";\n        literal \";\";\n    }\n}\n"
-                .to_owned(),
-        ),
-    ];
-
+fn create_project(
+    path: &Path,
+    package_name: &str,
+    language_name: &str,
+    template: Template,
+) -> io::Result<()> {
+    let files = project_files(package_name, language_name, template);
     if path.exists() && !path.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -154,6 +155,75 @@ fn create_project(path: &Path, package_name: &str, language_name: &str) -> io::R
         return Err(error);
     }
     Ok(())
+}
+
+fn project_files(
+    package_name: &str,
+    language_name: &str,
+    template: Template,
+) -> Vec<(String, String)> {
+    let version = env!("CARGO_PKG_VERSION");
+    let dependencies = match template {
+        Template::Declarative => format!(
+            "langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
+        ),
+        Template::CustomParser => {
+            format!("langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\n")
+        }
+    };
+    let manifest = format!(
+        "[package]\nname = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n\n[dependencies]\n{dependencies}\n[workspace]\n"
+    );
+    let mut files = vec![
+        ("Cargo.toml".to_owned(), manifest),
+        (".gitignore".to_owned(), "/target/\n".to_owned()),
+    ];
+
+    match template {
+        Template::Declarative => {
+            files.extend([
+                (
+                    "README.md".to_owned(),
+                    format!(
+                        "# {language_name}\n\nA Rust-hosted language project built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\nEdit `language/language.lm` and files in `language/constructs/` to change\nthe syntax. Put language-specific analysis and execution in `src/main.rs` or\nmove them into Rust modules as the project grows.\n"
+                    ),
+                ),
+                (
+                    "langmeld.toml".to_owned(),
+                    "format = 1\ndefinition = \"language/language.lm\"\n".to_owned(),
+                ),
+                ("src/main.rs".to_owned(), main_template().to_owned()),
+                (
+                    "language/language.lm".to_owned(),
+                    format!(
+                        "language {} {{\n    import \"constructs/statements.lm\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
+                        quote_lm(language_name)
+                    ),
+                ),
+                (
+                    "language/constructs/statements.lm".to_owned(),
+                    "construct \"let\" {\n    syntax {\n        literal \"let\";\n        identifier \"name\";\n        literal \"=\";\n        string \"value\";\n        literal \";\";\n    }\n}\n\nconstruct \"print\" {\n    syntax {\n        literal \"print\";\n        identifier \"name\";\n        literal \";\";\n    }\n}\n"
+                        .to_owned(),
+                ),
+            ]);
+        }
+        Template::CustomParser => {
+            files.extend([
+                (
+                    "README.md".to_owned(),
+                    format!(
+                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\nImplement the syntax, AST, and recovery behavior in `src/main.rs` or split\nthem into Rust modules as the project grows. This template uses Langmeld's\n`LanguageParser` contract and leaves grammar design to your Rust code.\n"
+                    ),
+                ),
+                (
+                    "src/main.rs".to_owned(),
+                    custom_parser_template(language_name),
+                ),
+            ]);
+        }
+    }
+
+    files
 }
 
 fn ensure_parent_directories(
@@ -266,6 +336,78 @@ fn format_diagnostics(
         .join("\n")
 }
 "#
+}
+
+fn custom_parser_template(language_name: &str) -> String {
+    r#"use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_language::{LanguageParser, ParsedDocument};
+
+const LANGUAGE_NAME: &str = $LANGUAGE_NAME;
+const SAMPLE: &str = "say Hello from a custom parser!\n";
+
+struct SayParser;
+
+impl LanguageParser for SayParser {
+    type Tree = Vec<String>;
+
+    fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
+        let mut statements = Vec::new();
+        let mut diagnostics = Vec::new();
+        let mut line_start = 0;
+
+        for line in source.text.lines() {
+            let leading = line.len() - line.trim_start().len();
+            let content = line.trim();
+            if !content.is_empty() {
+                if let Some(message) = content.strip_prefix("say ") {
+                    if message.trim().is_empty() {
+                        diagnostics.push(Diagnostic::error(
+                            "EXAMPLE-001",
+                            "expected text after `say`",
+                            source,
+                            Span::new(line_start + leading, line_start + line.len()),
+                        ));
+                    } else {
+                        statements.push(message.trim().to_owned());
+                    }
+                } else {
+                    diagnostics.push(Diagnostic::error(
+                        "EXAMPLE-001",
+                        "expected `say <text>`",
+                        source,
+                        Span::new(line_start + leading, line_start + line.len()),
+                    ));
+                }
+            }
+            line_start += line.len() + 1;
+        }
+
+        ParsedDocument::new(source, statements, diagnostics)
+    }
+}
+
+fn main() {
+    let source = SourceFile::new("example.say", SAMPLE);
+    let parsed = SayParser.parse(&source);
+    if !parsed.is_valid() {
+        for diagnostic in &parsed.diagnostics {
+            let location = diagnostic.location.as_ref();
+            let (line, column) = location
+                .map(|location| source.line_column(location.span.start))
+                .unwrap_or((1, 1));
+            eprintln!("example.say:{line}:{column}: {}", diagnostic.message);
+        }
+        std::process::exit(1);
+    }
+
+    let count = parsed.tree.len();
+    for message in parsed.tree {
+        println!("{message}");
+    }
+    println!("Parsed {count} statement(s) for {LANGUAGE_NAME}.");
+}
+"#
+    .replace("$LANGUAGE_NAME", &format!("{language_name:?}"))
 }
 
 fn default_project_name(path: &Path) -> String {
