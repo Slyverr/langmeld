@@ -171,8 +171,12 @@ fn project_files(
             format!("langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\n")
         }
     };
+    let library = match template {
+        Template::Declarative => "",
+        Template::CustomParser => "\n[lib]\nname = \"language\"\n",
+    };
     let manifest = format!(
-        "[package]\nname = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n\n[dependencies]\n{dependencies}\n[workspace]\n"
+        "[package]\nname = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n{library}\n[dependencies]\n{dependencies}\n[workspace]\n"
     );
     let mut files = vec![
         ("Cargo.toml".to_owned(), manifest),
@@ -212,12 +216,17 @@ fn project_files(
                 (
                     "README.md".to_owned(),
                     format!(
-                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\nImplement the syntax, AST, and recovery behavior in `src/main.rs` or split\nthem into Rust modules as the project grows. This template uses Langmeld's\n`LanguageParser` contract and leaves grammar design to your Rust code.\n"
+                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\n## Test\n\n```sh\ncargo test\n```\n\nImplement the syntax, AST, and recovery behavior in `src/lib.rs`. The binary\nin `src/main.rs` demonstrates using the parser, and `tests/` contains an\nintegration test. This template uses Langmeld's `LanguageParser` contract and\nleaves grammar design to your Rust code.\n"
                     ),
                 ),
+                ("src/lib.rs".to_owned(), custom_parser_library_template().to_owned()),
                 (
                     "src/main.rs".to_owned(),
-                    custom_parser_template(language_name),
+                    custom_parser_main_template(language_name),
+                ),
+                (
+                    "tests/parser.rs".to_owned(),
+                    custom_parser_test_template().to_owned(),
                 ),
             ]);
         }
@@ -338,14 +347,11 @@ fn format_diagnostics(
 "#
 }
 
-fn custom_parser_template(language_name: &str) -> String {
+fn custom_parser_library_template() -> &'static str {
     r#"use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_language::{LanguageParser, ParsedDocument};
 
-const LANGUAGE_NAME: &str = $LANGUAGE_NAME;
-const SAMPLE: &str = "say Hello from a custom parser!\n";
-
-struct SayParser;
+pub struct SayParser;
 
 impl LanguageParser for SayParser {
     type Tree = Vec<String>;
@@ -355,7 +361,11 @@ impl LanguageParser for SayParser {
         let mut diagnostics = Vec::new();
         let mut line_start = 0;
 
-        for line in source.text.lines() {
+        for line_with_ending in source.text.split_inclusive('\n') {
+            let line = line_with_ending
+                .strip_suffix('\n')
+                .unwrap_or(line_with_ending);
+            let line = line.strip_suffix('\r').unwrap_or(line);
             let leading = line.len() - line.trim_start().len();
             let content = line.trim();
             if !content.is_empty() {
@@ -379,12 +389,22 @@ impl LanguageParser for SayParser {
                     ));
                 }
             }
-            line_start += line.len() + 1;
+            line_start += line_with_ending.len();
         }
 
         ParsedDocument::new(source, statements, diagnostics)
     }
 }
+"#
+}
+
+fn custom_parser_main_template(language_name: &str) -> String {
+    r#"use langmeld_core::SourceFile;
+use langmeld_language::LanguageParser;
+use language::SayParser;
+
+const LANGUAGE_NAME: &str = $LANGUAGE_NAME;
+const SAMPLE: &str = "say Hello from a custom parser!\n";
 
 fn main() {
     let source = SourceFile::new("example.say", SAMPLE);
@@ -408,6 +428,30 @@ fn main() {
 }
 "#
     .replace("$LANGUAGE_NAME", &format!("{language_name:?}"))
+}
+
+fn custom_parser_test_template() -> &'static str {
+    r#"use langmeld_core::{SourceFile, Span};
+use langmeld_language::LanguageParser;
+use language::SayParser;
+
+#[test]
+fn reports_byte_correct_diagnostics_after_crlf_lines() {
+    let source = SourceFile::new("example.say", "say ok\r\ninvalid\r\n");
+    let parsed = SayParser.parse(&source);
+    let diagnostic = parsed
+        .diagnostics
+        .first()
+        .expect("invalid line should be diagnosed");
+    let location = diagnostic
+        .location
+        .as_ref()
+        .expect("diagnostic should have a source span");
+
+    assert_eq!(location.span, Span::new(8, 15));
+    assert_eq!(source.line_column(location.span.start), (2, 1));
+}
+"#
 }
 
 fn default_project_name(path: &Path) -> String {

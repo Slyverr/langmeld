@@ -49,10 +49,11 @@ statements. The Rust host loads the modular definition, parses a sample program,
 and prints the result. Language-specific semantics and execution remain Rust
 code that the language author adds.
 
-The custom parser template creates `.gitignore`, `Cargo.toml`, `README.md`, and
-`src/main.rs`. Its `SayParser` implements `LanguageParser` directly,
-demonstrating a host-owned syntax and parse tree without `.lm` files or a
-Langmeld manifest. Use normal Cargo commands to build and run that template.
+The custom parser template creates a library in `src/lib.rs`, a demonstration
+binary in `src/main.rs`, and an integration test in `tests/parser.rs`. Its
+`SayParser` implements `LanguageParser` directly, demonstrating a host-owned
+syntax and parse tree without `.lm` files or a Langmeld manifest. Use normal
+Cargo commands to test, build, and run that template.
 
 `langmeld.toml` points to the root `.lm` file and has a format version:
 

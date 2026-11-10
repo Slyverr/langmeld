@@ -447,14 +447,19 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(project.join("Cargo.toml").is_file());
+    assert!(project.join("src/lib.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
+    assert!(project.join("tests/parser.rs").is_file());
     assert!(!project.join("langmeld.toml").exists());
     assert!(!project.join("language").exists());
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(!manifest.contains("langmeld-project"));
     let parser =
-        fs::read_to_string(project.join("src/main.rs")).expect("host parser should be generated");
+        fs::read_to_string(project.join("src/lib.rs")).expect("host parser should be generated");
     assert!(parser.contains("impl LanguageParser for SayParser"));
-    assert!(parser.contains("Custom Language"));
+    assert!(parser.contains("split_inclusive('\\n')"));
+    let binary =
+        fs::read_to_string(project.join("src/main.rs")).expect("binary should be generated");
+    assert!(binary.contains("Custom Language"));
 }
