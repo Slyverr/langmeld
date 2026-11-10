@@ -6,3 +6,8 @@ The format follows [Keep a Changelog 2.0.0](https://keepachangelog.com/en/2.0.0/
 and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+
+- Source snapshots, stable source identities, revisions, byte spans, and
+  structured diagnostics in `langmeld-core`.
