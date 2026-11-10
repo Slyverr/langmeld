@@ -140,21 +140,25 @@ fn lower_construct(
         .iter()
         .filter(|child| child.name == "syntax")
         .collect();
-    if syntax_nodes.len() != 1 {
+    if syntax_nodes.is_empty() {
         diagnostics.push(Diagnostic::error(
             "LM-DEF-005",
-            format!("construct `{name}` must have exactly one `syntax` block"),
+            format!("construct `{name}` must have at least one `syntax` block"),
             source,
             node.span,
         ));
         return None;
     }
 
-    let mut pattern = Vec::new();
-    for part in &syntax_nodes[0].children {
-        if let Some(pattern_part) = lower_pattern(part, source, diagnostics) {
-            pattern.push(pattern_part);
+    let mut patterns = Vec::new();
+    for syntax in syntax_nodes {
+        let mut pattern = Vec::new();
+        for part in &syntax.children {
+            if let Some(pattern_part) = lower_pattern(part, source, diagnostics) {
+                pattern.push(pattern_part);
+            }
         }
+        patterns.push(pattern);
     }
 
     let block_nodes: Vec<_> = node
@@ -172,7 +176,11 @@ fn lower_construct(
         return None;
     }
 
-    let mut construct = ConstructSpec::new(name, pattern);
+    let mut patterns = patterns.into_iter();
+    let mut construct = ConstructSpec::new(name, patterns.next().unwrap_or_default());
+    for pattern in patterns {
+        construct = construct.variant(pattern);
+    }
     if let Some(block) = block_nodes.first() {
         let (Some(open), Some(close)) = (
             string_field(block, "open").and_then(decode_quoted),
@@ -304,7 +312,8 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         | SpecError::EmptyPatternGroup(construct)
         | SpecError::EmptyOptional(construct)
         | SpecError::EmptyRepetition(construct)
-        | SpecError::AmbiguousPatternBoundary(construct) => Some(construct),
+        | SpecError::AmbiguousPatternBoundary(construct)
+        | SpecError::AmbiguousVariants(construct) => Some(construct),
         SpecError::AmbiguousConstructs(left, _) => Some(left),
     }
 }

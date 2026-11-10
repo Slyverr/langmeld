@@ -316,6 +316,47 @@ fn parses_function_signatures_with_optional_and_repeated_parameters() {
 }
 
 #[test]
+fn parses_alternative_construct_syntax_and_reports_its_variant() {
+    let grammar = LanguageSpec::new(
+        "Functions",
+        [ConstructSpec::new(
+            "function",
+            [PatternPart::literal("fn"), PatternPart::identifier("name")],
+        )
+        .variant([
+            PatternPart::literal("function"),
+            PatternPart::identifier("name"),
+            PatternPart::literal("("),
+            PatternPart::literal(")"),
+        ])],
+    )
+    .unwrap();
+
+    let parsed = parse(&SourceFile::new("source", "function render()"), &grammar);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].name, "function");
+    assert_eq!(parsed.constructs[0].variant, 1);
+}
+
+#[test]
+fn rejects_overlapping_variants_of_one_construct() {
+    let construct = ConstructSpec::new(
+        "function",
+        [PatternPart::literal("fn"), PatternPart::identifier("name")],
+    )
+    .variant([
+        PatternPart::literal("fn"),
+        PatternPart::identifier("function_name"),
+    ]);
+
+    assert!(matches!(
+        LanguageSpec::new("Functions", [construct]),
+        Err(langmeld_language::SpecError::AmbiguousVariants(_))
+    ));
+}
+
+#[test]
 fn rejects_optional_or_repeated_groups_with_ambiguous_boundaries() {
     let construct = ConstructSpec::new(
         "ambiguous",

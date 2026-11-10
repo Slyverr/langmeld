@@ -87,7 +87,7 @@ fn reports_invalid_definition_string_escapes() {
 }
 
 #[test]
-fn requires_one_syntax_block_per_construct() {
+fn requires_at_least_one_syntax_block_per_construct() {
     let source = SourceFile::new("language.lm", r#"language "Toy" { construct "item" { } }"#);
 
     let result = parse_language_definition(&source);
@@ -99,6 +99,37 @@ fn requires_one_syntax_block_per_construct() {
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-DEF-005")
     );
+}
+
+#[test]
+fn definition_frontend_lowers_multiple_syntax_variants() {
+    let source = SourceFile::new(
+        "functions.lm",
+        r#"language "Functions" {
+            construct "function" {
+                syntax {
+                    literal "fn";
+                    identifier "name";
+                }
+                syntax {
+                    literal "function";
+                    identifier "name";
+                    literal "(";
+                    literal ")";
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let parsed = parse(
+        &SourceFile::new("functions", "function render()"),
+        definition.language.as_ref().unwrap(),
+    );
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].variant, 1);
 }
 
 #[test]

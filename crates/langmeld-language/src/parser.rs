@@ -47,6 +47,8 @@ pub struct CapturedField {
 pub struct ParsedConstruct {
     /// Name of the matching construct specification.
     pub name: String,
+    /// Zero-based index of the matching syntax alternative.
+    pub variant: usize,
     /// Complete source range consumed by the construct.
     pub span: Span,
     /// Values captured by named fields.
@@ -127,25 +129,30 @@ impl Parser<'_> {
         depth: usize,
     ) -> Option<ParsedConstruct> {
         let start_index = self.cursor;
-        let mut best_partial: Option<(&crate::ConstructSpec, MatchAttempt<'_>)> = None;
+        let mut best_partial: Option<(&crate::ConstructSpec, usize, MatchAttempt<'_>)> = None;
         let mut matched = None;
         let mut ambiguous = false;
         for spec in allowed {
-            let attempt = match_sequence(&spec.pattern, &self.tokens, self.cursor);
-            if attempt.complete {
-                if matched.is_some() {
-                    ambiguous = true;
-                    break;
+            for (variant, pattern) in spec.variants().iter().enumerate() {
+                let attempt = match_sequence(pattern, &self.tokens, self.cursor);
+                if attempt.complete {
+                    if matched.is_some() {
+                        ambiguous = true;
+                        break;
+                    }
+                    matched = Some((*spec, variant, attempt));
+                    continue;
                 }
-                matched = Some((*spec, attempt));
-                continue;
+                if attempt.end > self.cursor
+                    && best_partial
+                        .as_ref()
+                        .is_none_or(|(_, _, best)| attempt.end > best.end)
+                {
+                    best_partial = Some((*spec, variant, attempt));
+                }
             }
-            if attempt.end > self.cursor
-                && best_partial
-                    .as_ref()
-                    .is_none_or(|(_, best)| attempt.end > best.end)
-            {
-                best_partial = Some((*spec, attempt));
+            if ambiguous {
+                break;
             }
         }
 
@@ -161,8 +168,8 @@ impl Parser<'_> {
             return None;
         }
 
-        let Some((spec, attempt)) = matched else {
-            if let Some((spec, attempt)) = best_partial {
+        let Some((spec, variant, attempt)) = matched else {
+            if let Some((spec, _, attempt)) = best_partial {
                 let span = self.tokens.get(attempt.end).map_or_else(
                     || Span::new(self.source.text.len(), self.source.text.len()),
                     |token| token.span,
@@ -200,6 +207,7 @@ impl Parser<'_> {
                 self.missing_block_open(spec, block.open.as_str());
                 return Some(ParsedConstruct {
                     name: spec.name.clone(),
+                    variant,
                     span: Span::new(start, end),
                     fields: attempt.fields,
                     children,
@@ -209,6 +217,7 @@ impl Parser<'_> {
                 self.missing_block_open(spec, block.open.as_str());
                 return Some(ParsedConstruct {
                     name: spec.name.clone(),
+                    variant,
                     span: Span::new(start, end),
                     fields: attempt.fields,
                     children,
@@ -255,6 +264,7 @@ impl Parser<'_> {
         }
         Some(ParsedConstruct {
             name: spec.name.clone(),
+            variant,
             span: Span::new(start, end),
             fields: attempt.fields,
             children,

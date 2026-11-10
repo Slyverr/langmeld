@@ -111,8 +111,8 @@ impl PatternPart {
 pub struct ConstructSpec {
     /// Stable construct name returned in parsed nodes.
     pub(crate) name: String,
-    /// Ordered tokens and captures that make up this construct.
-    pub(crate) pattern: Vec<PatternPart>,
+    /// Ordered syntax alternatives that make up this construct.
+    pub(crate) patterns: Vec<Vec<PatternPart>>,
     /// Optional delimited child-construct body.
     pub(crate) block: Option<BlockSpec>,
 }
@@ -123,9 +123,16 @@ impl ConstructSpec {
     pub fn new(name: impl Into<String>, pattern: impl IntoIterator<Item = PatternPart>) -> Self {
         Self {
             name: name.into(),
-            pattern: pattern.into_iter().collect(),
+            patterns: vec![pattern.into_iter().collect()],
             block: None,
         }
+    }
+
+    /// Adds another syntax alternative for this construct.
+    #[must_use]
+    pub fn variant(mut self, pattern: impl IntoIterator<Item = PatternPart>) -> Self {
+        self.patterns.push(pattern.into_iter().collect());
+        self
     }
 
     /// Adds a delimited block containing the named child constructs.
@@ -166,10 +173,16 @@ impl ConstructSpec {
         &self.name
     }
 
-    /// Returns the ordered syntax pattern.
+    /// Returns all syntax alternatives in declaration order.
+    #[must_use]
+    pub fn variants(&self) -> &[Vec<PatternPart>] {
+        &self.patterns
+    }
+
+    /// Returns the first syntax alternative, or an empty slice if it is invalid.
     #[must_use]
     pub fn pattern(&self) -> &[PatternPart] {
-        &self.pattern
+        self.patterns.first().map_or(&[], Vec::as_slice)
     }
 
     /// Returns the optional delimited child block.
@@ -241,15 +254,24 @@ impl LanguageSpec {
             if !names.insert(construct.name.as_str()) {
                 return Err(SpecError::DuplicateConstruct(construct.name.clone()));
             }
-            if construct.pattern.is_empty() {
+            if construct.patterns.is_empty() {
                 return Err(SpecError::EmptyPattern(construct.name.clone()));
             }
-            if sequence_is_nullable(&construct.pattern) {
-                return Err(SpecError::EmptyPattern(construct.name.clone()));
+            for (index, pattern) in construct.patterns.iter().enumerate() {
+                if pattern.is_empty() || sequence_is_nullable(pattern) {
+                    return Err(SpecError::EmptyPattern(construct.name.clone()));
+                }
+                let mut fields = HashSet::new();
+                validate_pattern(pattern, &construct.name, &mut fields)?;
+                validate_decision_points(pattern, &construct.name)?;
+                if construct.patterns[..index].iter().any(|previous| {
+                    !has_group(pattern)
+                        && !has_group(previous)
+                        && patterns_overlap(previous, pattern)
+                }) {
+                    return Err(SpecError::AmbiguousVariants(construct.name.clone()));
+                }
             }
-            let mut fields = HashSet::new();
-            validate_pattern(&construct.pattern, &construct.name, &mut fields)?;
-            validate_decision_points(&construct.pattern, &construct.name)?;
         }
         for construct in &constructs {
             if let Some(block) = &construct.block {
@@ -280,14 +302,18 @@ impl LanguageSpec {
         }
         for (index, left) in constructs.iter().enumerate() {
             for right in &constructs[index + 1..] {
-                if !has_group(&left.pattern)
-                    && !has_group(&right.pattern)
-                    && patterns_overlap(&left.pattern, &right.pattern)
-                {
-                    return Err(SpecError::AmbiguousConstructs(
-                        left.name.clone(),
-                        right.name.clone(),
-                    ));
+                for left_pattern in &left.patterns {
+                    for right_pattern in &right.patterns {
+                        if !has_group(left_pattern)
+                            && !has_group(right_pattern)
+                            && patterns_overlap(left_pattern, right_pattern)
+                        {
+                            return Err(SpecError::AmbiguousConstructs(
+                                left.name.clone(),
+                                right.name.clone(),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -320,6 +346,8 @@ pub enum SpecError {
     DuplicateConstruct(String),
     /// A construct pattern cannot be empty.
     EmptyPattern(String),
+    /// Two alternatives of one construct have overlapping syntax.
+    AmbiguousVariants(String),
     /// A literal pattern must contain one token.
     EmptyLiteral(String),
     /// A literal contains whitespace or more than one lexical token.
@@ -610,6 +638,10 @@ impl std::fmt::Display for SpecError {
                 write!(f, "construct `{name}` is declared more than once")
             }
             Self::EmptyPattern(name) => write!(f, "construct `{name}` has an empty syntax pattern"),
+            Self::AmbiguousVariants(construct) => write!(
+                f,
+                "construct `{construct}` has syntax alternatives with overlapping patterns"
+            ),
             Self::EmptyLiteral(name) => write!(f, "construct `{name}` has an empty literal token"),
             Self::InvalidLiteral { construct, literal } => write!(
                 f,

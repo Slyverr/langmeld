@@ -4,11 +4,11 @@ Langmeld is an early-stage, Rust-first framework for describing language
 syntax, parsing source, and building language-specific behavior in Rust.
 
 The current libraries provide source snapshots, revision-aware diagnostics, a
-validated syntax model, and a generic parser for token patterns, optional and
-repeated groups, and scoped blocks. The `.lm` frontend is itself parsed by that
-generic parser. The parser does not yet provide expressions, type checking,
-execution, code generation, or editor integrations; language authors own
-those behaviors in Rust.
+validated syntax model, and a generic parser for token patterns, alternative
+forms, optional and repeated groups, and scoped blocks. The `.lm` frontend is
+itself parsed by that generic parser. The parser does not yet provide
+expressions, type checking, execution, code generation, or editor integrations;
+language authors own those behaviors in Rust.
 
 ## Requirements
 
