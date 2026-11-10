@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use langmeld_core::{PositionEncoding, SourceFile, Span};
-use lsp_types::{Position, SemanticToken as LspSemanticToken, SemanticTokens};
+use lsp_types::{SemanticToken as LspSemanticToken, SemanticTokens};
 
 /// Names advertised to an editor for host-provided semantic tokens.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -101,38 +101,54 @@ pub(crate) fn encode(
         .enumerate()
         .map(|(index, name)| (name.as_str(), index))
         .collect::<HashMap<_, _>>();
-    let mut tokens = tokens
-        .into_iter()
-        .filter_map(|token| {
-            let token_type = *token_types.get(token.token_type.as_str())?;
-            if token.span.is_empty()
-                || token.span.end > source.text.len()
-                || !source.text.is_char_boundary(token.span.start)
-                || !source.text.is_char_boundary(token.span.end)
-            {
-                return None;
-            }
-            let start = source.line_index().position(token.span.start, encoding)?;
-            let end = source.line_index().position(token.span.end, encoding)?;
+    let line_index = source.line_index();
+    let mut encoded_tokens = Vec::new();
+    for token in tokens {
+        let Some(&token_type) = token_types.get(token.token_type.as_str()) else {
+            continue;
+        };
+        if token.span.is_empty()
+            || token.span.end > source.text.len()
+            || !source.text.is_char_boundary(token.span.start)
+            || !source.text.is_char_boundary(token.span.end)
+        {
+            continue;
+        }
+        let mut modifier_bits = 0_u32;
+        let mut valid_modifiers = true;
+        for modifier in &token.modifiers {
+            let Some(&bit) = modifiers.get(modifier.as_str()) else {
+                valid_modifiers = false;
+                break;
+            };
+            modifier_bits |= 1_u32 << bit;
+        }
+        if !valid_modifiers {
+            continue;
+        }
+        for span in split_lines(&source.text, token.span) {
+            let Some(start) = line_index.position(span.start, encoding) else {
+                continue;
+            };
+            let Some(end) = line_index.position(span.end, encoding) else {
+                continue;
+            };
             if start.line != end.line || start.character >= end.character {
-                return None;
+                continue;
             }
-            let length = u32::try_from(end.character - start.character).ok()?;
-            let mut modifier_bits = 0_u32;
-            for modifier in &token.modifiers {
-                let bit = *modifiers.get(modifier.as_str())?;
-                modifier_bits |= 1_u32 << bit;
-            }
-            Some((token.span, start, length, token_type, modifier_bits))
-        })
-        .collect::<Vec<_>>();
-    tokens.sort_by_key(|(span, _, _, _, _)| (span.start, span.end));
+            let Ok(length) = u32::try_from(end.character - start.character) else {
+                continue;
+            };
+            encoded_tokens.push((span, start, length, token_type, modifier_bits));
+        }
+    }
+    encoded_tokens.sort_by_key(|(span, _, _, _, _)| (span.start, span.end));
 
-    let mut encoded = Vec::with_capacity(tokens.len());
+    let mut encoded = Vec::with_capacity(encoded_tokens.len());
     let mut previous_end = 0;
     let mut previous_line = 0;
     let mut previous_start = 0;
-    for (span, start, length, token_type, token_modifiers_bitset) in tokens {
+    for (span, start, length, token_type, token_modifiers_bitset) in encoded_tokens {
         if span.start < previous_end {
             continue;
         }
@@ -164,7 +180,23 @@ pub(crate) fn encode(
     }
 }
 
-#[allow(dead_code)]
-fn _position_is_lsp(position: Position) -> Position {
-    position
+fn split_lines(text: &str, span: Span) -> Vec<Span> {
+    let mut spans = Vec::new();
+    let mut start = span.start;
+    for (relative, _) in text[span.start..span.end].match_indices('\n') {
+        let newline = span.start + relative;
+        let end = if newline > start && text.as_bytes()[newline - 1] == b'\r' {
+            newline - 1
+        } else {
+            newline
+        };
+        if start < end {
+            spans.push(Span::new(start, end));
+        }
+        start = newline + 1;
+    }
+    if start < span.end {
+        spans.push(Span::new(start, span.end));
+    }
+    spans
 }

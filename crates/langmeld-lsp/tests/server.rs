@@ -91,9 +91,15 @@ impl LanguageBackend for Backend {
 
     fn semantic_tokens(
         &self,
-        _source: &SourceFile,
+        source: &SourceFile,
         _document: &BackendDocument<String>,
     ) -> Vec<SemanticToken> {
+        if source.text.contains('\n') {
+            return vec![SemanticToken::new(
+                Span::new(0, source.text.len()),
+                "variable",
+            )];
+        }
         vec![
             SemanticToken::new(Span::new("😀".len(), "😀bad".len()), "variable"),
             SemanticToken::new(Span::new(0, "😀".len()), "variable").with_modifier("declaration"),
@@ -260,12 +266,21 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         "textDocument/didChange",
         json!({
             "textDocument": { "uri": uri, "version": 2 },
-            "contentChanges": [{ "text": "fixed" }]
+            "contentChanges": [{ "text": "f😀\r\nx" }]
         }),
     );
     let changed = receive_diagnostics(&client);
     assert!(changed["diagnostics"].as_array().unwrap().is_empty());
     assert_eq!(changed["version"], 2);
+
+    send_request(
+        &client,
+        6,
+        "textDocument/semanticTokens/full",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let tokens = receive_response(&client);
+    assert_eq!(tokens["data"], json!([0, 0, 3, 0, 0, 1, 0, 1, 0, 0]));
 
     // Older document versions must not replace the current snapshot or publish
     // stale diagnostics.
@@ -286,7 +301,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 6, "shutdown", Value::Null);
+    send_request(&client, 7, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

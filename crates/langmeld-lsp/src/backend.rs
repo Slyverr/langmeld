@@ -104,8 +104,8 @@ pub trait LanguageBackend: Send + Sync + 'static {
     /// Returns host-classified source spans for one analyzed document.
     ///
     /// Tokens must use names present in [`Self::semantic_token_legend`]. The
-    /// LSP adapter sorts tokens by source position and ignores malformed,
-    /// unknown, overlapping, or multi-line spans.
+    /// LSP adapter sorts tokens by source position, splits multi-line spans at
+    /// line breaks, and ignores malformed, unknown, or overlapping spans.
     fn semantic_tokens(
         &self,
         _source: &SourceFile,
