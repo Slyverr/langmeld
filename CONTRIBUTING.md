@@ -51,7 +51,8 @@ cargo package --workspace \
   --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
   --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
   --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
-  --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"'
+  --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"' \\
+  --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
 ```
 
 The local patches make archive verification use this workspace's versions of

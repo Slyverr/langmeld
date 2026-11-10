@@ -2,6 +2,7 @@ use std::{error::Error, path::PathBuf};
 
 use clap::{Args, Subcommand};
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
+use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 
 use crate::project::load_language_definition;
 
@@ -15,6 +16,8 @@ pub(crate) struct GenerateArgs {
 enum GenerateCommand {
     /// Generate a lexical TextMate grammar as JSON on standard output.
     Textmate(TextmateArgs),
+    /// Generate a Tree-sitter grammar.js file on standard output.
+    TreeSitter(TreeSitterArgs),
 }
 
 #[derive(Debug, Args)]
@@ -30,9 +33,20 @@ struct TextmateArgs {
     file_types: Vec<String>,
 }
 
+#[derive(Debug, Args)]
+struct TreeSitterArgs {
+    /// Path to langmeld.toml.
+    #[arg(long, default_value = "langmeld.toml")]
+    manifest_path: PathBuf,
+    /// Tree-sitter grammar name, such as `widget_script`.
+    #[arg(long)]
+    grammar_name: String,
+}
+
 pub(crate) fn run(args: GenerateArgs) -> Result<(), Box<dyn Error>> {
     match args.command {
         GenerateCommand::Textmate(args) => generate_textmate_grammar(args),
+        GenerateCommand::TreeSitter(args) => generate_tree_sitter_grammar(args),
     }
 }
 
@@ -41,5 +55,13 @@ fn generate_textmate_grammar(args: TextmateArgs) -> Result<(), Box<dyn Error>> {
     let options = TextMateOptions::new(args.scope_name).file_types(args.file_types);
     let grammar = generate_textmate(&language, &options)?;
     println!("{grammar}");
+    Ok(())
+}
+
+fn generate_tree_sitter_grammar(args: TreeSitterArgs) -> Result<(), Box<dyn Error>> {
+    let language = load_language_definition(&args.manifest_path)?;
+    let options = TreeSitterOptions::new(args.grammar_name);
+    let grammar = generate_tree_sitter(&language, &options)?;
+    print!("{grammar}");
     Ok(())
 }

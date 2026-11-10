@@ -83,9 +83,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: tests/textmate/package-lock.json
+          cache-dependency-path: |
+            tests/textmate/package-lock.json
+            tests/tree-sitter/package-lock.json
       - name: Install TextMate validation dependencies
         run: npm ci --prefix tests/textmate --ignore-scripts
+      - name: Install Tree-sitter validation CLI
+        run: npm ci --prefix tests/tree-sitter
       - name: Generate and tokenize the example grammar
         run: |
           set -o pipefail
@@ -94,6 +98,22 @@ jobs:
             --scope-name source.widgetscript \
             --file-type widget |
           npm --prefix tests/textmate test
+      - name: Generate and parse the example Tree-sitter grammar
+        shell: bash
+        run: |
+          mkdir -p target/tree-sitter-validation
+          cargo run -p langmeld-cli --locked -- generate tree-sitter \
+            --manifest-path tests/fixtures/tree-sitter-language/langmeld.toml \
+            --grammar-name widget \
+            > target/tree-sitter-validation/grammar.js
+          tests/tree-sitter/node_modules/.bin/tree-sitter generate \
+            target/tree-sitter-validation/grammar.js \
+            --output target/tree-sitter-validation/src
+          printf '%s\n' 'program { say hello to world with "one" with "two"; emit 7; raw opaque; }' \
+            > target/tree-sitter-validation/sample.widget
+          tests/tree-sitter/node_modules/.bin/tree-sitter parse \
+            --grammar-path target/tree-sitter-validation \
+            target/tree-sitter-validation/sample.widget
       - name: Check reusable libraries for WebAssembly
         run: >-
           cargo check --target wasm32-unknown-unknown
@@ -101,6 +121,7 @@ jobs:
           -p langmeld-expression
           -p langmeld-language
           -p langmeld-textmate
+          -p langmeld-tree-sitter
           --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Verify packaged workspace crates
@@ -118,6 +139,7 @@ jobs:
           --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
           --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
           --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"'
+          --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
       - uses: dtolnay/rust-toolchain@1.88.0
       - name: Check the minimum supported Rust version
         run: cargo +1.88.0 check --workspace --locked

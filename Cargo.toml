@@ -7,6 +7,7 @@ members = [
     "crates/langmeld-lsp",
     "crates/langmeld-project",
     "crates/langmeld-textmate",
+    "crates/langmeld-tree-sitter",
     "examples/aster-language",
     "examples/custom-lexer",
     "examples/custom-parser",
@@ -38,6 +39,7 @@ langmeld-language = { path = "crates/langmeld-language", version = "0.3.0" }
 langmeld-lsp = { path = "crates/langmeld-lsp", version = "0.3.0" }
 langmeld-project = { path = "crates/langmeld-project", version = "0.3.0" }
 langmeld-textmate = { path = "crates/langmeld-textmate", version = "0.3.0" }
+langmeld-tree-sitter = { path = "crates/langmeld-tree-sitter", version = "0.3.0" }
 url = "2.5.7"
 
 [workspace.lints.rust]

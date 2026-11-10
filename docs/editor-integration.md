@@ -157,10 +157,35 @@ editor UI. Use the LSP for semantic diagnostics and navigation. See the
 [VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
 for TextMate grammar integration details.
 
+## Tree-sitter grammar export
+
+The optional `langmeld-tree-sitter` crate converts a declarative `LanguageSpec`
+to a Tree-sitter `grammar.js` source. It maps construct variants, captures,
+optional and repeated groups, and child blocks. The generated lexer covers the
+built-in identifier, decimal integer, quoted string, and punctuation categories.
+It cannot infer a host lexer, custom parser, semantic rules, or runtime
+behavior, so those languages need a host-authored Tree-sitter grammar.
+
+Generate a grammar from a project manifest with:
+
+```sh
+langmeld generate tree-sitter \
+  --manifest-path langmeld.toml \
+  --grammar-name my_language > grammar.js
+```
+
+The Tree-sitter CLI is required to validate and compile the generated grammar:
+run `tree-sitter generate grammar.js` from the grammar project. Tree-sitter can
+reject conflicts that Langmeld's generic grammar model cannot resolve; edit
+the generated grammar or keep a host-authored grammar for those cases. The
+exporter does not generate a Tree-sitter project, parser bindings, or
+highlighting queries.
+
 ## WebAssembly
 
-The `langmeld-core`, `langmeld-expression`, `langmeld-language`, and
-`langmeld-textmate` crates compile for `wasm32-unknown-unknown`. This makes
+The `langmeld-core`, `langmeld-expression`, `langmeld-language`,
+`langmeld-textmate`, and `langmeld-tree-sitter` crates compile for
+`wasm32-unknown-unknown`. This makes
 their Rust APIs usable from a Rust WebAssembly application, but Langmeld does
 not provide JavaScript bindings or a browser editor adapter. The project
 resolver uses filesystem APIs, and the LSP adapter currently serves protocol

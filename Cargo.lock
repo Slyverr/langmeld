@@ -343,6 +343,7 @@ dependencies = [
  "langmeld-lsp",
  "langmeld-project",
  "langmeld-textmate",
+ "langmeld-tree-sitter",
  "lsp-types",
  "serde_json",
  "url",
@@ -429,6 +430,13 @@ dependencies = [
  "langmeld-core",
  "langmeld-language",
  "langmeld-project",
+]
+
+[[package]]
+name = "langmeld-tree-sitter"
+version = "0.3.0"
+dependencies = [
+ "langmeld-language",
 ]
 
 [[package]]

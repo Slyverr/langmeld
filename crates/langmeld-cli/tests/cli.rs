@@ -859,6 +859,42 @@ fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
 }
 
 #[test]
+fn generate_tree_sitter_writes_a_grammar_js_source_file_to_stdout() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/tree-sitter-language/langmeld.toml");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "tree-sitter",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+            "--grammar-name",
+            "widget_script",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let grammar = String::from_utf8(output.stdout).expect("grammar source should be UTF-8");
+    assert!(grammar.contains("module.exports = grammar({"));
+    assert!(grammar.contains("name: \"widget_script\""));
+    assert!(grammar.contains("source_file: $ => repeat(choice($.construct_"));
+    assert!(grammar.contains("identifier: _ =>"));
+    assert!(grammar.contains("optional(seq(\"to\", field(\"target\", $.identifier)))"));
+    assert!(grammar.contains("repeat(seq(\"with\", field(\"label\", $.string)))"));
+    assert!(grammar.contains("choice(seq(\"say\","));
+    assert!(grammar.contains("field(\"value\", $.token)"));
+    assert!(
+        grammar.contains("token: $ => choice($.identifier, $.integer, $.string, $.punctuation)")
+    );
+}
+
+#[test]
 fn init_can_scaffold_a_host_owned_rust_parser() {
     let parent = TestDirectory::new();
     let project = parent.path().join("custom-language");

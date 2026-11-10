@@ -29,12 +29,13 @@ editing `.lm` syntax with project validation, diagnostics, scoped completion,
 and formatting.
 `langmeld format` formats all definitions reachable through the project
 manifest; pass a file path to format one file. The optional
-`langmeld-textmate` crate exports lexical highlighting rules for declarative
-syntax. Tree-sitter export is not available yet. The `langmeld-project` crate
+`langmeld-textmate` crate exports lexical highlighting rules, and
+`langmeld-tree-sitter` exports parser grammars for compatible declarative
+syntax. The `langmeld-project` crate
 provides a directory-backed resolver for modular `.lm` projects, with project-root
 confinement and source snapshots for diagnostic display. The core, expression,
-language, and TextMate crates compile for `wasm32-unknown-unknown`; Langmeld does
-not yet provide browser bindings or a browser editor adapter.
+language, TextMate, and Tree-sitter crates compile for `wasm32-unknown-unknown`;
+Langmeld does not yet provide browser bindings or a browser editor adapter.
 
 ## Requirements
 
@@ -79,6 +80,8 @@ or a custom Rust parser. Validate declarative manifests and definitions with
 `cargo run -p langmeld-cli -- check --manifest-path my-language/langmeld.toml`.
 Generate lexical highlighting JSON with
 `cargo run -p langmeld-cli -- generate textmate --manifest-path my-language/langmeld.toml --scope-name source.my_language`.
+Generate a Tree-sitter `grammar.js` file with
+`cargo run -p langmeld-cli -- generate tree-sitter --manifest-path my-language/langmeld.toml --grammar-name my_language`.
 See [Project workflow](docs/project-workflow.md) for generated files and
 non-interactive options.
 

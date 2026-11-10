@@ -1,0 +1,40 @@
+language "Widget" {
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow "message";
+            allow "raw";
+        }
+    }
+
+    construct "message" {
+        syntax {
+            literal "say";
+            identifier "name";
+            optional {
+                literal "to";
+                identifier "target";
+            }
+            zero_or_more {
+                literal "with";
+                string "label";
+            }
+            literal ";";
+        }
+        syntax {
+            literal "emit";
+            integer "code";
+            literal ";";
+        }
+    }
+
+    construct "raw" {
+        syntax {
+            literal "raw";
+            token "value";
+            literal ";";
+        }
+    }
+}

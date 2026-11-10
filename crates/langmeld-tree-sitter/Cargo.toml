@@ -1,0 +1,16 @@
+[package]
+name = "langmeld-tree-sitter"
+description = "Tree-sitter grammar generation for declarative Langmeld languages."
+readme = "README.md"
+publish = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+langmeld-language.workspace = true
+
+[lints]
+workspace = true
