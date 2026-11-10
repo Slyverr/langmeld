@@ -42,7 +42,11 @@ pub fn run_connection<B: LanguageBackend>(
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
     let encoding = negotiate_encoding(&initialize_params);
     let capabilities = backend.capabilities();
-    let semantic_legend = backend.semantic_token_legend();
+    let semantic_legend = if capabilities.semantic_tokens {
+        backend.semantic_token_legend()
+    } else {
+        SemanticTokenLegend::default()
+    };
     if capabilities.semantic_tokens {
         semantic_legend
             .validate()

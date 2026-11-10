@@ -446,3 +446,37 @@ fn backend_receives_the_last_snapshot_when_a_document_closes() {
         Some(("last open snapshot".into(), "last open snapshot".into()))
     );
 }
+
+struct InvalidLegendBackend;
+
+impl LanguageBackend for InvalidLegendBackend {
+    type Document = ();
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        BackendDocument::new(source, (), Vec::new())
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            semantic_tokens: true,
+            ..BackendCapabilities::default()
+        }
+    }
+
+    fn semantic_token_legend(&self) -> SemanticTokenLegend {
+        SemanticTokenLegend::new(["variable", "variable"], [] as [&str; 0])
+    }
+}
+
+#[test]
+fn rejects_invalid_semantic_token_legends_during_initialization() {
+    let (server_connection, client) = Connection::memory();
+    let server_thread =
+        thread::spawn(move || run_connection(server_connection, InvalidLegendBackend));
+    send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
+    let error = server_thread
+        .join()
+        .expect("server thread should finish")
+        .expect_err("duplicate legend entries should prevent initialization");
+    assert!(error.to_string().contains("declared more than once"));
+}
