@@ -7,8 +7,7 @@ use std::{
 
 use langmeld_core::SourceFile;
 use langmeld_language::{
-    CompletionCandidate, CompletionKind, DefinitionResolver, DefinitionSource, LanguageSpec,
-    ParseResult, ParsedConstruct, parse_language_definition_project,
+    DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, LanguageBackend, LanguageDefinitionBackend,
@@ -16,6 +15,7 @@ use langmeld_lsp::{
 use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest};
 use url::Url;
 
+use crate::definition_completion::{DefinitionCompletionIndex, complete_definition_field};
 use crate::project::DefinitionProjectContext;
 
 pub(crate) struct ProjectDefinitionBackend {
@@ -23,28 +23,7 @@ pub(crate) struct ProjectDefinitionBackend {
     root_definition: String,
     resolver: DirectoryDefinitionResolver,
     syntax_backend: LanguageDefinitionBackend,
-    references: RwLock<Option<DefinitionReferences>>,
-}
-
-#[derive(Clone, Default)]
-struct DefinitionReferences {
-    constructs: Vec<String>,
-    categories: Vec<String>,
-}
-
-impl From<&LanguageSpec> for DefinitionReferences {
-    fn from(language: &LanguageSpec) -> Self {
-        let mut references = Self::default();
-        for construct in language.constructs() {
-            references.constructs.push(construct.name().to_owned());
-            for category in construct.categories() {
-                if !references.categories.contains(category) {
-                    references.categories.push(category.clone());
-                }
-            }
-        }
-        references
-    }
+    references: RwLock<Option<DefinitionCompletionIndex>>,
 }
 
 impl ProjectDefinitionBackend {
@@ -100,7 +79,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
                 .references
                 .write()
                 .expect("definition reference lock is not poisoned") =
-                Some(DefinitionReferences::from(language));
+                Some(DefinitionCompletionIndex::from(language));
         }
         let loaded = resolver
             .loaded
@@ -142,31 +121,19 @@ impl LanguageBackend for ProjectDefinitionBackend {
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        if let Some((field, is_category)) = reference_field(&document.state.constructs, offset)
-            && let Some(references) = self
-                .references
-                .read()
-                .expect("definition reference lock is not poisoned")
-                .as_ref()
-        {
-            let prefix = field_prefix(source, field.span, offset);
-            let replace = field.span;
-            let (values, detail) = if is_category {
-                (&references.categories, "Category")
-            } else {
-                (&references.constructs, "Construct")
-            };
-            return values
-                .iter()
-                .filter(|value| prefix.is_empty() || value.starts_with(&prefix))
-                .map(|value| {
-                    CompletionCandidate::new(quote_definition_string(value), replace)
-                        .with_label(value)
-                        .with_filter_text(value)
-                        .with_kind(CompletionKind::Reference)
-                        .with_detail(detail)
-                })
-                .collect();
+        let references = self
+            .references
+            .read()
+            .expect("definition reference lock is not poisoned")
+            .clone();
+        if let Some(completions) = complete_definition_field(
+            &self.root,
+            source,
+            &document.state,
+            offset,
+            references.as_ref(),
+        ) {
+            return completions;
         }
         self.syntax_backend.complete(source, document, offset)
     }
@@ -180,63 +147,6 @@ impl LanguageBackend for ProjectDefinitionBackend {
         self.syntax_backend
             .format_document(source, document, options)
     }
-}
-
-fn reference_field(
-    constructs: &[ParsedConstruct],
-    offset: usize,
-) -> Option<(&langmeld_language::CapturedField, bool)> {
-    fn find(
-        constructs: &[ParsedConstruct],
-        offset: usize,
-    ) -> Option<(&langmeld_language::CapturedField, bool)> {
-        for construct in constructs {
-            if let Some(field) = construct
-                .fields
-                .iter()
-                .find(|field| field.span.start <= offset && offset <= field.span.end)
-            {
-                let is_category = match (construct.name.as_str(), field.name.as_str()) {
-                    ("root" | "allow", "name") => false,
-                    ("implements" | "allow_category", "category") => true,
-                    _ => return None,
-                };
-                return Some((field, is_category));
-            }
-            if let Some(found) = find(&construct.children, offset) {
-                return Some(found);
-            }
-        }
-        None
-    }
-
-    find(constructs, offset)
-}
-
-fn field_prefix(source: &SourceFile, span: langmeld_core::Span, offset: usize) -> String {
-    let start = span.start.saturating_add(1);
-    let end = offset.min(span.end.saturating_sub(1));
-    if start > end || end > source.text.len() {
-        return String::new();
-    }
-    source.text.get(start..end).unwrap_or_default().to_owned()
-}
-
-fn quote_definition_string(value: &str) -> String {
-    let mut quoted = String::with_capacity(value.len() + 2);
-    quoted.push('"');
-    for character in value.chars() {
-        match character {
-            '\\' => quoted.push_str("\\\\"),
-            '"' => quoted.push_str("\\\""),
-            '\n' => quoted.push_str("\\n"),
-            '\r' => quoted.push_str("\\r"),
-            '\t' => quoted.push_str("\\t"),
-            character => quoted.push(character),
-        }
-    }
-    quoted.push('"');
-    quoted
 }
 
 impl ProjectDefinitionBackend {

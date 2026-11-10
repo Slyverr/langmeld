@@ -1,5 +1,6 @@
 mod check;
 mod definition_backend;
+mod definition_completion;
 mod format;
 mod generate;
 mod init;
