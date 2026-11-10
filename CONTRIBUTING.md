@@ -27,7 +27,8 @@ Verify crate archives before a release with:
 cargo package --workspace --locked --allow-dirty \
   --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
   --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"' \
-  --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'
+  --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+  --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
 ```
 
 The local patches make archive verification use this workspace's versions of
