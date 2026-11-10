@@ -20,7 +20,9 @@ rejects the edit rather than applying only part of it. The adapter does not
 infer semantic classifications, document outline, or language-specific
 formatting from syntax. Hosts return document outline entries with UTF-8 byte
 ranges; the adapter validates and converts them, and selects nested or flat
-output to match the client.
+output to match the client. `HostLanguageBackend` connects the existing
+`LanguageParser` and optional `LanguageAnalyzer` contracts to parser and
+semantic diagnostics; it does not claim completion or navigation support.
 
 See [Editor integration](../../docs/editor-integration.md) for the current
 scope and embedding API.

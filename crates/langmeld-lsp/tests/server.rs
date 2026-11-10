@@ -10,11 +10,14 @@ use std::{
 };
 
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
-use langmeld_language::{CompletionCandidate, ConstructSpec, LanguageSpec, PatternPart};
+use langmeld_language::{
+    AnalysisDocument, CompletionCandidate, ConstructSpec, LanguageAnalyzer, LanguageParser,
+    LanguageSpec, ParsedDocument, PatternPart,
+};
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, DeclarativeBackend, DocumentSymbolInfo,
-    DocumentSymbolKind, HoverInfo, LanguageBackend, SemanticToken, SemanticTokenLegend,
-    run_connection,
+    DocumentSymbolKind, HostLanguageBackend, HoverInfo, LanguageBackend, SemanticToken,
+    SemanticTokenLegend, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use serde_json::{Value, json};
@@ -706,6 +709,92 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert_eq!(labels, ["print"]);
 
     send_request(&client, 3, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+struct DiagnosticParser;
+
+impl LanguageParser for DiagnosticParser {
+    type Tree = bool;
+
+    fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
+        let diagnostics = source
+            .text
+            .contains("syntax")
+            .then(|| Diagnostic::error("HOST-PARSE", "parser diagnostic", source, Span::new(0, 6)))
+            .into_iter()
+            .collect();
+        ParsedDocument::new(source, true, diagnostics)
+    }
+}
+
+struct DiagnosticAnalyzer;
+
+impl LanguageAnalyzer<DiagnosticParser> for DiagnosticAnalyzer {
+    type Analysis = usize;
+
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        _parsed: &ParsedDocument<bool>,
+    ) -> AnalysisDocument<Self::Analysis> {
+        let diagnostics = source
+            .text
+            .contains("semantic")
+            .then(|| {
+                Diagnostic::error(
+                    "HOST-SEMANTIC",
+                    "semantic diagnostic",
+                    source,
+                    Span::new(7, source.text.len()),
+                )
+            })
+            .into_iter()
+            .collect();
+        AnalysisDocument::new(source, source.text.len(), diagnostics)
+    }
+}
+
+#[test]
+fn host_language_backend_publishes_parser_and_analysis_diagnostics() {
+    let parser_only = HostLanguageBackend::new(DiagnosticParser);
+    let parsed = parser_only.analyze(&SourceFile::new("file:///parser.test", "syntax"));
+    assert_eq!(parsed.diagnostics[0].code, "HOST-PARSE");
+
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = HostLanguageBackend::new(DiagnosticParser).with_analyzer(DiagnosticAnalyzer);
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({"capabilities": {}}));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":"file:///host.test","languageId":"test","version":1,"text":"syntax semantic"}}),
+    );
+    let diagnostics = receive_diagnostics(&client);
+    let codes = diagnostics["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|diagnostic| diagnostic["code"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(codes, ["HOST-PARSE", "HOST-SEMANTIC"]);
+
+    send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

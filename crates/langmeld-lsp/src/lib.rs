@@ -4,6 +4,7 @@
 mod backend;
 mod conversion;
 mod document_symbol;
+mod host_backend;
 mod hover;
 mod semantic;
 mod server;
@@ -13,6 +14,7 @@ pub use backend::{
     LanguageDefinitionBackend,
 };
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};
+pub use host_backend::{HostDocument, HostLanguageBackend, NoAnalyzer};
 pub use hover::{HoverContent, HoverInfo};
 pub use semantic::{SemanticToken, SemanticTokenLegend};
 pub use server::{run_connection, run_stdio};

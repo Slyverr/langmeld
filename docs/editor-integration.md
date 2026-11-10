@@ -42,6 +42,11 @@ result per source in the same order. This lets a host include unsaved imports
 and refresh diagnostics together. The default leaves per-document analysis
 unchanged. `LanguageBackend::did_close` receives the last snapshot when a
 document closes, allowing hosts to remove it from workspace indexes.
+For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
+`HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
+parse and semantic diagnostics for LSP. The parser-only form publishes parser
+diagnostics. This adapter does not provide completion or navigation; implement
+`LanguageBackend` directly when the language supports those queries.
 Hosts can implement `format_document` to return formatted text for a complete
 document. Langmeld passes through the editor's formatting options and returns
 one whole-document edit using the negotiated position encoding. Formatting
