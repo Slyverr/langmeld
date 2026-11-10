@@ -1,6 +1,9 @@
 use std::path::Path;
 
 use langmeld_core::SourceFile;
+use langmeld_expression::{
+    Associativity, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
+};
 use langmeld_language::{CapturedValue, parse, parse_language_definition_project};
 use langmeld_project::DirectoryDefinitionResolver;
 
@@ -24,7 +27,7 @@ fn imports_constructs_and_parses_the_example_program() {
     let language = load_language();
     let source = SourceFile::new(
         "main.widget",
-        "// a comment before the program\nprogram { let title = \"Hello\"; draw title; }",
+        "// a comment before the program\nprogram { let title = \"Hello\"; draw title; compute 20 + 4 * (2 + 1); }",
     );
     let parsed = parse(&source, &language);
 
@@ -37,7 +40,7 @@ fn imports_constructs_and_parses_the_example_program() {
             .iter()
             .map(|construct| construct.name.as_str())
             .collect::<Vec<_>>(),
-        ["let", "draw"]
+        ["let", "draw", "compute"]
     );
     assert_eq!(
         root.children[0].fields[0].value,
@@ -47,6 +50,29 @@ fn imports_constructs_and_parses_the_example_program() {
         root.children[0].fields[1].value,
         CapturedValue::String("\"Hello\"".into())
     );
+    let expression = &root.children[2].fields[0];
+    assert_eq!(expression.name, "value");
+    assert_eq!(expression.value, CapturedValue::Expression);
+    assert_eq!(
+        &source.text[expression.span.start..expression.span.end],
+        "20 + 4 * (2 + 1)"
+    );
+
+    let grammar = ExpressionGrammar::new([
+        OperatorSpec::infix("+", 1, Associativity::Left),
+        OperatorSpec::infix("*", 2, Associativity::Left),
+    ])
+    .unwrap();
+    let parsed_expression = ExpressionParser::new(&grammar).parse(&source, expression.span);
+    assert!(
+        parsed_expression.diagnostics.is_empty(),
+        "{:?}",
+        parsed_expression.diagnostics
+    );
+    assert!(matches!(
+        parsed_expression.expression.map(|expression| expression.kind),
+        Some(ExpressionKind::Infix { operator, .. }) if operator == "+"
+    ));
 }
 
 #[test]

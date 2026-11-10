@@ -8,3 +8,11 @@ construct "draw" {
     }
     implements "statement";
 }
+
+construct "compute" {
+    syntax {
+        literal "compute";
+        expression "value" until ";";
+    }
+    implements "statement";
+}

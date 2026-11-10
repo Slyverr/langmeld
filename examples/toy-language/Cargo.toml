@@ -9,6 +9,7 @@ license.workspace = true
 
 [dependencies]
 langmeld-core.workspace = true
+langmeld-expression.workspace = true
 langmeld-language.workspace = true
 langmeld-project.workspace = true
 
