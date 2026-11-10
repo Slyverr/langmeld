@@ -69,19 +69,26 @@ impl LanguageBackend for ProjectDefinitionBackend {
         } else {
             self.resolver.load(&self.root_definition).ok()?
         };
+        let root_source = root.source.clone();
         let resolver = OpenFileOverlayResolver {
             resolver: &self.resolver,
             open_sources: &open_sources,
             loaded: Mutex::new(HashSet::from([self.root_definition.clone()])),
+            sources: Mutex::new(HashMap::from([(self.root_definition.clone(), root_source)])),
         };
         let result = parse_language_definition_project(root, &resolver);
-        if let Some(language) = &result.language {
-            *self
-                .references
-                .write()
-                .expect("definition reference lock is not poisoned") =
-                Some(DefinitionCompletionIndex::from(language));
-        }
+        let loaded_sources = resolver
+            .sources
+            .lock()
+            .expect("definition source lock is not poisoned")
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        *self
+            .references
+            .write()
+            .expect("definition reference lock is not poisoned") =
+            Some(DefinitionCompletionIndex::from_sources(&loaded_sources));
         let loaded = resolver
             .loaded
             .lock()
@@ -199,6 +206,7 @@ struct OpenFileOverlayResolver<'a> {
     resolver: &'a DirectoryDefinitionResolver,
     open_sources: &'a HashMap<String, SourceFile>,
     loaded: Mutex<HashSet<String>>,
+    sources: Mutex<HashMap<String, SourceFile>>,
 }
 
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
@@ -208,10 +216,15 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
             .lock()
             .expect("definition resolver lock is not poisoned")
             .insert(resolved.key.clone());
-        if let Some(source) = self.open_sources.get(&resolved.key) {
-            Ok(DefinitionSource::new(resolved.key, source.clone()))
+        let source = if let Some(source) = self.open_sources.get(&resolved.key) {
+            source.clone()
         } else {
-            Ok(resolved)
-        }
+            resolved.source
+        };
+        self.sources
+            .lock()
+            .expect("definition source lock is not poisoned")
+            .insert(resolved.key.clone(), source.clone());
+        Ok(DefinitionSource::new(resolved.key, source))
     }
 }

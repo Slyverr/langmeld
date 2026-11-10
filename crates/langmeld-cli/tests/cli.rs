@@ -943,7 +943,7 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
 }
 
 #[test]
-fn project_definitions_lsp_refreshes_references_when_a_closed_import_changes() {
+fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers() {
     let parent = TestDirectory::new();
     let project = parent.path().join("project");
     write_widget_project(&project);
@@ -1035,11 +1035,39 @@ fn project_definitions_lsp_refreshes_references_when_a_closed_import_changes() {
             .any(|item| item["label"] == "render")
     );
 
+    let incomplete_module = format!(
+        "{} construct \"preview\" {{ syntax {{ literal \"preview\"; }} }} construct \"unfinished",
+        fs::read_to_string(&module).unwrap()
+    );
     send_lsp_message(
         &mut stdin,
-        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":module_uri,"languageId":"langmeld","version":1,"text":incomplete_module}}}),
     );
-    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
+    for _ in 0..2 {
+        assert_eq!(
+            receive_lsp_message(&receiver)["method"],
+            "textDocument/publishDiagnostics"
+        );
+    }
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":4,"method":"textDocument/completion","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":completion_position}}}),
+    );
+    let incomplete_items = receive_lsp_message(&receiver)["result"].clone();
+    assert!(
+        incomplete_items
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["label"] == "preview"),
+        "completions should include declarations from the current incomplete buffer"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 5);
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"exit","params":null}),

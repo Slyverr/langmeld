@@ -2,7 +2,8 @@ use std::{fs, path::Path};
 
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
-    CapturedField, CompletionCandidate, CompletionKind, LanguageSpec, ParseResult, ParsedConstruct,
+    CapturedField, CapturedValue, CompletionCandidate, CompletionKind, ParseResult,
+    ParsedConstruct, language_definition_grammar, parse,
 };
 use url::Url;
 
@@ -15,19 +16,68 @@ pub(crate) struct DefinitionCompletionIndex {
     categories: Vec<String>,
 }
 
-impl From<&LanguageSpec> for DefinitionCompletionIndex {
-    fn from(language: &LanguageSpec) -> Self {
+impl DefinitionCompletionIndex {
+    pub(crate) fn from_sources(sources: &[SourceFile]) -> Self {
         let mut index = Self::default();
-        for construct in language.constructs() {
-            index.constructs.push(construct.name().to_owned());
-            for category in construct.categories() {
-                if !index.categories.contains(category) {
-                    index.categories.push(category.clone());
-                }
-            }
+        for source in sources {
+            let parsed = parse(source, language_definition_grammar());
+            collect_construct_references(&parsed.constructs, &mut index);
         }
         index
     }
+}
+
+fn collect_construct_references(
+    constructs: &[ParsedConstruct],
+    index: &mut DefinitionCompletionIndex,
+) {
+    for construct in constructs {
+        if construct.name == "construct"
+            && let Some(name) = string_field(construct, "name").and_then(decode_quoted)
+            && !index.constructs.contains(&name)
+        {
+            index.constructs.push(name);
+        }
+        if construct.name == "implements"
+            && let Some(category) = string_field(construct, "category").and_then(decode_quoted)
+            && !index.categories.contains(&category)
+        {
+            index.categories.push(category);
+        }
+        collect_construct_references(&construct.children, index);
+    }
+}
+
+fn string_field<'a>(construct: &'a ParsedConstruct, name: &str) -> Option<&'a str> {
+    construct
+        .fields
+        .iter()
+        .find(|field| field.name == name)
+        .and_then(|field| match &field.value {
+            CapturedValue::String(value) => Some(value.as_str()),
+            _ => None,
+        })
+}
+
+fn decode_quoted(value: &str) -> Option<String> {
+    let inner = value.strip_prefix('"')?.strip_suffix('"')?;
+    let mut decoded = String::with_capacity(inner.len());
+    let mut characters = inner.chars();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            decoded.push(character);
+            continue;
+        }
+        match characters.next()? {
+            '\\' => decoded.push('\\'),
+            '"' => decoded.push('"'),
+            'n' => decoded.push('\n'),
+            'r' => decoded.push('\r'),
+            't' => decoded.push('\t'),
+            _ => return None,
+        }
+    }
+    Some(decoded)
 }
 
 #[derive(Clone, Copy)]

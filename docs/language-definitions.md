@@ -381,5 +381,7 @@ The built-in definition LSP also completes construct names in `root` and
 `allow` references, and category names in `implements` and `allow_category`
 references. With a project manifest, these suggestions come from the composed
 definition, including imported files. It suggests project-local `.langmeld`
-files and folders inside `import` paths. While the current project has invalid
-edits, the LSP retains its last valid reference index.
+files and folders inside `import` paths. Reference candidates come from the
+current root and imported source snapshots, including declarations the parser
+can recognize while other edits are incomplete. Open buffers override disk
+snapshots.
