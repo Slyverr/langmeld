@@ -1,0 +1,29 @@
+language "WidgetScript" {
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow "let";
+            allow "draw";
+        }
+    }
+
+    construct "let" {
+        syntax {
+            literal "let";
+            identifier "name";
+            literal "=";
+            string "value";
+            literal ";";
+        }
+    }
+
+    construct "draw" {
+        syntax {
+            literal "draw";
+            identifier "shape";
+            literal ";";
+        }
+    }
+}

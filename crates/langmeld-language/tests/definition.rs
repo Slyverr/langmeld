@@ -1,0 +1,102 @@
+use langmeld_core::SourceFile;
+use langmeld_language::{CapturedValue, parse, parse_language_definition};
+
+const DEFINITION: &str = r#"
+language "Toy" {
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow "let";
+            allow "print";
+        }
+    }
+    construct "let" {
+        syntax {
+            literal "let";
+            identifier "name";
+            literal "=";
+            integer "value";
+            literal ";";
+        }
+    }
+    construct "print" {
+        syntax {
+            literal "print";
+            identifier "name";
+            literal ";";
+        }
+    }
+}
+"#;
+
+#[test]
+fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
+    let definition = parse_language_definition(&SourceFile::new("language.lm", DEFINITION));
+
+    assert!(
+        definition.diagnostics.is_empty(),
+        "{:?}",
+        definition.diagnostics
+    );
+    let language = definition.language.unwrap();
+    assert_eq!(language.name(), "Toy");
+
+    let source = SourceFile::new("main.toy", "program { let answer = 42; print answer; }");
+    let parsed = parse(&source, &language);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].children.len(), 2);
+    assert_eq!(
+        parsed.constructs[0].children[0].fields[1].value,
+        CapturedValue::Integer("42".into())
+    );
+}
+
+#[test]
+fn definition_errors_have_source_locations() {
+    let source = SourceFile::new(
+        "language.lm",
+        r#"language "Toy" { construct "program" { syntax { literal "program"; } block "{" "}" { allow "missing"; } } }"#,
+    );
+
+    let result = parse_language_definition(&source);
+
+    assert!(result.language.is_none());
+    let diagnostic = result.diagnostics.last().unwrap();
+    assert_eq!(diagnostic.code, "LM-DEF-004");
+    assert!(diagnostic.location.unwrap().span.end > diagnostic.location.unwrap().span.start);
+}
+
+#[test]
+fn reports_invalid_definition_string_escapes() {
+    let source = SourceFile::new(
+        "language.lm",
+        r#"language "Toy\q" { construct "item" { syntax { literal "item"; } } }"#,
+    );
+
+    let result = parse_language_definition(&source);
+
+    assert!(result.language.is_none());
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-DEF-003")
+    );
+}
+
+#[test]
+fn requires_one_syntax_block_per_construct() {
+    let source = SourceFile::new("language.lm", r#"language "Toy" { construct "item" { } }"#);
+
+    let result = parse_language_definition(&source);
+
+    assert!(result.language.is_none());
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-DEF-005")
+    );
+}

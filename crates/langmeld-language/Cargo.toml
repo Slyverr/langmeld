@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-langmeld-core = { path = "../langmeld-core", version = "0.2.0" }
+langmeld-core.workspace = true
 
 [lints]
 workspace = true
