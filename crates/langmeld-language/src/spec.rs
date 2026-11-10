@@ -103,6 +103,13 @@ pub enum PatternPart {
         /// Required lexical category.
         kind: FieldKind,
     },
+    /// Captures one exact token from a finite set of allowed values.
+    Choice {
+        /// Name exposed in parsed construct fields.
+        name: String,
+        /// Exact tokens accepted by this field.
+        values: Vec<String>,
+    },
     /// Captures the source span before a top-level terminator token.
     ///
     /// The terminator is consumed by the parser but excluded from the captured
@@ -176,6 +183,18 @@ impl PatternPart {
         Self::Field {
             name: name.into(),
             kind: FieldKind::String,
+        }
+    }
+
+    /// Captures one exact token from a finite set of allowed values.
+    #[must_use]
+    pub fn choice(
+        name: impl Into<String>,
+        values: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        Self::Choice {
+            name: name.into(),
+            values: values.into_iter().map(Into::into).collect(),
         }
     }
 
@@ -646,6 +665,22 @@ pub enum SpecError {
         /// Invalid terminator text.
         terminator: String,
     },
+    /// A finite-choice field has no values.
+    EmptyChoiceValues(String),
+    /// A finite-choice field contains text that is not one lexer token.
+    InvalidChoiceValue {
+        /// Construct containing the invalid choice field.
+        construct: String,
+        /// Invalid token value.
+        value: String,
+    },
+    /// A finite-choice field repeats a token.
+    DuplicateChoiceValue {
+        /// Construct containing the repeated choice field.
+        construct: String,
+        /// Repeated token value.
+        value: String,
+    },
     /// A captured field name is blank.
     EmptyFieldName(String),
     /// A construct cannot capture a field twice.
@@ -726,9 +761,10 @@ fn patterns_overlap(left: &[PatternPart], right: &[PatternPart]) -> bool {
 fn has_group(pattern: &[PatternPart]) -> bool {
     pattern.iter().any(|part| match part {
         PatternPart::Optional(_) | PatternPart::Repeat { .. } => true,
-        PatternPart::Literal(_) | PatternPart::Field { .. } | PatternPart::Expression { .. } => {
-            false
-        }
+        PatternPart::Literal(_)
+        | PatternPart::Field { .. }
+        | PatternPart::Choice { .. }
+        | PatternPart::Expression { .. } => false,
     })
 }
 
@@ -737,6 +773,20 @@ fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
         (PatternPart::Literal(left), PatternPart::Literal(right)) => left == right,
         (PatternPart::Field { kind: left, .. }, PatternPart::Field { kind: right, .. }) => {
             field_kinds_overlap(*left, *right)
+        }
+        (PatternPart::Choice { values, .. }, PatternPart::Choice { values: other, .. }) => {
+            values.iter().any(|value| other.contains(value))
+        }
+        (PatternPart::Choice { values, .. }, PatternPart::Literal(literal))
+        | (PatternPart::Literal(literal), PatternPart::Choice { values, .. }) => {
+            values.iter().any(|value| value == literal)
+        }
+        (PatternPart::Choice { values, .. }, PatternPart::Field { kind, .. })
+        | (PatternPart::Field { kind, .. }, PatternPart::Choice { values, .. }) => {
+            *kind == FieldKind::Token
+                || values
+                    .iter()
+                    .any(|value| literal_kind(value) == Some(*kind))
         }
         (PatternPart::Expression { .. }, _) | (_, PatternPart::Expression { .. }) => true,
         (PatternPart::Literal(literal), PatternPart::Field { kind, .. })
@@ -776,6 +826,35 @@ fn validate_pattern(
                         construct: construct.to_owned(),
                         field: name.clone(),
                     });
+                }
+            }
+            PatternPart::Choice { name, values } => {
+                if name.trim().is_empty() {
+                    return Err(SpecError::EmptyFieldName(construct.to_owned()));
+                }
+                if !fields.insert(name.clone()) {
+                    return Err(SpecError::DuplicateField {
+                        construct: construct.to_owned(),
+                        field: name.clone(),
+                    });
+                }
+                if values.is_empty() {
+                    return Err(SpecError::EmptyChoiceValues(construct.to_owned()));
+                }
+                let mut seen = HashSet::new();
+                for value in values {
+                    if !is_single_token(value) {
+                        return Err(SpecError::InvalidChoiceValue {
+                            construct: construct.to_owned(),
+                            value: value.clone(),
+                        });
+                    }
+                    if !seen.insert(value) {
+                        return Err(SpecError::DuplicateChoiceValue {
+                            construct: construct.to_owned(),
+                            value: value.clone(),
+                        });
+                    }
                 }
             }
             PatternPart::Expression { name, terminator } => {
@@ -820,9 +899,10 @@ fn validate_pattern(
 
 fn sequence_is_nullable(parts: &[PatternPart]) -> bool {
     parts.iter().all(|part| match part {
-        PatternPart::Literal(_) | PatternPart::Field { .. } | PatternPart::Expression { .. } => {
-            false
-        }
+        PatternPart::Literal(_)
+        | PatternPart::Field { .. }
+        | PatternPart::Choice { .. }
+        | PatternPart::Expression { .. } => false,
         PatternPart::Optional(_) => true,
         PatternPart::Repeat { minimum, .. } => *minimum == RepeatMinimum::Zero,
     })
@@ -832,6 +912,7 @@ fn sequence_is_nullable(parts: &[PatternPart]) -> bool {
 enum FirstMatcher<'a> {
     Literal(&'a str),
     Field(FieldKind),
+    Choice(&'a [String]),
 }
 
 fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
@@ -844,6 +925,10 @@ fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
             }
             PatternPart::Field { kind, .. } => {
                 first.push(FirstMatcher::Field(*kind));
+                break;
+            }
+            PatternPart::Choice { values, .. } => {
+                first.push(FirstMatcher::Choice(values));
                 break;
             }
             PatternPart::Expression { .. } => {
@@ -865,6 +950,17 @@ fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
 fn first_matchers_overlap(left: FirstMatcher<'_>, right: FirstMatcher<'_>) -> bool {
     match (left, right) {
         (FirstMatcher::Literal(left), FirstMatcher::Literal(right)) => left == right,
+        (FirstMatcher::Choice(left), FirstMatcher::Choice(right)) => {
+            left.iter().any(|value| right.contains(value))
+        }
+        (FirstMatcher::Choice(values), FirstMatcher::Literal(literal))
+        | (FirstMatcher::Literal(literal), FirstMatcher::Choice(values)) => {
+            values.iter().any(|value| value == literal)
+        }
+        (FirstMatcher::Choice(values), FirstMatcher::Field(kind))
+        | (FirstMatcher::Field(kind), FirstMatcher::Choice(values)) => {
+            kind == FieldKind::Token || values.iter().any(|value| literal_kind(value) == Some(kind))
+        }
         (FirstMatcher::Field(left), FirstMatcher::Field(right)) => field_kinds_overlap(left, right),
         (FirstMatcher::Literal(literal), FirstMatcher::Field(kind))
         | (FirstMatcher::Field(kind), FirstMatcher::Literal(literal)) => {
@@ -883,6 +979,7 @@ fn validate_decision_points(pattern: &[PatternPart], construct: &str) -> Result<
             PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => Some(parts),
             PatternPart::Literal(_)
             | PatternPart::Field { .. }
+            | PatternPart::Choice { .. }
             | PatternPart::Expression { .. } => None,
         };
         if let Some(group) = group {
@@ -1014,6 +1111,20 @@ impl std::fmt::Display for SpecError {
             } => write!(
                 f,
                 "construct `{construct}` expression terminator `{terminator}` is not one lexer token"
+            ),
+            Self::EmptyChoiceValues(construct) => {
+                write!(
+                    f,
+                    "construct `{construct}` has a choice field with no values"
+                )
+            }
+            Self::InvalidChoiceValue { construct, value } => write!(
+                f,
+                "construct `{construct}` choice value `{value}` is not one lexer token"
+            ),
+            Self::DuplicateChoiceValue { construct, value } => write!(
+                f,
+                "construct `{construct}` choice field repeats token `{value}`"
             ),
             Self::EmptyFieldName(name) => write!(f, "construct `{name}` has an empty field name"),
             Self::DuplicateField { construct, field } => write!(

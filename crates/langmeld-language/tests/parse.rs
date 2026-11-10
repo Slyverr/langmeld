@@ -942,6 +942,58 @@ fn generic_token_patterns_are_checked_for_ambiguity() {
 }
 
 #[test]
+fn finite_choice_fields_capture_only_declared_tokens() {
+    let grammar = LanguageSpec::new(
+        "Movement",
+        [ConstructSpec::new(
+            "move",
+            [
+                PatternPart::literal("move"),
+                PatternPart::choice("direction", ["left", "right"]),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+
+    let parsed = parse(&SourceFile::new("program", "move left;"), &grammar);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::Token {
+            text: "left".into(),
+            kind: TokenKind::Identifier,
+        }
+    );
+
+    let rejected = parse(&SourceFile::new("program", "move up;"), &grammar);
+    let diagnostic = rejected
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-PARSE-002")
+        .expect("undeclared choice values are rejected");
+    assert!(diagnostic.message.contains("`left`, `right`"));
+}
+
+#[test]
+fn finite_choice_fields_reject_empty_duplicate_and_multitoken_values() {
+    for values in [vec![], vec!["left", "left"], vec!["two words"]] {
+        assert!(matches!(
+            LanguageSpec::new(
+                "InvalidChoice",
+                [ConstructSpec::new(
+                    "move",
+                    [PatternPart::choice("direction", values)],
+                )],
+            ),
+            Err(langmeld_language::SpecError::EmptyChoiceValues(_)
+                | langmeld_language::SpecError::InvalidChoiceValue { .. }
+                | langmeld_language::SpecError::DuplicateChoiceValue { .. })
+        ));
+    }
+}
+
+#[test]
 fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
     struct IncorrectLexer;
 

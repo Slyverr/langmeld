@@ -5,8 +5,8 @@ syntax, parsing source, and building language-specific behavior in Rust.
 
 The current libraries provide source snapshots, revision-aware diagnostics,
 UTF-8/UTF-16/UTF-32 editor position conversion, a validated syntax model, and
-a generic parser for token patterns, typed and generic captures, alternative
-forms, optional and repeated groups, and scoped blocks. The `.langmeld` frontend
+a generic parser for token patterns, typed, generic, and finite-choice captures,
+alternative forms, optional and repeated groups, and scoped blocks. The `.langmeld` frontend
 is itself parsed by that generic parser. The framework does not prescribe
 language-specific semantics, execution, or code generation; authors implement
 those behaviors in Rust. Rust hosts can provide a custom

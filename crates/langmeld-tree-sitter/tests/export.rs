@@ -123,3 +123,24 @@ fn reports_host_parsed_expression_captures_as_unsupported() {
         } if construct == "print" && field == "value"
     ));
 }
+
+#[test]
+fn exports_finite_choice_fields_as_named_token_alternatives() {
+    let grammar = LanguageSpec::new(
+        "Movement",
+        [ConstructSpec::new(
+            "move",
+            [
+                PatternPart::literal("move"),
+                PatternPart::choice("direction", ["left", "right"]),
+            ],
+        )],
+    )
+    .unwrap()
+    .with_root_constructs(&["move"])
+    .unwrap();
+
+    let output = generate(&grammar, &TreeSitterOptions::new("movement")).unwrap();
+
+    assert!(output.contains("seq(\"move\", field(\"direction\", choice(\"left\", \"right\")))"));
+}

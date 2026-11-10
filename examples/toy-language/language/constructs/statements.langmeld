@@ -3,7 +3,10 @@ import "values.langmeld";
 construct "draw" {
     syntax {
         literal "draw";
-        identifier "shape";
+        choice "shape" {
+            value "circle";
+            value "square";
+        }
         literal ";";
     }
     implements "statement";

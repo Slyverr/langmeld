@@ -58,6 +58,7 @@ pub(crate) struct ParseContext {
     pub(crate) span: Span,
     pub(crate) constructs: Vec<String>,
     pub(crate) close: Option<String>,
+    pub(crate) values: Vec<String>,
     pub(crate) blocked: bool,
 }
 
@@ -124,12 +125,16 @@ pub fn complete_at_with_lexer(
 
     let prefix_source = SourceFile::new(source.name.clone(), source.text[..prefix_end].to_owned());
     let (parsed, contexts) = parse_with_contexts(&prefix_source, language, lexer);
+    let is_choice_value_position = contexts.iter().any(|context| {
+        context.span == Span::new(prefix_end, prefix_end) && !context.values.is_empty()
+    });
     if parsed.diagnostics.iter().any(|diagnostic| {
         diagnostic
             .location
             .as_ref()
             .is_some_and(|location| location.span.end >= prefix_end)
             && diagnostic.code != "LM-PARSE-004"
+            && !(is_choice_value_position && diagnostic.code == "LM-PARSE-002")
     }) {
         return Vec::new();
     }
@@ -146,6 +151,9 @@ pub fn complete_at_with_lexer(
     }
 
     let mut candidates = Vec::new();
+    for text in &context.values {
+        push_candidate(&mut candidates, text, &prefix, replacement);
+    }
     for name in &context.constructs {
         let Some(construct) = language
             .constructs()
@@ -158,18 +166,7 @@ pub fn complete_at_with_lexer(
             let mut literals = Vec::new();
             collect_first_literals(pattern, &mut literals);
             for text in literals {
-                if !text.starts_with(&prefix)
-                    || text == prefix
-                    || candidates
-                        .iter()
-                        .any(|candidate: &CompletionCandidate| candidate.text == text)
-                {
-                    continue;
-                }
-                candidates.push(CompletionCandidate {
-                    text,
-                    replace: replacement,
-                });
+                push_candidate(&mut candidates, &text, &prefix, replacement);
             }
         }
     }
@@ -193,6 +190,10 @@ fn collect_first_literals(parts: &[PatternPart], output: &mut Vec<String>) {
                 output.push(text.clone());
                 return;
             }
+            PatternPart::Choice { values, .. } => {
+                output.extend(values.iter().cloned());
+                return;
+            }
             PatternPart::Field { .. } | PatternPart::Expression { .. } => return,
             PatternPart::Optional(parts) => collect_first_literals(parts, output),
             PatternPart::Repeat { parts, minimum } => {
@@ -203,4 +204,22 @@ fn collect_first_literals(parts: &[PatternPart], output: &mut Vec<String>) {
             }
         }
     }
+}
+
+fn push_candidate(
+    candidates: &mut Vec<CompletionCandidate>,
+    text: &str,
+    prefix: &str,
+    replacement: Span,
+) {
+    if !text.starts_with(prefix)
+        || text == prefix
+        || candidates.iter().any(|candidate| candidate.text == text)
+    {
+        return;
+    }
+    candidates.push(CompletionCandidate {
+        text: text.to_owned(),
+        replace: replacement,
+    });
 }

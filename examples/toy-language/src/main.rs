@@ -4,7 +4,7 @@ use langmeld_language::{CapturedField, CapturedValue, parse, parse_language_defi
 use langmeld_project::DirectoryDefinitionResolver;
 use std::path::Path;
 
-const PROGRAM: &str = "program { let title = \"Hello\"; draw title; compute 20 + 4 * (2 + 1); }";
+const PROGRAM: &str = "program { let title = \"Hello\"; draw circle; compute 20 + 4 * (2 + 1); }";
 
 fn main() {
     if let Err(error) = run() {

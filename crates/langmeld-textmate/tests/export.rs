@@ -87,3 +87,23 @@ fn exports_configured_line_and_block_comments() {
     assert_eq!(patterns[2]["begin"], r"/\*");
     assert_eq!(patterns[2]["end"], r"\*/");
 }
+
+#[test]
+fn includes_finite_choice_values_in_lexical_highlighting() {
+    let grammar = LanguageSpec::new(
+        "Movement",
+        [ConstructSpec::new(
+            "move",
+            [
+                PatternPart::literal("move"),
+                PatternPart::choice("direction", ["left", "right"]),
+            ],
+        )],
+    )
+    .unwrap();
+
+    let output = generate(&grammar, &TextMateOptions::new("source.movement")).unwrap();
+    let grammar: Value = serde_json::from_str(&output).unwrap();
+
+    assert_eq!(grammar["patterns"][1]["match"], r"\b(?:move|left|right)\b");
+}

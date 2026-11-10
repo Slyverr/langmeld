@@ -27,7 +27,7 @@ fn imports_constructs_and_parses_the_example_program() {
     let language = load_language();
     let source = SourceFile::new(
         "main.widget",
-        "// a comment before the program\nprogram { let title = \"Hello\"; draw title; compute 20 + 4 * (2 + 1); }",
+        "// a comment before the program\nprogram { let title = \"Hello\"; draw circle; compute 20 + 4 * (2 + 1); }",
     );
     let parsed = parse(&source, &language);
 
@@ -49,6 +49,14 @@ fn imports_constructs_and_parses_the_example_program() {
     assert_eq!(
         root.children[0].fields[1].value,
         CapturedValue::String("\"Hello\"".into())
+    );
+    assert_eq!(root.children[1].fields[0].name, "shape");
+    assert_eq!(
+        root.children[1].fields[0].value,
+        CapturedValue::Token {
+            text: "circle".into(),
+            kind: langmeld_language::TokenKind::Identifier,
+        }
     );
     let expression = &root.children[2].fields[0];
     assert_eq!(expression.name, "value");
@@ -78,7 +86,7 @@ fn imports_constructs_and_parses_the_example_program() {
 #[test]
 fn reports_invalid_construct_syntax() {
     let language = load_language();
-    let source = SourceFile::new("invalid.widget", "program { draw ; }");
+    let source = SourceFile::new("invalid.widget", "program { draw triangle; }");
     let parsed = parse(&source, &language);
 
     assert!(!parsed.diagnostics.is_empty());

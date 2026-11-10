@@ -217,6 +217,13 @@ fn pattern_part(part: &PatternPart, construct: &str) -> Result<String, TreeSitte
             };
             format!("field({}, $.{symbol})", js_string(name))
         }
+        PatternPart::Choice { name, values } => {
+            let alternatives = values
+                .iter()
+                .map(|value| js_string(value))
+                .collect::<Vec<_>>();
+            format!("field({}, {})", js_string(name), choice(&alternatives))
+        }
         PatternPart::Expression { name, .. } => {
             return Err(TreeSitterError::UnsupportedExpressionCapture {
                 construct: construct.to_owned(),
@@ -334,7 +341,9 @@ fn collect_lexer_needs(
             PatternPart::Optional(group) | PatternPart::Repeat { parts: group, .. } => {
                 collect_lexer_needs(group, needs_integer, needs_string, needs_punctuation);
             }
-            PatternPart::Literal(_) | PatternPart::Expression { .. } => {}
+            PatternPart::Literal(_)
+            | PatternPart::Choice { .. }
+            | PatternPart::Expression { .. } => {}
         }
     }
 }

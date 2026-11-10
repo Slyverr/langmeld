@@ -361,6 +361,7 @@ impl Parser<'_> {
                     .map(|construct| construct.name().to_owned())
                     .collect(),
                 close: close.map(str::to_owned),
+                values: Vec::new(),
                 blocked: self.completion_blocked,
             });
         }
@@ -427,13 +428,28 @@ impl Parser<'_> {
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
                 self.completion_blocked = true;
+                if self.capture_contexts
+                    && let Some(PatternPart::Choice { values, .. }) = attempt.expected
+                {
+                    let offset = self
+                        .tokens
+                        .get(attempt.end)
+                        .map_or(self.source.text.len(), |token| token.span.start);
+                    self.completion_contexts.push(ParseContext {
+                        span: Span::new(offset, offset),
+                        constructs: Vec::new(),
+                        close: None,
+                        values: values.clone(),
+                        blocked: false,
+                    });
+                }
                 let span = self.tokens.get(attempt.end).map_or_else(
                     || Span::new(self.source.text.len(), self.source.text.len()),
                     |token| token.span,
                 );
                 let expected = attempt
                     .expected
-                    .map_or("end of construct", describe_pattern);
+                    .map_or_else(|| "end of construct".to_owned(), describe_pattern);
                 self.diagnostics.push(Diagnostic::error(
                     "LM-PARSE-002",
                     format!("expected {expected} in construct `{}`", spec.name),
@@ -672,6 +688,28 @@ fn match_sequence<'a>(
                 });
                 cursor += 1;
             }
+            PatternPart::Choice { name, values } => {
+                let Some(token) = tokens.get(cursor).filter(|token| {
+                    token.kind != TokenKind::Invalid
+                        && values.iter().any(|value| value == &token.text)
+                }) else {
+                    return Ok(MatchAttempt {
+                        fields,
+                        end: cursor,
+                        complete: false,
+                        expected: Some(part),
+                    });
+                };
+                fields.push(CapturedField {
+                    name: name.clone(),
+                    value: CapturedValue::Token {
+                        text: token.text.clone(),
+                        kind: token.kind,
+                    },
+                    span: token.span,
+                });
+                cursor += 1;
+            }
             PatternPart::Expression { name, terminator } => {
                 let Some(end) = expression_end(tokens, cursor, terminator, remaining_steps)? else {
                     return Ok(MatchAttempt {
@@ -748,27 +786,37 @@ fn match_sequence<'a>(
     })
 }
 
-fn describe_pattern(part: &PatternPart) -> &'static str {
+fn describe_pattern(part: &PatternPart) -> String {
     match part {
-        PatternPart::Literal(_) => "the expected token",
+        PatternPart::Literal(_) => "the expected token".to_owned(),
         PatternPart::Field {
             kind: FieldKind::Token,
             ..
-        } => "a token",
+        } => "a token".to_owned(),
         PatternPart::Field {
             kind: FieldKind::Identifier,
             ..
-        } => "an identifier",
+        } => "an identifier".to_owned(),
         PatternPart::Field {
             kind: FieldKind::Integer,
             ..
-        } => "an integer",
+        } => "an integer".to_owned(),
         PatternPart::Field {
             kind: FieldKind::String,
             ..
-        } => "a quoted string",
-        PatternPart::Expression { .. } => "an expression",
-        PatternPart::Optional(_) | PatternPart::Repeat { .. } => "the expected syntax sequence",
+        } => "a quoted string".to_owned(),
+        PatternPart::Choice { values, .. } => format!(
+            "one of {}",
+            values
+                .iter()
+                .map(|value| format!("`{value}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        PatternPart::Expression { .. } => "an expression".to_owned(),
+        PatternPart::Optional(_) | PatternPart::Repeat { .. } => {
+            "the expected syntax sequence".to_owned()
+        }
     }
 }
 

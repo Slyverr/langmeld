@@ -86,6 +86,20 @@ Pattern items match lexer tokens in order:
   text and `TokenKind` in the parsed field.
 - `identifier "field";`, `integer "field";`, and `string "field";`
   capture one token of that lexical category under a field name.
+- `choice "field" { value "..."; ... }` captures one token from a finite,
+  explicitly listed set. For example:
+
+  ```langmeld
+  choice "direction" {
+      value "left";
+      value "right";
+  }
+  ```
+
+  The parser rejects undeclared values and completion suggests the declared
+  values while the field is being edited. The captured value remains token
+  text; hosts decide what it means. TextMate and Tree-sitter exports include
+  the alternatives when their lexical models can represent them.
 - `expression "field" until ";";` captures the source span up to a top-level
   terminator and consumes that terminator. Nested `()`, `[]`, and `{}` groups
   may contain the same token without ending the capture.

@@ -2,10 +2,10 @@
 
 This example shows a small declarative language split across importable
 `.langmeld` files and parsed with Langmeld's generic parser. It demonstrates
-grammar composition, primitive captures, and delimiter-bounded expression
-capture. The host passes the captured source span to `langmeld-expression` with
-its own operator table; Langmeld does not infer expression meaning, types, or
-runtime behavior.
+grammar composition, primitive and finite-choice captures, and
+delimiter-bounded expression capture. The host passes the captured source span
+to `langmeld-expression` with its own operator table; Langmeld does not infer
+expression meaning, types, or runtime behavior.
 
 `language/toy.langmeld` declares the language and its `program` block. It imports
 `language/constructs/statements.langmeld`, which in turn imports
@@ -26,6 +26,6 @@ then parses a short WidgetScript source. Its output is:
 Language: WidgetScript
 Root construct: program
   let: name=title, value="Hello"
-  draw: shape=title
+  draw: shape=circle
   compute: value=20 + 4 * (2 + 1)
 ```

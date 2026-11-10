@@ -73,6 +73,83 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
 }
 
 #[test]
+fn parses_finite_choice_fields_and_uses_them_for_validation_and_completion() {
+    let definition = parse_language_definition(&SourceFile::new(
+        "language.langmeld",
+        r#"
+language "Movement" {
+    root "move";
+    construct "move" {
+        syntax {
+            literal "move";
+            choice "direction" {
+                value "left";
+                value "right";
+            }
+            literal ";";
+        }
+    }
+}
+"#,
+    ));
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let language = definition.language.unwrap();
+
+    let parsed = parse(&SourceFile::new("main", "move right;"), &language);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(
+        parsed.constructs[0].fields[0].value,
+        CapturedValue::Token {
+            text: "right".into(),
+            kind: langmeld_language::TokenKind::Identifier,
+        }
+    );
+
+    let rejected = parse(&SourceFile::new("main", "move forward;"), &language);
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-PARSE-002")
+    );
+
+    let source = SourceFile::new("main", "move r");
+    let candidates = complete_at(&source, &language, source.text.len());
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["right"]
+    );
+}
+
+#[test]
+fn empty_choice_declarations_have_source_located_diagnostics() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Movement" {
+            construct "move" {
+                syntax {
+                    choice "direction" { }
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+
+    assert!(definition.language.is_none());
+    assert!(definition.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "LM-DEF-028"
+            && diagnostic
+                .location
+                .as_ref()
+                .is_some_and(|location| location.source_name == "language.langmeld")
+    }));
+}
+
+#[test]
 fn root_declarations_restrict_top_level_parsing_and_completion() {
     let source = SourceFile::new(
         "language.langmeld",

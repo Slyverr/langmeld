@@ -726,6 +726,44 @@ fn lower_pattern(
                 _ => return None,
             })
         }
+        "choice" => {
+            let Some(name) = string_field(node, "name").and_then(decode_quoted) else {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-006",
+                    "choice syntax requires a field name",
+                    source,
+                    node.span,
+                ));
+                return None;
+            };
+            let mut values = Vec::new();
+            for value in node
+                .children
+                .iter()
+                .filter(|child| child.name == "choice_value")
+            {
+                if let Some(value) = string_field(value, "value").and_then(decode_quoted) {
+                    values.push(value);
+                } else {
+                    diagnostics.push(Diagnostic::error(
+                        "LM-DEF-006",
+                        "choice values must be valid quoted tokens",
+                        source,
+                        value.span,
+                    ));
+                }
+            }
+            if values.is_empty() {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-028",
+                    "choice syntax requires at least one `value` declaration",
+                    source,
+                    node.span,
+                ));
+                return None;
+            }
+            Some(PatternPart::choice(name, values))
+        }
         "expression" => {
             let (Some(name), Some(terminator)) = (
                 string_field(node, "name").and_then(decode_quoted),
@@ -806,7 +844,9 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         SpecError::InvalidLiteral { construct, .. } | SpecError::EmptyFieldName(construct) => {
             Some(construct)
         }
-        SpecError::InvalidExpressionTerminator { construct, .. } => Some(construct),
+        SpecError::InvalidExpressionTerminator { construct, .. }
+        | SpecError::InvalidChoiceValue { construct, .. }
+        | SpecError::DuplicateChoiceValue { construct, .. } => Some(construct),
         SpecError::DuplicateField { construct, .. }
         | SpecError::UnknownChildConstruct { construct, .. }
         | SpecError::DuplicateChildConstruct { construct, .. }
@@ -814,6 +854,7 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         | SpecError::DuplicateImplementedCategory { construct, .. }
         | SpecError::DuplicateBlockCategory { construct, .. }
         | SpecError::UnknownBlockCategory { construct, .. }
+        | SpecError::EmptyChoiceValues(construct)
         | SpecError::EmptyPatternGroup(construct)
         | SpecError::EmptyOptional(construct)
         | SpecError::EmptyRepetition(construct)
@@ -826,6 +867,18 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
 fn definition_grammar() -> &'static LanguageSpec {
     static GRAMMAR: OnceLock<LanguageSpec> = OnceLock::new();
     GRAMMAR.get_or_init(|| {
+        const PATTERN_ITEMS: &[&str] = &[
+            "literal",
+            "token",
+            "identifier",
+            "integer",
+            "string",
+            "choice",
+            "expression",
+            "optional",
+            "zero_or_more",
+            "one_or_more",
+        ];
         LanguageSpec::new(
             "Langmeld definition",
             [
@@ -886,17 +939,7 @@ fn definition_grammar() -> &'static LanguageSpec {
                 ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
                     "{",
                     "}",
-                    &[
-                        "literal",
-                        "token",
-                        "identifier",
-                        "integer",
-                        "string",
-                        "expression",
-                        "optional",
-                        "zero_or_more",
-                        "one_or_more",
-                    ],
+                    PATTERN_ITEMS,
                 ),
                 ConstructSpec::new(
                     "block",
@@ -910,48 +953,23 @@ fn definition_grammar() -> &'static LanguageSpec {
                 ConstructSpec::new("optional", [PatternPart::literal("optional")]).block(
                     "{",
                     "}",
-                    &[
-                        "literal",
-                        "token",
-                        "identifier",
-                        "integer",
-                        "string",
-                        "expression",
-                        "optional",
-                        "zero_or_more",
-                        "one_or_more",
-                    ],
+                    PATTERN_ITEMS,
                 ),
                 ConstructSpec::new("zero_or_more", [PatternPart::literal("zero_or_more")]).block(
                     "{",
                     "}",
-                    &[
-                        "literal",
-                        "token",
-                        "identifier",
-                        "integer",
-                        "string",
-                        "expression",
-                        "optional",
-                        "zero_or_more",
-                        "one_or_more",
-                    ],
+                    PATTERN_ITEMS,
                 ),
                 ConstructSpec::new("one_or_more", [PatternPart::literal("one_or_more")]).block(
                     "{",
                     "}",
-                    &[
-                        "literal",
-                        "token",
-                        "identifier",
-                        "integer",
-                        "string",
-                        "expression",
-                        "optional",
-                        "zero_or_more",
-                        "one_or_more",
-                    ],
+                    PATTERN_ITEMS,
                 ),
+                ConstructSpec::new(
+                    "choice",
+                    [PatternPart::literal("choice"), PatternPart::string("name")],
+                )
+                .block("{", "}", &["choice_value"]),
                 ConstructSpec::new(
                     "literal",
                     [
@@ -988,6 +1006,14 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "string",
                     [
                         PatternPart::literal("string"),
+                        PatternPart::string("value"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
+                ConstructSpec::new(
+                    "choice_value",
+                    [
+                        PatternPart::literal("value"),
                         PatternPart::string("value"),
                         PatternPart::literal(";"),
                     ],

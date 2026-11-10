@@ -10,6 +10,7 @@ language "Widget" {
         block "{" "}" {
             allow "message";
             allow "raw";
+            allow "move";
         }
     }
 
@@ -38,6 +39,17 @@ language "Widget" {
         syntax {
             literal "raw";
             token "value";
+            literal ";";
+        }
+    }
+
+    construct "move" {
+        syntax {
+            literal "move";
+            choice "direction" {
+                value "left";
+                value "right";
+            }
             literal ";";
         }
     }

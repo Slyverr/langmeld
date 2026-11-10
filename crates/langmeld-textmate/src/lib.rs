@@ -183,6 +183,13 @@ fn collect_literals(parts: &[PatternPart], output: &mut Vec<String>, seen: &mut 
                     output.push(literal.clone());
                 }
             }
+            PatternPart::Choice { values, .. } => {
+                for value in values {
+                    if seen.insert(value.clone()) {
+                        output.push(value.clone());
+                    }
+                }
+            }
             PatternPart::Field { .. } | PatternPart::Expression { .. } => {}
             PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => {
                 collect_literals(parts, output, seen);
