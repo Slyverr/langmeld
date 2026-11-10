@@ -16,6 +16,7 @@ clap.workspace = true
 dialoguer.workspace = true
 langmeld-core.workspace = true
 langmeld-language.workspace = true
+langmeld-lsp.workspace = true
 langmeld-project.workspace = true
 
 [lints]

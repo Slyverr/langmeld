@@ -1,5 +1,6 @@
 mod check;
 mod init;
+mod lsp;
 
 use std::process::ExitCode;
 
@@ -18,6 +19,8 @@ enum Command {
     Init(init::InitArgs),
     /// Validate the project manifest and language definition.
     Check(check::CheckArgs),
+    /// Start an LSP server for a declarative language project.
+    Lsp(lsp::LspArgs),
 }
 
 fn main() -> ExitCode {
@@ -40,6 +43,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Command::Init(args) => init::run(args)?,
         Command::Check(args) => check::run(args)?,
+        Command::Lsp(args) => lsp::run(args)?,
     }
     Ok(())
 }

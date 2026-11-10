@@ -36,7 +36,10 @@ pub(crate) fn run(args: CheckArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn format_diagnostics(sources: &[SourceFile], diagnostics: &[langmeld_core::Diagnostic]) -> String {
+pub(crate) fn format_diagnostics(
+    sources: &[SourceFile],
+    diagnostics: &[langmeld_core::Diagnostic],
+) -> String {
     diagnostics
         .iter()
         .map(|diagnostic| {

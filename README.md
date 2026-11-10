@@ -7,9 +7,9 @@ The current libraries provide source snapshots, revision-aware diagnostics,
 UTF-8/UTF-16/UTF-32 editor position conversion, a validated syntax model, and
 a generic parser for token patterns, typed and generic captures, alternative
 forms, optional and repeated groups, and scoped blocks. The `.lm` frontend is
-itself parsed by that generic parser. The parser does not yet provide
-expressions, type checking, execution, code generation, or editor integrations;
-language authors own those behaviors in Rust. Rust hosts can provide a custom
+itself parsed by that generic parser. The framework does not prescribe
+language-specific semantics, execution, or code generation; authors implement
+those behaviors in Rust. Rust hosts can provide a custom
 lexer while reusing the generic parser, or implement `LanguageParser` and keep
 their own parse-tree type. A host can optionally implement `LanguageAnalyzer`
 to return its own semantic result and diagnostics without adopting
@@ -22,7 +22,8 @@ definitions can explicitly import local construct files through a host-provided
 resolver. Declarative grammars also provide scoped syntax-token completion
 candidates. The `langmeld-lsp` crate provides full-text LSP synchronization,
 diagnostics, and completion for declarative languages, plus host-backed
-definition and references queries. TextMate and Tree-sitter exports are not
+definition and references queries. The `langmeld lsp` CLI command serves
+manifest-backed declarative projects. TextMate and Tree-sitter exports are not
 available yet. The `langmeld-project` crate provides a directory-backed
 resolver for modular `.lm` projects, with project-root confinement and source
 snapshots for diagnostic display.

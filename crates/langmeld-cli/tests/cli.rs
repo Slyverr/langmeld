@@ -195,6 +195,16 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Create a starter language project"));
     assert!(help.contains("--non-interactive"));
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["lsp", "--help"])
+        .output()
+        .expect("CLI should start");
+
+    assert!(output.status.success());
+    let help = String::from_utf8_lossy(&output.stdout);
+    assert!(help.contains("Start an LSP server for a declarative language project"));
+    assert!(help.contains("--manifest-path"));
 }
 
 #[test]
