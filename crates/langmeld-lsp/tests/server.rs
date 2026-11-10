@@ -8,8 +8,9 @@ use std::{
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{CompletionCandidate, ConstructSpec, LanguageSpec, PatternPart};
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, DeclarativeBackend, HoverInfo, LanguageBackend,
-    SemanticToken, SemanticTokenLegend, run_connection,
+    BackendCapabilities, BackendDocument, DeclarativeBackend, DocumentSymbolInfo,
+    DocumentSymbolKind, HoverInfo, LanguageBackend, SemanticToken, SemanticTokenLegend,
+    run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use serde_json::{Value, json};
@@ -47,6 +48,7 @@ impl LanguageBackend for Backend {
             formatting: true,
             hover: true,
             rename: true,
+            document_symbols: true,
         }
     }
 
@@ -187,6 +189,35 @@ impl LanguageBackend for Backend {
         }
         Some(locations)
     }
+
+    fn document_symbols(
+        &self,
+        source: &SourceFile,
+        _document: &BackendDocument<String>,
+    ) -> Vec<DocumentSymbolInfo> {
+        if source.name == "file:///invalid-symbol.test" {
+            return vec![DocumentSymbolInfo::new(
+                "invalid",
+                DocumentSymbolKind::Variable,
+                Span::new(0, 4),
+                Span::new(0, 1),
+            )];
+        }
+        vec![
+            DocumentSymbolInfo::new(
+                "root",
+                DocumentSymbolKind::Module,
+                Span::new(0, 7),
+                Span::new(0, 4),
+            )
+            .with_children([DocumentSymbolInfo::new(
+                "bad",
+                DocumentSymbolKind::Variable,
+                Span::new(4, 7),
+                Span::new(4, 7),
+            )]),
+        ]
+    }
 }
 
 fn send_request(connection: &Connection, id: i32, method: &str, params: Value) {
@@ -252,7 +283,10 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         json!({
             "capabilities": {
                 "general": { "positionEncodings": ["utf-16", "utf-8"] },
-                "textDocument": { "hover": { "contentFormat": ["markdown", "plaintext"] } }
+                "textDocument": {
+                    "hover": { "contentFormat": ["markdown", "plaintext"] },
+                    "documentSymbol": { "hierarchicalDocumentSymbolSupport": true }
+                }
             }
         }),
     );
@@ -275,6 +309,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     );
     assert_eq!(initialized["capabilities"]["hoverProvider"], true);
     assert_eq!(initialized["capabilities"]["renameProvider"], true);
+    assert_eq!(initialized["capabilities"]["documentSymbolProvider"], true);
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.test";
@@ -301,6 +336,40 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     send_request(
         &client,
         2,
+        "textDocument/documentSymbol",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let symbols = receive_response(&client);
+    assert_eq!(symbols[0]["name"], "root");
+    assert_eq!(symbols[0]["range"]["end"]["character"], 5);
+    assert_eq!(symbols[0]["selectionRange"]["end"]["character"], 2);
+    assert_eq!(symbols[0]["children"][0]["name"], "bad");
+    assert_eq!(symbols[0]["children"][0]["range"]["start"]["character"], 2);
+
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": "file:///invalid-symbol.test",
+                "languageId": "test",
+                "version": 1,
+                "text": "😀bad"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+    send_request(
+        &client,
+        30,
+        "textDocument/documentSymbol",
+        json!({ "textDocument": { "uri": "file:///invalid-symbol.test" } }),
+    );
+    assert!(receive_response(&client).is_null());
+
+    send_request(
+        &client,
+        3,
         "textDocument/semanticTokens/full",
         json!({ "textDocument": { "uri": uri } }),
     );
@@ -309,7 +378,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        3,
+        4,
         "textDocument/formatting",
         json!({
             "textDocument": { "uri": uri },
@@ -329,7 +398,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        4,
+        5,
         "textDocument/hover",
         json!({
             "textDocument": { "uri": uri },
@@ -344,7 +413,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        5,
+        6,
         "textDocument/rename",
         json!({
             "textDocument": { "uri": uri },
@@ -373,7 +442,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     receive_diagnostics(&client);
     send_request(
         &client,
-        6,
+        7,
         "textDocument/rename",
         json!({
             "textDocument": { "uri": uri },
@@ -401,7 +470,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        7,
+        8,
         "textDocument/rename",
         json!({
             "textDocument": { "uri": uri },
@@ -413,7 +482,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        8,
+        9,
         "textDocument/rename",
         json!({
             "textDocument": { "uri": uri },
@@ -425,7 +494,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        9,
+        10,
         "textDocument/rename",
         json!({
             "textDocument": { "uri": uri },
@@ -437,7 +506,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        10,
+        11,
         "textDocument/completion",
         json!({
             "textDocument": { "uri": uri },
@@ -451,7 +520,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        11,
+        12,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -464,7 +533,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        12,
+        13,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -489,7 +558,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        13,
+        14,
         "textDocument/semanticTokens/full",
         json!({ "textDocument": { "uri": uri } }),
     );
@@ -515,7 +584,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 14, "shutdown", Value::Null);
+    send_request(&client, 15, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
@@ -563,6 +632,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert!(initialized["capabilities"]["documentFormattingProvider"].is_null());
     assert!(initialized["capabilities"]["hoverProvider"].is_null());
     assert!(initialized["capabilities"]["renameProvider"].is_null());
+    assert!(initialized["capabilities"]["documentSymbolProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///declarative.lm";

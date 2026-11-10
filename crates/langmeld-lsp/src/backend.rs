@@ -3,6 +3,7 @@ use langmeld_language::{CompletionCandidate, LanguageSpec, ParseResult, complete
 use lsp_types::FormattingOptions;
 
 use crate::{
+    document_symbol::DocumentSymbolInfo,
     hover::HoverInfo,
     semantic::{SemanticToken, SemanticTokenLegend},
 };
@@ -47,6 +48,8 @@ pub struct BackendCapabilities {
     pub hover: bool,
     /// The backend provides symbol rename edits.
     pub rename: bool,
+    /// The backend provides document outline symbols.
+    pub document_symbols: bool,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -168,6 +171,19 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _new_name: &str,
     ) -> Option<Vec<SourceLocation>> {
         None
+    }
+
+    /// Returns hierarchical document outline symbols for this source snapshot.
+    ///
+    /// Ranges and selection ranges use UTF-8 byte offsets. Their source
+    /// bounds, nesting, and conversion to the negotiated LSP position encoding
+    /// are validated by the adapter.
+    fn document_symbols(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+    ) -> Vec<DocumentSymbolInfo> {
+        Vec::new()
     }
 }
 

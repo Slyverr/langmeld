@@ -3,7 +3,7 @@
 This crate adapts Langmeld language backends to the Language Server Protocol.
 It provides full-document synchronization, diagnostics, completion,
 go-to-definition, references, rename, formatting, hover, and semantic tokens
-for the capabilities a backend declares.
+and document symbols for the capabilities a backend declares.
 
 `DeclarativeBackend` parses source with a `LanguageSpec` and provides grammar
 diagnostics and scoped syntax completions. Rust hosts can implement
@@ -16,7 +16,10 @@ host; the adapter validates the legend, splits multiline spans into line-local
 tokens, and encodes them using the negotiated position encoding. Rename is
 also host-owned: the adapter validates every result against open snapshots and
 rejects the edit rather than applying only part of it. The adapter does not
-infer semantic classifications or language-specific formatting from syntax.
+infer semantic classifications, document outline, or language-specific
+formatting from syntax. Hosts return document outline entries with UTF-8 byte
+ranges; the adapter validates and converts them, and selects nested or flat
+output to match the client.
 
 See [Editor integration](../../docs/editor-integration.md) for the current
 scope and embedding API.

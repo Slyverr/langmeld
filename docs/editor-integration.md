@@ -3,15 +3,16 @@
 `langmeld-lsp` provides a synchronous Language Server Protocol adapter for
 Langmeld languages. It supports full-document synchronization, diagnostics,
 completion, go-to-definition, references, host-owned rename, hover, and
-host-provided semantic tokens. It also supports host-provided full-document
-formatting and advertises only operations enabled by the backend.
+host-provided document symbols and semantic tokens. It also supports
+host-provided full-document formatting and advertises only operations enabled
+by the backend.
 
 ## Declarative languages
 
 `DeclarativeBackend` accepts a validated `LanguageSpec`. It parses open source
 files and publishes parser diagnostics, and uses declared grammar scopes for
 completion. It does not infer symbol resolution, semantic diagnostics,
-hover, rename, formatting, or semantic highlighting.
+hover, rename, document symbols, formatting, or semantic highlighting.
 
 ## Rust hosts
 
@@ -34,6 +35,12 @@ The adapter groups edits by open document and rejects the whole edit if a
 location is missing, stale, ambiguous, malformed, or overlaps another edit.
 This avoids returning a partial rename when the host's workspace index cannot
 be mapped to the server's open snapshots.
+Hosts can also return document outline trees with UTF-8 byte ranges for each
+symbol and its selection range. The adapter validates that every range is
+inside its source snapshot, that selections are contained by their symbols, and
+that child symbols are contained by their parents. It converts the ranges using
+the negotiated position encoding and returns either a nested outline or a
+flat list according to the client's advertised support.
 
 ```rust,ignore
 use langmeld_core::SourceFile;
@@ -67,9 +74,9 @@ corresponding source snapshots. Cross-file locations are converted when their
 target document is open in the server.
 
 The [Aster example](../examples/aster-language) demonstrates a host backend
-that combines its own AST and semantic diagnostics with resolved definition
-and reference queries. It also provides semantic token types for functions,
-parameters, and variables, classifying declarations and resolved references.
+that combines its own AST and semantic diagnostics with resolved definition,
+reference, and rename queries. It also provides semantic token types for
+functions, parameters, and variables, classifying declarations and resolved references.
 Hosts return token names and UTF-8 byte spans; the adapter validates the legend,
 converts spans using the negotiated position encoding, and splits multiline
 spans into line-local tokens. Declarative grammars do not imply semantic roles.
@@ -105,8 +112,8 @@ connections rather than browser workers.
 
 ## Current limits
 
-The server uses full-text document changes. Incremental edits, document
-symbols, and Tree-sitter exports are not provided yet.
+The server uses full-text document changes. Incremental edits and Tree-sitter
+exports are not provided yet.
 TextMate output is lexical only; it does not infer comments, host lexer rules,
 or semantic classifications. Diagnostics without a source location or tied to
 another file are not published as diagnostics for the current document.

@@ -5,11 +5,12 @@ use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response
 use lsp_types::{
     CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
-    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult,
-    Location, MarkupContent, MarkupKind, PositionEncodingKind, PublishDiagnosticsParams,
-    ReferenceParams, RenameParams, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextEdit, Uri, WorkspaceEdit,
+    DocumentSymbolParams, DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse,
+    HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
+    PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, RenameParams,
+    SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
+    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
+    Uri, WorkspaceEdit,
 };
 use serde_json::{Value, json};
 
@@ -50,6 +51,13 @@ pub fn run_connection<B: LanguageBackend>(
         .and_then(|capabilities| capabilities.hover.as_ref())
         .and_then(|capabilities| capabilities.content_format.as_ref())
         .is_some_and(|formats| formats.contains(&MarkupKind::Markdown));
+    let supports_hierarchical_document_symbols = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|capabilities| capabilities.document_symbol.as_ref())
+        .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
+        .unwrap_or(false);
     let capabilities = backend.capabilities();
     let semantic_legend = if capabilities.semantic_tokens {
         backend.semantic_token_legend()
@@ -75,6 +83,7 @@ pub fn run_connection<B: LanguageBackend>(
         capabilities,
         semantic_legend,
         supports_markdown_hover,
+        supports_hierarchical_document_symbols,
         encoding,
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
@@ -121,6 +130,7 @@ struct ServerState<B: LanguageBackend> {
     capabilities: BackendCapabilities,
     semantic_legend: SemanticTokenLegend,
     supports_markdown_hover: bool,
+    supports_hierarchical_document_symbols: bool,
     encoding: PositionEncoding,
     sources: SourceDatabase,
     documents: HashMap<Uri, OpenDocument<B::Document>>,
@@ -161,6 +171,10 @@ impl<B: LanguageBackend> ServerState<B> {
             "textDocument/rename" if self.capabilities.rename => {
                 serde_json::from_value::<RenameParams>(request.params)
                     .map(|params| self.rename(params).map(|edit| json!(edit)))
+            }
+            "textDocument/documentSymbol" if self.capabilities.document_symbols => {
+                serde_json::from_value::<DocumentSymbolParams>(request.params)
+                    .map(|params| self.document_symbols(params).map(|symbols| json!(symbols)))
             }
             _ => {
                 return Response::new_err(
@@ -358,6 +372,22 @@ impl<B: LanguageBackend> ServerState<B> {
         })
     }
 
+    fn document_symbols(&self, params: DocumentSymbolParams) -> Option<DocumentSymbolResponse> {
+        let uri = params.text_document.uri;
+        let document = self.documents.get(&uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if document.analysis.source != source.identity() {
+            return None;
+        }
+        crate::document_symbol::convert(
+            source,
+            &uri,
+            self.backend.document_symbols(source, &document.analysis),
+            self.encoding,
+            self.supports_hierarchical_document_symbols,
+        )
+    }
+
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
         self.documents.iter().find_map(|(uri, document)| {
             let source = self.sources.get(document.source_id)?;
@@ -531,6 +561,9 @@ fn server_capabilities(
             .hover
             .then_some(lsp_types::HoverProviderCapability::Simple(true)),
         rename_provider: backend.rename.then_some(lsp_types::OneOf::Left(true)),
+        document_symbol_provider: backend
+            .document_symbols
+            .then_some(lsp_types::OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }

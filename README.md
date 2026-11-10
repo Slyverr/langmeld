@@ -22,8 +22,8 @@ definitions can explicitly import local construct files through a host-provided
 resolver. Declarative grammars also provide scoped syntax-token completion
 candidates. The `langmeld-lsp` crate provides full-text LSP synchronization,
 diagnostics, and completion for declarative languages, plus host-backed
-definition, references, rename, formatting, hover, and semantic tokens through
-the same LSP adapter. The `langmeld lsp` CLI command
+definition, references, rename, formatting, hover, document symbols, and
+semantic tokens through the same LSP adapter. The `langmeld lsp` CLI command
 serves manifest-backed declarative projects. The optional `langmeld-textmate`
 crate exports lexical highlighting rules for declarative syntax. Tree-sitter
 export is not available yet. The `langmeld-project` crate provides a
