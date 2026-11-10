@@ -1,6 +1,6 @@
 use std::{error::Error, path::Path};
 
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::{
     DirectoryDefinitionResolver, ProjectManifest, load_definition_project_from_manifest,
@@ -59,33 +59,4 @@ pub(crate) fn load_definition_project(
         language,
         sources: project.sources,
     })
-}
-
-pub(crate) fn format_diagnostics(
-    sources: &[SourceFile],
-    diagnostics: &[langmeld_core::Diagnostic],
-) -> String {
-    diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let location = diagnostic.location.as_ref();
-            let source = location.and_then(|location| {
-                sources
-                    .iter()
-                    .find(|source| source.name == location.source_name)
-            });
-            let (line, column) = match (source, location) {
-                (Some(source), Some(location)) => source.line_column(location.span.start),
-                _ => (1, 1),
-            };
-            let source_name = location
-                .map(|location| location.source_name.as_str())
-                .unwrap_or("<project>");
-            format!(
-                "{source_name}:{line}:{column}: {}: {}",
-                diagnostic.code, diagnostic.message
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }

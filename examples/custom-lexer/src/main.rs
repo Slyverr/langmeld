@@ -1,6 +1,6 @@
 use std::{env, fs, path::Path};
 
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_custom_lexer_example::{RawStringLexer, load_language};
 use langmeld_language::{CapturedValue, parse_with_lexer};
 
@@ -30,12 +30,10 @@ fn run() -> Result<(), String> {
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
     if !parsed.diagnostics.is_empty() {
-        return Err(parsed
-            .diagnostics
-            .iter()
-            .map(|diagnostic| format!("{}: {}", diagnostic.code, diagnostic.message))
-            .collect::<Vec<_>>()
-            .join("\n"));
+        return Err(format_diagnostics(
+            std::slice::from_ref(&source),
+            &parsed.diagnostics,
+        ));
     }
 
     let Some(field) = parsed

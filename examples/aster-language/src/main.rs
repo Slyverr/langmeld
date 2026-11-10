@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use langmeld_aster_language_example::{AsterAnalyzer, parse_program};
-use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageAnalyzer;
 
 fn main() {
@@ -24,7 +24,10 @@ fn run() -> Result<(), String> {
         .chain(analysis.diagnostics)
         .collect::<Vec<_>>();
     if !diagnostics.is_empty() {
-        return Err(format_diagnostics(&source, &diagnostics));
+        return Err(format_diagnostics(
+            std::slice::from_ref(&source),
+            &diagnostics,
+        ));
     }
 
     println!(
@@ -39,22 +42,4 @@ fn run() -> Result<(), String> {
             .count()
     );
     Ok(())
-}
-
-fn format_diagnostics(source: &SourceFile, diagnostics: &[Diagnostic]) -> String {
-    diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let (line, column) = diagnostic
-                .location
-                .as_ref()
-                .map(|location| source.line_column(location.span.start))
-                .unwrap_or((1, 1));
-            format!(
-                "{}:{line}:{column}: {}: {}",
-                source.name, diagnostic.code, diagnostic.message
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }

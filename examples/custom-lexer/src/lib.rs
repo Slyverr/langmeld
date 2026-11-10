@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span, format_diagnostics};
 use langmeld_language::{LanguageSpec, LexOutput, LexedToken, Lexer, TokenKind};
 use langmeld_project::load_definition_project;
 
@@ -80,33 +80,10 @@ impl Lexer for RawStringLexer {
 pub fn load_language(project_root: impl AsRef<Path>) -> Result<LanguageSpec, String> {
     let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
     if !project.is_valid() {
-        let diagnostics = project
-            .definition
-            .diagnostics
-            .iter()
-            .map(|diagnostic| {
-                let location = diagnostic.location.as_ref();
-                let source = location.and_then(|location| {
-                    project
-                        .sources
-                        .iter()
-                        .find(|source| source.name == location.source_name)
-                });
-                let (line, column) = match (source, location) {
-                    (Some(source), Some(location)) => source.line_column(location.span.start),
-                    _ => (1, 1),
-                };
-                let source_name = location
-                    .map(|location| location.source_name.as_str())
-                    .unwrap_or("<unknown>");
-                format!(
-                    "{source_name}:{line}:{column}: {}: {}",
-                    diagnostic.code, diagnostic.message
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(diagnostics);
+        return Err(format_diagnostics(
+            &project.sources,
+            &project.definition.diagnostics,
+        ));
     }
     project
         .definition

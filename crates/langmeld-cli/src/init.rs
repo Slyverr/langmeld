@@ -293,7 +293,7 @@ fn ensure_parent_directories(
 fn declarative_library_template() -> &'static str {
     r#"use std::path::Path;
 
-use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::load_definition_project;
 
@@ -311,31 +311,6 @@ pub fn load_language(project_root: &Path) -> Result<LanguageSpec, String> {
         .ok_or_else(|| "validated definition did not produce a language".to_owned())
 }
 
-pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) -> String {
-    diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let location = diagnostic.location.as_ref();
-            let source = location.and_then(|location| {
-                sources
-                    .iter()
-                    .find(|source| source.name == location.source_name)
-            });
-            let (line, column) = match (source, location) {
-                (Some(source), Some(location)) => source.line_column(location.span.start),
-                _ => (1, 1),
-            };
-            let source_name = location
-                .map(|location| location.source_name.as_str())
-                .unwrap_or("<unknown>");
-            format!(
-                "{source_name}:{line}:{column}: {}: {}",
-                diagnostic.code, diagnostic.message
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
 "#
 }
 
@@ -382,9 +357,9 @@ fn reports_invalid_program_syntax() {
 fn main_template() -> &'static str {
     r#"use std::{env, fs, path::Path};
 
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::parse;
-use language::{format_diagnostics, load_language};
+use language::load_language;
 
 const SAMPLE: &str = "program { let message = \"Hello, Langmeld!\"; print message; }";
 

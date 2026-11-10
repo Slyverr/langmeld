@@ -227,20 +227,23 @@ that file contains imports. For a normal manifest-backed filesystem project,
 definition together with all source snapshots:
 
 ```rust,ignore
+use langmeld_core::format_diagnostics;
 use langmeld_project::load_definition_project;
 
 let project = load_definition_project(".")?;
 if !project.is_valid() {
-    for diagnostic in &project.definition.diagnostics {
-        eprintln!("{}: {}", diagnostic.code, diagnostic.message);
-    }
+    eprintln!("{}", format_diagnostics(
+        &project.sources,
+        &project.definition.diagnostics,
+    ));
 }
 let language = project.definition.language;
 ```
 
 Definition syntax and validation errors stay in the returned diagnostics so
-the caller can render them with the included `project.sources`. File-system
-and manifest failures are returned as errors. Use `load_definition_project_from_manifest`
+the caller can render them with the included `project.sources` using the
+optional plain-text `format_diagnostics` helper. File-system and manifest
+failures are returned as errors. Use `load_definition_project_from_manifest`
 when the manifest is not at the project root.
 
 For custom source storage or editor overlays, implement `DefinitionResolver`

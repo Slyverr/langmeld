@@ -69,3 +69,36 @@ impl Diagnostic {
         }
     }
 }
+
+/// Formats diagnostics as plain text with source name, one-based line and
+/// column, code, and message.
+///
+/// Locations are matched to `sources` by display name. If a source snapshot is
+/// unavailable, the location is shown at line 1, column 1. Diagnostics without
+/// a source location use `<project>` as their display name.
+#[must_use]
+pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let location = diagnostic.location.as_ref();
+            let source = location.and_then(|location| {
+                sources
+                    .iter()
+                    .find(|source| source.name == location.source_name)
+            });
+            let (line, column) = match (source, location) {
+                (Some(source), Some(location)) => source.line_column(location.span.start),
+                _ => (1, 1),
+            };
+            let source_name = location
+                .map(|location| location.source_name.as_str())
+                .unwrap_or("<project>");
+            format!(
+                "{source_name}:{line}:{column}: {}: {}",
+                diagnostic.code, diagnostic.message
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}

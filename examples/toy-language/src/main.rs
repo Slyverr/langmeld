@@ -1,4 +1,4 @@
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::{CapturedField, CapturedValue, parse, parse_language_definition_project};
 use langmeld_project::DirectoryDefinitionResolver;
 use std::path::Path;
@@ -32,7 +32,10 @@ fn run() -> Result<(), String> {
     let program_source = SourceFile::new("main.widget", PROGRAM);
     let parsed = parse(&program_source, &language);
     if !parsed.diagnostics.is_empty() {
-        return Err(format_diagnostics(&[program_source], &parsed.diagnostics));
+        return Err(format_diagnostics(
+            std::slice::from_ref(&program_source),
+            &parsed.diagnostics,
+        ));
     }
 
     println!("Language: {}", language.name());
@@ -62,30 +65,4 @@ fn format_field(field: &CapturedField) -> String {
         CapturedValue::Expression => "<expression>",
     };
     format!("{}={value}", field.name)
-}
-
-fn format_diagnostics(sources: &[SourceFile], diagnostics: &[langmeld_core::Diagnostic]) -> String {
-    diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let location = diagnostic.location.as_ref();
-            let source = location.and_then(|location| {
-                sources
-                    .iter()
-                    .find(|source| source.name == location.source_name)
-            });
-            let (line, column) = match (source, location) {
-                (Some(source), Some(location)) => source.line_column(location.span.start),
-                _ => (1, 1),
-            };
-            let source_name = location
-                .map(|location| location.source_name.as_str())
-                .unwrap_or("<unknown>");
-            format!(
-                "{}:{line}:{column}: {}: {}",
-                source_name, diagnostic.code, diagnostic.message
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }

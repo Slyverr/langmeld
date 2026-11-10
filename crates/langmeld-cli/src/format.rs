@@ -1,10 +1,10 @@
 use std::{error::Error, fs, path::PathBuf};
 
 use clap::Args;
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::{DefinitionFormatOptions, format_language_definition};
 
-use crate::project::{format_diagnostics, load_definition_project};
+use crate::project::load_definition_project;
 
 #[derive(Debug, Args)]
 pub(crate) struct FormatArgs {
