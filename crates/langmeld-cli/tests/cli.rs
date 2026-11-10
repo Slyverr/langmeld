@@ -820,8 +820,10 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
     write_widget_project(&project);
     let root = project.join("language/language.langmeld");
     let module = project.join("language/constructs/statements.langmeld");
-    let root_source = "language \"Widget\" { import \"constructs/statements.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
+    let second_module = project.join("language/constructs/alpha.langmeld");
+    let root_source = "language \"Widget\" { import \"constructs/statements.langmeld\"; import \"constructs/alpha.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
     let module_source = "construct \"print\" { implements \"statement\"; syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }";
+    let second_module_source = "construct \"zebra\" { syntax { literal \"zebra\"; } }";
     fs::write(
         parent.path().join("outside.langmeld"),
         "construct \"private\" {}",
@@ -829,6 +831,7 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
     .unwrap();
     fs::write(&root, root_source).unwrap();
     fs::write(&module, module_source).unwrap();
+    fs::write(&second_module, second_module_source).unwrap();
     let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
     let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
@@ -855,6 +858,20 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
             );
         }
     }
+
+    let allow_offset = root_source.find("allow \"").unwrap() + "allow \"".len();
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":8,"method":"textDocument/completion","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":allow_offset}}}),
+    );
+    let construct_completion = receive_lsp_message(&receiver);
+    let construct_labels = construct_completion["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["label"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(construct_labels, ["program", "print", "zebra"]);
 
     for (id, uri, text, prefix, label, detail, kind) in [
         (2, &root_uri, root_source, "pri", "print", "Construct", 18),

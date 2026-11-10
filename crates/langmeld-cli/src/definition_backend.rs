@@ -74,15 +74,15 @@ impl LanguageBackend for ProjectDefinitionBackend {
             resolver: &self.resolver,
             open_sources: &open_sources,
             loaded: Mutex::new(HashSet::from([self.root_definition.clone()])),
-            sources: Mutex::new(HashMap::from([(self.root_definition.clone(), root_source)])),
+            sources: Mutex::new(vec![(self.root_definition.clone(), root_source)]),
         };
         let result = parse_language_definition_project(root, &resolver);
         let loaded_sources = resolver
             .sources
             .lock()
             .expect("definition source lock is not poisoned")
-            .values()
-            .cloned()
+            .iter()
+            .map(|(_, source)| source.clone())
             .collect::<Vec<_>>();
         *self
             .references
@@ -206,13 +206,14 @@ struct OpenFileOverlayResolver<'a> {
     resolver: &'a DirectoryDefinitionResolver,
     open_sources: &'a HashMap<String, SourceFile>,
     loaded: Mutex<HashSet<String>>,
-    sources: Mutex<HashMap<String, SourceFile>>,
+    sources: Mutex<Vec<(String, SourceFile)>>,
 }
 
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
         let resolved = self.resolver.resolve(from_key, import)?;
-        self.loaded
+        let is_new_source = self
+            .loaded
             .lock()
             .expect("definition resolver lock is not poisoned")
             .insert(resolved.key.clone());
@@ -221,10 +222,17 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
         } else {
             resolved.source
         };
-        self.sources
+        let mut sources = self
+            .sources
             .lock()
-            .expect("definition source lock is not poisoned")
-            .insert(resolved.key.clone(), source.clone());
+            .expect("definition source lock is not poisoned");
+        if is_new_source {
+            sources.push((resolved.key.clone(), source.clone()));
+        } else if let Some((_, loaded_source)) =
+            sources.iter_mut().find(|(key, _)| key == &resolved.key)
+        {
+            *loaded_source = source.clone();
+        }
         Ok(DefinitionSource::new(resolved.key, source))
     }
 }
