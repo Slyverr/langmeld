@@ -468,6 +468,8 @@ pub struct LanguageSpec {
     pub(crate) lexical_rules: LexicalRules,
     /// Indices of constructs allowed at the source root.
     pub(crate) root_constructs: Vec<usize>,
+    /// Whether the source-root allowlist was explicitly declared.
+    pub(crate) root_constructs_explicit: bool,
 }
 
 impl LanguageSpec {
@@ -603,6 +605,7 @@ impl LanguageSpec {
             constructs,
             lexical_rules: LexicalRules::default(),
             root_constructs,
+            root_constructs_explicit: false,
         })
     }
 
@@ -623,7 +626,9 @@ impl LanguageSpec {
     ///
     /// By default every construct is allowed at the root. Constructs allowed
     /// inside delimited blocks are configured separately with
-    /// [`ConstructSpec::block`].
+    /// [`ConstructSpec::block`]. With an explicit root list, parsing can
+    /// recover from an unclosed block when it reaches a complete root
+    /// construct that is not valid in that block.
     pub fn with_root_constructs(mut self, names: &[&str]) -> Result<Self, SpecError> {
         let mut root_constructs = vec![false; self.constructs.len()];
         for name in names {
@@ -643,7 +648,12 @@ impl LanguageSpec {
             .enumerate()
             .filter_map(|(index, allowed)| allowed.then_some(index))
             .collect();
+        self.root_constructs_explicit = true;
         Ok(self)
+    }
+
+    pub(crate) fn has_explicit_root_constructs(&self) -> bool {
+        self.root_constructs_explicit
     }
 
     /// Returns the human-readable language name.

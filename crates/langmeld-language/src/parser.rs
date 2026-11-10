@@ -291,6 +291,8 @@ fn parse_with_lexer_internal(
         construct_count: 0,
         resource_limited,
         stopped: false,
+        root_constructs: allowed.clone(),
+        recover_at_root_boundaries: language.has_explicit_root_constructs(),
         capture_contexts,
         completion_contexts: Vec::new(),
         completion_blocked: false,
@@ -321,6 +323,8 @@ struct Parser<'a> {
     construct_count: usize,
     resource_limited: bool,
     stopped: bool,
+    root_constructs: Vec<&'a crate::ConstructSpec>,
+    recover_at_root_boundaries: bool,
     capture_contexts: bool,
     completion_contexts: Vec<ParseContext>,
     completion_blocked: bool,
@@ -343,6 +347,9 @@ impl Parser<'_> {
                 break;
             };
             if close.is_some_and(|close| token.text == close) {
+                break;
+            }
+            if close.is_some() && self.should_resume_at_root(allowed) {
                 break;
             }
             if let Some(child) = self.parse_one(allowed, depth) {
@@ -521,6 +528,7 @@ impl Parser<'_> {
                     children,
                 });
             }
+            let opening_end = opening.span.end;
             let max_nesting_depth = self.limits.max_nesting_depth.min(MAX_NESTING_DEPTH);
             if depth >= max_nesting_depth {
                 self.resource_limited = true;
@@ -554,17 +562,28 @@ impl Parser<'_> {
                         .tokens
                         .get(self.cursor.saturating_sub(1))
                         .map_or(end, |token| token.span.end);
-                } else if let Some(closing) = self.tokens.get(self.cursor) {
+                } else if let Some(closing) = self
+                    .tokens
+                    .get(self.cursor)
+                    .filter(|token| token.text == block.close)
+                {
                     end = closing.span.end;
                     self.cursor += 1;
                     self.completion_blocked = false;
                 } else {
-                    end = self.source.text.len();
+                    let boundary = self.tokens.get(self.cursor);
+                    end = boundary.map_or(self.source.text.len(), |_| {
+                        children.last().map_or(opening_end, |child| child.span.end)
+                    });
+                    let diagnostic_span = boundary.map_or_else(
+                        || Span::new(end, end),
+                        |token| Span::new(token.span.start, token.span.start),
+                    );
                     self.diagnostics.push(Diagnostic::error(
                         "LM-PARSE-004",
                         format!("expected closing token `{}`", block.close),
                         self.source,
-                        Span::new(end, end),
+                        diagnostic_span,
                     ));
                 }
             }
@@ -576,6 +595,42 @@ impl Parser<'_> {
             fields: attempt.fields,
             children,
         })
+    }
+
+    fn should_resume_at_root(&mut self, allowed: &[&crate::ConstructSpec]) -> bool {
+        if !self.recover_at_root_boundaries {
+            return false;
+        }
+
+        let root_matches = match any_construct_matches(
+            &self.root_constructs,
+            &self.tokens,
+            self.cursor,
+            &mut self.pattern_steps_remaining,
+        ) {
+            Ok(matches) => matches,
+            Err(()) => {
+                self.stop_for_pattern_limit();
+                return false;
+            }
+        };
+        if !root_matches {
+            return false;
+        }
+
+        let child_matches = match any_construct_matches(
+            allowed,
+            &self.tokens,
+            self.cursor,
+            &mut self.pattern_steps_remaining,
+        ) {
+            Ok(matches) => matches,
+            Err(()) => {
+                self.stop_for_pattern_limit();
+                return false;
+            }
+        };
+        !child_matches
     }
 
     fn missing_block_open(&mut self, spec: &crate::ConstructSpec, open: &str) {
@@ -636,6 +691,59 @@ struct MatchAttempt<'a> {
     end: usize,
     complete: bool,
     expected: Option<&'a PatternPart>,
+}
+
+fn any_construct_matches(
+    constructs: &[&crate::ConstructSpec],
+    tokens: &[LexedToken],
+    start: usize,
+    remaining_steps: &mut usize,
+) -> Result<bool, ()> {
+    let Some(token) = tokens.get(start) else {
+        return Ok(false);
+    };
+    for construct in constructs {
+        for pattern in construct.variants() {
+            if !pattern_may_start_with(pattern, token) {
+                continue;
+            }
+            let attempt = match_sequence(pattern, tokens, start, remaining_steps)?;
+            if attempt.complete {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn pattern_may_start_with(pattern: &[PatternPart], token: &LexedToken) -> bool {
+    for part in pattern {
+        match part {
+            PatternPart::Literal(literal) => {
+                return token.kind != TokenKind::Invalid && token.text == *literal;
+            }
+            PatternPart::Field { kind, .. } => return accepts(*kind, token.kind),
+            PatternPart::Choice { values, .. } => {
+                return token.kind != TokenKind::Invalid
+                    && values.iter().any(|value| value == &token.text);
+            }
+            PatternPart::Expression { .. } => return token.kind != TokenKind::Invalid,
+            PatternPart::Optional(parts) => {
+                if pattern_may_start_with(parts, token) {
+                    return true;
+                }
+            }
+            PatternPart::Repeat { parts, minimum } => {
+                if pattern_may_start_with(parts, token) {
+                    return true;
+                }
+                if *minimum == RepeatMinimum::One {
+                    return false;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn match_sequence<'a>(

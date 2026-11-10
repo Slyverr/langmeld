@@ -46,7 +46,11 @@ language "WidgetScript" {
 Declare one `root` for each construct the language accepts at source level.
 When no roots are declared, all constructs remain allowed at the root for
 backward compatibility and formats with multiple top-level construct types.
-The `root` directive belongs in the root language file; its name can refer to a
+When `root` declarations are present, if a block is missing its closing token
+and the parser reaches a complete root construct that is not allowed in that
+block, it reports the missing closer at the root boundary and continues parsing
+the root. A construct that also parses as a valid child remains a child. The
+`root` directive belongs in the root language file; its name can refer to a
 construct declared in an imported file.
 
 `constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
