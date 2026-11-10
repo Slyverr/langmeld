@@ -197,6 +197,29 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
 }
 
 #[test]
+fn init_normalizes_directory_names_into_valid_package_defaults() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("_widget-language_");
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let manifest = fs::read_to_string(project.join("Cargo.toml"))
+        .expect("generated project manifest should exist");
+    assert!(manifest.contains("name = \"widget-language\""));
+}
+
+#[test]
 fn check_uses_the_project_manifest_and_reports_the_language_name() {
     let parent = TestDirectory::new();
     let project = parent.path().join("widget-language");

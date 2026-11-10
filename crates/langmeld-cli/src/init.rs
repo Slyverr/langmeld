@@ -591,7 +591,7 @@ fn default_project_name(path: &Path) -> String {
             normalized.push('-');
         }
     }
-    let normalized = normalized.trim_matches('-');
+    let normalized = normalized.trim_matches(|character| matches!(character, '-' | '_'));
     if normalized.is_empty() {
         "my-language".to_owned()
     } else {
