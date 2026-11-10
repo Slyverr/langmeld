@@ -207,7 +207,7 @@ fn project_files(
                 (
                     "language/language.langmeld".to_owned(),
                     format!(
-                        "language {} {{\n    import \"constructs/statements.langmeld\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
+                        "language {} {{\n    import \"constructs/statements.langmeld\";\n    root \"program\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
                         quote_lm(language_name)
                     ),
                 ),

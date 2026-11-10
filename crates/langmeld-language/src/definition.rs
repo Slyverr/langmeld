@@ -67,6 +67,7 @@ struct ImportDirective {
 struct DefinitionUnit {
     language_name: Option<String>,
     constructs: Vec<(ConstructSpec, Span)>,
+    root_constructs: Vec<(String, Span)>,
     imports: Vec<ImportDirective>,
     lexical_rules: LexicalRules,
     lexical_span: Option<Span>,
@@ -79,7 +80,9 @@ struct DefinitionUnit {
 /// parser. This keeps the definition frontend on the same parser path that
 /// user-defined languages use. The accepted subset currently describes
 /// keyword-led token patterns and delimited blocks. Files containing imports
-/// must use [`parse_language_definition_project`] with a host resolver.
+/// must use [`parse_language_definition_project`] with a host resolver. Root
+/// declarations restrict top-level constructs; without them, every construct
+/// remains available at the source root.
 #[must_use]
 pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
     let mut unit = parse_definition_unit(source, true);
@@ -99,6 +102,7 @@ pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
     finish_definition(
         unit.language_name,
         constructs,
+        unit.root_constructs,
         unit.lexical_rules,
         unit.lexical_span,
         unit.diagnostics,
@@ -147,6 +151,7 @@ pub fn parse_language_definition_project(
         .into_iter()
         .map(|(construct, span)| (construct, root.source.clone(), span))
         .collect::<Vec<_>>();
+    let root_constructs = unit.root_constructs;
     let mut loading = vec![root.key.clone()];
     let mut loaded = std::collections::HashSet::new();
     loaded.insert(root.key.clone());
@@ -164,6 +169,7 @@ pub fn parse_language_definition_project(
     finish_definition(
         Some(language_name),
         constructs,
+        root_constructs,
         unit.lexical_rules,
         unit.lexical_span,
         diagnostics,
@@ -176,6 +182,7 @@ fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
     let mut unit = DefinitionUnit {
         language_name: None,
         constructs: Vec::new(),
+        root_constructs: Vec::new(),
         imports: Vec::new(),
         lexical_rules: LexicalRules::default(),
         lexical_span: None,
@@ -249,6 +256,18 @@ fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
                 "construct" => {
                     if let Some(construct) = lower_construct(node, source, &mut unit.diagnostics) {
                         unit.constructs.push((construct, node.span));
+                    }
+                }
+                "root" => {
+                    if let Some(name) = string_field(node, "name").and_then(decode_quoted) {
+                        unit.root_constructs.push((name, node.span));
+                    } else {
+                        unit.diagnostics.push(Diagnostic::error(
+                            "LM-DEF-027",
+                            "`root` requires a valid quoted construct name",
+                            source,
+                            node.span,
+                        ));
                     }
                 }
                 "import" => {
@@ -452,6 +471,7 @@ fn load_imports(
 fn finish_definition(
     language_name: Option<String>,
     constructs: Vec<(ConstructSpec, SourceFile, Span)>,
+    root_constructs: Vec<(String, Span)>,
     lexical_rules: LexicalRules,
     lexical_span: Option<Span>,
     mut diagnostics: Vec<Diagnostic>,
@@ -469,7 +489,17 @@ fn finish_definition(
         .collect::<Vec<_>>();
     let language = match LanguageSpec::new(language_name, specs)
         .and_then(|language| language.with_lexical_rules(lexical_rules))
-    {
+        .and_then(|language| {
+            if root_constructs.is_empty() {
+                Ok(language)
+            } else {
+                let names = root_constructs
+                    .iter()
+                    .map(|(name, _)| name.as_str())
+                    .collect::<Vec<_>>();
+                language.with_root_constructs(&names)
+            }
+        }) {
         Ok(language) => Some(language),
         Err(error) => {
             let target = match &error {
@@ -489,8 +519,21 @@ fn finish_definition(
                     | SpecError::InvalidBlockComment { .. }
                     | SpecError::DuplicateCommentStart(_)
             );
-            let (source, span) = target.map_or_else(
-                || {
+            let root_target = match &error {
+                SpecError::UnknownRootConstruct(name) => root_constructs
+                    .iter()
+                    .find(|(root, _)| root == name)
+                    .map(|(_, span)| (&fallback_source, *span)),
+                SpecError::DuplicateRootConstruct(name) => root_constructs
+                    .iter()
+                    .filter(|(root, _)| root == name)
+                    .nth(1)
+                    .map(|(_, span)| (&fallback_source, *span)),
+                _ => None,
+            };
+            let (source, span) = root_target
+                .or_else(|| target.map(|(_, source, span)| (source, *span)))
+                .unwrap_or_else(|| {
                     (
                         &fallback_source,
                         if lexical_error {
@@ -499,9 +542,7 @@ fn finish_definition(
                             Span::new(0, 0)
                         },
                     )
-                },
-                |(_, source, span)| (source, *span),
-            );
+                });
             diagnostics.push(Diagnostic::error(
                 "LM-DEF-004",
                 error.to_string(),
@@ -795,7 +836,15 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["construct", "import", "lexical"]),
+                .block("{", "}", &["root", "construct", "import", "lexical"]),
+                ConstructSpec::new(
+                    "root",
+                    [
+                        PatternPart::literal("root"),
+                        PatternPart::string("name"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
                 ConstructSpec::new(
                     "import",
                     [

@@ -193,6 +193,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         .expect("definition should be generated");
     assert!(definition.starts_with("language \"Widget Script\""));
     assert!(definition.contains("import \"constructs/statements.langmeld\";"));
+    assert!(definition.contains("root \"program\";"));
 }
 
 #[test]

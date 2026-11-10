@@ -1,5 +1,6 @@
 language "WidgetScript" {
     import "constructs/statements.langmeld";
+    root "program";
     lexical {
         line_comment "//";
     }

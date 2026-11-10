@@ -1,7 +1,7 @@
 use langmeld_core::SourceFile;
 use langmeld_language::{
-    CapturedValue, DefinitionResolver, DefinitionSource, parse, parse_language_definition,
-    parse_language_definition_project,
+    CapturedValue, DefinitionResolver, DefinitionSource, complete_at, parse,
+    parse_language_definition, parse_language_definition_project,
 };
 use std::collections::HashMap;
 
@@ -67,6 +67,146 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
         parsed.constructs[0].children[0].fields[1].value,
         CapturedValue::Integer("42".into())
     );
+
+    let top_level_statement = parse(&SourceFile::new("main.toy", "let answer = 42;"), &language);
+    assert!(top_level_statement.diagnostics.is_empty());
+}
+
+#[test]
+fn root_declarations_restrict_top_level_parsing_and_completion() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Rooted" {
+            root "program";
+            root "module";
+            construct "program" {
+                syntax { literal "program"; }
+                block "{" "}" { allow "statement"; }
+            }
+            construct "module" {
+                syntax { literal "module"; }
+            }
+            construct "statement" {
+                syntax { literal "statement"; }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let language = definition.language.unwrap();
+    assert_eq!(
+        language
+            .root_constructs()
+            .map(|construct| construct.name())
+            .collect::<Vec<_>>(),
+        ["program", "module"]
+    );
+
+    let completions = complete_at(&SourceFile::new("main", ""), &language, 0);
+    assert_eq!(
+        completions
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["program", "module"]
+    );
+
+    let invalid_root = parse(&SourceFile::new("main", "statement"), &language);
+    assert!(!invalid_root.diagnostics.is_empty());
+}
+
+#[test]
+fn root_declarations_report_unknown_names_at_the_declaration() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Rooted" {
+            root "missing";
+            construct "program" {
+                syntax { literal "program"; }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    let diagnostic = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-004")
+        .expect("unknown roots should be reported");
+    let location = diagnostic
+        .location
+        .as_ref()
+        .expect("root diagnostic is located");
+    let root_start = source.text.find("root \"missing\"").unwrap();
+    assert_eq!(location.span.start, root_start);
+    assert!(definition.language.is_none());
+}
+
+#[test]
+fn root_declarations_can_name_imported_constructs() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.langmeld",
+            r#"language "Rooted" {
+                import "constructs/items.langmeld";
+                root "program";
+                root "item";
+                construct "program" {
+                    syntax { literal "program"; }
+                }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "constructs/items.langmeld".into(),
+        DefinitionSource::new(
+            "items",
+            SourceFile::new(
+                "language/constructs/items.langmeld",
+                r#"construct "item" { syntax { literal "item"; } }"#,
+            ),
+        ),
+    );
+
+    let definition = parse_language_definition_project(root, &resolver);
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    assert_eq!(
+        definition
+            .language
+            .unwrap()
+            .root_constructs()
+            .map(|construct| construct.name())
+            .collect::<Vec<_>>(),
+        ["program", "item"]
+    );
+}
+
+#[test]
+fn duplicate_root_declarations_report_the_later_declaration() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Rooted" {
+            root "program";
+            root "program";
+            construct "program" { syntax { literal "program"; } }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    let diagnostic = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-004")
+        .expect("duplicate roots should be reported");
+    let location = diagnostic
+        .location
+        .as_ref()
+        .expect("root diagnostic is located");
+    let duplicate_start = source.text.rfind("root \"program\"").unwrap();
+    assert_eq!(location.span.start, duplicate_start);
 }
 
 #[test]

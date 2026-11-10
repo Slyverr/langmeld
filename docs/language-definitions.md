@@ -19,11 +19,13 @@ language/
 
 The root file declares the language and imports construct files. Imported
 files contain top-level `construct` and `import` declarations; they do not
-declare another language. Imports are explicit and may be nested.
+declare another language or root constructs. Imports are explicit and may be
+nested.
 
 ```langmeld
 language "WidgetScript" {
     import "constructs/statements.langmeld";
+    root "program";
     lexical {
         line_comment "//";
     }
@@ -39,6 +41,13 @@ language "WidgetScript" {
     }
 }
 ```
+
+`root "program";` restricts top-level parsing and completion to that construct.
+Declare one `root` for each construct the language accepts at source level.
+When no roots are declared, all constructs remain allowed at the root for
+backward compatibility and formats with multiple top-level construct types.
+The `root` directive belongs in the root language file; its name can refer to a
+construct declared in an imported file.
 
 `constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
 used by the root block. See the complete consumer in

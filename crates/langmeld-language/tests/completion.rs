@@ -193,6 +193,20 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
         ["language", "import", "construct"]
     );
 
+    let source = "language \"Toy\" { ";
+    let language_body = complete_at(
+        &SourceFile::new("language.langmeld", source),
+        grammar,
+        source.len(),
+    );
+    assert_eq!(
+        language_body
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["root", "construct", "import", "lexical", "}"]
+    );
+
     let source = "language \"Toy\" { construct \"item\" { syntax { ";
     let nested = complete_at(
         &SourceFile::new("language.langmeld", source),
