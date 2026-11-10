@@ -867,8 +867,12 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
     fs::write(&root, root_source).unwrap();
     fs::write(&module, module_source).unwrap();
     fs::write(&second_module, second_module_source).unwrap();
-    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
-    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let root_uri = url::Url::from_file_path(fs::canonicalize(&root).unwrap())
+        .unwrap()
+        .to_string();
+    let module_uri = url::Url::from_file_path(fs::canonicalize(&module).unwrap())
+        .unwrap()
+        .to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
 
     send_lsp_message(
