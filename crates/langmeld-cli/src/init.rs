@@ -86,11 +86,14 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         Template::Declarative => "declarative grammar",
         Template::CustomParser => "custom Rust parser",
     };
-    println!("Created `{package_name}` with a {template_name}.");
     println!(
-        "Next: cargo run --manifest-path {}/Cargo.toml",
+        "Created `{package_name}` at `{}` with a {template_name}.",
         args.path.display()
     );
+    println!("Next: run `cargo run` from the project directory.");
+    if matches!(template, Template::CustomParser) {
+        println!("LSP: run `cargo run --bin language-lsp` from the project directory.");
+    }
     Ok(())
 }
 
@@ -168,7 +171,9 @@ fn project_files(
             "langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
         ),
         Template::CustomParser => {
-            format!("langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\n")
+            format!(
+                "langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-lsp = \"{version}\"\n"
+            )
         }
     };
     let library = match template {
@@ -216,13 +221,17 @@ fn project_files(
                 (
                     "README.md".to_owned(),
                     format!(
-                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\n## Test\n\n```sh\ncargo test\n```\n\nImplement the syntax, AST, and recovery behavior in `src/lib.rs`. The binary\nin `src/main.rs` demonstrates using the parser, and `tests/` contains an\nintegration test. This template uses Langmeld's `LanguageParser` contract and\nleaves grammar design to your Rust code.\n"
+                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\n```\n\n## Language server\n\nStart the stdio LSP server with:\n\n```sh\ncargo run --bin language-lsp\n```\n\nIt publishes parser diagnostics from the host parser. Add host analysis,\ncompletion, and navigation by implementing Langmeld's corresponding traits\nand attaching them to `HostLanguageBackend` in `src/bin/language-lsp.rs`.\n\n## Test\n\n```sh\ncargo test\n```\n\nImplement the syntax, AST, and recovery behavior in `src/lib.rs`. The binary\nin `src/main.rs` demonstrates using the parser, and `tests/` contains an\nintegration test. This template uses Langmeld's `LanguageParser` contract and\nleaves grammar design to your Rust code.\n"
                     ),
                 ),
                 ("src/lib.rs".to_owned(), custom_parser_library_template().to_owned()),
                 (
                     "src/main.rs".to_owned(),
                     custom_parser_main_template(language_name),
+                ),
+                (
+                    "src/bin/language-lsp.rs".to_owned(),
+                    custom_parser_lsp_template().to_owned(),
                 ),
                 (
                     "tests/parser.rs".to_owned(),
@@ -428,6 +437,18 @@ fn main() {
 }
 "#
     .replace("$LANGUAGE_NAME", &format!("{language_name:?}"))
+}
+
+fn custom_parser_lsp_template() -> &'static str {
+    r#"use std::error::Error;
+
+use langmeld_lsp::{HostLanguageBackend, run_stdio};
+use language::SayParser;
+
+fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
+    run_stdio(HostLanguageBackend::new(SayParser))
+}
+"#
 }
 
 fn custom_parser_test_template() -> &'static str {

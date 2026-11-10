@@ -50,10 +50,13 @@ and prints the result. Language-specific semantics and execution remain Rust
 code that the language author adds.
 
 The custom parser template creates a library in `src/lib.rs`, a demonstration
-binary in `src/main.rs`, and an integration test in `tests/parser.rs`. Its
-`SayParser` implements `LanguageParser` directly, demonstrating a host-owned
-syntax and parse tree without `.lm` files or a Langmeld manifest. Use normal
-Cargo commands to test, build, and run that template.
+binary in `src/main.rs`, a stdio LSP binary in `src/bin/language-lsp.rs`, and
+an integration test in `tests/parser.rs`. Its `SayParser` implements
+`LanguageParser` directly, demonstrating a host-owned syntax and parse tree
+without `.lm` files or a Langmeld manifest. The LSP binary publishes parser
+diagnostics through `HostLanguageBackend`; add host analysis, completion, or
+navigation providers there as needed. Use normal Cargo commands to test, build,
+and run the generated project.
 
 `langmeld.toml` points to the root `.lm` file and has a format version:
 

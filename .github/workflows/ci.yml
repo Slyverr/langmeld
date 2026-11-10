@@ -58,12 +58,14 @@ jobs:
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
             --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
             --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
 
   quality:
     name: Formatting, check, and Clippy
