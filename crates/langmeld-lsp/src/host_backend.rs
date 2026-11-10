@@ -4,9 +4,12 @@ use langmeld_language::{
     LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 
-use crate::{BackendCapabilities, BackendDocument, BackendSource, LanguageBackend};
+use crate::{
+    BackendCapabilities, BackendDocument, BackendSource, LanguageBackend, WorkspaceSymbolInfo,
+};
 
 type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
+type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
 
 /// Retained parse and analysis results produced by a [`HostLanguageBackend`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,6 +53,7 @@ where
     completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync>>,
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
     source_resolver: Option<Box<SourceResolver>>,
+    workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider>>,
 }
 
 impl<P> HostLanguageBackend<P, NoAnalyzer>
@@ -66,6 +70,7 @@ where
             completer: None,
             navigator: None,
             source_resolver: None,
+            workspace_symbol_provider: None,
         }
     }
 
@@ -82,6 +87,7 @@ where
             completer: None,
             navigator: None,
             source_resolver: self.source_resolver,
+            workspace_symbol_provider: self.workspace_symbol_provider,
         }
     }
 }
@@ -128,6 +134,16 @@ where
         resolver: impl Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync + 'static,
     ) -> Self {
         self.source_resolver = Some(Box::new(resolver));
+        self
+    }
+
+    /// Adds project-wide symbol search using a host-owned index.
+    #[must_use]
+    pub fn with_workspace_symbol_provider(
+        mut self,
+        provider: impl Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync + 'static,
+    ) -> Self {
+        self.workspace_symbol_provider = Some(Box::new(provider));
         self
     }
 }
@@ -203,6 +219,7 @@ where
             completion: self.completer.is_some(),
             definition: self.navigator.is_some(),
             references: self.navigator.is_some(),
+            workspace_symbols: self.workspace_symbol_provider.is_some(),
             ..BackendCapabilities::default()
         }
     }
@@ -259,5 +276,11 @@ where
 
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
         self.source_resolver.as_ref()?(location)
+    }
+
+    fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbolInfo> {
+        self.workspace_symbol_provider
+            .as_ref()
+            .map_or_else(Vec::new, |provider| provider(query))
     }
 }

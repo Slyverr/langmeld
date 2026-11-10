@@ -10,9 +10,10 @@ use lsp_types::{
     HoverParams, InitializeParams, InitializeResult, Location, MarkupContent, MarkupKind,
     PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams, Registration,
     RegistrationParams, RenameParams, SemanticTokensOptions, SemanticTokensParams,
-    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, SymbolInformation,
     TextDocumentContentChangeEvent, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
     Uri, WorkspaceEdit, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    WorkspaceSymbolParams,
 };
 use serde_json::{Value, json};
 
@@ -373,6 +374,10 @@ impl<B: LanguageBackend> ServerState<B> {
                 serde_json::from_value::<DocumentSymbolParams>(request.params)
                     .map(|params| self.document_symbols(params).map(|symbols| json!(symbols)))
             }
+            "workspace/symbol" if self.capabilities.workspace_symbols => {
+                serde_json::from_value::<WorkspaceSymbolParams>(request.params)
+                    .map(|params| Some(json!(self.workspace_symbols(&params.query))))
+            }
             _ => {
                 return Response::new_err(
                     id,
@@ -575,6 +580,31 @@ impl<B: LanguageBackend> ServerState<B> {
             self.encoding,
             self.supports_hierarchical_document_symbols,
         )
+    }
+
+    fn workspace_symbols(&self, query: &str) -> Vec<SymbolInformation> {
+        self.backend
+            .workspace_symbols(query)
+            .into_iter()
+            .filter_map(|symbol| {
+                if symbol.name.is_empty() {
+                    return None;
+                }
+                let location = self.lsp_location(&symbol.location)?;
+                #[expect(
+                    deprecated,
+                    reason = "lsp-types 0.97 requires the deprecated field during construction"
+                )]
+                Some(SymbolInformation {
+                    name: symbol.name,
+                    kind: symbol.kind.into(),
+                    tags: None,
+                    deprecated: None,
+                    location,
+                    container_name: symbol.container_name,
+                })
+            })
+            .collect()
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
@@ -907,6 +937,9 @@ fn server_capabilities(
         rename_provider: backend.rename.then_some(lsp_types::OneOf::Left(true)),
         document_symbol_provider: backend
             .document_symbols
+            .then_some(lsp_types::OneOf::Left(true)),
+        workspace_symbol_provider: backend
+            .workspace_symbols
             .then_some(lsp_types::OneOf::Left(true)),
         workspace: workspace_folders.then(|| WorkspaceServerCapabilities {
             workspace_folders: Some(WorkspaceFoldersServerCapabilities {

@@ -8,6 +8,7 @@ mod host_backend;
 mod hover;
 mod semantic;
 mod server;
+mod workspace_symbol;
 
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
@@ -18,3 +19,4 @@ pub use host_backend::{HostDocument, HostLanguageBackend, NoAnalyzer};
 pub use hover::{HoverContent, HoverInfo};
 pub use semantic::{SemanticToken, SemanticTokenLegend};
 pub use server::{run_connection, run_stdio};
+pub use workspace_symbol::WorkspaceSymbolInfo;

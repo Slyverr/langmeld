@@ -19,7 +19,7 @@ use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind,
     HostLanguageBackend, HoverInfo, LanguageBackend, SemanticToken, SemanticTokenLegend,
-    run_connection,
+    WorkspaceSymbolInfo, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::Uri;
@@ -59,6 +59,7 @@ impl LanguageBackend for Backend {
             hover: true,
             rename: true,
             document_symbols: true,
+            workspace_symbols: true,
         }
     }
 
@@ -121,6 +122,25 @@ impl LanguageBackend for Backend {
         }
         let uri = location.source_name.parse::<Uri>().ok()?;
         Some(BackendSource::new(uri, Arc::new(source)))
+    }
+
+    fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbolInfo> {
+        if !"Record".to_lowercase().contains(&query.to_lowercase()) {
+            return Vec::new();
+        }
+        let sources = self.0.lock().unwrap();
+        let Some(source) = sources.get("file:///closed.test") else {
+            return Vec::new();
+        };
+        vec![WorkspaceSymbolInfo::new(
+            "Record",
+            DocumentSymbolKind::Struct,
+            SourceLocation {
+                source_name: source.name.clone(),
+                identity: source.identity(),
+                span: Span::new(0, source.text.len()),
+            },
+        )]
     }
 
     fn semantic_token_legend(&self) -> SemanticTokenLegend {
@@ -879,6 +899,7 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     assert_eq!(initialized["capabilities"]["hoverProvider"], true);
     assert_eq!(initialized["capabilities"]["renameProvider"], true);
     assert_eq!(initialized["capabilities"]["documentSymbolProvider"], true);
+    assert_eq!(initialized["capabilities"]["workspaceSymbolProvider"], true);
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.test";
@@ -901,6 +922,24 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
         0
     );
     assert_eq!(published["diagnostics"][0]["range"]["end"]["character"], 2);
+
+    send_request(
+        &client,
+        30,
+        "workspace/symbol",
+        json!({ "query": "Record" }),
+    );
+    let workspace_symbols = receive_response(&client);
+    assert_eq!(workspace_symbols[0]["name"], "Record");
+    assert_eq!(workspace_symbols[0]["kind"], 23);
+    assert_eq!(
+        workspace_symbols[0]["location"]["uri"],
+        "file:///closed.test"
+    );
+    assert_eq!(
+        workspace_symbols[0]["location"]["range"]["end"]["character"],
+        11
+    );
 
     send_request(
         &client,
@@ -1632,12 +1671,26 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
         .parse()
         .expect("test URI should be valid");
     let location_for_resolver = target_location.clone();
+    let location_for_symbols = target_location.clone();
     let backend = HostLanguageBackend::new(DiagnosticParser)
         .with_analyzer(DiagnosticAnalyzer)
         .with_navigator(ExternalLocationNavigator(target_location))
         .with_source_resolver(move |location| {
             (location == &location_for_resolver)
                 .then(|| BackendSource::new(uri.clone(), Arc::clone(&target)))
+        })
+        .with_workspace_symbol_provider(move |query| {
+            if !"ClosedDeclaration"
+                .to_lowercase()
+                .contains(&query.to_lowercase())
+            {
+                return Vec::new();
+            }
+            vec![WorkspaceSymbolInfo::new(
+                "ClosedDeclaration",
+                DocumentSymbolKind::Struct,
+                location_for_symbols.clone(),
+            )]
         });
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
@@ -1692,7 +1745,17 @@ fn host_backend_can_resolve_navigation_locations_in_closed_files() {
     assert_eq!(references.as_array().unwrap().len(), 1);
     assert_eq!(references[0]["uri"], "file:///closed.host");
 
-    send_request(&client, 4, "shutdown", Value::Null);
+    send_request(
+        &client,
+        4,
+        "workspace/symbol",
+        json!({ "query": "ClosedDecl" }),
+    );
+    let symbols = receive_response(&client);
+    assert_eq!(symbols[0]["name"], "ClosedDeclaration");
+    assert_eq!(symbols[0]["location"]["uri"], "file:///closed.host");
+
+    send_request(&client, 5, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

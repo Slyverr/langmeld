@@ -14,6 +14,7 @@ use crate::{
     document_symbol::DocumentSymbolInfo,
     hover::HoverInfo,
     semantic::{SemanticToken, SemanticTokenLegend},
+    workspace_symbol::WorkspaceSymbolInfo,
 };
 
 /// A host's retained document state and diagnostics for one source revision.
@@ -78,6 +79,8 @@ pub struct BackendCapabilities {
     pub rename: bool,
     /// The backend provides document outline symbols.
     pub document_symbols: bool,
+    /// The backend searches project-wide symbols.
+    pub workspace_symbols: bool,
 }
 
 /// Workspace lifecycle events a backend wants to receive from the editor.
@@ -282,6 +285,15 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _source: &SourceFile,
         _document: &BackendDocument<Self::Document>,
     ) -> Vec<DocumentSymbolInfo> {
+        Vec::new()
+    }
+
+    /// Returns symbols matching a workspace search query.
+    ///
+    /// Locations may refer to open documents or host-indexed closed files.
+    /// The adapter drops results whose source snapshot or span cannot be
+    /// resolved safely.
+    fn workspace_symbols(&self, _query: &str) -> Vec<WorkspaceSymbolInfo> {
         Vec::new()
     }
 }

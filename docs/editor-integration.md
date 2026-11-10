@@ -137,6 +137,14 @@ The resolver must return the source snapshot matching the location's name and
 identity. Langmeld validates the identity and span before returning navigation
 results or edits; the host remains responsible for keeping its closed-file
 index current.
+
+Workspace symbol search is also host-owned. Implement `workspace_symbols` on a
+custom `LanguageBackend`, or use `HostLanguageBackend::with_workspace_symbol_provider`
+to query the host's project index. Return `WorkspaceSymbolInfo` entries with
+source locations; Langmeld resolves open files itself and asks
+`source_for_location` for closed-file snapshots. The host decides which symbol
+kinds are searchable and how queries match names.
+
 Hosts can also return document outline trees with UTF-8 byte ranges for each
 symbol and its selection range. The adapter validates that every range is
 inside its source snapshot, that selections are contained by their symbols, and
