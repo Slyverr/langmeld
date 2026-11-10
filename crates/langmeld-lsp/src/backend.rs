@@ -47,6 +47,13 @@ pub trait LanguageBackend: Send + Sync + 'static {
     /// Parses and analyzes one immutable source snapshot.
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document>;
 
+    /// Notifies the backend when an open document is closed by the client.
+    ///
+    /// Hosts that maintain workspace indexes can remove this source here.
+    /// The server calls this with the last analyzed snapshot before discarding
+    /// it. The default implementation has no additional cleanup.
+    fn did_close(&self, _source: &SourceFile, _document: &BackendDocument<Self::Document>) {}
+
     /// Reports implemented requests so the server advertises only support it
     /// actually has.
     fn capabilities(&self) -> BackendCapabilities;

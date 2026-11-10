@@ -1,4 +1,8 @@
-use std::{sync::mpsc, thread, time::Duration};
+use std::{
+    sync::{Arc, Mutex, mpsc},
+    thread,
+    time::Duration,
+};
 
 use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{CompletionCandidate, ConstructSpec, LanguageSpec, PatternPart};
@@ -334,4 +338,75 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
         .recv_timeout(Duration::from_secs(2))
         .expect("server thread should finish")
         .expect("server should shut down cleanly");
+}
+
+#[derive(Clone)]
+struct CloseBackend(Arc<Mutex<Option<(String, String)>>>);
+
+impl LanguageBackend for CloseBackend {
+    type Document = String;
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        BackendDocument::new(source, source.text.clone(), Vec::new())
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities::default()
+    }
+
+    fn did_close(&self, source: &SourceFile, document: &BackendDocument<Self::Document>) {
+        *self.0.lock().unwrap() = Some((source.text.clone(), document.state.clone()));
+    }
+}
+
+#[test]
+fn backend_receives_the_last_snapshot_when_a_document_closes() {
+    let closed = Arc::new(Mutex::new(None));
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = CloseBackend(Arc::clone(&closed));
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({"capabilities": {}}));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    let uri = "file:///closed.test";
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": uri,
+                "languageId": "test",
+                "version": 1,
+                "text": "last open snapshot"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+    send_notification(
+        &client,
+        "textDocument/didClose",
+        json!({ "textDocument": { "uri": uri } }),
+    );
+    let cleared = receive_diagnostics(&client);
+    assert!(cleared["diagnostics"].as_array().unwrap().is_empty());
+
+    send_request(&client, 2, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+    assert_eq!(
+        *closed.lock().unwrap(),
+        Some(("last open snapshot".into(), "last open snapshot".into()))
+    );
 }

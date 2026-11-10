@@ -18,7 +18,8 @@ Implement `LanguageBackend` when a language owns its AST or semantic rules. The
 backend's associated document state can retain the parse and analysis for each
 open source snapshot. Implement only the queries the language supports and
 return matching `BackendCapabilities`; the server uses that report to build
-its LSP capabilities.
+its LSP capabilities. `LanguageBackend::did_close` receives the last snapshot
+when a document closes, allowing hosts to remove it from workspace indexes.
 
 ```rust,ignore
 use langmeld_core::SourceFile;

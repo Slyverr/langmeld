@@ -241,6 +241,9 @@ impl<B: LanguageBackend> ServerState<B> {
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let uri = params.text_document.uri;
         if let Some(document) = self.documents.remove(&uri) {
+            if let Some(source) = self.sources.get(document.source_id) {
+                self.backend.did_close(source, &document.analysis);
+            }
             self.sources.remove(document.source_id);
             publish_diagnostics(connection, uri, None, Vec::new())?;
         }
