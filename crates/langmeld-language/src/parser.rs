@@ -435,6 +435,23 @@ impl Parser<'_> {
 
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
+                let resume_at_construct = if attempt.end < self.tokens.len() {
+                    let child_matches = match any_construct_matches(
+                        allowed,
+                        &self.tokens,
+                        attempt.end,
+                        &mut self.pattern_steps_remaining,
+                    ) {
+                        Ok(matches) => matches,
+                        Err(()) => {
+                            self.stop_for_pattern_limit_at(attempt.end);
+                            return None;
+                        }
+                    };
+                    child_matches || self.should_resume_at_root_at(allowed, attempt.end)
+                } else {
+                    false
+                };
                 self.completion_blocked = true;
                 if self.capture_contexts
                     && let Some(PatternPart::Choice {
@@ -469,9 +486,13 @@ impl Parser<'_> {
                     self.source,
                     span,
                 ));
-                self.cursor = (attempt.end + usize::from(attempt.end < self.tokens.len()))
-                    .max(self.cursor + 1)
-                    .min(self.tokens.len());
+                self.cursor = if resume_at_construct {
+                    attempt.end
+                } else {
+                    (attempt.end + usize::from(attempt.end < self.tokens.len()))
+                        .max(self.cursor + 1)
+                        .min(self.tokens.len())
+                };
             } else if let Some(token) = self.tokens.get(self.cursor) {
                 self.completion_blocked = false;
                 self.diagnostics.push(Diagnostic::error(
@@ -598,6 +619,14 @@ impl Parser<'_> {
     }
 
     fn should_resume_at_root(&mut self, allowed: &[&crate::ConstructSpec]) -> bool {
+        self.should_resume_at_root_at(allowed, self.cursor)
+    }
+
+    fn should_resume_at_root_at(
+        &mut self,
+        allowed: &[&crate::ConstructSpec],
+        position: usize,
+    ) -> bool {
         if !self.recover_at_root_boundaries {
             return false;
         }
@@ -605,12 +634,12 @@ impl Parser<'_> {
         let root_matches = match any_construct_matches(
             &self.root_constructs,
             &self.tokens,
-            self.cursor,
+            position,
             &mut self.pattern_steps_remaining,
         ) {
             Ok(matches) => matches,
             Err(()) => {
-                self.stop_for_pattern_limit();
+                self.stop_for_pattern_limit_at(position);
                 return false;
             }
         };
@@ -621,12 +650,12 @@ impl Parser<'_> {
         let child_matches = match any_construct_matches(
             allowed,
             &self.tokens,
-            self.cursor,
+            position,
             &mut self.pattern_steps_remaining,
         ) {
             Ok(matches) => matches,
             Err(()) => {
-                self.stop_for_pattern_limit();
+                self.stop_for_pattern_limit_at(position);
                 return false;
             }
         };
@@ -651,9 +680,13 @@ impl Parser<'_> {
     }
 
     fn stop_for_pattern_limit(&mut self) {
+        self.stop_for_pattern_limit_at(self.cursor);
+    }
+
+    fn stop_for_pattern_limit_at(&mut self, position: usize) {
         self.resource_limited = true;
         self.stopped = true;
-        let span = self.tokens.get(self.cursor).map_or_else(
+        let span = self.tokens.get(position).map_or_else(
             || Span::new(self.source.text.len(), self.source.text.len()),
             |token| token.span,
         );

@@ -121,6 +121,11 @@ Pattern items match lexer tokens in order:
 - `zero_or_more { ... }` and `one_or_more { ... }` repeat a sequence; fields
   from each match are captured in source order.
 
+If a partially matched construct fails where a complete construct allowed in
+the current scope begins, the parser reports the missing syntax and resumes at
+that construct. For example, a missing statement terminator does not consume
+the next statement's first token.
+
 ## Completion kinds
 
 Construct-start suggestions have no assumed semantic kind because a leading

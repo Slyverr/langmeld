@@ -55,6 +55,49 @@ fn parses_multiple_declarations_and_captures_values_with_spans() {
 }
 
 #[test]
+fn resumes_after_a_missing_terminator_before_a_valid_construct() {
+    let statements = language();
+    let constructs = std::iter::once(
+        ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+            "{",
+            "}",
+            &["let", "print"],
+        ),
+    )
+    .chain(statements.constructs().iter().cloned());
+    let grammar = LanguageSpec::new("Statements", constructs)
+        .unwrap()
+        .with_root_constructs(&["program"])
+        .unwrap();
+    let source = SourceFile::new(
+        "main",
+        "program { let first = 1 print second; let third = 3; }",
+    );
+
+    let result = parse(&source, &grammar);
+
+    assert_eq!(
+        result.constructs[0]
+            .children
+            .iter()
+            .map(|construct| construct.name.as_str())
+            .collect::<Vec<_>>(),
+        ["print", "let"]
+    );
+    let missing_terminator = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-PARSE-002")
+        .expect("missing semicolon diagnostic");
+    let next_construct = source.text.find("print").unwrap();
+    assert_eq!(
+        missing_terminator.location.as_ref().unwrap().span,
+        Span::new(next_construct, next_construct + "print".len())
+    );
+    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+}
+
+#[test]
 fn captures_expression_span_and_consumes_its_top_level_terminator() {
     let grammar = LanguageSpec::new(
         "Expressions",
@@ -414,6 +457,59 @@ fn root_recovery_keeps_a_root_construct_allowed_as_a_block_child() {
     assert_eq!(result.constructs[0].children.len(), 1);
     assert_eq!(result.constructs[0].children[0].name, "scenario");
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
+}
+
+#[test]
+fn resumes_at_a_root_after_a_malformed_block_child() {
+    let grammar = LanguageSpec::new(
+        "RootRecovery",
+        [
+            ConstructSpec::new(
+                "visual",
+                [
+                    PatternPart::literal("visual"),
+                    PatternPart::identifier("name"),
+                ],
+            )
+            .block("{", "}", &["node"]),
+            ConstructSpec::new(
+                "node",
+                [
+                    PatternPart::literal("node"),
+                    PatternPart::identifier("name"),
+                    PatternPart::literal(";"),
+                ],
+            ),
+            ConstructSpec::new(
+                "scenario",
+                [
+                    PatternPart::literal("scenario"),
+                    PatternPart::identifier("name"),
+                ],
+            ),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["visual", "scenario"])
+    .unwrap();
+    let source = SourceFile::new("main", "visual board { node broken scenario setup");
+
+    let result = parse(&source, &grammar);
+
+    assert_eq!(
+        result
+            .constructs
+            .iter()
+            .map(|construct| construct.name.as_str())
+            .collect::<Vec<_>>(),
+        ["visual", "scenario"]
+    );
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "LM-PARSE-002" && diagnostic.message.contains("construct `node`")
+    }));
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "LM-PARSE-004" && diagnostic.message.contains("closing token `}`")
+    }));
 }
 
 #[test]
