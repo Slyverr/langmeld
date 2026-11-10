@@ -1,5 +1,21 @@
 use langmeld_core::SourceFile;
-use langmeld_language::{CapturedValue, parse, parse_language_definition};
+use langmeld_language::{
+    CapturedValue, DefinitionResolver, DefinitionSource, parse, parse_language_definition,
+    parse_language_definition_project,
+};
+use std::collections::HashMap;
+
+#[derive(Default)]
+struct Resolver(HashMap<String, DefinitionSource>);
+
+impl DefinitionResolver for Resolver {
+    fn resolve(&self, _from_key: &str, import: &str) -> Result<DefinitionSource, String> {
+        self.0
+            .get(import)
+            .cloned()
+            .ok_or_else(|| format!("unknown test import `{import}`"))
+    }
+}
 
 const DEFINITION: &str = r#"
 language "Toy" {
@@ -131,6 +147,116 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
 
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     assert_eq!(parsed.constructs[0].variant, 1);
+}
+
+#[test]
+fn composes_nested_imports_and_keeps_construct_source_locations() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.lm",
+            r#"language "Widget" {
+                import "statements.lm";
+                import "statements.lm";
+                construct "program" {
+                    syntax { literal "program"; }
+                    block "{" "}" { allow "print"; }
+                }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "statements.lm".into(),
+        DefinitionSource::new(
+            "statements",
+            SourceFile::new(
+                "language/statements.lm",
+                r#"import "values.lm";
+                construct "print" {
+                    syntax { literal "print"; identifier "name"; literal ";"; }
+                }"#,
+            ),
+        ),
+    );
+    resolver.0.insert(
+        "values.lm".into(),
+        DefinitionSource::new(
+            "values",
+            SourceFile::new(
+                "language/values.lm",
+                r#"construct "let" {
+                    syntax { literal "let"; identifier "name"; literal "="; integer "value"; literal ";"; }
+                }"#,
+            ),
+        ),
+    );
+
+    let definition = parse_language_definition_project(root, &resolver);
+
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+    let language = definition.language.unwrap();
+    let source = SourceFile::new("main.widget", "program { print item; }");
+    let parsed = parse(&source, &language);
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].children[0].name, "print");
+}
+
+#[test]
+fn reports_import_cycles_and_missing_imports_at_the_import_site() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new("main.lm", r#"language "Cycle" { import "module.lm"; }"#),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "module.lm".into(),
+        DefinitionSource::new(
+            "module",
+            SourceFile::new("module.lm", r#"import "root.lm";"#),
+        ),
+    );
+    resolver.0.insert(
+        "root.lm".into(),
+        DefinitionSource::new(
+            "root",
+            SourceFile::new("main.lm", r#"language "Cycle" { import "module.lm"; }"#),
+        ),
+    );
+
+    let cycle = parse_language_definition_project(root, &resolver);
+
+    assert!(cycle.language.is_none());
+    assert!(cycle.diagnostics.iter().any(|d| d.code == "LM-DEF-020"));
+    assert!(cycle.diagnostics.iter().any(|d| {
+        d.code == "LM-DEF-020"
+            && d.location.as_ref().is_some_and(|location| {
+                location.span.end > location.span.start && location.source_name == "module.lm"
+            })
+    }));
+
+    let missing = parse_language_definition_project(
+        DefinitionSource::new(
+            "missing-root",
+            SourceFile::new("main.lm", r#"language "Missing" { import "none.lm"; }"#),
+        ),
+        &Resolver::default(),
+    );
+    assert!(missing.language.is_none());
+    assert!(missing.diagnostics.iter().any(|d| d.code == "LM-DEF-018"));
+}
+
+#[test]
+fn single_file_definition_api_reports_when_imports_need_a_resolver() {
+    let source = SourceFile::new(
+        "main.lm",
+        r#"language "Imported" { import "constructs.lm"; }"#,
+    );
+
+    let result = parse_language_definition(&source);
+
+    assert!(result.language.is_none());
+    assert!(result.diagnostics.iter().any(|d| d.code == "LM-DEF-010"));
 }
 
 #[test]

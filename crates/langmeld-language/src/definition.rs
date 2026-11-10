@@ -26,83 +26,376 @@ impl DefinitionResult {
     }
 }
 
-/// Parses a modular-language source file and validates its declared grammar.
+/// A named `.lm` source supplied to a language-definition project.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DefinitionSource {
+    /// Stable resolver key used to detect duplicate imports and cycles.
+    pub key: String,
+    /// Immutable source snapshot containing the definition text.
+    pub source: SourceFile,
+}
+
+/// Maximum number of nested definition imports accepted in one project.
+pub const MAX_DEFINITION_IMPORT_DEPTH: usize = 64;
+
+impl DefinitionSource {
+    /// Creates a source with a stable resolver key.
+    #[must_use]
+    pub fn new(key: impl Into<String>, source: SourceFile) -> Self {
+        Self {
+            key: key.into(),
+            source,
+        }
+    }
+}
+
+/// Host-controlled loading of explicitly imported `.lm` files.
+pub trait DefinitionResolver {
+    /// Resolves `import` relative to `from_key` and returns a stable source key.
+    ///
+    /// Implementations own filesystem access, path normalization, and any
+    /// project-root restrictions.
+    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String>;
+}
+
+#[derive(Clone)]
+struct ImportDirective {
+    path: String,
+    span: Span,
+}
+
+struct DefinitionUnit {
+    language_name: Option<String>,
+    constructs: Vec<(ConstructSpec, Span)>,
+    imports: Vec<ImportDirective>,
+    diagnostics: Vec<Diagnostic>,
+}
+
+/// Parses a single language-definition file and validates its declared grammar.
 ///
 /// The bootstrap grammar is authored in Rust and parsed by Langmeld's generic
 /// parser. This keeps the definition frontend on the same parser path that
 /// user-defined languages use. The accepted subset currently describes
-/// keyword-led token patterns and delimited blocks.
+/// keyword-led token patterns and delimited blocks. Files containing imports
+/// must use [`parse_language_definition_project`] with a host resolver.
 #[must_use]
 pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
-    let parsed = parse(source, definition_grammar());
-    let mut diagnostics = parsed.diagnostics;
-    let language_nodes: Vec<_> = parsed
-        .constructs
-        .iter()
-        .filter(|node| node.name == "language")
-        .collect();
-
-    if language_nodes.is_empty() {
-        diagnostics.push(Diagnostic::error(
-            "LM-DEF-001",
-            "expected one `language` declaration",
+    let mut unit = parse_definition_unit(source, true);
+    if let Some(import) = unit.imports.first() {
+        unit.diagnostics.push(Diagnostic::error(
+            "LM-DEF-010",
+            "this definition contains imports; use `parse_language_definition_project` with a resolver",
             source,
-            Span::new(0, 0),
+            import.span,
         ));
+    }
+    let constructs = unit
+        .constructs
+        .into_iter()
+        .map(|(construct, span)| (construct, source.clone(), span))
+        .collect();
+    finish_definition(
+        unit.language_name,
+        constructs,
+        unit.diagnostics,
+        source.clone(),
+    )
+}
+
+/// Loads and composes a language root and its explicitly imported local modules.
+///
+/// The root file contains one `language` declaration. Imported files contain
+/// top-level `construct` and `import` declarations. The resolver owns path
+/// handling and must return a stable key for each logical source.
+#[must_use]
+pub fn parse_language_definition_project(
+    root: DefinitionSource,
+    resolver: &impl DefinitionResolver,
+) -> DefinitionResult {
+    let mut unit = parse_definition_unit(&root.source, true);
+    let Some(language_name) = unit.language_name.take() else {
         return DefinitionResult {
             language: None,
-            diagnostics,
+            diagnostics: unit.diagnostics,
         };
+    };
+    let mut diagnostics = std::mem::take(&mut unit.diagnostics);
+    if root.key.trim().is_empty() {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-019",
+            "root definition source key cannot be empty",
+            &root.source,
+            Span::new(0, 0),
+        ));
     }
-    if language_nodes.len() > 1 {
+    let mut constructs = unit
+        .constructs
+        .into_iter()
+        .map(|(construct, span)| (construct, root.source.clone(), span))
+        .collect::<Vec<_>>();
+    let mut loading = vec![root.key.clone()];
+    let mut loaded = std::collections::HashSet::new();
+    loaded.insert(root.key.clone());
+
+    load_imports(
+        &root,
+        unit.imports,
+        resolver,
+        &mut loading,
+        &mut loaded,
+        &mut constructs,
+        &mut diagnostics,
+    );
+
+    finish_definition(Some(language_name), constructs, diagnostics, root.source)
+}
+
+fn parse_definition_unit(source: &SourceFile, is_root: bool) -> DefinitionUnit {
+    let parsed = parse(source, definition_grammar());
+    let mut unit = DefinitionUnit {
+        language_name: None,
+        constructs: Vec::new(),
+        imports: Vec::new(),
+        diagnostics: parsed.diagnostics,
+    };
+    if is_root {
+        let language_nodes: Vec<_> = parsed
+            .constructs
+            .iter()
+            .filter(|node| node.name == "language")
+            .collect();
+        if language_nodes.is_empty() {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-001",
+                "expected one `language` declaration",
+                source,
+                Span::new(0, 0),
+            ));
+            return unit;
+        }
         for node in language_nodes.iter().skip(1) {
-            diagnostics.push(Diagnostic::error(
+            unit.diagnostics.push(Diagnostic::error(
                 "LM-DEF-002",
                 "a definition file must contain exactly one `language` declaration",
                 source,
                 node.span,
             ));
         }
+        for node in parsed
+            .constructs
+            .iter()
+            .filter(|node| node.name != "language")
+        {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-013",
+                "constructs and imports must be inside the `language` declaration",
+                source,
+                node.span,
+            ));
+        }
+        let root = language_nodes[0];
+        let Some(name) = string_field(root, "name").and_then(decode_quoted) else {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-003",
+                "language declaration requires a valid quoted name",
+                source,
+                root.span,
+            ));
+            return unit;
+        };
+        unit.language_name = Some(name);
+        for node in &root.children {
+            match node.name.as_str() {
+                "construct" => {
+                    if let Some(construct) = lower_construct(node, source, &mut unit.diagnostics) {
+                        unit.constructs.push((construct, node.span));
+                    }
+                }
+                "import" => {
+                    if let Some(import) = lower_import(node, source, &mut unit.diagnostics) {
+                        unit.imports.push(import);
+                    }
+                }
+                _ => {}
+            }
+        }
+    } else {
+        if let Some(node) = parsed
+            .constructs
+            .iter()
+            .find(|node| node.name == "language")
+        {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-014",
+                "an imported definition file cannot declare a language root",
+                source,
+                node.span,
+            ));
+        }
+        for node in &parsed.constructs {
+            match node.name.as_str() {
+                "construct" => {
+                    if let Some(construct) = lower_construct(node, source, &mut unit.diagnostics) {
+                        unit.constructs.push((construct, node.span));
+                    }
+                }
+                "import" => {
+                    if let Some(import) = lower_import(node, source, &mut unit.diagnostics) {
+                        unit.imports.push(import);
+                    }
+                }
+                "language" => {}
+                _ => unit.diagnostics.push(Diagnostic::error(
+                    "LM-DEF-015",
+                    "an imported file may contain only `construct` and `import` declarations",
+                    source,
+                    node.span,
+                )),
+            }
+        }
+        if unit.constructs.is_empty() && unit.imports.is_empty() {
+            unit.diagnostics.push(Diagnostic::error(
+                "LM-DEF-016",
+                "imported definition file contains no declarations",
+                source,
+                Span::new(0, 0),
+            ));
+        }
     }
+    unit
+}
 
-    let root = language_nodes[0];
-    let Some(language_name) = string_field(root, "name").and_then(decode_quoted) else {
+fn lower_import(
+    node: &ParsedConstruct,
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<ImportDirective> {
+    let Some(path) = string_field(node, "path").and_then(decode_quoted) else {
         diagnostics.push(Diagnostic::error(
-            "LM-DEF-003",
-            "language declaration requires a valid quoted name",
+            "LM-DEF-017",
+            "import requires a valid quoted path",
             source,
-            root.span,
+            node.span,
         ));
+        return None;
+    };
+    if path.trim().is_empty() {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-017",
+            "import path cannot be empty",
+            source,
+            node.span,
+        ));
+        return None;
+    }
+    Some(ImportDirective {
+        path,
+        span: node.span,
+    })
+}
+
+fn load_imports(
+    importer: &DefinitionSource,
+    imports: Vec<ImportDirective>,
+    resolver: &impl DefinitionResolver,
+    loading: &mut Vec<String>,
+    loaded: &mut std::collections::HashSet<String>,
+    constructs: &mut Vec<(ConstructSpec, SourceFile, Span)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for import in imports {
+        if loading.len() >= MAX_DEFINITION_IMPORT_DEPTH {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-021",
+                format!("maximum definition import depth ({MAX_DEFINITION_IMPORT_DEPTH}) exceeded"),
+                &importer.source,
+                import.span,
+            ));
+            continue;
+        }
+        let resolved = match resolver.resolve(&importer.key, &import.path) {
+            Ok(resolved) => resolved,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-018",
+                    format!("cannot resolve import `{}`: {error}", import.path),
+                    &importer.source,
+                    import.span,
+                ));
+                continue;
+            }
+        };
+        if resolved.key.trim().is_empty() {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-019",
+                format!("resolver returned an empty key for `{}`", import.path),
+                &importer.source,
+                import.span,
+            ));
+            continue;
+        }
+        if loading.contains(&resolved.key) {
+            diagnostics.push(Diagnostic::error(
+                "LM-DEF-020",
+                format!("import cycle reaches `{}`", import.path),
+                &importer.source,
+                import.span,
+            ));
+            continue;
+        }
+        if !loaded.insert(resolved.key.clone()) {
+            continue;
+        }
+
+        loading.push(resolved.key.clone());
+        let mut unit = parse_definition_unit(&resolved.source, false);
+        diagnostics.append(&mut unit.diagnostics);
+        constructs.extend(
+            unit.constructs
+                .into_iter()
+                .map(|(construct, span)| (construct, resolved.source.clone(), span)),
+        );
+        load_imports(
+            &resolved,
+            unit.imports,
+            resolver,
+            loading,
+            loaded,
+            constructs,
+            diagnostics,
+        );
+        loading.pop();
+    }
+}
+
+fn finish_definition(
+    language_name: Option<String>,
+    constructs: Vec<(ConstructSpec, SourceFile, Span)>,
+    mut diagnostics: Vec<Diagnostic>,
+    fallback_source: SourceFile,
+) -> DefinitionResult {
+    let Some(language_name) = language_name else {
         return DefinitionResult {
             language: None,
             diagnostics,
         };
     };
-
-    let mut constructs = Vec::new();
-    for node in root.children.iter().filter(|node| node.name == "construct") {
-        if let Some(construct) = lower_construct(node, source, &mut diagnostics) {
-            constructs.push(construct);
-        }
-    }
-
-    let language = match LanguageSpec::new(language_name, constructs) {
+    let specs = constructs
+        .iter()
+        .map(|(construct, _, _)| construct.clone())
+        .collect::<Vec<_>>();
+    let language = match LanguageSpec::new(language_name, specs) {
         Ok(language) => Some(language),
         Err(error) => {
-            let span = spec_error_construct(&error)
-                .and_then(|name| {
-                    root.children
-                        .iter()
-                        .find(|node| {
-                            node.name == "construct"
-                                && string_field(node, "name")
-                                    .and_then(decode_quoted)
-                                    .as_deref()
-                                    == Some(name)
-                        })
-                        .map(|node| node.span)
-                })
-                .unwrap_or(root.span);
+            let target = spec_error_construct(&error).and_then(|name| {
+                constructs
+                    .iter()
+                    .find(|(construct, _, _)| construct.name() == name)
+            });
+            let (source, span) = target
+                .map_or((&fallback_source, Span::new(0, 0)), |(_, source, span)| {
+                    (source, *span)
+                });
             diagnostics.push(Diagnostic::error(
                 "LM-DEF-004",
                 error.to_string(),
@@ -112,7 +405,6 @@ pub fn parse_language_definition(source: &SourceFile) -> DefinitionResult {
             None
         }
     };
-
     let language = language.filter(|_| diagnostics.is_empty());
     DefinitionResult {
         language,
@@ -331,7 +623,15 @@ fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["construct"]),
+                .block("{", "}", &["construct", "import"]),
+                ConstructSpec::new(
+                    "import",
+                    [
+                        PatternPart::literal("import"),
+                        PatternPart::string("path"),
+                        PatternPart::literal(";"),
+                    ],
+                ),
                 ConstructSpec::new(
                     "construct",
                     [

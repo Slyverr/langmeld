@@ -6,7 +6,10 @@ mod host;
 mod parser;
 mod spec;
 
-pub use definition::{DefinitionResult, parse_language_definition};
+pub use definition::{
+    DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
+    parse_language_definition, parse_language_definition_project,
+};
 pub use host::{LanguageParser, ParsedDocument};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
