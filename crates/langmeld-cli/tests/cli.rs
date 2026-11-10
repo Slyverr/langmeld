@@ -943,6 +943,110 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
 }
 
 #[test]
+fn project_definitions_lsp_refreshes_references_when_a_closed_import_changes() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("project");
+    write_widget_project(&project);
+    let root = project.join("language/language.langmeld");
+    let module = project.join("language/constructs/statements.langmeld");
+    let root_source = fs::read_to_string(&root).unwrap();
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"didChangeWatchedFiles":{"dynamicRegistration":true,"relativePatternSupport":true}}}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    let registration = receive_lsp_message(&receiver);
+    assert_eq!(registration["method"], "client/registerCapability");
+    let watcher = &registration["params"]["registrations"][0]["registerOptions"]["watchers"][0];
+    assert_eq!(watcher["globPattern"]["pattern"], "**/*.langmeld");
+    assert_eq!(
+        watcher["globPattern"]["baseUri"],
+        url::Url::from_directory_path(&project).unwrap().as_str()
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":registration["id"],"result":null}),
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"langmeld","version":1,"text":root_source}}}),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+    let completion_position = root_source.find("allow \"").unwrap() + "allow \"".len();
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":completion_position}}}),
+    );
+    let initial_items = receive_lsp_message(&receiver)["result"].clone();
+    assert!(
+        initial_items
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["label"] == "print")
+    );
+    assert!(
+        !initial_items
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["label"] == "render")
+    );
+
+    let module_source = fs::read_to_string(&module).unwrap();
+    fs::write(
+        &module,
+        format!("{module_source} construct \"render\" {{ syntax {{ literal \"render\"; }} }}"),
+    )
+    .unwrap();
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{"changes":[{"uri":module_uri,"type":2}]}}),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/completion","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":completion_position}}}),
+    );
+    let updated_items = receive_lsp_message(&receiver)["result"].clone();
+    assert!(
+        updated_items
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["label"] == "render")
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
 fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overlays() {
     let parent = TestDirectory::new();
     let project = parent.path().join("project with spaces");

@@ -10,7 +10,8 @@ use langmeld_language::{
     DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
 };
 use langmeld_lsp::{
-    BackendCapabilities, BackendDocument, LanguageBackend, LanguageDefinitionBackend,
+    BackendCapabilities, BackendDocument, BackendWorkspaceCapabilities, LanguageBackend,
+    LanguageDefinitionBackend,
 };
 use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest};
 use url::Url;
@@ -113,6 +114,29 @@ impl LanguageBackend for ProjectDefinitionBackend {
 
     fn capabilities(&self) -> BackendCapabilities {
         self.syntax_backend.capabilities()
+    }
+
+    fn workspace_capabilities(&self) -> BackendWorkspaceCapabilities {
+        let Ok(root_url) = Url::from_directory_path(&self.root) else {
+            return BackendWorkspaceCapabilities::default();
+        };
+        let Ok(root_uri) = root_url.as_str().parse() else {
+            return BackendWorkspaceCapabilities::default();
+        };
+        BackendWorkspaceCapabilities {
+            watched_files: vec![lsp_types::FileSystemWatcher {
+                glob_pattern: lsp_types::GlobPattern::Relative(lsp_types::RelativePattern {
+                    base_uri: lsp_types::OneOf::Right(root_uri),
+                    pattern: "**/*.langmeld".into(),
+                }),
+                kind: Some(
+                    lsp_types::WatchKind::Create
+                        | lsp_types::WatchKind::Change
+                        | lsp_types::WatchKind::Delete,
+                ),
+            }],
+            ..BackendWorkspaceCapabilities::default()
+        }
     }
 
     fn complete(
