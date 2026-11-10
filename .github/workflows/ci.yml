@@ -160,6 +160,7 @@ jobs:
           -p langmeld-core
           -p langmeld-expression
           -p langmeld-language
+          -p langmeld-project
           -p langmeld-textmate
           -p langmeld-tree-sitter
           --locked
