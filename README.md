@@ -37,6 +37,9 @@ The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
 declaration parser and runtime with `langmeld-expression` for operator
 precedence and expression trees.
 
+See [Language definitions](docs/language-definitions.md) for the current `.lm`
+syntax and its extension boundaries.
+
 ## License
 
 Licensed under either the [Apache License, Version 2.0](LICENSE-APACHE) or the
