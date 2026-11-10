@@ -2,7 +2,31 @@ use std::{error::Error, path::Path};
 
 use langmeld_core::SourceFile;
 use langmeld_language::{LanguageSpec, parse_language_definition_project};
-use langmeld_project::{DirectoryDefinitionResolver, read_project_manifest_file};
+use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest, read_project_manifest_file};
+
+pub(crate) struct DefinitionProjectContext {
+    pub(crate) root: std::path::PathBuf,
+    pub(crate) manifest: ProjectManifest,
+    pub(crate) resolver: DirectoryDefinitionResolver,
+}
+
+impl DefinitionProjectContext {
+    pub(crate) fn new(manifest_path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        let manifest_path = manifest_path.as_ref();
+        let manifest = read_project_manifest_file(manifest_path)?;
+        let root = manifest_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."))
+            .canonicalize()?;
+        let resolver = DirectoryDefinitionResolver::new(&root)?;
+        Ok(Self {
+            root,
+            manifest,
+            resolver,
+        })
+    }
+}
 
 pub(crate) struct LoadedDefinitionProject {
     pub(crate) root: std::path::PathBuf,
@@ -19,17 +43,10 @@ pub(crate) fn load_language_definition(
 pub(crate) fn load_definition_project(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, Box<dyn Error>> {
-    let manifest_path = manifest_path.as_ref();
-    let manifest = read_project_manifest_file(manifest_path)?;
-    let project_root = manifest_path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."))
-        .canonicalize()?;
-    let resolver = DirectoryDefinitionResolver::new(&project_root)?;
-    let root = resolver.load(&manifest.definition)?;
-    let definition = parse_language_definition_project(root, &resolver);
-    let sources = resolver.sources();
+    let project = DefinitionProjectContext::new(manifest_path)?;
+    let root = project.resolver.load(&project.manifest.definition)?;
+    let definition = parse_language_definition_project(root, &project.resolver);
+    let sources = project.resolver.sources();
     if !definition.is_valid() {
         return Err(format_diagnostics(&sources, &definition.diagnostics).into());
     }
@@ -37,7 +54,7 @@ pub(crate) fn load_definition_project(
         .language
         .ok_or("validated definition did not produce a language")?;
     Ok(LoadedDefinitionProject {
-        root: project_root,
+        root: project.root,
         language,
         sources,
     })

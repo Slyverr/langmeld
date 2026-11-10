@@ -21,9 +21,13 @@ definition grammar. This mode publishes parser diagnostics, context-aware
 syntax completions for root declarations and nested construct syntax, and
 formatting edits that honor the editor's indentation options. Formatting is
 available only for syntactically valid files. This mode does not run
-definition-level semantic checks or resolve imports from unsaved buffers; use
-`langmeld check --manifest-path langmeld.toml` to validate the complete project
-definition and its imports.
+definition-level semantic checks without a project manifest. When a manifest is
+available in the working directory or passed with `--manifest-path`, the
+backend validates the complete imported definition graph and uses the current
+open file as an overlay; other files are read from disk. Diagnostics are
+published for the file currently being analyzed. Use
+`langmeld check --manifest-path langmeld.toml` to validate the complete on-disk
+project definition and imports.
 
 ## Rust hosts
 

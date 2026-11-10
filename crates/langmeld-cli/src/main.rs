@@ -1,4 +1,5 @@
 mod check;
+mod definition_backend;
 mod format;
 mod generate;
 mod init;

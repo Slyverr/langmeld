@@ -38,6 +38,7 @@ langmeld-language = { path = "crates/langmeld-language", version = "0.3.0" }
 langmeld-lsp = { path = "crates/langmeld-lsp", version = "0.3.0" }
 langmeld-project = { path = "crates/langmeld-project", version = "0.3.0" }
 langmeld-textmate = { path = "crates/langmeld-textmate", version = "0.3.0" }
+url = "2.5.7"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

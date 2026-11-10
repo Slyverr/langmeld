@@ -634,6 +634,79 @@ fn lsp_definitions_mode_serves_context_aware_lm_completions() {
 }
 
 #[test]
+fn project_definitions_lsp_uses_the_open_buffer_for_import_validation() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("project with spaces");
+    write_widget_project(&project);
+    let module = project.join("language/constructs/statements.lm");
+    let root = project.join("language/language.lm");
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{
+                    "uri":module_uri,
+                    "languageId":"lm",
+                    "version":1,
+                    "text":"construct \"program\" { syntax { literal \"program\"; } }"
+                }
+            }
+        }),
+    );
+    let diagnostics = receive_lsp_message(&receiver);
+    assert_eq!(diagnostics["method"], "textDocument/publishDiagnostics");
+    assert_eq!(
+        diagnostics["params"]["diagnostics"][0]["code"],
+        "LM-DEF-004"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{
+                    "uri":root_uri,
+                    "languageId":"lm",
+                    "version":1,
+                    "text":"language \"Widget\" { import \"constructs/statements.lm\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"missing\"; } } }"
+                }
+            }
+        }),
+    );
+    let diagnostics = receive_lsp_message(&receiver);
+    assert_eq!(diagnostics["method"], "textDocument/publishDiagnostics");
+    assert_eq!(
+        diagnostics["params"]["diagnostics"][0]["code"],
+        "LM-DEF-004"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 3);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
 fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
     let parent = TestDirectory::new();
     let project = parent.path();

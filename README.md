@@ -25,7 +25,8 @@ diagnostics, and completion for declarative languages, plus host-backed
 definition, references, rename, formatting, hover, document symbols, and
 semantic tokens through the same LSP adapter. The `langmeld lsp` CLI command
 serves manifest-backed projects, and `langmeld lsp --definitions` assists with
-editing `.lm` syntax with diagnostics, scoped completion, and formatting.
+editing `.lm` syntax with project validation, diagnostics, scoped completion,
+and formatting.
 `langmeld format` formats all definitions reachable through the project
 manifest; pass a file path to format one file. The optional
 `langmeld-textmate` crate exports lexical highlighting rules for declarative

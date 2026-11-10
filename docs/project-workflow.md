@@ -91,8 +91,10 @@ validates the import graph before formatting any file. Set indentation with
 For declarative projects, `langmeld lsp` starts an editor server that publishes
 parse diagnostics and grammar-scoped syntax completions. Run
 `langmeld lsp --definitions` to get parser diagnostics and contextual syntax
-completion while editing `.lm` files; it does not validate definition-level
-semantics or imports. See
+completion while editing `.lm` files. It automatically uses `langmeld.toml` in
+the current directory when present, or accepts an explicit `--manifest-path`
+to validate the imported project graph against the current open file buffer.
+See
 [Editor integration](editor-integration.md) for supported features and host
 extension points.
 Generate a lexical TextMate grammar to standard output with:
