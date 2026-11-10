@@ -169,6 +169,14 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(project.join("Cargo.toml").is_file());
+    assert_eq!(
+        fs::read_to_string(project.join("LICENSE-MIT")).unwrap(),
+        include_str!("../templates/LICENSE-MIT")
+    );
+    assert_eq!(
+        fs::read_to_string(project.join("LICENSE-APACHE")).unwrap(),
+        include_str!("../templates/LICENSE-APACHE")
+    );
     assert!(project.join("langmeld.toml").is_file());
     assert!(project.join("src/lib.rs").is_file());
     assert!(project.join("src/main.rs").is_file());

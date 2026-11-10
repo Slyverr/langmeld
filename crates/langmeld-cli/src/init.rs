@@ -189,6 +189,14 @@ fn project_files(
     let mut files = vec![
         ("Cargo.toml".to_owned(), manifest),
         (".gitignore".to_owned(), "/target/\n".to_owned()),
+        (
+            "LICENSE-MIT".to_owned(),
+            include_str!("../templates/LICENSE-MIT").to_owned(),
+        ),
+        (
+            "LICENSE-APACHE".to_owned(),
+            include_str!("../templates/LICENSE-APACHE").to_owned(),
+        ),
     ];
 
     match template {

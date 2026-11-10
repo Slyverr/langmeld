@@ -36,6 +36,8 @@ The declarative template creates this project layout:
 my-language/
 ├── Cargo.toml
 ├── .gitignore
+├── LICENSE-MIT
+├── LICENSE-APACHE
 ├── langmeld.toml
 ├── README.md
 ├── src/
@@ -84,8 +86,9 @@ Format `1` accepts only these two fields. The definition path must be a
 project-relative `.langmeld` path without parent-directory segments.
 
 The generated Cargo package is a standalone workspace. The initializer writes
-into an existing directory but refuses to overwrite any generated file. It
-does not yet generate editor configuration or build artifacts.
+into an existing directory but refuses to overwrite any generated file. Its
+dual-license files match the manifest; replace the copyright placeholders in
+`LICENSE-MIT`. It does not yet generate editor configuration or build artifacts.
 
 ## Validate the project
 
