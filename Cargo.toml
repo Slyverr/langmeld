@@ -4,6 +4,7 @@ members = [
     "crates/langmeld-core",
     "crates/langmeld-expression",
     "crates/langmeld-language",
+    "examples/aster-language",
     "examples/custom-lexer",
     "examples/custom-parser",
     "examples/toy-language",

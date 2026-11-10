@@ -25,6 +25,7 @@ host-provided resolver.
 
 ```sh
 cargo check --workspace --locked
+cargo run -p langmeld-aster-language-example --locked
 cargo run -p langmeld-toy-language-example --locked
 cargo run -p langmeld-custom-lexer-example --locked
 cargo run -p langmeld-custom-parser-example --locked
@@ -37,6 +38,8 @@ and comment skipping.
 The [`custom-parser`](examples/custom-parser) example combines a Rust-owned
 declaration parser and runtime with `langmeld-expression` for operator
 precedence and expression trees.
+The [`aster-language`](examples/aster-language) example adds a host-owned AST,
+scope-aware name resolution, and basic type checks.
 
 See [Language definitions](docs/language-definitions.md) for the current `.lm`
 syntax and its extension boundaries.

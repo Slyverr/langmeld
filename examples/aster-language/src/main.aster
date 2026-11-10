@@ -1,0 +1,11 @@
+fn add(left: i32, right: i32) -> i32 {
+    let total = left + right;
+    return total;
+}
+
+fn main() -> i32 {
+    {
+        let answer = add(40, 2);
+        return answer;
+    }
+}
