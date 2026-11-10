@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{Arc, Mutex, mpsc},
     thread,
     time::Duration,
@@ -13,12 +14,17 @@ use langmeld_lsp::{
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use serde_json::{Value, json};
 
-struct Backend;
+#[derive(Default)]
+struct Backend(Arc<Mutex<HashMap<String, SourceFile>>>);
 
 impl LanguageBackend for Backend {
     type Document = String;
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        self.0
+            .lock()
+            .unwrap()
+            .insert(source.name.clone(), source.clone());
         let diagnostics = if source.text.contains("bad") {
             vec![Diagnostic::error(
                 "TEST-001",
@@ -40,6 +46,7 @@ impl LanguageBackend for Backend {
             semantic_tokens: true,
             formatting: true,
             hover: true,
+            rename: true,
         }
     }
 
@@ -133,6 +140,53 @@ impl LanguageBackend for Backend {
         assert_eq!(offset, "😀".len());
         Some(HoverInfo::markdown("**bad**").with_range(Span::new(4, 7)))
     }
+
+    fn rename(
+        &self,
+        source: &SourceFile,
+        _document: &BackendDocument<String>,
+        offset: usize,
+        new_name: &str,
+    ) -> Option<Vec<SourceLocation>> {
+        assert_eq!(offset, "😀".len());
+        if new_name == "empty" {
+            return Some(Vec::new());
+        }
+        if new_name == "cross" {
+            let other = self.0.lock().unwrap().get("file:///other.test").cloned()?;
+            return Some(
+                [(source, Span::new(4, 7)), (&other, Span::new(0, 5))]
+                    .into_iter()
+                    .map(|(source, span)| SourceLocation {
+                        source_name: source.name.clone(),
+                        identity: source.identity(),
+                        span,
+                    })
+                    .collect(),
+            );
+        }
+        let spans = if new_name == "overlap" {
+            [Span::new(0, 7), Span::new(4, 7)]
+        } else {
+            [Span::new(4, 7), Span::new(0, 4)]
+        };
+        let mut locations = spans
+            .into_iter()
+            .map(|span| SourceLocation {
+                source_name: source.name.clone(),
+                identity: source.identity(),
+                span,
+            })
+            .collect::<Vec<_>>();
+        if new_name == "missing" {
+            locations.push(SourceLocation {
+                source_name: "file:///closed.test".into(),
+                identity: source.identity(),
+                span: Span::new(0, 4),
+            });
+        }
+        Some(locations)
+    }
 }
 
 fn send_request(connection: &Connection, id: i32, method: &str, params: Value) {
@@ -185,7 +239,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
-        let result = run_connection(server_connection, Backend);
+        let result = run_connection(server_connection, Backend::default());
         server_sender
             .send(result.map_err(|error| error.to_string()))
             .unwrap();
@@ -220,6 +274,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
         true
     );
     assert_eq!(initialized["capabilities"]["hoverProvider"], true);
+    assert_eq!(initialized["capabilities"]["renameProvider"], true);
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.test";
@@ -290,6 +345,99 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     send_request(
         &client,
         5,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "renamed"
+        }),
+    );
+    let rename = receive_response(&client);
+    assert_eq!(rename["changes"][uri].as_array().unwrap().len(), 2);
+    assert_eq!(rename["changes"][uri][0]["range"]["start"]["character"], 0);
+    assert_eq!(rename["changes"][uri][0]["newText"], "renamed");
+    assert_eq!(rename["changes"][uri][1]["range"]["start"]["character"], 2);
+
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": "file:///other.test",
+                "languageId": "test",
+                "version": 1,
+                "text": "other"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+    send_request(
+        &client,
+        6,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "cross"
+        }),
+    );
+    let cross_file_rename = receive_response(&client);
+    assert_eq!(
+        cross_file_rename["changes"][uri].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(
+        cross_file_rename["changes"]["file:///other.test"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(cross_file_rename["changes"][uri][0]["newText"], "cross");
+    assert_eq!(
+        cross_file_rename["changes"]["file:///other.test"][0]["newText"],
+        "cross"
+    );
+
+    send_request(
+        &client,
+        7,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "overlap"
+        }),
+    );
+    assert!(receive_response(&client).is_null());
+
+    send_request(
+        &client,
+        8,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "empty"
+        }),
+    );
+    assert!(receive_response(&client).is_null());
+
+    send_request(
+        &client,
+        9,
+        "textDocument/rename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 },
+            "newName": "missing"
+        }),
+    );
+    assert!(receive_response(&client).is_null());
+
+    send_request(
+        &client,
+        10,
         "textDocument/completion",
         json!({
             "textDocument": { "uri": uri },
@@ -303,7 +451,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        6,
+        11,
         "textDocument/definition",
         json!({
             "textDocument": { "uri": uri },
@@ -316,7 +464,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        7,
+        12,
         "textDocument/references",
         json!({
             "textDocument": { "uri": uri },
@@ -341,7 +489,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
 
     send_request(
         &client,
-        8,
+        13,
         "textDocument/semanticTokens/full",
         json!({ "textDocument": { "uri": uri } }),
     );
@@ -367,7 +515,7 @@ fn serves_diagnostics_completion_navigation_and_full_document_changes() {
     let closed = receive_diagnostics(&client);
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
-    send_request(&client, 9, "shutdown", Value::Null);
+    send_request(&client, 14, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
@@ -414,6 +562,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     assert!(initialized["capabilities"]["semanticTokensProvider"].is_null());
     assert!(initialized["capabilities"]["documentFormattingProvider"].is_null());
     assert!(initialized["capabilities"]["hoverProvider"].is_null());
+    assert!(initialized["capabilities"]["renameProvider"].is_null());
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///declarative.lm";
@@ -570,7 +719,7 @@ fn does_not_return_markdown_hover_when_client_did_not_advertise_it() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
-        let result = run_connection(server_connection, Backend);
+        let result = run_connection(server_connection, Backend::default());
         server_sender
             .send(result.map_err(|error| error.to_string()))
             .unwrap();

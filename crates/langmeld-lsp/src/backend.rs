@@ -45,6 +45,8 @@ pub struct BackendCapabilities {
     pub formatting: bool,
     /// The backend provides hover information.
     pub hover: bool,
+    /// The backend provides symbol rename edits.
+    pub rename: bool,
 }
 
 /// Language analysis and optional editor queries consumed by the LSP adapter.
@@ -147,6 +149,24 @@ pub trait LanguageBackend: Send + Sync + 'static {
         _document: &BackendDocument<Self::Document>,
         _offset: usize,
     ) -> Option<HoverInfo> {
+        None
+    }
+
+    /// Resolves every source span to replace when renaming the symbol at an
+    /// offset. Return `None` when the position is not a renameable symbol or
+    /// the requested name is invalid for the language.
+    ///
+    /// Returned locations must refer to the symbol declaration and all of its
+    /// references. The adapter applies the new name to every location or
+    /// rejects the complete edit if any location is stale, unavailable, or
+    /// malformed.
+    fn rename(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _offset: usize,
+        _new_name: &str,
+    ) -> Option<Vec<SourceLocation>> {
         None
     }
 }

@@ -7,9 +7,9 @@ use lsp_types::{
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentFormattingParams,
     GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, InitializeResult,
     Location, MarkupContent, MarkupKind, PositionEncodingKind, PublishDiagnosticsParams,
-    ReferenceParams, SemanticTokensOptions, SemanticTokensParams, SemanticTokensServerCapabilities,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    Uri,
+    ReferenceParams, RenameParams, SemanticTokensOptions, SemanticTokensParams,
+    SemanticTokensServerCapabilities, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextEdit, Uri, WorkspaceEdit,
 };
 use serde_json::{Value, json};
 
@@ -158,6 +158,10 @@ impl<B: LanguageBackend> ServerState<B> {
                 serde_json::from_value::<HoverParams>(request.params)
                     .map(|params| self.hover(params).map(|hover| json!(hover)))
             }
+            "textDocument/rename" if self.capabilities.rename => {
+                serde_json::from_value::<RenameParams>(request.params)
+                    .map(|params| self.rename(params).map(|edit| json!(edit)))
+            }
             _ => {
                 return Response::new_err(
                     id,
@@ -281,6 +285,77 @@ impl<B: LanguageBackend> ServerState<B> {
         let offset = byte_offset(source, position, self.encoding)?;
         let info = self.backend.hover(source, &document.analysis, offset)?;
         hover_for(source, info, self.encoding, self.supports_markdown_hover)
+    }
+
+    fn rename(&self, params: RenameParams) -> Option<WorkspaceEdit> {
+        let position = params.text_document_position.position;
+        let uri = params.text_document_position.text_document.uri;
+        let document = self.documents.get(&uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if document.analysis.source != source.identity() {
+            return None;
+        }
+        let offset = byte_offset(source, position, self.encoding)?;
+        let locations =
+            self.backend
+                .rename(source, &document.analysis, offset, &params.new_name)?;
+        if locations.is_empty() {
+            return None;
+        }
+        let mut edits_by_uri: HashMap<String, Vec<(langmeld_core::Span, TextEdit)>> =
+            HashMap::new();
+        for location in locations {
+            let mut targets = self.documents.iter().filter_map(|(uri, document)| {
+                let target_source = self.sources.get(document.source_id)?;
+                (location.source_name == target_source.name
+                    && location.identity == target_source.identity())
+                .then_some((uri, target_source))
+            });
+            let target = targets.next()?;
+            if targets.next().is_some() {
+                return None;
+            }
+            let (target_uri, target_source) = target;
+            let span = location.span;
+            if span.is_empty()
+                || span.end > target_source.text.len()
+                || !target_source.text.is_char_boundary(span.start)
+                || !target_source.text.is_char_boundary(span.end)
+            {
+                return None;
+            }
+            let range = to_lsp_range(target_source, span, self.encoding)?;
+            edits_by_uri
+                .entry(target_uri.to_string())
+                .or_default()
+                .push((
+                    span,
+                    TextEdit {
+                        range,
+                        new_text: params.new_name.clone(),
+                    },
+                ));
+        }
+
+        #[expect(
+            clippy::mutable_key_type,
+            reason = "WorkspaceEdit requires URI keys, whose equality remains stable here"
+        )]
+        let mut changes = HashMap::with_capacity(edits_by_uri.len());
+        for (uri, mut edits) in edits_by_uri {
+            edits.sort_by_key(|(span, _)| (span.start, span.end));
+            if edits.windows(2).any(|pair| pair[0].0.end > pair[1].0.start) {
+                return None;
+            }
+            changes.insert(
+                uri.parse().ok()?,
+                edits.into_iter().map(|(_, edit)| edit).collect(),
+            );
+        }
+        Some(WorkspaceEdit {
+            changes: Some(changes),
+            ..WorkspaceEdit::default()
+        })
     }
 
     fn lsp_location(&self, location: &langmeld_core::SourceLocation) -> Option<Location> {
@@ -455,6 +530,7 @@ fn server_capabilities(
         hover_provider: backend
             .hover
             .then_some(lsp_types::HoverProviderCapability::Simple(true)),
+        rename_provider: backend.rename.then_some(lsp_types::OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
 }

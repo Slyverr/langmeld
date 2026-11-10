@@ -2,9 +2,9 @@
 
 `langmeld-lsp` provides a synchronous Language Server Protocol adapter for
 Langmeld languages. It supports full-document synchronization, diagnostics,
-completion, go-to-definition, references, hover, and host-provided semantic
-tokens. It also supports host-provided full-document formatting and advertises
-only operations enabled by the backend.
+completion, go-to-definition, references, host-owned rename, hover, and
+host-provided semantic tokens. It also supports host-provided full-document
+formatting and advertises only operations enabled by the backend.
 
 ## Declarative languages
 
@@ -29,6 +29,11 @@ Hosts can also implement `hover` to return plain-text or Markdown information,
 optionally associated with a source range. The adapter converts both the
 request position and returned range using the negotiated position encoding,
 and sends Markdown only when the client advertises support for it.
+For rename, hosts return every declaration and reference span for the symbol.
+The adapter groups edits by open document and rejects the whole edit if a
+location is missing, stale, ambiguous, malformed, or overlaps another edit.
+This avoids returning a partial rename when the host's workspace index cannot
+be mapped to the server's open snapshots.
 
 ```rust,ignore
 use langmeld_core::SourceFile;
@@ -100,7 +105,7 @@ connections rather than browser workers.
 
 ## Current limits
 
-The server uses full-text document changes. Incremental edits, rename, document
+The server uses full-text document changes. Incremental edits, document
 symbols, and Tree-sitter exports are not provided yet.
 TextMate output is lexical only; it does not infer comments, host lexer rules,
 or semantic classifications. Diagnostics without a source location or tied to
