@@ -203,6 +203,9 @@ dependencies = [
  "langmeld-core",
  "langmeld-expression",
  "langmeld-language",
+ "langmeld-lsp",
+ "lsp-server",
+ "serde_json",
 ]
 
 [[package]]

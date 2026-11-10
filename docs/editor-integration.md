@@ -50,6 +50,10 @@ their resolution policies and must return source locations tied to the
 corresponding source snapshots. Cross-file locations are converted when their
 target document is open in the server.
 
+The [Aster example](../examples/aster-language) demonstrates a host backend
+that combines its own AST and semantic diagnostics with resolved definition
+and reference queries.
+
 ## Current limits
 
 The server uses full-text document changes. Incremental edits, rename, hover,

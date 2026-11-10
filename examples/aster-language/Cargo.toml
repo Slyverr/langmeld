@@ -11,6 +11,11 @@ license.workspace = true
 langmeld-core.workspace = true
 langmeld-expression.workspace = true
 langmeld-language.workspace = true
+langmeld-lsp.workspace = true
+
+[dev-dependencies]
+lsp-server.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

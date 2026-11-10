@@ -21,6 +21,16 @@ Run it with:
 cargo run -p langmeld-aster-language-example --locked
 ```
 
+Start the host-integrated language server with:
+
+```sh
+cargo run -p langmeld-aster-language-example --bin aster-lsp --locked
+```
+
+The server publishes Aster's parser and semantic diagnostics and uses its
+resolved symbol table for definition and reference requests. It does not offer
+completion because this example has no completion policy.
+
 The semantic rules here belong to this language. Langmeld currently provides
 the parser contracts and expression tree; it does not generate symbol tables,
 scope rules, type checking, or execution behavior from this example.

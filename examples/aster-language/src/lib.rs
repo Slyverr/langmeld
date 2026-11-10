@@ -2,6 +2,7 @@
 
 mod analysis;
 mod ast;
+mod lsp;
 mod navigation;
 mod parser;
 
@@ -10,5 +11,6 @@ pub use analysis::{
     analyze,
 };
 pub use ast::{Function, Parameter, Program, Statement, ValueType};
+pub use lsp::AsterBackend;
 pub use navigation::AsterNavigator;
 pub use parser::{AsterParser, parse_program};
