@@ -168,11 +168,21 @@ pub struct SourceDatabase {
 static NEXT_DATABASE_ID: AtomicU64 = AtomicU64::new(1);
 
 fn allocate_database_id() -> u64 {
-    NEXT_DATABASE_ID
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
-            next.checked_add(1)
-        })
-        .expect("source database identity space exhausted")
+    let mut current = NEXT_DATABASE_ID.load(Ordering::Relaxed);
+    loop {
+        let next = current
+            .checked_add(1)
+            .expect("source database identity space exhausted");
+        match NEXT_DATABASE_ID.compare_exchange_weak(
+            current,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => return current,
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 impl Default for SourceDatabase {
