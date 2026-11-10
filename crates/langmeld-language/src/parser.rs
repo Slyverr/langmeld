@@ -44,6 +44,15 @@ pub struct LexOutput {
 pub trait Lexer {
     /// Lexes the supplied immutable source snapshot.
     fn lex(&self, source: &SourceFile) -> LexOutput;
+
+    /// Lexes with a token limit. The default applies the limit after [`Self::lex`]
+    /// returns, so it rejects oversized output but cannot bound the lexer's own
+    /// work or allocations. Implementations may override this method to stop
+    /// early and retain a valid prefix. An override that truncates must report
+    /// `LM-PARSE-008` so the parse result records that it is resource-limited.
+    fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
+        limit_lex_output(source, self.lex(source), max_tokens)
+    }
 }
 
 /// Lexes the initial built-in token subset used by [`parse`].
@@ -52,7 +61,11 @@ pub struct DefaultLexer;
 
 impl Lexer for DefaultLexer {
     fn lex(&self, source: &SourceFile) -> LexOutput {
-        lex_default(source)
+        lex_default(source, ParseLimits::default().max_tokens)
+    }
+
+    fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
+        lex_default(source, max_tokens)
     }
 }
 
@@ -107,8 +120,41 @@ pub struct ParseResult {
     pub source: Option<SourceIdentity>,
     /// Successfully recognized constructs in source order.
     pub constructs: Vec<ParsedConstruct>,
-    /// Lexical and syntax errors. Parsing continues after recoverable errors.
+    /// Lexical and syntax errors. Parsing continues after recoverable errors
+    /// unless a resource limit stops it.
     pub diagnostics: Vec<Diagnostic>,
+    /// Whether a configured parser resource limit truncated this result.
+    pub resource_limited: bool,
+}
+
+/// Input and work bounds for the generic token-pattern parser.
+///
+/// These limits do not constrain custom [`LanguageParser`](crate::LanguageParser)
+/// implementations; host parsers own their parsing and resource policies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParseLimits {
+    /// Maximum UTF-8 source size in bytes.
+    pub max_source_bytes: usize,
+    /// Maximum number of tokens emitted by the lexer.
+    pub max_tokens: usize,
+    /// Maximum number of parsed construct nodes.
+    pub max_constructs: usize,
+    /// Maximum nested block depth. Values above [`MAX_NESTING_DEPTH`] are capped.
+    pub max_nesting_depth: usize,
+    /// Maximum pattern parts evaluated across all candidates and groups per parse.
+    pub max_pattern_steps: usize,
+}
+
+impl Default for ParseLimits {
+    fn default() -> Self {
+        Self {
+            max_source_bytes: 4 * 1024 * 1024,
+            max_tokens: 250_000,
+            max_constructs: 250_000,
+            max_nesting_depth: MAX_NESTING_DEPTH,
+            max_pattern_steps: 1_000_000,
+        }
+    }
 }
 
 /// Maximum nesting level accepted by the generic block parser.
@@ -118,11 +164,21 @@ pub const MAX_NESTING_DEPTH: usize = 128;
 ///
 /// The generic parser supports token patterns, typed and generic captures,
 /// and nested blocks whose child constructs are explicitly listed in the
-/// grammar. Expressions, custom lexers, and custom parser hooks remain host or
-/// future API concerns.
+/// grammar. Use a custom lexer for different tokenization, or implement
+/// [`LanguageParser`](crate::LanguageParser) to own the syntax and tree shape.
 #[must_use]
 pub fn parse(source: &SourceFile, language: &LanguageSpec) -> ParseResult {
-    parse_with_lexer(source, language, &DefaultLexer)
+    parse_with_limits(source, language, ParseLimits::default())
+}
+
+/// Parses source using the built-in lexer and caller-selected resource limits.
+#[must_use]
+pub fn parse_with_limits(
+    source: &SourceFile,
+    language: &LanguageSpec,
+    limits: ParseLimits,
+) -> ParseResult {
+    parse_with_lexer_and_limits(source, language, &DefaultLexer, limits)
 }
 
 /// Parses a source snapshot using a host-provided lexer and Langmeld grammar.
@@ -135,7 +191,22 @@ pub fn parse_with_lexer(
     language: &LanguageSpec,
     lexer: &impl Lexer,
 ) -> ParseResult {
-    parse_with_lexer_internal(source, language, lexer, false).0
+    parse_with_lexer_and_limits(source, language, lexer, ParseLimits::default())
+}
+
+/// Parses with a host lexer and caller-selected generic-parser resource limits.
+///
+/// Source bytes are checked before invoking the lexer. A custom lexer may
+/// override [`Lexer::lex_with_token_limit`] to stop early; otherwise an
+/// oversized token list is discarded before generic validation or parsing.
+#[must_use]
+pub fn parse_with_lexer_and_limits(
+    source: &SourceFile,
+    language: &LanguageSpec,
+    lexer: &impl Lexer,
+    limits: ParseLimits,
+) -> ParseResult {
+    parse_with_lexer_internal(source, language, lexer, limits, false).0
 }
 
 pub(crate) fn parse_with_contexts(
@@ -143,19 +214,44 @@ pub(crate) fn parse_with_contexts(
     language: &LanguageSpec,
     lexer: &impl Lexer,
 ) -> (ParseResult, Vec<ParseContext>) {
-    parse_with_lexer_internal(source, language, lexer, true)
+    parse_with_lexer_internal(source, language, lexer, ParseLimits::default(), true)
 }
 
 fn parse_with_lexer_internal(
     source: &SourceFile,
     language: &LanguageSpec,
     lexer: &impl Lexer,
+    limits: ParseLimits,
     capture_contexts: bool,
 ) -> (ParseResult, Vec<ParseContext>) {
+    if source.text.len() > limits.max_source_bytes {
+        let span = source_limit_span(source, limits.max_source_bytes);
+        return (
+            ParseResult {
+                source: source.identity(),
+                constructs: Vec::new(),
+                diagnostics: vec![Diagnostic::error(
+                    "LM-PARSE-007",
+                    format!(
+                        "source size exceeds the configured limit of {} bytes",
+                        limits.max_source_bytes
+                    ),
+                    source,
+                    span,
+                )],
+                resource_limited: true,
+            },
+            Vec::new(),
+        );
+    }
+
     let LexOutput {
         tokens,
         mut diagnostics,
-    } = lexer.lex(source);
+    } = lex_bounded(source, lexer, limits.max_tokens);
+    let resource_limited = diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "LM-PARSE-008");
     let tokens = validate_tokens(source, tokens, &mut diagnostics);
     let allowed = language.root_constructs().collect::<Vec<_>>();
     let mut parser = Parser {
@@ -164,11 +260,17 @@ fn parse_with_lexer_internal(
         tokens,
         cursor: 0,
         diagnostics: &mut diagnostics,
+        limits,
+        pattern_steps_remaining: limits.max_pattern_steps,
+        construct_count: 0,
+        resource_limited,
+        stopped: false,
         capture_contexts,
         completion_contexts: Vec::new(),
         completion_blocked: false,
     };
     let constructs = parser.parse_children(&allowed, None, 0);
+    let resource_limited = parser.resource_limited;
     let contexts = std::mem::take(&mut parser.completion_contexts);
     drop(parser);
     (
@@ -176,6 +278,7 @@ fn parse_with_lexer_internal(
             source: source.identity(),
             constructs,
             diagnostics,
+            resource_limited,
         },
         contexts,
     )
@@ -187,6 +290,11 @@ struct Parser<'a> {
     tokens: Vec<LexedToken>,
     cursor: usize,
     diagnostics: &'a mut Vec<Diagnostic>,
+    limits: ParseLimits,
+    pattern_steps_remaining: usize,
+    construct_count: usize,
+    resource_limited: bool,
+    stopped: bool,
     capture_contexts: bool,
     completion_contexts: Vec<ParseContext>,
     completion_blocked: bool,
@@ -204,7 +312,10 @@ impl Parser<'_> {
             .get(self.cursor)
             .map_or(self.source.text.len(), |token| token.span.start);
         let mut children = Vec::new();
-        while let Some(token) = self.tokens.get(self.cursor) {
+        while !self.stopped {
+            let Some(token) = self.tokens.get(self.cursor) else {
+                break;
+            };
             if close.is_some_and(|close| token.text == close) {
                 break;
             }
@@ -241,7 +352,18 @@ impl Parser<'_> {
         let mut ambiguous = false;
         for spec in allowed {
             for (variant, pattern) in spec.variants().iter().enumerate() {
-                let attempt = match_sequence(pattern, &self.tokens, self.cursor);
+                let attempt = match match_sequence(
+                    pattern,
+                    &self.tokens,
+                    self.cursor,
+                    &mut self.pattern_steps_remaining,
+                ) {
+                    Ok(attempt) => attempt,
+                    Err(()) => {
+                        self.stop_for_pattern_limit();
+                        return None;
+                    }
+                };
                 if attempt.complete {
                     if matched.is_some() {
                         ambiguous = true;
@@ -308,6 +430,23 @@ impl Parser<'_> {
             return None;
         };
 
+        if self.construct_count >= self.limits.max_constructs {
+            self.resource_limited = true;
+            self.stopped = true;
+            let token = &self.tokens[start_index];
+            self.diagnostics.push(Diagnostic::error(
+                "LM-PARSE-009",
+                format!(
+                    "parsed construct count exceeds the configured limit of {}",
+                    self.limits.max_constructs
+                ),
+                self.source,
+                token.span,
+            ));
+            return None;
+        }
+        self.construct_count += 1;
+
         self.completion_blocked = false;
         self.cursor = attempt.end;
         let start = self.tokens[start_index].span.start;
@@ -334,11 +473,13 @@ impl Parser<'_> {
                     children,
                 });
             }
-            if depth >= MAX_NESTING_DEPTH {
+            let max_nesting_depth = self.limits.max_nesting_depth.min(MAX_NESTING_DEPTH);
+            if depth >= max_nesting_depth {
+                self.resource_limited = true;
                 self.completion_blocked = true;
                 self.diagnostics.push(Diagnostic::error(
                     "LM-PARSE-003",
-                    format!("maximum block nesting depth ({MAX_NESTING_DEPTH}) exceeded"),
+                    format!("maximum block nesting depth ({max_nesting_depth}) exceeded"),
                     self.source,
                     opening.span,
                 ));
@@ -360,7 +501,12 @@ impl Parser<'_> {
                     })
                     .collect::<Vec<_>>();
                 children = self.parse_children(&allowed, Some(&block.close), depth + 1);
-                if let Some(closing) = self.tokens.get(self.cursor) {
+                if self.stopped {
+                    end = self
+                        .tokens
+                        .get(self.cursor.saturating_sub(1))
+                        .map_or(end, |token| token.span.end);
+                } else if let Some(closing) = self.tokens.get(self.cursor) {
                     end = closing.span.end;
                     self.cursor += 1;
                     self.completion_blocked = false;
@@ -401,6 +547,24 @@ impl Parser<'_> {
         ));
     }
 
+    fn stop_for_pattern_limit(&mut self) {
+        self.resource_limited = true;
+        self.stopped = true;
+        let span = self.tokens.get(self.cursor).map_or_else(
+            || Span::new(self.source.text.len(), self.source.text.len()),
+            |token| token.span,
+        );
+        self.diagnostics.push(Diagnostic::error(
+            "LM-PARSE-010",
+            format!(
+                "pattern matching exceeds the configured limit of {} steps",
+                self.limits.max_pattern_steps
+            ),
+            self.source,
+            span,
+        ));
+    }
+
     fn skip_block(&mut self, open: &str, close: &str) {
         let mut nesting = 0usize;
         while let Some(token) = self.tokens.get(self.cursor) {
@@ -430,10 +594,15 @@ fn match_sequence<'a>(
     pattern: &'a [PatternPart],
     tokens: &[LexedToken],
     start: usize,
-) -> MatchAttempt<'a> {
+    remaining_steps: &mut usize,
+) -> Result<MatchAttempt<'a>, ()> {
     let mut fields = Vec::new();
     let mut cursor = start;
     for part in pattern {
+        if *remaining_steps == 0 {
+            return Err(());
+        }
+        *remaining_steps -= 1;
         match part {
             PatternPart::Literal(literal) => {
                 if tokens
@@ -442,12 +611,12 @@ fn match_sequence<'a>(
                 {
                     cursor += 1;
                 } else {
-                    return MatchAttempt {
+                    return Ok(MatchAttempt {
                         fields,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
-                    };
+                    });
                 }
             }
             PatternPart::Field { name, kind } => {
@@ -455,12 +624,12 @@ fn match_sequence<'a>(
                     .get(cursor)
                     .filter(|token| accepts(*kind, token.kind))
                 else {
-                    return MatchAttempt {
+                    return Ok(MatchAttempt {
                         fields,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
-                    };
+                    });
                 };
                 fields.push(CapturedField {
                     name: name.clone(),
@@ -478,42 +647,42 @@ fn match_sequence<'a>(
                 cursor += 1;
             }
             PatternPart::Optional(parts) => {
-                let attempt = match_sequence(parts, tokens, cursor);
+                let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                 if attempt.complete {
                     fields.extend(attempt.fields);
                     cursor = attempt.end;
                 } else if attempt.end > cursor {
-                    return MatchAttempt {
+                    return Ok(MatchAttempt {
                         fields,
                         end: attempt.end,
                         complete: false,
                         expected: attempt.expected,
-                    };
+                    });
                 }
             }
             PatternPart::Repeat { parts, minimum } => {
                 let mut repetitions = 0;
                 loop {
-                    let attempt = match_sequence(parts, tokens, cursor);
+                    let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                     if attempt.complete && attempt.end > cursor {
                         fields.extend(attempt.fields);
                         cursor = attempt.end;
                         repetitions += 1;
                     } else if attempt.end > cursor {
-                        return MatchAttempt {
+                        return Ok(MatchAttempt {
                             fields,
                             end: attempt.end,
                             complete: false,
                             expected: attempt.expected,
-                        };
+                        });
                     } else {
                         if *minimum == RepeatMinimum::One && repetitions == 0 {
-                            return MatchAttempt {
+                            return Ok(MatchAttempt {
                                 fields,
                                 end: cursor,
                                 complete: false,
                                 expected: parts.first(),
-                            };
+                            });
                         }
                         break;
                     }
@@ -521,12 +690,12 @@ fn match_sequence<'a>(
             }
         }
     }
-    MatchAttempt {
+    Ok(MatchAttempt {
         fields,
         end: cursor,
         complete: true,
         expected: None,
-    }
+    })
 }
 
 fn describe_pattern(part: &PatternPart) -> &'static str {
@@ -564,13 +733,22 @@ fn accepts(expected: FieldKind, actual: TokenKind) -> bool {
     )
 }
 
-fn lex_default(source: &SourceFile) -> LexOutput {
+fn lex_default(source: &SourceFile, max_tokens: usize) -> LexOutput {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut chars = source.text.char_indices().peekable();
     while let Some((start, character)) = chars.next() {
         if character.is_whitespace() {
             continue;
+        }
+        if tokens.len() == max_tokens {
+            diagnostics.push(Diagnostic::error(
+                "LM-PARSE-008",
+                format!("token count exceeds the configured limit of {max_tokens}"),
+                source,
+                Span::new(start, start + character.len_utf8()),
+            ));
+            break;
         }
         if character == '"' {
             let mut escaped = false;
@@ -668,6 +846,41 @@ fn lex_default(source: &SourceFile) -> LexOutput {
         tokens,
         diagnostics,
     }
+}
+
+fn limit_lex_output(source: &SourceFile, mut output: LexOutput, max_tokens: usize) -> LexOutput {
+    if output.tokens.len() > max_tokens {
+        output.tokens = Vec::new();
+        if !output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-PARSE-008")
+        {
+            output.diagnostics.push(Diagnostic::error(
+                "LM-PARSE-008",
+                format!("token count exceeds the configured limit of {max_tokens}"),
+                source,
+                Span::new(source.text.len(), source.text.len()),
+            ));
+        }
+    }
+    output
+}
+
+pub(crate) fn lex_bounded(source: &SourceFile, lexer: &impl Lexer, max_tokens: usize) -> LexOutput {
+    limit_lex_output(
+        source,
+        lexer.lex_with_token_limit(source, max_tokens),
+        max_tokens,
+    )
+}
+
+fn source_limit_span(source: &SourceFile, limit: usize) -> Span {
+    let mut offset = limit.min(source.text.len());
+    while !source.text.is_char_boundary(offset) {
+        offset -= 1;
+    }
+    Span::new(offset, offset)
 }
 
 fn validate_tokens(

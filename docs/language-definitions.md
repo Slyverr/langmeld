@@ -109,7 +109,38 @@ construct "conditional" {
 
 This is a parser boundary, not a semantic scope. Langmeld does not infer
 variable visibility, declaration order, name resolution, or control-flow
-meaning from blocks. The generic parser limits block nesting to 128 levels.
+meaning from blocks.
+
+## Parser resource limits
+
+The generic parser defaults to a 4 MiB source limit, 250,000 lexer tokens,
+250,000 parsed constructs, 128 nested blocks, and 1,000,000 pattern-matching
+steps. `ParseResult::resource_limited` indicates that one of these bounds
+limited the result; completed constructs are retained where possible.
+
+Raise or lower these limits per parse with `ParseLimits`:
+
+```rust,ignore
+use langmeld_language::{ParseLimits, parse_with_limits};
+
+let result = parse_with_limits(
+    &source,
+    &language,
+    ParseLimits {
+        max_source_bytes: 8 * 1024 * 1024,
+        ..ParseLimits::default()
+    },
+);
+```
+
+`parse_with_lexer_and_limits` applies the same parser bounds with a host lexer.
+The generic parser checks source size before calling the lexer and caps the
+tokens it validates. A custom lexer that returns more than the token limit is
+discarded by default, but this post-check cannot bound the lexer's own work or
+allocations. Override `Lexer::lex_with_token_limit` to stop early and return a
+valid prefix. These limits do not constrain custom `LanguageParser`
+implementations, which own their parsing behavior and must choose their own
+resource policy.
 
 ## Loading a project
 

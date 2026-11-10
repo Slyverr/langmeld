@@ -1,9 +1,9 @@
 use langmeld_core::{SourceFile, Span};
 
-use crate::parser::{DefaultLexer, Lexer, parse_with_contexts};
+use crate::parser::{DefaultLexer, Lexer, lex_bounded, parse_with_contexts};
 use crate::{
-    AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParsedDocument, PatternPart,
-    RepeatMinimum,
+    AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParseLimits, ParsedDocument,
+    PatternPart, RepeatMinimum,
 };
 
 /// A grammar-derived token suggestion at a source location.
@@ -82,26 +82,33 @@ pub fn complete_at_with_lexer(
     offset: usize,
     lexer: &impl Lexer,
 ) -> Vec<CompletionCandidate> {
-    if offset > source.text.len() || !source.text.is_char_boundary(offset) {
+    let limits = ParseLimits::default();
+    if offset > source.text.len()
+        || !source.text.is_char_boundary(offset)
+        || source.text.len() > limits.max_source_bytes
+    {
         return Vec::new();
     }
 
-    let prefix_token = lexer.lex(source).tokens.into_iter().find(|token| {
-        token.kind != crate::TokenKind::Invalid
-            && token.span.start < offset
-            && offset <= token.span.end
-            && (offset < token.span.end
-                || token
-                    .text
-                    .chars()
-                    .last()
-                    .is_some_and(|character| character == '_' || character.is_alphanumeric()))
-            && token.span.start < token.span.end
-            && token.span.end <= source.text.len()
-            && source.text.is_char_boundary(token.span.start)
-            && source.text.is_char_boundary(token.span.end)
-            && source.text.get(token.span.start..token.span.end) == Some(token.text.as_str())
-    });
+    let prefix_token = lex_bounded(source, lexer, limits.max_tokens)
+        .tokens
+        .into_iter()
+        .find(|token| {
+            token.kind != crate::TokenKind::Invalid
+                && token.span.start < offset
+                && offset <= token.span.end
+                && (offset < token.span.end
+                    || token
+                        .text
+                        .chars()
+                        .last()
+                        .is_some_and(|character| character == '_' || character.is_alphanumeric()))
+                && token.span.start < token.span.end
+                && token.span.end <= source.text.len()
+                && source.text.is_char_boundary(token.span.start)
+                && source.text.is_char_boundary(token.span.end)
+                && source.text.get(token.span.start..token.span.end) == Some(token.text.as_str())
+        });
     let (prefix_end, replacement, prefix) = if let Some(token) = prefix_token {
         (
             token.span.start,

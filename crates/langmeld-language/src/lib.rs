@@ -22,8 +22,9 @@ pub use host::{
 pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
-    CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseResult,
-    ParsedConstruct, TokenKind, parse, parse_with_lexer,
+    CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseLimits,
+    ParseResult, ParsedConstruct, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
+    parse_with_limits,
 };
 pub use spec::{
     BlockSpec, ConstructSpec, FieldKind, LanguageSpec, PatternPart, RepeatMinimum, SpecError,

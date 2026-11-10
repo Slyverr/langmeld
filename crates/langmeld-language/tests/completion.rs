@@ -1,7 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
-    ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, PatternPart, TokenKind,
-    complete_at, complete_at_with_lexer, language_definition_grammar,
+    ConstructSpec, DefaultLexer, LanguageSpec, LexOutput, Lexer, ParseLimits, PatternPart,
+    TokenKind, complete_at, complete_at_with_lexer, language_definition_grammar,
 };
 
 fn language() -> LanguageSpec {
@@ -170,6 +170,25 @@ fn rejects_offsets_outside_the_source_or_inside_a_utf8_codepoint() {
 
     assert!(complete_at(&source, &language(), source.text.len() + 1).is_empty());
     assert!(complete_at(&source, &language(), 1).is_empty());
+}
+
+#[test]
+fn rejects_oversized_sources_before_calling_the_completion_lexer() {
+    struct UnexpectedLexer;
+
+    impl Lexer for UnexpectedLexer {
+        fn lex(&self, _: &SourceFile) -> LexOutput {
+            panic!("oversized completion input must be rejected before lexing");
+        }
+    }
+
+    let source = SourceFile::new(
+        "large",
+        "x".repeat(ParseLimits::default().max_source_bytes + 1),
+    );
+    let result = complete_at_with_lexer(&source, &language(), 0, &UnexpectedLexer);
+
+    assert!(result.is_empty());
 }
 
 struct KeywordAsPunctuation;
