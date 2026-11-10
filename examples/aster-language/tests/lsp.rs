@@ -43,10 +43,16 @@ fn receive_response(connection: &Connection) -> Value {
 fn decode_tokens(value: &Value) -> Vec<(u32, u32, u32, u32, u32)> {
     let mut line = 0;
     let mut character = 0;
-    value["data"]
+    let data = value["data"]
         .as_array()
-        .expect("semantic token data is an array")
-        .chunks_exact(5)
+        .expect("semantic token data is an array");
+    let (tokens, remainder) = data.as_chunks::<5>();
+    assert!(
+        remainder.is_empty(),
+        "semantic token data uses groups of five"
+    );
+    tokens
+        .iter()
         .map(|token| {
             let delta_line = token[0].as_u64().unwrap() as u32;
             let delta_start = token[1].as_u64().unwrap() as u32;
