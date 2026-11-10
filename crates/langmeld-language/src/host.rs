@@ -69,8 +69,8 @@ impl<T> AnalysisDocument<T> {
 /// Parsing behavior that retains a host language's own syntax tree.
 ///
 /// Implementations own grammar, recovery, and tree shape. Langmeld does not
-/// infer editor operations from an arbitrary tree; hosts can adapt their tree
-/// to later tooling interfaces when those interfaces are available.
+/// infer editor operations from an arbitrary tree; hosts can implement the
+/// completion and navigation contracts for their own syntax and semantics.
 pub trait LanguageParser {
     /// Host-owned syntax tree returned by this parser.
     type Tree;

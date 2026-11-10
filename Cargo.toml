@@ -4,6 +4,7 @@ members = [
     "crates/langmeld-core",
     "crates/langmeld-expression",
     "crates/langmeld-language",
+    "crates/langmeld-lsp",
     "crates/langmeld-project",
     "examples/aster-language",
     "examples/custom-lexer",
@@ -26,9 +27,14 @@ repository = "https://github.com/Slyverr/langmeld"
 clap = { version = "4.6.7", features = ["derive"] }
 dialoguer = { version = "0.12.0", default-features = false }
 toml = "1.2.1"
+lsp-server = "0.10.0"
+lsp-types = "0.97.0"
+serde_json = "1.0.140"
+serde = "1.0.229"
 langmeld-core = { path = "crates/langmeld-core", version = "0.3.0" }
 langmeld-expression = { path = "crates/langmeld-expression", version = "0.3.0" }
 langmeld-language = { path = "crates/langmeld-language", version = "0.3.0" }
+langmeld-lsp = { path = "crates/langmeld-lsp", version = "0.3.0" }
 langmeld-project = { path = "crates/langmeld-project", version = "0.3.0" }
 
 [workspace.lints.rust]
