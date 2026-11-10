@@ -23,11 +23,14 @@ tooling yet.
 cargo check --workspace --locked
 cargo run -p langmeld-toy-language-example --locked
 cargo run -p langmeld-custom-lexer-example --locked
+cargo run -p langmeld-custom-parser-example --locked
 ```
 
 The [`toy-language`](examples/toy-language) example shows `.lm` definitions
 and nested constructs. The [`custom-lexer`](examples/custom-lexer) example
 shows host-defined raw strings and comment skipping.
+The [`custom-parser`](examples/custom-parser) example owns its expression
+grammar, AST, recovery, and evaluation in Rust.
 
 ## License
 
