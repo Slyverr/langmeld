@@ -247,6 +247,51 @@ fn reports_import_cycles_and_missing_imports_at_the_import_site() {
 }
 
 #[test]
+fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.lm",
+            r#"language "Duplicate" {
+                import "constructs.lm";
+                construct "print" {
+                    syntax { literal "print"; identifier "name"; }
+                }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "constructs.lm".into(),
+        DefinitionSource::new(
+            "constructs",
+            SourceFile::new(
+                "language/constructs.lm",
+                r#"construct "print" {
+                    syntax { literal "print"; identifier "value"; }
+                }"#,
+            ),
+        ),
+    );
+
+    let definition = parse_language_definition_project(root, &resolver);
+
+    assert!(definition.language.is_none());
+    let duplicate = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-004")
+        .expect("duplicate construct diagnostic");
+    assert_eq!(
+        duplicate
+            .location
+            .as_ref()
+            .map(|location| location.source_name.as_str()),
+        Some("language/constructs.lm")
+    );
+}
+
+#[test]
 fn single_file_definition_api_reports_when_imports_need_a_resolver() {
     let source = SourceFile::new(
         "main.lm",

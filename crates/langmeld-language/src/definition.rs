@@ -387,11 +387,17 @@ fn finish_definition(
     let language = match LanguageSpec::new(language_name, specs) {
         Ok(language) => Some(language),
         Err(error) => {
-            let target = spec_error_construct(&error).and_then(|name| {
-                constructs
+            let target = match &error {
+                SpecError::DuplicateConstruct(name) => constructs
                     .iter()
-                    .find(|(construct, _, _)| construct.name() == name)
-            });
+                    .filter(|(construct, _, _)| construct.name() == name)
+                    .nth(1),
+                _ => spec_error_construct(&error).and_then(|name| {
+                    constructs
+                        .iter()
+                        .find(|(construct, _, _)| construct.name() == name)
+                }),
+            };
             let (source, span) = target
                 .map_or((&fallback_source, Span::new(0, 0)), |(_, source, span)| {
                     (source, *span)
