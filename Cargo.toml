@@ -3,6 +3,7 @@ members = [
     "crates/langmeld-cli",
     "crates/langmeld-core",
     "crates/langmeld-language",
+    "examples/custom-lexer",
     "examples/toy-language",
 ]
 default-members = ["crates/langmeld-cli"]

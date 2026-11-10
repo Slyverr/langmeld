@@ -11,6 +11,14 @@ name = "langmeld-core"
 version = "0.1.0"
 
 [[package]]
+name = "langmeld-custom-lexer-example"
+version = "0.2.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-language",
+]
+
+[[package]]
 name = "langmeld-language"
 version = "0.1.0"
 dependencies = [

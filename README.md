@@ -20,10 +20,12 @@ lexer while reusing the generic parser.
 ```sh
 cargo check --workspace --locked
 cargo run -p langmeld-toy-language-example --locked
+cargo run -p langmeld-custom-lexer-example --locked
 ```
 
-The example language definition and its Rust consumer are in
-[`examples/toy-language`](examples/toy-language).
+The [`toy-language`](examples/toy-language) example shows `.lm` definitions
+and nested constructs. The [`custom-lexer`](examples/custom-lexer) example
+shows host-defined raw strings and comment skipping.
 
 ## License
 

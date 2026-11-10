@@ -1,0 +1,15 @@
+[package]
+name = "langmeld-custom-lexer-example"
+description = "A custom lexer consumer example for Langmeld."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+langmeld-core.workspace = true
+langmeld-language.workspace = true
+
+[lints]
+workspace = true
