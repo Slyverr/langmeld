@@ -197,6 +197,10 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));
+    assert!(manifest.contains("license = \"MIT OR Apache-2.0\""));
+    let readme = fs::read_to_string(project.join("README.md")).expect("README should be generated");
+    assert!(readme.contains("## License"));
+    assert!(readme.contains("Replace the copyright placeholder in `LICENSE-MIT`"));
     let definition = fs::read_to_string(project.join("language/language.langmeld"))
         .expect("definition should be generated");
     assert!(definition.starts_with("language \"Widget Script\""));
@@ -1341,6 +1345,9 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     assert!(manifest.contains("default-run = \"custom-language\""));
     assert!(!manifest.contains("langmeld-project"));
     assert!(manifest.contains("langmeld-lsp = "));
+    let readme = fs::read_to_string(project.join("README.md")).expect("README should be generated");
+    assert!(readme.contains("## License"));
+    assert!(readme.contains("LICENSE-MIT"));
     let parser =
         fs::read_to_string(project.join("src/lib.rs")).expect("host parser should be generated");
     assert!(parser.contains("impl LanguageParser for SayParser"));

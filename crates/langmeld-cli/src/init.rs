@@ -204,9 +204,7 @@ fn project_files(
             files.extend([
                 (
                     "README.md".to_owned(),
-                    format!(
-                        "# {language_name}\n\nA Rust-hosted language project built with Langmeld.\n\n## Run\n\n```sh\ncargo run\ncargo run -- path/to/program.widget\ncargo test\n```\n\nWithout a path, the CLI parses a small built-in sample. Pass a source file to\nparse your own program. Edit `language/language.langmeld` and files in\n`language/constructs/` to change the syntax. The reusable loader lives in\n`src/lib.rs`, the CLI entry point in `src/main.rs`, and public behavior tests\nin `tests/`. Add language-specific analysis and execution to the Rust host.\n"
-                    ),
+                    declarative_readme(language_name),
                 ),
                 (
                     "langmeld.toml".to_owned(),
@@ -234,13 +232,11 @@ fn project_files(
         }
         Template::CustomParser => {
             files.extend([
+                ("README.md".to_owned(), custom_parser_readme(language_name)),
                 (
-                    "README.md".to_owned(),
-                    format!(
-                        "# {language_name}\n\nA Rust-defined language parser built with Langmeld.\n\n## Run\n\n```sh\ncargo run\ncargo run -- path/to/program.say\ncargo test\n```\n\nWithout a path, the CLI parses a small built-in sample. Pass a source file to\nparse your own program. The parser and AST live in `src/lib.rs`; the CLI entry\npoint is `src/main.rs`, and public behavior tests belong in `tests/`. This\ntemplate uses Langmeld's `LanguageParser` contract and leaves grammar design\nto your Rust code.\n\n## Language server\n\nStart the stdio LSP server with:\n\n```sh\ncargo run --bin language-lsp\n```\n\nIt publishes parser diagnostics from the host parser. Add host analysis,\ncompletion, and navigation by implementing Langmeld's corresponding traits\nand attaching them to `HostLanguageBackend` in `src/bin/language-lsp.rs`.\n"
-                    ),
+                    "src/lib.rs".to_owned(),
+                    custom_parser_library_template().to_owned(),
                 ),
-                ("src/lib.rs".to_owned(), custom_parser_library_template().to_owned()),
                 (
                     "src/main.rs".to_owned(),
                     custom_parser_main_template(language_name),
@@ -258,6 +254,74 @@ fn project_files(
     }
 
     files
+}
+
+fn declarative_readme(language_name: &str) -> String {
+    format!(
+        r#"# {language_name}
+
+A Rust-hosted language project built with Langmeld.
+
+## Run
+
+```sh
+cargo run
+cargo run -- path/to/program.widget
+cargo test
+```
+
+Without a path, the CLI parses a small built-in sample. Pass a source file to
+parse your own program. Edit `language/language.langmeld` and files in
+`language/constructs/` to change the syntax. The reusable loader lives in
+`src/lib.rs`, the CLI entry point in `src/main.rs`, and public behavior tests
+in `tests/`. Add language-specific analysis and execution to the Rust host.
+
+## License
+
+Licensed under either the MIT License or Apache License 2.0; choose either
+license. Replace the copyright placeholder in `LICENSE-MIT` before distributing.
+"#
+    )
+}
+
+fn custom_parser_readme(language_name: &str) -> String {
+    format!(
+        r#"# {language_name}
+
+A Rust-defined language parser built with Langmeld.
+
+## Run
+
+```sh
+cargo run
+cargo run -- path/to/program.say
+cargo test
+```
+
+Without a path, the CLI parses a small built-in sample. Pass a source file to
+parse your own program. The parser and AST live in `src/lib.rs`; the CLI entry
+point is `src/main.rs`, and public behavior tests belong in `tests/`. This
+template uses Langmeld's `LanguageParser` contract and leaves grammar design
+to your Rust code.
+
+## Language server
+
+Start the stdio LSP server with:
+
+```sh
+cargo run --bin language-lsp
+```
+
+It publishes parser diagnostics from the host parser. Add host analysis,
+completion, and navigation by implementing Langmeld's corresponding traits
+and attaching them to `HostLanguageBackend` in `src/bin/language-lsp.rs`.
+
+## License
+
+Licensed under either the MIT License or Apache License 2.0; choose either
+license. Replace the copyright placeholder in `LICENSE-MIT` before distributing.
+"#
+    )
 }
 
 fn ensure_parent_directories(

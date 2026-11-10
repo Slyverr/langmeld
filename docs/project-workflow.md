@@ -88,7 +88,8 @@ project-relative `.langmeld` path without parent-directory segments.
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. Its
 dual-license files match the manifest; replace the copyright placeholders in
-`LICENSE-MIT`. It does not yet generate editor configuration or build artifacts.
+`LICENSE-MIT`. The generated README reminds you to fill in the copyright
+holder. It does not yet generate editor configuration or build artifacts.
 
 ## Validate the project
 
