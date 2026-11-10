@@ -1,13 +1,5 @@
 language "Geometry" {
+    import "constructs/program.langmeld";
     import "extensions/geometry/drawing.langmeld";
     root "program";
-
-    construct "program" {
-        syntax {
-            literal "program";
-        }
-        block "{" "}" {
-            allow "draw";
-        }
-    }
 }

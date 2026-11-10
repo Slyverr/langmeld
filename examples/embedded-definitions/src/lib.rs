@@ -1,22 +1,21 @@
 use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::{ParseResult, parse, parse_language_definition_project};
-use langmeld_project::InMemoryDefinitionResolver;
+use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver};
 
 const ROOT_KEY: &str = "language/main.langmeld";
 const PROGRAM: &str = "program { draw circle; }";
 
 /// Loads a project definition with a Rust-embedded module and parses its sample.
 pub fn parse_example() -> Result<ParseResult, String> {
-    let root_source = SourceFile::new(ROOT_KEY, include_str!("../language/main.langmeld"));
     let mut resolver = InMemoryDefinitionResolver::new();
-    resolver
-        .insert(ROOT_KEY, root_source)
-        .map_err(|error| error.to_string())?;
     for &(key, text) in geometry_language_extension_example::DEFINITION_SOURCES {
         resolver
             .insert(key, SourceFile::new(key, text))
             .map_err(|error| error.to_string())?;
     }
+    let project_root = env!("CARGO_MANIFEST_DIR");
+    let resolver = OverlayDefinitionResolver::new(project_root, resolver)
+        .map_err(|error| error.to_string())?;
     let root = resolver.load(ROOT_KEY).map_err(|error| error.to_string())?;
     let definition = parse_language_definition_project(root, &resolver);
     if !definition.is_valid() {

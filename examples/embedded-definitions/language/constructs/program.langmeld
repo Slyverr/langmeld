@@ -1,0 +1,8 @@
+construct "program" {
+    syntax {
+        literal "program";
+    }
+    block "{" "}" {
+        allow "draw";
+    }
+}

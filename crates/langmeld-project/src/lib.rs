@@ -3,12 +3,14 @@
 //! This crate keeps source-storage policy outside the language parser.
 //! [`DirectoryDefinitionResolver`] confines file imports to one project root;
 //! [`InMemoryDefinitionResolver`] resolves embedded, virtual, or editor-owned
-//! source snapshots without filesystem access.
+//! source snapshots without filesystem access; [`OverlayDefinitionResolver`]
+//! combines a project directory with in-memory imports.
 
 mod definition_paths;
 mod definition_project;
 mod manifest;
 mod memory_resolver;
+mod overlay_resolver;
 
 pub use definition_project::{
     DefinitionProjectError, LoadedDefinitionProject, load_definition_project,
@@ -19,6 +21,7 @@ pub use manifest::{
     read_project_manifest_file,
 };
 pub use memory_resolver::InMemoryDefinitionResolver;
+pub use overlay_resolver::OverlayDefinitionResolver;
 
 use std::{
     collections::BTreeMap,
@@ -47,6 +50,13 @@ pub enum ProjectLoadError {
     Read { path: PathBuf, source: io::Error },
     /// A definition is absent from an in-memory source collection.
     MissingDefinition(String),
+}
+
+fn path_error(path: &str, error: DefinitionPathError) -> ProjectLoadError {
+    match error {
+        DefinitionPathError::Invalid => ProjectLoadError::InvalidPath(path.to_owned()),
+        DefinitionPathError::OutsideRoot => ProjectLoadError::OutsideRoot(path.to_owned()),
+    }
 }
 
 impl fmt::Display for ProjectLoadError {
@@ -198,14 +208,8 @@ impl DirectoryDefinitionResolver {
 
 impl DefinitionResolver for DirectoryDefinitionResolver {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
-        let key = resolve_import_key(from_key, import).map_err(|error| match error {
-            DefinitionPathError::Invalid => {
-                ProjectLoadError::InvalidPath(import.to_owned()).to_string()
-            }
-            DefinitionPathError::OutsideRoot => {
-                ProjectLoadError::OutsideRoot(import.to_owned()).to_string()
-            }
-        })?;
+        let key = resolve_import_key(from_key, import)
+            .map_err(|error| path_error(import, error).to_string())?;
         let requested = self.root.join(key);
         self.load_path(requested, import.to_owned())
             .map_err(|error| error.to_string())

@@ -340,14 +340,38 @@ let result = parse_language_definition_project(root, &resolver);
 let sources = resolver.sources();
 ```
 
+To keep the project root and local constructs on disk while adding crate-bundled
+definitions, use `OverlayDefinitionResolver`. It checks the in-memory sources
+first for each import and falls back to the project directory for other paths:
+
+```rust,ignore
+use langmeld_core::SourceFile;
+use langmeld_language::parse_language_definition_project;
+use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver};
+
+let mut bundled = InMemoryDefinitionResolver::new();
+bundled.insert(
+    "language/extensions/geometry/drawing.langmeld",
+    SourceFile::new("language/extensions/geometry/drawing.langmeld", drawing_source),
+)?;
+let resolver = OverlayDefinitionResolver::new(".", bundled)?;
+let root = resolver.load("language/language.langmeld")?;
+let result = parse_language_definition_project(root, &resolver);
+let sources = resolver.sources();
+```
+
+When an in-memory key matches a file path, the in-memory source takes
+precedence. This makes a language project's composition explicit and lets a
+host control which third-party definition crates it registers.
+
 The parser remains independent of filesystem access. Hosts can implement
 `DefinitionResolver` for other storage models; keys identify logical sources
 for de-duplication and cycle detection. Import cycles are errors, repeated
 imports of an already loaded key are ignored, and import nesting is bounded at
 64 sources. Diagnostics retain the source name and span that produced each
-error. Both built-in resolvers accept project-relative imports and reject
+error. The built-in resolvers accept project-relative imports and reject
 absolute paths, backslash separators, and paths that escape the project root.
-The directory resolver also rejects symlink escapes.
+Directory-backed imports also reject symlink escapes.
 
 ## When to use Rust hooks
 

@@ -5,7 +5,7 @@ use langmeld_language::{DefinitionResolver, DefinitionSource};
 
 use crate::{
     ProjectLoadError,
-    definition_paths::{DefinitionPathError, normalize_source_key, resolve_import_key},
+    definition_paths::{normalize_source_key, resolve_import_key},
 };
 
 /// Resolves imports from an in-memory collection of `.langmeld` sources.
@@ -39,14 +39,22 @@ impl InMemoryDefinitionResolver {
 
     /// Loads an in-memory root definition by project-relative path.
     pub fn load(&self, key: &str) -> Result<DefinitionSource, ProjectLoadError> {
+        self.find_by_key(key)?
+            .ok_or_else(|| ProjectLoadError::MissingDefinition(key.to_owned()))
+    }
+
+    pub(super) fn find_by_key(
+        &self,
+        key: &str,
+    ) -> Result<Option<DefinitionSource>, ProjectLoadError> {
         let key =
             normalize_source_key(key).map_err(|_| ProjectLoadError::InvalidPath(key.to_owned()))?;
         let source = self
             .sources
             .get(&key)
             .cloned()
-            .ok_or_else(|| ProjectLoadError::MissingDefinition(key.clone()))?;
-        Ok(DefinitionSource::new(key, source))
+            .map(|source| DefinitionSource::new(key, source));
+        Ok(source)
     }
 
     /// Returns source snapshots in stable project-relative path order.
@@ -58,14 +66,10 @@ impl InMemoryDefinitionResolver {
 
 impl DefinitionResolver for InMemoryDefinitionResolver {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
-        let key = resolve_import_key(from_key, import).map_err(|error| match error {
-            DefinitionPathError::Invalid => {
-                ProjectLoadError::InvalidPath(import.to_owned()).to_string()
-            }
-            DefinitionPathError::OutsideRoot => {
-                ProjectLoadError::OutsideRoot(import.to_owned()).to_string()
-            }
-        })?;
-        self.load(&key).map_err(|error| error.to_string())
+        let key = resolve_import_key(from_key, import)
+            .map_err(|error| crate::path_error(import, error).to_string())?;
+        self.find_by_key(&key)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| ProjectLoadError::MissingDefinition(key).to_string())
     }
 }

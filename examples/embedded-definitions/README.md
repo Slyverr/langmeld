@@ -3,14 +3,15 @@
 This example shows a small language project using a definition published by a
 separate Rust crate. `geometry-language-extension-example` exports static
 `.langmeld` source; the host registers those sources with
-`InMemoryDefinitionResolver`, which is also suitable for virtual projects and
-editor-owned source snapshots. Langmeld does not provide automatic package
-discovery or dependency resolution.
+`OverlayDefinitionResolver`, which combines them with local project files.
+Its in-memory source map is also suitable for fully virtual projects and
+editor-owned snapshots. Langmeld does not provide automatic package discovery
+or dependency resolution.
 
-The root imports `extensions/geometry/drawing.langmeld`. The extension crate
-exports a project-relative source key and text; the host adds both the root
-and extension source to the resolver. Langmeld resolves imports relative to
-the importing file and composes the declarations before parsing the sample.
+The root imports a local `constructs/program.langmeld` file and
+`extensions/geometry/drawing.langmeld` from the extension crate. The host adds
+the crate source under its project-relative key; the overlay resolver prefers
+that source for matching imports and reads other modules from disk.
 
 Run from the workspace root:
 
