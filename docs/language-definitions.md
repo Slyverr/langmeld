@@ -105,7 +105,7 @@ Pattern items match lexer tokens in order:
 
   ```langmeld
   choice "mode" {
-      completion "keyword";
+      completion keyword;
       value "automatic";
       value "manual";
   }
@@ -125,7 +125,7 @@ construct when the distinction is known:
 
 ```langmeld
 construct "print" {
-    completion "keyword";
+    completion keyword;
     syntax {
         literal "print";
         identifier "value";
@@ -135,6 +135,8 @@ construct "print" {
 ```
 
 This metadata affects editor presentation only; it does not change parsing.
+Write the kind as an unquoted name to receive suggestions while editing the
+definition. Quoted names such as `completion "keyword";` remain accepted.
 Finite-choice values default to the `enum_member` category and can declare a
 different kind inside the `choice` block. Rust-authored grammars can use
 `PatternPart::choice_with_completion_kind`. Supported kinds are `text`,

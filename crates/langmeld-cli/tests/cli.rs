@@ -664,6 +664,32 @@ fn lsp_definitions_mode_serves_context_aware_langmeld_completions() {
         ["completion", "value", "}"]
     );
 
+    let kind_source = "language \"Toy\" { construct \"item\" { completion key";
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","method":"textDocument/didOpen","params":{
+                "textDocument":{"uri":"file:///completion-kind.langmeld","languageId":"langmeld","version":1,"text":kind_source}
+            }
+        }),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({
+            "jsonrpc":"2.0","id":6,"method":"textDocument/completion","params":{
+                "textDocument":{"uri":"file:///completion-kind.langmeld"},"position":{"line":0,"character":kind_source.len()}
+            }
+        }),
+    );
+    let kind_completions = receive_lsp_message(&receiver)["result"].clone();
+    assert_eq!(kind_completions.as_array().unwrap().len(), 1);
+    assert_eq!(kind_completions[0]["label"], "keyword");
+    assert_eq!(kind_completions[0]["kind"], 20);
+
     let format_source = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";
     send_lsp_message(
         &mut stdin,
@@ -680,7 +706,7 @@ fn lsp_definitions_mode_serves_context_aware_langmeld_completions() {
     send_lsp_message(
         &mut stdin,
         json!({
-            "jsonrpc":"2.0","id":6,"method":"textDocument/formatting","params":{
+            "jsonrpc":"2.0","id":7,"method":"textDocument/formatting","params":{
                 "textDocument":{"uri":"file:///format.langmeld"},
                 "options":{"tabSize":2,"insertSpaces":true}
             }
@@ -695,9 +721,9 @@ fn lsp_definitions_mode_serves_context_aware_langmeld_completions() {
 
     send_lsp_message(
         &mut stdin,
-        json!({"jsonrpc":"2.0","id":7,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","id":8,"method":"shutdown","params":null}),
     );
-    assert_eq!(receive_lsp_message(&receiver)["id"], 7);
+    assert_eq!(receive_lsp_message(&receiver)["id"], 8);
     send_lsp_message(
         &mut stdin,
         json!({"jsonrpc":"2.0","method":"exit","params":null}),

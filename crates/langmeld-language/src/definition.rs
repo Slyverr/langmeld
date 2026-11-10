@@ -857,10 +857,10 @@ fn lower_completion_kind(
     unknown_code: &'static str,
     unknown_suffix: &str,
 ) -> Option<CompletionKind> {
-    let Some(value) = string_field(node, "kind").and_then(decode_quoted) else {
+    let Some(value) = completion_kind_value(node) else {
         diagnostics.push(Diagnostic::error(
             "LM-DEF-030",
-            "completion requires a valid quoted kind",
+            "completion requires a valid kind name",
             source,
             node.span,
         ));
@@ -889,34 +889,21 @@ fn string_field<'a>(node: &'a ParsedConstruct, name: &str) -> Option<&'a str> {
 }
 
 fn parse_completion_kind(value: &str) -> Option<CompletionKind> {
-    Some(match value {
-        "text" => CompletionKind::Text,
-        "method" => CompletionKind::Method,
-        "function" => CompletionKind::Function,
-        "constructor" => CompletionKind::Constructor,
-        "field" => CompletionKind::Field,
-        "variable" => CompletionKind::Variable,
-        "class" => CompletionKind::Class,
-        "interface" => CompletionKind::Interface,
-        "module" => CompletionKind::Module,
-        "property" => CompletionKind::Property,
-        "unit" => CompletionKind::Unit,
-        "value" => CompletionKind::Value,
-        "enum" => CompletionKind::Enum,
-        "keyword" => CompletionKind::Keyword,
-        "snippet" => CompletionKind::Snippet,
-        "color" => CompletionKind::Color,
-        "file" => CompletionKind::File,
-        "reference" => CompletionKind::Reference,
-        "folder" => CompletionKind::Folder,
-        "enum_member" => CompletionKind::EnumMember,
-        "constant" => CompletionKind::Constant,
-        "struct" => CompletionKind::Struct,
-        "event" => CompletionKind::Event,
-        "operator" => CompletionKind::Operator,
-        "type_parameter" => CompletionKind::TypeParameter,
-        _ => return None,
-    })
+    CompletionKind::from_name(value)
+}
+
+fn completion_kind_value(node: &ParsedConstruct) -> Option<String> {
+    node.fields
+        .iter()
+        .find(|field| field.name == "kind")
+        .and_then(|field| match &field.value {
+            CapturedValue::String(value) => decode_quoted(value),
+            CapturedValue::Token {
+                text,
+                kind: crate::TokenKind::Identifier,
+            } => Some(text.clone()),
+            _ => None,
+        })
 }
 
 fn decode_quoted(value: &str) -> Option<String> {
@@ -1053,10 +1040,18 @@ fn definition_grammar() -> &'static LanguageSpec {
                     "completion",
                     [
                         PatternPart::literal("completion"),
-                        PatternPart::string("kind"),
+                        PatternPart::choice(
+                            "kind",
+                            CompletionKind::ALL.map(CompletionKind::as_str),
+                        ),
                         PatternPart::literal(";"),
                     ],
-                ),
+                )
+                .variant([
+                    PatternPart::literal("completion"),
+                    PatternPart::string("kind"),
+                    PatternPart::literal(";"),
+                ]),
                 ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
                     "{",
                     "}",

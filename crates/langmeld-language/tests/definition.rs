@@ -375,7 +375,7 @@ fn construct_completion_kind_is_declared_and_used_by_grammar_completion() {
         "language.langmeld",
         r#"language "Toy" {
             construct "print" {
-                completion "keyword";
+                completion keyword;
                 syntax { literal "print"; }
             }
         }"#,
@@ -404,7 +404,7 @@ language "Movement" {
         syntax {
             literal "move";
             choice "direction" {
-                completion "keyword";
+                completion keyword;
                 value "left";
                 value "right";
             }
@@ -472,6 +472,24 @@ fn definition_frontend_accepts_each_completion_kind_name() {
             definition.language.unwrap().constructs()[0].completion_kind(),
             Some(expected),
             "completion kind `{name}`"
+        );
+
+        let bare_source = SourceFile::new(
+            "language.langmeld",
+            format!(
+                "language \"Toy\" {{ construct \"item\" {{ completion {name}; syntax {{ literal \"item\"; }} }} }}"
+            ),
+        );
+        let bare_definition = parse_language_definition(&bare_source);
+        assert!(
+            bare_definition.is_valid(),
+            "unquoted {name}: {:?}",
+            bare_definition.diagnostics
+        );
+        assert_eq!(
+            bare_definition.language.unwrap().constructs()[0].completion_kind(),
+            Some(expected),
+            "unquoted completion kind `{name}`"
         );
     }
 }

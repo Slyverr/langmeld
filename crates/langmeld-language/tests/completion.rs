@@ -332,6 +332,21 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
         ["completion", "value", "}"]
     );
 
+    let source = "language \"Toy\" { construct \"item\" { completion key";
+    let kinds = complete_at(
+        &SourceFile::new("language.langmeld", source),
+        grammar,
+        source.len(),
+    );
+    assert_eq!(
+        kinds
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["keyword"]
+    );
+    assert_eq!(kinds[0].kind, Some(CompletionKind::EnumMember));
+
     let source = "language \"Toy\" { construct \"item\" { ";
     let nested = complete_at(
         &SourceFile::new("language.langmeld", source),

@@ -61,6 +61,75 @@ pub enum CompletionKind {
     TypeParameter,
 }
 
+impl CompletionKind {
+    /// All completion kinds and their canonical `.langmeld` names.
+    pub const ALL: [Self; 25] = [
+        Self::Text,
+        Self::Method,
+        Self::Function,
+        Self::Constructor,
+        Self::Field,
+        Self::Variable,
+        Self::Class,
+        Self::Interface,
+        Self::Module,
+        Self::Property,
+        Self::Unit,
+        Self::Value,
+        Self::Enum,
+        Self::Keyword,
+        Self::Snippet,
+        Self::Color,
+        Self::File,
+        Self::Reference,
+        Self::Folder,
+        Self::EnumMember,
+        Self::Constant,
+        Self::Struct,
+        Self::Event,
+        Self::Operator,
+        Self::TypeParameter,
+    ];
+
+    /// Returns the canonical `.langmeld` spelling for this kind.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Method => "method",
+            Self::Function => "function",
+            Self::Constructor => "constructor",
+            Self::Field => "field",
+            Self::Variable => "variable",
+            Self::Class => "class",
+            Self::Interface => "interface",
+            Self::Module => "module",
+            Self::Property => "property",
+            Self::Unit => "unit",
+            Self::Value => "value",
+            Self::Enum => "enum",
+            Self::Keyword => "keyword",
+            Self::Snippet => "snippet",
+            Self::Color => "color",
+            Self::File => "file",
+            Self::Reference => "reference",
+            Self::Folder => "folder",
+            Self::EnumMember => "enum_member",
+            Self::Constant => "constant",
+            Self::Struct => "struct",
+            Self::Event => "event",
+            Self::Operator => "operator",
+            Self::TypeParameter => "type_parameter",
+        }
+    }
+
+    /// Parses a canonical `.langmeld` completion-kind name.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == name)
+    }
+}
+
 /// A completion suggestion and the source range it replaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionCandidate {
