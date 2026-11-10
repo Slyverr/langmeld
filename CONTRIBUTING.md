@@ -122,6 +122,10 @@ Record notable user-facing changes in `CHANGELOG.md` under `Unreleased`,
 grouped as `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`
 as needed. Curate entries for users; do not copy the commit log.
 
+Keep workspace crate versions aligned during development. Do not make a separate
+commit that bumps to the next version after a release; update release metadata
+only when that release's gate passes.
+
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
