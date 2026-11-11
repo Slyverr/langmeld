@@ -5,10 +5,9 @@ benchmark dependencies to the framework crates or the main workspace lockfile.
 It reuses the repository's root `target/` directory:
 
 ```sh
-cargo bench \
+CRITERION_HOME=target/criterion cargo bench \
   --manifest-path benchmarks/langmeld-performance/Cargo.toml \
-  --target-dir target \
-  --locked -- --noplot
+  --target-dir target --locked -- --noplot
 ```
 
 The workloads cover distinct authoring paths:
