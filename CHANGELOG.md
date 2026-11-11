@@ -82,6 +82,8 @@ Migration notes for the current unreleased API are in the
   workspace analysis returns incomplete or mismatched results.
 - Require commas between function parameters in the declarative-functions
   example and reject trailing commas.
+- Restore the language definition and handler registry when construct generation
+  fails, and report all rollback failures.
 
 ## [0.7.0] - 2026-11-11
 

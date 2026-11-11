@@ -106,26 +106,54 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         Err(error) => return Err(error.into()),
     }
 
-    write_new_file(&syntax_path, &syntax_source)?;
+    if let Err(error) = write_new_file(&syntax_path, &syntax_source) {
+        let rollback_errors =
+            rollback_generated_paths(&[], created_directory.then_some(syntax_directory.as_path()));
+        return Err(with_rollback_errors(error, rollback_errors).into());
+    }
+
     if let Err(error) = write_new_file(&handler_path, &handler_source) {
-        let cleanup_error = fs::remove_file(&syntax_path).err();
-        cleanup_empty_directory(&syntax_directory, created_directory, cleanup_error.as_ref());
-        return Err(with_cleanup_error(error, cleanup_error).into());
+        let rollback_errors = rollback_generated_paths(
+            &[syntax_path.as_path()],
+            created_directory.then_some(syntax_directory.as_path()),
+        );
+        return Err(with_rollback_errors(error, rollback_errors).into());
     }
+
     if let Err(error) = fs::write(&root_path, updated_root) {
-        let handler_cleanup = fs::remove_file(&handler_path).err();
-        let syntax_cleanup = fs::remove_file(&syntax_path).err();
-        let cleanup_error = handler_cleanup.or(syntax_cleanup);
-        cleanup_empty_directory(&syntax_directory, created_directory, cleanup_error.as_ref());
-        return Err(with_cleanup_error(error, cleanup_error).into());
+        let mut rollback_errors = rollback_generated_paths(
+            &[handler_path.as_path(), syntax_path.as_path()],
+            created_directory.then_some(syntax_directory.as_path()),
+        );
+        restore_file(
+            &root_path,
+            &root_source,
+            "language definition",
+            &mut rollback_errors,
+        );
+
+        return Err(with_rollback_errors(error, rollback_errors).into());
     }
+
     if let Err(error) = fs::write(&registry_path, updated_registry) {
-        let root_restore = fs::write(&root_path, root_source).err();
-        let handler_cleanup = fs::remove_file(&handler_path).err();
-        let syntax_cleanup = fs::remove_file(&syntax_path).err();
-        let cleanup_error = root_restore.or(handler_cleanup).or(syntax_cleanup);
-        cleanup_empty_directory(&syntax_directory, created_directory, cleanup_error.as_ref());
-        return Err(with_cleanup_error(error, cleanup_error).into());
+        let mut rollback_errors = rollback_generated_paths(
+            &[handler_path.as_path(), syntax_path.as_path()],
+            created_directory.then_some(syntax_directory.as_path()),
+        );
+        restore_file(
+            &registry_path,
+            &registry_source,
+            "handler registry",
+            &mut rollback_errors,
+        );
+        restore_file(
+            &root_path,
+            &root_source,
+            "language definition",
+            &mut rollback_errors,
+        );
+
+        return Err(with_rollback_errors(error, rollback_errors).into());
     }
 
     let syntax_relative = syntax_path
@@ -305,17 +333,56 @@ fn read_regular_file(path: &Path) -> Result<String, io::Error> {
     fs::read_to_string(path)
 }
 
-fn with_cleanup_error(error: io::Error, cleanup_error: Option<io::Error>) -> io::Error {
-    match cleanup_error {
-        Some(cleanup_error) => {
-            io::Error::other(format!("{error}; cleanup failed: {cleanup_error}"))
+fn rollback_generated_paths(files: &[&Path], directory: Option<&Path>) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    for path in files {
+        if let Err(error) = fs::remove_file(path)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            errors.push(format!(
+                "could not remove generated file `{}`: {error}",
+                path.display()
+            ));
         }
-        None => error,
+    }
+
+    if let Some(directory) = directory
+        && let Err(error) = fs::remove_dir(directory)
+        && error.kind() != io::ErrorKind::NotFound
+    {
+        errors.push(format!(
+            "could not remove generated directory `{}`: {error}",
+            directory.display()
+        ));
+    }
+
+    errors
+}
+
+fn restore_file(path: &Path, contents: &str, description: &str, errors: &mut Vec<String>) {
+    if fs::read(path).is_ok_and(|current| current.as_slice() == contents.as_bytes()) {
+        return;
+    }
+
+    if let Err(error) = fs::write(path, contents) {
+        errors.push(format!(
+            "could not restore {description} `{}`: {error}",
+            path.display()
+        ));
     }
 }
 
-fn cleanup_empty_directory(path: &Path, created: bool, cleanup_error: Option<&io::Error>) {
-    if created && cleanup_error.is_none() {
-        let _ = fs::remove_dir(path);
+fn with_rollback_errors(error: io::Error, rollback_errors: Vec<String>) -> io::Error {
+    if rollback_errors.is_empty() {
+        return error;
     }
+
+    io::Error::new(
+        error.kind(),
+        format!(
+            "{error}; rollback was incomplete: {}",
+            rollback_errors.join("; ")
+        ),
+    )
 }
