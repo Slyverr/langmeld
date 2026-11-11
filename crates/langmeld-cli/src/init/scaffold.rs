@@ -51,7 +51,17 @@ pub(super) fn create_project(
                 .open(&destination)?;
             if let Err(error) = file.write_all(contents.as_bytes()) {
                 drop(file);
-                let _ = fs::remove_file(&destination);
+                if let Err(cleanup_error) = fs::remove_file(&destination)
+                    && cleanup_error.kind() != io::ErrorKind::NotFound
+                {
+                    return Err(io::Error::new(
+                        error.kind(),
+                        format!(
+                            "{error}; could not remove incomplete generated file `{}`: {cleanup_error}",
+                            destination.display()
+                        ),
+                    ));
+                }
                 return Err(error);
             }
             created_files.push(destination);
@@ -59,15 +69,52 @@ pub(super) fn create_project(
         Ok(())
     })();
     if let Err(error) = write_result {
-        for file in created_files.iter().rev() {
-            let _ = fs::remove_file(file);
-        }
-        for directory in created_directories.iter().rev() {
-            let _ = fs::remove_dir(directory);
-        }
-        return Err(error);
+        let rollback_errors = rollback_created_paths(&created_files, &created_directories);
+        return Err(include_rollback_errors(error, rollback_errors));
     }
     Ok(())
+}
+
+fn rollback_created_paths(files: &[PathBuf], directories: &[PathBuf]) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    for file in files.iter().rev() {
+        if let Err(error) = fs::remove_file(file)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            errors.push(format!(
+                "could not remove generated file `{}`: {error}",
+                file.display()
+            ));
+        }
+    }
+
+    for directory in directories.iter().rev() {
+        if let Err(error) = fs::remove_dir(directory)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            errors.push(format!(
+                "could not remove generated directory `{}`: {error}",
+                directory.display()
+            ));
+        }
+    }
+
+    errors
+}
+
+fn include_rollback_errors(error: io::Error, rollback_errors: Vec<String>) -> io::Error {
+    if rollback_errors.is_empty() {
+        return error;
+    }
+
+    io::Error::new(
+        error.kind(),
+        format!(
+            "{error}; rollback was incomplete: {}",
+            rollback_errors.join("; ")
+        ),
+    )
 }
 
 fn ensure_parent_directories(
