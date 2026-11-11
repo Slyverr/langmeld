@@ -1,4 +1,4 @@
-use langmeld_core::{SourceFile, SourceLocation};
+use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument,
@@ -7,6 +7,9 @@ use langmeld_language::{
 use crate::{
     BackendCapabilities, BackendDocument, BackendSource, LanguageBackend, WorkspaceSymbolInfo,
 };
+
+const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
+const ANALYZER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-002";
 
 type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
 type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
@@ -19,6 +22,12 @@ pub struct HostDocument<Tree, Analysis> {
     pub parsed: ParsedDocument<Tree>,
     /// Host-owned semantic result and diagnostics.
     pub analysis: AnalysisDocument<Analysis>,
+}
+
+impl<Tree, Analysis> HostDocument<Tree, Analysis> {
+    fn belongs_to(&self, source: &SourceFile) -> bool {
+        self.parsed.source == source.identity() && self.analysis.source == source.identity()
+    }
 }
 
 /// No-op analyzer used when only parser diagnostics are needed.
@@ -41,6 +50,8 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 ///
 /// Parser and semantic diagnostics are always published. Completion and
 /// navigation capabilities are enabled only when their providers are attached.
+/// Results with source identities that differ from the input are diagnosed,
+/// and editor queries are suppressed for those documents.
 /// Workspace analysis, rename, formatting, hover, and other queries remain
 /// available through a custom [`LanguageBackend`] implementation.
 pub struct HostLanguageBackend<P, A = NoAnalyzer>
@@ -175,12 +186,28 @@ where
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         let parsed = self.parser.parse(source);
         let analysis = self.analyzer.analyze(source, &parsed);
-        let diagnostics = parsed
+
+        let mut diagnostics = parsed
             .diagnostics
             .iter()
             .chain(&analysis.diagnostics)
             .cloned()
-            .collect();
+            .collect::<Vec<_>>();
+        if parsed.source != source.identity() {
+            diagnostics.push(source_identity_diagnostic(
+                source,
+                PARSER_SOURCE_MISMATCH_CODE,
+                "parser",
+            ));
+        }
+        if analysis.source != source.identity() {
+            diagnostics.push(source_identity_diagnostic(
+                source,
+                ANALYZER_SOURCE_MISMATCH_CODE,
+                "analyzer",
+            ));
+        }
+
         BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
     }
 
@@ -245,6 +272,10 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
+        if !document.state.belongs_to(source) {
+            return Vec::new();
+        }
+
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
             completer.complete(
                 source,
@@ -261,6 +292,10 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<SourceLocation> {
+        if !document.state.belongs_to(source) {
+            return Vec::new();
+        }
+
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.definition(
                 source,
@@ -278,6 +313,10 @@ where
         offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
+        if !document.state.belongs_to(source) {
+            return Vec::new();
+        }
+
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.references(
                 source,
@@ -304,4 +343,13 @@ where
             .as_ref()
             .map_or_else(Vec::new, |provider| provider(query))
     }
+}
+
+fn source_identity_diagnostic(source: &SourceFile, code: &str, component: &str) -> Diagnostic {
+    Diagnostic::error(
+        code,
+        format!("host {component} returned data for a different source snapshot"),
+        source,
+        Span::new(0, source.text.len()),
+    )
 }

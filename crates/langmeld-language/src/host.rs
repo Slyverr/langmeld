@@ -71,6 +71,7 @@ impl<T> AnalysisDocument<T> {
 /// Implementations own grammar, recovery, and tree shape. Langmeld does not
 /// infer editor operations from an arbitrary tree; hosts can implement the
 /// completion and navigation contracts for their own syntax and semantics.
+/// The returned document must retain the identity of the supplied source.
 pub trait LanguageParser {
     /// Host-owned syntax tree returned by this parser.
     type Tree;
@@ -84,6 +85,7 @@ pub trait LanguageParser {
 /// The output type and semantic policies belong to the host language. Simple
 /// languages can omit this stage, while analyzers can inspect partial parse
 /// trees and parse diagnostics when recovery produced useful syntax.
+/// The returned document must retain the identity of the supplied source.
 pub trait LanguageAnalyzer<P: LanguageParser> {
     /// Language-specific analysis result.
     type Analysis;

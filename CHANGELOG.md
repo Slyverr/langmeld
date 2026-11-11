@@ -22,6 +22,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Diagnose host parser or analyzer results tied to a different source snapshot
+  and suppress editor queries for those documents.
 - Require commas between function parameters in the declarative-functions
   example and reject trailing commas.
 
