@@ -148,6 +148,7 @@ fn init_normalizes_directory_names_into_valid_package_defaults() {
     assert!(manifest.contains("name = \"widget-language\""));
 }
 
+#[cfg(unix)]
 #[test]
 fn init_refuses_symlinked_output_directories_and_rolls_back_its_files() {
     let parent = TestDirectory::new();

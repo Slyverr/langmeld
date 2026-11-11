@@ -71,7 +71,6 @@ fn check_reports_definition_diagnostics_with_source_locations() {
     assert!(error.contains("LM-DEF-"));
 }
 
-#[cfg(unix)]
 #[test]
 fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
     let parent = TestDirectory::new();
