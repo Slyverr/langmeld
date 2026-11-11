@@ -246,7 +246,7 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
 
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
-        assert_eq!(document.source, source.identity());
+        assert_eq!(document.source_identity(), source.identity());
         assert_eq!(document.state.parsed.source_identity(), source.identity());
         assert_eq!(document.state.analysis.source_identity(), source.identity());
     }
@@ -273,7 +273,7 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
 
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
-        assert_eq!(document.source, source.identity());
+        assert_eq!(document.source_identity(), source.identity());
         assert_eq!(document.state.parsed.source_identity(), source.identity());
         assert_eq!(document.state.analysis.source_identity(), source.identity());
     }
@@ -299,7 +299,7 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
         .expect("parser identity failures still produce per-source documents");
 
     assert_eq!(documents.len(), sources.len());
-    assert_eq!(documents[0].source, source.identity());
+    assert_eq!(documents[0].source_identity(), source.identity());
     assert_eq!(
         documents[0].state.parsed.source_identity(),
         Some(other_identity)
@@ -310,7 +310,7 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-HOST-001")
     );
-    assert_eq!(documents[1].source, Some(other_identity));
+    assert_eq!(documents[1].source_identity(), Some(other_identity));
     assert_eq!(
         documents[1].state.parsed.source_identity(),
         Some(other_identity)

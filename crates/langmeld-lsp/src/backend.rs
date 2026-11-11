@@ -21,7 +21,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackendDocument<T> {
     /// Identity and revision analyzed by the backend, when database-managed.
-    pub source: Option<SourceIdentity>,
+    source: Option<SourceIdentity>,
     /// Host-owned parse tree, analysis state, or combined document data.
     pub state: T,
     /// Findings to publish for this document.
@@ -57,6 +57,12 @@ impl<T> BackendDocument<T> {
             state,
             diagnostics,
         }
+    }
+
+    /// Returns the identity and revision of the source snapshot this document belongs to.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.source
     }
 }
 

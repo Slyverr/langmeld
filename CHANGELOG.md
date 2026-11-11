@@ -9,10 +9,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Source snapshot names and text are now exposed through read-only accessors,
-  preserving the identity and revision associated with managed snapshots.
-- Parse and analysis results expose their source identity through a read-only
-  accessor so callers cannot detach results from the snapshot that produced them.
+- Source snapshots, parse and analysis results, and LSP backend documents expose
+  immutable source identities through read-only accessors.
 - Plain-text diagnostics now include their error, warning, or info severity.
 - The declarative starter and examples use severity-aware validity checks and
   report non-error findings without treating them as failures.

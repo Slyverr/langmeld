@@ -296,7 +296,10 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        if !document.state.belongs_to(document.source, source) {
+        if !document
+            .state
+            .belongs_to(document.source_identity(), source)
+        {
             return Vec::new();
         }
 
@@ -316,7 +319,10 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<SourceLocation> {
-        if !document.state.belongs_to(document.source, source) {
+        if !document
+            .state
+            .belongs_to(document.source_identity(), source)
+        {
             return Vec::new();
         }
 
@@ -337,7 +343,10 @@ where
         offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
-        if !document.state.belongs_to(document.source, source) {
+        if !document
+            .state
+            .belongs_to(document.source_identity(), source)
+        {
             return Vec::new();
         }
 

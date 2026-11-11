@@ -131,7 +131,9 @@ impl<B: LanguageBackend> ServerState<B> {
                 && analyses
                     .iter()
                     .zip(&entries)
-                    .all(|(analysis, (_, _, _, source))| analysis.source == source.identity())
+                    .all(|(analysis, (_, _, _, source))| {
+                        analysis.source_identity() == source.identity()
+                    })
         }) {
             for ((uri, source_id, version, source), analysis) in entries.into_iter().zip(analyses) {
                 let diagnostics = diagnostics_for(&source, &analysis, self.encoding);

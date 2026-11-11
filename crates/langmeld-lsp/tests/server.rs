@@ -1964,10 +1964,10 @@ impl LanguageBackend for InvalidWorkspaceBackend {
         Some(
             sources
                 .iter()
-                .map(|_| BackendDocument {
-                    source: None,
-                    state: (),
-                    diagnostics: Vec::new(),
+                .map(|source| {
+                    let detached_source = SourceFile::new(source.name(), source.text());
+
+                    BackendDocument::new(&detached_source, (), Vec::new())
                 })
                 .collect(),
         )

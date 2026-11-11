@@ -48,7 +48,7 @@ pub(crate) fn diagnostics_for<D>(
     document: &BackendDocument<D>,
     encoding: PositionEncoding,
 ) -> Vec<Diagnostic> {
-    if document.source != source.identity() {
+    if document.source_identity() != source.identity() {
         return Vec::new();
     }
     document
