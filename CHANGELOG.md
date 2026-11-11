@@ -10,8 +10,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Source snapshots, identities, locations, parser and analysis results, and
-  LSP source mappings and documents keep source associations immutable and
-  expose them through read-only accessors.
+  LSP source mappings and host document bundles keep source associations
+  immutable and expose them through read-only accessors.
 - Plain-text diagnostics now include their error, warning, or info severity.
 - The declarative starter and examples use severity-aware validity checks and
   report non-error findings without treating them as failures.

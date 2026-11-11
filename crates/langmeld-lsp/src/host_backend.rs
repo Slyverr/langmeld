@@ -19,18 +19,30 @@ type DocumentCloseHandler = dyn Fn(&SourceFile) + Send + Sync;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostDocument<Tree, Analysis> {
     /// Host-owned parse tree and parser diagnostics.
-    pub parsed: ParsedDocument<Tree>,
+    parsed: ParsedDocument<Tree>,
     /// Host-owned semantic result and diagnostics.
-    pub analysis: AnalysisDocument<Analysis>,
+    analysis: AnalysisDocument<Analysis>,
 }
 
 impl<Tree, Analysis> HostDocument<Tree, Analysis> {
+    /// Returns the parsed syntax tree and parser diagnostics.
+    #[must_use]
+    pub const fn parsed(&self) -> &ParsedDocument<Tree> {
+        &self.parsed
+    }
+
+    /// Returns the semantic result and analyzer diagnostics.
+    #[must_use]
+    pub const fn analysis(&self) -> &AnalysisDocument<Analysis> {
+        &self.analysis
+    }
+
     fn belongs_to(&self, document_source: Option<SourceIdentity>, source: &SourceFile) -> bool {
         let source_identity = source.identity();
 
         document_source == source_identity
-            && self.parsed.source_identity() == source_identity
-            && self.analysis.source_identity() == source_identity
+            && self.parsed().source_identity() == source_identity
+            && self.analysis().source_identity() == source_identity
     }
 }
 
@@ -306,8 +318,8 @@ where
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
             completer.complete(
                 source,
-                &document.state.parsed,
-                Some(&document.state.analysis),
+                document.state.parsed(),
+                Some(document.state.analysis()),
                 offset,
             )
         })
@@ -329,8 +341,8 @@ where
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.definition(
                 source,
-                &document.state.parsed,
-                Some(&document.state.analysis),
+                document.state.parsed(),
+                Some(document.state.analysis()),
                 offset,
             )
         })
@@ -353,8 +365,8 @@ where
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.references(
                 source,
-                &document.state.parsed,
-                Some(&document.state.analysis),
+                document.state.parsed(),
+                Some(document.state.analysis()),
                 offset,
                 include_declaration,
             )
