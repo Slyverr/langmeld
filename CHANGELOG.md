@@ -7,15 +7,17 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-11
+
 ### Added
 
-- `langmeld init` can optionally create project-specific `AGENTS.md`
-  instructions and a local Langmeld authoring skill.
-- Handler contexts can iterate repeated captures in source order and read each
-  captured source span.
-- The declarative parser now returns a lossless syntax tree alongside parsed
+- The declarative parser returns a lossless syntax tree alongside parsed
   constructs, preserving token, comment, whitespace, and unclassified-source
   spans for host tooling.
+- Handler contexts can iterate repeated captures in source order and read each
+  captured source span.
+- `langmeld init` can optionally create project-specific `AGENTS.md`
+  instructions and a local Langmeld authoring skill.
 
 ## [0.6.0] - 2026-11-11
 

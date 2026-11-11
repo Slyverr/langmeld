@@ -6,9 +6,9 @@ rust-version = "1.88"
 publish = false
 
 [dependencies]
-langmeld-core = "0.6.0"
-langmeld-expression = "0.6.0"
-langmeld-language = "0.6.0"
-langmeld-project = "0.6.0"
-langmeld-textmate = "0.6.0"
-langmeld-tree-sitter = "0.6.0"
+langmeld-core = "0.7.0"
+langmeld-expression = "0.7.0"
+langmeld-language = "0.7.0"
+langmeld-project = "0.7.0"
+langmeld-textmate = "0.7.0"
+langmeld-tree-sitter = "0.7.0"
