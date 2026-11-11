@@ -7,16 +7,7 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- `langmeld generate construct` now treats the construct name as a stable
-  semantic identity and accepts a separate starter spelling with `--literal`.
-- Interactive construct generation asks for the initial syntax spelling while
-  keeping the name-based default for noninteractive use.
-
-### Fixed
-
-- Preserve LF line endings in generated project files across operating systems.
+## [0.6.0] - 2026-11-11
 
 ### Added
 
@@ -34,8 +25,16 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - Host-resolved navigation and references across closed project files, with
   document-close callbacks for host-managed indexes.
 
+### Changed
+
+- `langmeld generate construct` now treats the construct name as a stable
+  semantic identity and accepts a separate starter spelling with `--literal`.
+- Interactive construct generation asks for the initial syntax spelling while
+  keeping the name-based default for noninteractive use.
+
 ### Fixed
 
+- Preserve LF line endings in generated project files across operating systems.
 - Use `language/main.langmeld` as the generated project's conventional root
   definition and keep initializer templates in separate files.
 - Cross-platform file-URI comparison and workspace lockfile package versions.
