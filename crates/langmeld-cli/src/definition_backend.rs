@@ -3,7 +3,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     error::Error,
     path::PathBuf,
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
 
 use langmeld_core::{SourceFile, SourceLocation};
@@ -26,7 +26,7 @@ pub(crate) struct ProjectDefinitionBackend {
     root_definition: String,
     resolver: OverlayDefinitionResolver,
     syntax_backend: LanguageDefinitionBackend,
-    definition_index: RwLock<Option<DefinitionIndex>>,
+    definition_index: RwLock<Option<Arc<DefinitionIndex>>>,
 }
 
 impl ProjectDefinitionBackend {
@@ -42,6 +42,13 @@ impl ProjectDefinitionBackend {
             syntax_backend: LanguageDefinitionBackend,
             definition_index: RwLock::new(None),
         })
+    }
+
+    fn current_definition_index(&self) -> Option<Arc<DefinitionIndex>> {
+        self.definition_index
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 }
 
@@ -87,11 +94,11 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .into_iter()
             .map(|(_, source)| source)
             .collect::<Vec<_>>();
+        let definition_index = Arc::new(DefinitionIndex::from_sources(&loaded_sources));
         *self
             .definition_index
             .write()
-            .expect("definition reference lock is not poisoned") =
-            Some(DefinitionIndex::from_sources(&loaded_sources));
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(definition_index);
         let loaded = resolver.loaded.into_inner();
 
         Some(
@@ -158,17 +165,13 @@ impl LanguageBackend for ProjectDefinitionBackend {
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        let definition_index = self
-            .definition_index
-            .read()
-            .expect("definition reference lock is not poisoned")
-            .clone();
+        let definition_index = self.current_definition_index();
         if let Some(completions) = complete_definition_field(
             &self.root,
             source,
             document.state(),
             offset,
-            definition_index.as_ref(),
+            definition_index.as_deref(),
         ) {
             return completions;
         }
@@ -184,10 +187,8 @@ impl LanguageBackend for ProjectDefinitionBackend {
         if self.source_key(source).is_none() {
             return Vec::new();
         }
-        self.definition_index
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
+        self.current_definition_index()
+            .as_deref()
             .map_or_else(Vec::new, |index| {
                 index.definitions_at(source, document.state(), offset)
             })
@@ -203,10 +204,8 @@ impl LanguageBackend for ProjectDefinitionBackend {
         if self.source_key(source).is_none() {
             return Vec::new();
         }
-        self.definition_index
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
+        self.current_definition_index()
+            .as_deref()
             .map_or_else(Vec::new, |index| {
                 index.references_at(source, document.state(), offset, include_declaration)
             })

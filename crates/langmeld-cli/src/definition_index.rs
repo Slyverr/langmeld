@@ -4,7 +4,7 @@ use langmeld_language::{
     language_definition_grammar, parse,
 };
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub(crate) struct DefinitionIndex {
     constructs: Vec<String>,
     categories: Vec<String>,
