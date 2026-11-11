@@ -55,6 +55,23 @@ impl ConstructHandler<Vec<String>> for DispatchChildren {
     }
 }
 
+struct DispatchProgram;
+
+impl ConstructHandler<Vec<String>> for DispatchProgram {
+    const CONSTRUCT: &'static str = "program";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<String>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        context.state_mut().push("program start".to_owned());
+        let control = context.dispatch_children()?;
+        context.state_mut().push("program end".to_owned());
+
+        Ok(control)
+    }
+}
+
 fn construct(name: &str, span: Span, children: Vec<ParsedConstruct>) -> ParsedConstruct {
     ParsedConstruct {
         name: name.to_owned(),
@@ -167,6 +184,37 @@ fn dispatches_nested_children_when_the_current_handler_requests_it()
         .expect("nested handlers should process their children");
 
     assert_eq!(state, ["child"]);
+
+    Ok(())
+}
+
+#[test]
+fn dispatches_a_root_construct_handler_and_its_children() -> Result<(), Box<dyn std::error::Error>>
+{
+    let source = SourceFile::new("main.sample", "program record child");
+    let record = ParsedConstruct {
+        name: "record".to_owned(),
+        variant: 0,
+        span: Span::new(8, 20),
+        fields: vec![CapturedField {
+            name: "value".to_owned(),
+            value: CapturedValue::Identifier("child".to_owned()),
+            span: Span::new(15, 20),
+        }],
+        children: Vec::new(),
+    };
+    let root = construct("program", Span::new(0, 20), vec![record]);
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+    handlers.register(DispatchProgram)?;
+    let mut state = Vec::new();
+
+    let control = handlers
+        .dispatch_construct(&source, &root, &mut state)
+        .expect("root handler should dispatch its children");
+
+    assert_eq!(control, HandlerControl::Continue);
+    assert_eq!(state, ["program start", "child", "program end"]);
 
     Ok(())
 }

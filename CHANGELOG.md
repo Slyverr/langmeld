@@ -35,6 +35,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Construct handler registries can dispatch one selected construct directly,
+  enabling optional behavior for root and module constructs.
 - Project-definition LSP mode supports go-to-definition and references for
   construct and category names across imported `.langmeld` files.
 - Shared error-severity detection and explicit validity checks for generic,

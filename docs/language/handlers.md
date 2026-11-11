@@ -128,6 +128,12 @@ walk nested children automatically. A handler calls `context.dispatch_children()
 when its semantics require it—for example, after a condition succeeds or on
 each loop iteration.
 
+If a root or module construct has behavior of its own, register its handler and
+start with `registry.dispatch_construct(source, root, &mut state)`. The handler
+can call `context.dispatch_children()` when it is time to process the body.
+This keeps the common structural-root path simple while allowing explicit
+root-level semantics.
+
 Handlers can use a host-defined signal type to propagate `return`, `break`, or
 other control outcomes. The default signal type is `()`, so a simple language
 can use `HandlerControl::Continue` without defining control flow. Langmeld

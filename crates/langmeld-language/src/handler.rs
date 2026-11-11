@@ -130,6 +130,8 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ///
     /// The block itself is not dispatched. This lets a language use its root
     /// construct as a structural container without requiring a user handler.
+    /// Use [`Self::dispatch_construct`] separately when the block has behavior
+    /// of its own.
     pub fn dispatch_block(
         &self,
         source: &SourceFile,
@@ -137,7 +139,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         for construct in &block.children {
-            match self.dispatch_one(source, construct, state)? {
+            match self.dispatch_construct(source, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
             }
@@ -146,7 +148,13 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         Ok(HandlerControl::Continue)
     }
 
-    fn dispatch_one(
+    /// Dispatches exactly one construct to its registered handler.
+    ///
+    /// This does not visit the construct's children automatically. The handler
+    /// can call [`ConstructContext::dispatch_children`] when its semantics
+    /// require nested processing. Use this method when a root or module
+    /// construct has behavior of its own.
+    pub fn dispatch_construct(
         &self,
         source: &SourceFile,
         construct: &ParsedConstruct,
