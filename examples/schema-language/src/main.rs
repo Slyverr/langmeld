@@ -10,11 +10,14 @@ fn main() {
     let parsed = parse_schema(&source);
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
 
-    for diagnostic in parsed.diagnostics.iter().chain(&analysis.diagnostics) {
+    for diagnostic in parsed.diagnostics().iter().chain(analysis.diagnostics()) {
         eprintln!("{}: {}", diagnostic.code, diagnostic.message);
     }
 
     if parsed.is_valid() && analysis.is_valid() {
-        println!("valid schema: {} record(s)", analysis.result.symbols.len());
+        println!(
+            "valid schema: {} record(s)",
+            analysis.result().symbols.len()
+        );
     }
 }

@@ -1474,8 +1474,8 @@ impl LanguageCompleter<DiagnosticParser> for DiagnosticCompleter {
         analysis: Option<&AnalysisDocument<Self::Analysis>>,
         _offset: usize,
     ) -> Vec<CompletionCandidate> {
-        assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text().len());
+        assert!(*parsed.tree());
+        assert_eq!(*analysis.unwrap().result(), source.text().len());
         vec![CompletionCandidate::new(
             "suggestion",
             Span::new(7, source.text().len()),
@@ -1495,8 +1495,8 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
         analysis: Option<&AnalysisDocument<Self::Analysis>>,
         _offset: usize,
     ) -> Vec<SourceLocation> {
-        assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text().len());
+        assert!(*parsed.tree());
+        assert_eq!(*analysis.unwrap().result(), source.text().len());
         vec![SourceLocation::new(
             source,
             Span::new(7, source.text().len()),
@@ -1511,8 +1511,8 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
         _offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
-        assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text().len());
+        assert!(*parsed.tree());
+        assert_eq!(*analysis.unwrap().result(), source.text().len());
         include_declaration
             .then(|| SourceLocation::new(source, Span::new(7, source.text().len())))
             .into_iter()
@@ -1826,7 +1826,7 @@ impl LanguageWorkspaceAnalyzer<DiagnosticParser, WorkspaceDiagnosticAnalyzer>
         documents
             .iter()
             .map(|(source, parsed)| {
-                let mut diagnostics = analyzer.analyze(source, parsed).diagnostics;
+                let mut diagnostics = analyzer.analyze(source, parsed).diagnostics().to_vec();
                 diagnostics.push(Diagnostic::error(
                     format!("WORKSPACE-{count}"),
                     "workspace document count",

@@ -21,7 +21,7 @@ impl LanguageAnalyzer<Parser> for Analyzer {
         source: &SourceFile,
         parsed: &ParsedDocument<bool>,
     ) -> AnalysisDocument<Self::Analysis> {
-        let diagnostics = if parsed.tree {
+        let diagnostics = if *parsed.tree() {
             Vec::new()
         } else {
             vec![Diagnostic::error(
@@ -31,7 +31,7 @@ impl LanguageAnalyzer<Parser> for Analyzer {
                 Span::new(0, source.text().len()),
             )]
         };
-        AnalysisDocument::new(source, usize::from(parsed.tree), diagnostics)
+        AnalysisDocument::new(source, usize::from(*parsed.tree()), diagnostics)
     }
 }
 
@@ -42,7 +42,7 @@ fn analyzer_can_return_a_host_defined_result_for_a_parsed_tree() {
 
     let analysis = Analyzer.analyze(&source, &parsed);
 
-    assert_eq!(analysis.result, 1);
+    assert_eq!(*analysis.result(), 1);
     assert_eq!(analysis.source_identity(), parsed.source_identity());
     assert!(analysis.is_valid());
 }
@@ -54,6 +54,25 @@ fn analysis_document_keeps_semantic_diagnostics() {
 
     let analysis = Analyzer.analyze(&source, &parsed);
 
-    assert_eq!(analysis.diagnostics[0].code, "TEST-SEM-001");
+    assert_eq!(analysis.diagnostics()[0].code, "TEST-SEM-001");
     assert!(!analysis.is_valid());
+}
+
+#[test]
+fn analysis_document_can_be_consumed_without_separating_its_source_identity() {
+    let source = SourceFile::new("main.test", "disabled");
+    let source_identity = source.identity();
+    let diagnostic = Diagnostic::error(
+        "TEST-SEM-002",
+        "example finding",
+        &source,
+        Span::new(0, source.text().len()),
+    );
+    let analysis = AnalysisDocument::new(&source, 7, vec![diagnostic]);
+
+    let (analysis_source, result, diagnostics) = analysis.into_parts();
+
+    assert_eq!(analysis_source, source_identity);
+    assert_eq!(result, 7);
+    assert_eq!(diagnostics[0].code, "TEST-SEM-002");
 }

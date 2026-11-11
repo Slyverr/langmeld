@@ -137,9 +137,9 @@ where
         let analysis = self.analyzer.analyze(source, &parsed);
 
         let mut diagnostics = parsed
-            .diagnostics
+            .diagnostics()
             .iter()
-            .chain(&analysis.diagnostics)
+            .chain(analysis.diagnostics())
             .cloned()
             .collect::<Vec<_>>();
         if parsed.source_identity() != source.identity() {
@@ -281,9 +281,9 @@ where
                 .zip(analyses)
                 .map(|((source, parsed), analysis)| {
                     let diagnostics = parsed
-                        .diagnostics
+                        .diagnostics()
                         .iter()
-                        .chain(&analysis.diagnostics)
+                        .chain(analysis.diagnostics())
                         .cloned()
                         .collect();
                     BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)

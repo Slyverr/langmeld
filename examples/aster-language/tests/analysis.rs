@@ -84,22 +84,26 @@ fn resolves_forward_calls_and_scoped_local_references() {
     );
 
     let parsed = parse_program(&source);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
 
-    assert!(analysis.is_valid(), "{:?}", analysis.diagnostics);
+    assert!(analysis.is_valid(), "{:?}", analysis.diagnostics());
     let call = analysis
-        .result
+        .result()
         .references
         .iter()
         .find(|reference| reference.name == "twice")
         .expect("forward function reference");
     assert_eq!(
-        analysis.result.symbols[call.target.expect("resolved function")].kind,
+        analysis.result().symbols[call.target.expect("resolved function")].kind,
         SymbolKind::Function
     );
     let values = analysis
-        .result
+        .result()
         .symbols
         .iter()
         .filter(|symbol| symbol.name == "value")
@@ -108,7 +112,7 @@ fn resolves_forward_calls_and_scoped_local_references() {
     assert_ne!(values[0].scope, values[1].scope);
     assert!(
         analysis
-            .result
+            .result()
             .references
             .iter()
             .all(|reference| reference.target.is_some())
@@ -126,25 +130,25 @@ fn reports_unresolved_names_and_same_scope_duplicates() {
 
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-002")
     );
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-011")
     );
     assert!(
         analysis
-            .result
+            .result()
             .references
             .iter()
             .any(|reference| { reference.name == "missing" && reference.target.is_none() })
     );
     let later_references = analysis
-        .result
+        .result()
         .references
         .iter()
         .filter(|reference| reference.name == "later")
@@ -162,24 +166,28 @@ fn checks_call_arity_argument_types_and_return_types() {
         fn main() -> bool { return add("wrong") == 1; }"#,
     );
     let parsed = parse_program(&source);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     let analysis = analyze(&source, &parsed);
 
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-009")
     );
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-010")
     );
     assert!(
         !analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-003")
     );
@@ -190,12 +198,16 @@ fn parses_nested_blocks_as_distinct_ast_nodes() {
     let source = SourceFile::new("blocks.aster", "fn main() -> i32 { { return 1; } }");
     let parsed = parse_program(&source);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert!(matches!(
-        parsed.tree.functions[0].body[0],
+        parsed.tree().functions[0].body[0],
         Statement::Block { .. }
     ));
-    assert_eq!(parsed.tree.functions[0].return_type, ValueType::I32);
+    assert_eq!(parsed.tree().functions[0].return_type, ValueType::I32);
 }
 
 #[test]
@@ -222,20 +234,20 @@ fn reports_values_that_shadow_functions_when_called() {
     let analysis = analyze(&source, &parsed);
 
     let reference = analysis
-        .result
+        .result()
         .references
         .iter()
         .find(|reference| {
             reference.name == "value"
                 && reference.target.is_some_and(|target| {
-                    analysis.result.symbols[target].kind == SymbolKind::Variable
+                    analysis.result().symbols[target].kind == SymbolKind::Variable
                 })
         })
         .expect("call through the shadowing local");
     assert!(reference.target.is_some());
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-007")
     );
@@ -251,18 +263,18 @@ fn keeps_function_navigation_for_a_function_used_as_a_value() {
     let analysis = analyze(&source, &parsed);
 
     let reference = analysis
-        .result
+        .result()
         .references
         .iter()
         .find(|reference| reference.name == "value")
         .expect("function name reference");
     assert_eq!(
-        analysis.result.symbols[reference.target.expect("declaration target")].kind,
+        analysis.result().symbols[reference.target.expect("declaration target")].kind,
         SymbolKind::Function
     );
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-002")
     );
@@ -279,7 +291,7 @@ fn requires_functions_to_return_in_the_current_language_subset() {
 
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "ASTER-SEM-012")
     );
@@ -294,10 +306,10 @@ fn recovers_after_a_malformed_function_and_parses_later_declarations() {
 
     let parsed = parse_program(&source);
 
-    assert!(!parsed.diagnostics.is_empty());
+    assert!(!parsed.diagnostics().is_empty());
     assert!(
         parsed
-            .tree
+            .tree()
             .functions
             .iter()
             .any(|function| function.name == "good")
@@ -316,7 +328,7 @@ fn bounds_nested_block_parsing() {
 
     assert!(
         parsed
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "ASTER-PARSE-014")
     );

@@ -13,6 +13,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   source snapshots together behind read-only accessors and `into_parts()`.
 - LSP backend documents keep source identity, host state, and diagnostics
   associated through read-only accessors and `into_parts()`.
+- Host parser and analysis documents keep their source identity, payload, and
+  diagnostics associated through read-only accessors and `into_parts()`.
 - Source snapshots, identities, locations, parser and analysis results,
   definition sources, and LSP source mappings and host document bundles keep
   source associations immutable and expose them through read-only accessors.

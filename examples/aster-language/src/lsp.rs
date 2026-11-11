@@ -29,9 +29,9 @@ impl LanguageBackend for AsterBackend {
         let analysis = AsterAnalyzer.analyze(source, &parsed);
 
         let diagnostics = parsed
-            .diagnostics
+            .diagnostics()
             .iter()
-            .chain(&analysis.diagnostics)
+            .chain(analysis.diagnostics())
             .cloned()
             .collect::<Vec<Diagnostic>>();
         BackendDocument::new(source, AsterDocument { parsed, analysis }, diagnostics)
@@ -57,7 +57,7 @@ impl LanguageBackend for AsterBackend {
         _source: &SourceFile,
         document: &BackendDocument<Self::Document>,
     ) -> Vec<SemanticToken> {
-        let analysis = &document.state().analysis.result;
+        let analysis = document.state().analysis.result();
         let mut tokens = analysis
             .symbols
             .iter()
@@ -129,11 +129,11 @@ impl LanguageBackend for AsterBackend {
         _source: &SourceFile,
         document: &BackendDocument<Self::Document>,
     ) -> Vec<DocumentSymbolInfo> {
-        let analysis = &document.state().analysis.result;
+        let analysis = document.state().analysis.result();
         document
             .state()
             .parsed
-            .tree
+            .tree()
             .functions
             .iter()
             .map(|function| {

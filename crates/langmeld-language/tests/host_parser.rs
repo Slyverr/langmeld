@@ -56,9 +56,9 @@ fn host_parser_keeps_its_own_ast_and_source_identity() {
     let parsed = AssignmentParser.parse(&source);
 
     assert!(parsed.is_valid());
-    assert_eq!(parsed.tree.len(), 2);
-    assert_eq!(parsed.tree[0].name, "width");
-    assert_eq!(parsed.tree[1].value, 10);
+    assert_eq!(parsed.tree().len(), 2);
+    assert_eq!(parsed.tree()[0].name, "width");
+    assert_eq!(parsed.tree()[1].value, 10);
     assert_eq!(parsed.source_identity(), source.identity());
 }
 
@@ -69,7 +69,26 @@ fn host_parser_can_return_recovered_tree_and_diagnostics_together() {
     let parsed = AssignmentParser.parse(&source);
 
     assert!(!parsed.is_valid());
-    assert_eq!(parsed.tree.len(), 1);
-    assert_eq!(parsed.diagnostics[0].code, "HOST-PARSE-002");
-    assert!(parsed.diagnostics[0].location.is_some());
+    assert_eq!(parsed.tree().len(), 1);
+    assert_eq!(parsed.diagnostics()[0].code, "HOST-PARSE-002");
+    assert!(parsed.diagnostics()[0].location.is_some());
+}
+
+#[test]
+fn parsed_document_can_be_consumed_without_separating_its_source_identity() {
+    let source = SourceFile::new("assignments", "width = 20");
+    let source_identity = source.identity();
+    let diagnostic = Diagnostic::error(
+        "HOST-PARSE-003",
+        "example finding",
+        &source,
+        Span::new(0, source.text().len()),
+    );
+    let parsed = ParsedDocument::new(&source, vec!["width"], vec![diagnostic]);
+
+    let (parsed_source, tree, diagnostics) = parsed.into_parts();
+
+    assert_eq!(parsed_source, source_identity);
+    assert_eq!(tree, ["width"]);
+    assert_eq!(diagnostics[0].code, "HOST-PARSE-003");
 }

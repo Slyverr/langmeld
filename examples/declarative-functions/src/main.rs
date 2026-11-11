@@ -47,7 +47,7 @@ fn run() -> Result<(), String> {
 
     println!(
         "Valid FunctionFlow program: {} function(s) declared.",
-        analysis.parsed.tree.functions.len()
+        analysis.parsed.tree().functions.len()
     );
 
     Ok(())

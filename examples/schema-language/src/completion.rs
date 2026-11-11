@@ -28,7 +28,7 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
             return Vec::new();
         }
 
-        let Some(reference) = analysis.result.references.iter().find(|reference| {
+        let Some(reference) = analysis.result().references.iter().find(|reference| {
             is_current_source(&reference.location, source)
                 && reference.span.start <= offset
                 && offset <= reference.span.end
@@ -40,7 +40,7 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
         };
 
         analysis
-            .result
+            .result()
             .symbols
             .iter()
             .filter(|symbol| symbol.name.starts_with(prefix))

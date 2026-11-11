@@ -10,9 +10,9 @@ pub struct ParsedDocument<T> {
     /// Identity and revision of the analyzed source, if database-managed.
     source: Option<SourceIdentity>,
     /// Parser-owned syntax tree or intermediate representation.
-    pub tree: T,
+    tree: T,
     /// Lexical and syntactic findings associated with the parse.
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl<T> ParsedDocument<T> {
@@ -32,6 +32,24 @@ impl<T> ParsedDocument<T> {
         self.source
     }
 
+    /// Returns the parser-owned syntax tree or intermediate representation.
+    #[must_use]
+    pub const fn tree(&self) -> &T {
+        &self.tree
+    }
+
+    /// Returns the lexical and syntactic findings associated with this parse.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
+    /// Consumes the parse and returns its source identity, tree, and findings.
+    #[must_use]
+    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+        (self.source, self.tree, self.diagnostics)
+    }
+
     /// Returns whether parsing produced no error diagnostics.
     #[must_use]
     pub fn is_valid(&self) -> bool {
@@ -45,9 +63,9 @@ pub struct AnalysisDocument<T> {
     /// Identity and revision of the analyzed source, if database-managed.
     source: Option<SourceIdentity>,
     /// Language-specific semantic result, such as symbols or typed facts.
-    pub result: T,
+    result: T,
     /// Semantic findings associated with the source snapshot.
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl<T> AnalysisDocument<T> {
@@ -65,6 +83,24 @@ impl<T> AnalysisDocument<T> {
     #[must_use]
     pub const fn source_identity(&self) -> Option<SourceIdentity> {
         self.source
+    }
+
+    /// Returns the language-specific semantic result.
+    #[must_use]
+    pub const fn result(&self) -> &T {
+        &self.result
+    }
+
+    /// Returns the semantic findings associated with this source snapshot.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
+    /// Consumes the analysis and returns its source identity, result, and findings.
+    #[must_use]
+    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+        (self.source, self.result, self.diagnostics)
     }
 
     /// Returns whether analysis produced no error diagnostics.

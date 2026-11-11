@@ -11,9 +11,13 @@ fn parser_builds_nested_instructions_with_source_spans() {
     let source = SourceFile::new("nested.bf", "+[>+<-]");
     let parsed = BrainfuckParser.parse(&source);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.tree.instructions.len(), 2);
-    let loop_instruction = &parsed.tree.instructions[1];
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.tree().instructions.len(), 2);
+    let loop_instruction = &parsed.tree().instructions[1];
     assert_eq!(
         &source.text()[loop_instruction.span.start..loop_instruction.span.end],
         "[>+<-]"

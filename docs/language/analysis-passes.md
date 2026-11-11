@@ -41,7 +41,7 @@ impl LanguagePass<Program, LanguageFacts> for CollectDeclarations {
 `LanguagePass` is generic over the parser's tree and host state. A custom
 `LanguageParser` can use the same lifecycle as the built-in parser. Passes may
 share typed facts through the host-owned state, and each pass can inspect
-`parsed.diagnostics` to decide how to handle a partial tree.
+`parsed.diagnostics()` to decide how to handle a partial tree.
 
 ## Diagnostics and ordering
 
@@ -72,8 +72,12 @@ whether to stop a later stage. When displaying findings, format the complete
 diagnostic list so warnings and information are not lost:
 
 ```rust,ignore
-let diagnostics = parsed.diagnostics.iter().chain(&analysis.diagnostics);
-let diagnostics = diagnostics.cloned().collect::<Vec<_>>();
+let diagnostics = parsed
+    .diagnostics()
+    .iter()
+    .chain(analysis.diagnostics())
+    .cloned()
+    .collect::<Vec<_>>();
 
 if has_errors(&diagnostics) {
     // Report the findings and stop a pipeline that requires valid input.

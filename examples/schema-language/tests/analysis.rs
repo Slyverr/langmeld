@@ -156,16 +156,20 @@ fn resolves_forward_and_recursive_record_types() {
         "record User { manager: Manager, id: int } record Manager { user: User }",
     );
     let parsed = parse_schema(&source);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
 
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
 
-    assert!(analysis.is_valid(), "{:?}", analysis.diagnostics);
-    assert_eq!(analysis.result.symbols.len(), 2);
-    assert_eq!(analysis.result.references.len(), 2);
+    assert!(analysis.is_valid(), "{:?}", analysis.diagnostics());
+    assert_eq!(analysis.result().symbols.len(), 2);
+    assert_eq!(analysis.result().references.len(), 2);
     assert!(
         analysis
-            .result
+            .result()
             .references
             .iter()
             .all(|reference| reference.target.is_some())
@@ -179,29 +183,29 @@ fn reports_duplicate_records_fields_and_unknown_types() {
         "record User { id: int, id: string, owner: Missing } record User {}",
     );
     let parsed = parse_schema(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, parsed.tree());
 
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "SCHEMA-SEM-001")
     );
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "SCHEMA-SEM-002")
     );
     assert!(
         analysis
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "SCHEMA-SEM-003")
     );
     assert!(
         analysis
-            .result
+            .result()
             .references
             .iter()
             .any(|reference| { reference.name == "Missing" && reference.target.is_none() })
@@ -217,10 +221,10 @@ fn parser_recovers_to_later_record_declarations() {
 
     let parsed = parse_schema(&source);
 
-    assert!(!parsed.diagnostics.is_empty());
+    assert!(!parsed.diagnostics().is_empty());
     assert!(
         parsed
-            .tree
+            .tree()
             .records
             .iter()
             .any(|record| record.name == "Good")
@@ -236,10 +240,10 @@ fn parser_preserves_the_next_record_after_a_missing_field_type() {
 
     let parsed = parse_schema(&source);
 
-    assert!(!parsed.diagnostics.is_empty());
+    assert!(!parsed.diagnostics().is_empty());
     assert!(
         parsed
-            .tree
+            .tree()
             .records
             .iter()
             .any(|record| record.name == "Good")
@@ -256,7 +260,7 @@ fn analysis_retains_source_identity() {
     let parsed = parse_schema(source);
 
     assert_eq!(
-        analyze(source, &parsed.tree).source_identity(),
+        analyze(source, parsed.tree()).source_identity(),
         parsed.source_identity()
     );
 }

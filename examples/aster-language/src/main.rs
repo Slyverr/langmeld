@@ -20,9 +20,10 @@ fn run() -> Result<(), String> {
     let parsed = parse_program(&source);
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
     let diagnostics = parsed
-        .diagnostics
-        .into_iter()
-        .chain(analysis.diagnostics)
+        .diagnostics()
+        .iter()
+        .chain(analysis.diagnostics())
+        .cloned()
         .collect::<Vec<_>>();
 
     if !diagnostics.is_empty() {
@@ -37,10 +38,10 @@ fn run() -> Result<(), String> {
 
     println!(
         "Aster: {} function(s), {} symbol(s), {} resolved reference(s)",
-        parsed.tree.functions.len(),
-        analysis.result.symbols.len(),
+        parsed.tree().functions.len(),
+        analysis.result().symbols.len(),
         analysis
-            .result
+            .result()
             .references
             .iter()
             .filter(|reference| reference.target.is_some())

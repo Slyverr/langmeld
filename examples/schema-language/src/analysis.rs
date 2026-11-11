@@ -158,7 +158,7 @@ impl LanguageAnalyzer<SchemaParser> for SchemaAnalyzer {
         source: &SourceFile,
         parsed: &ParsedDocument<Schema>,
     ) -> AnalysisDocument<Self::Analysis> {
-        analyze(source, &parsed.tree)
+        analyze(source, parsed.tree())
     }
 }
 
@@ -174,7 +174,7 @@ impl LanguageWorkspaceAnalyzer<SchemaParser, SchemaAnalyzer> for SchemaWorkspace
     ) -> Vec<AnalysisDocument<Analysis>> {
         let sources = documents
             .iter()
-            .map(|(source, parsed)| (*source, &parsed.tree))
+            .map(|(source, parsed)| (*source, parsed.tree()))
             .collect::<Vec<_>>();
         analyze_sources(&sources)
     }

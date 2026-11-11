@@ -44,8 +44,8 @@ fn runs_passes_in_host_selected_order_and_shares_state() {
 
     let analysis = context.finish();
 
-    assert_eq!(analysis.result, ["declare", "resolve"]);
-    assert!(analysis.diagnostics.is_empty());
+    assert_eq!(analysis.result().as_slice(), &["declare", "resolve"]);
+    assert!(analysis.diagnostics().is_empty());
     assert_eq!(analysis.source_identity(), source.identity());
 }
 
@@ -62,11 +62,11 @@ fn later_passes_run_and_diagnostics_keep_their_source_spans() {
 
     let analysis = context.finish();
 
-    assert_eq!(analysis.result, ["continue"]);
-    assert_eq!(analysis.diagnostics.len(), 1);
-    assert_eq!(analysis.diagnostics[0].code, "TEST-001");
+    assert_eq!(analysis.result().as_slice(), &["continue"]);
+    assert_eq!(analysis.diagnostics().len(), 1);
+    assert_eq!(analysis.diagnostics()[0].code, "TEST-001");
     assert_eq!(
-        analysis.diagnostics[0]
+        analysis.diagnostics()[0]
             .location
             .as_ref()
             .expect("finding should retain its source span")

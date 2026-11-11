@@ -84,8 +84,8 @@ pub fn analyze(
     context.run_pass(&DeclareFunctions);
     context.run_pass(&AnalyzeFunctionBodies);
 
-    let analysis = context.finish();
-    AnalysisDocument::new(source, analysis.result.analysis, analysis.diagnostics)
+    let (_, analyzer, diagnostics) = context.finish().into_parts();
+    AnalysisDocument::new(source, analyzer.analysis, diagnostics)
 }
 
 /// Analyzer for Aster's scope and type rules.
@@ -526,7 +526,7 @@ impl<'a> LanguagePass<Program, Analyzer<'a>> for DeclareFunctions {
         parsed: &ParsedDocument<Program>,
         state: &mut Analyzer<'a>,
     ) -> Vec<Diagnostic> {
-        state.declare_functions(&parsed.tree);
+        state.declare_functions(parsed.tree());
 
         std::mem::take(&mut state.diagnostics)
     }
@@ -541,7 +541,7 @@ impl<'a> LanguagePass<Program, Analyzer<'a>> for AnalyzeFunctionBodies {
         parsed: &ParsedDocument<Program>,
         state: &mut Analyzer<'a>,
     ) -> Vec<Diagnostic> {
-        for function in &parsed.tree.functions {
+        for function in &parsed.tree().functions {
             state.analyze_function(function);
         }
 

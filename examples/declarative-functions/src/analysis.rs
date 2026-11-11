@@ -39,7 +39,7 @@ impl LanguagePass<Program, FunctionFacts> for CollectSignatures {
     ) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
-        for function in &parsed.tree.functions {
+        for function in &parsed.tree().functions {
             let signature = FunctionSignature {
                 parameter_types: function
                     .parameters
@@ -77,7 +77,7 @@ impl LanguagePass<Program, FunctionFacts> for ResolveCalls {
     ) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
-        for function in &parsed.tree.functions {
+        for function in &parsed.tree().functions {
             for call in &function.calls {
                 let Some(signature) = facts.signatures.get(&call.name) else {
                     diagnostics.push(Diagnostic::error(

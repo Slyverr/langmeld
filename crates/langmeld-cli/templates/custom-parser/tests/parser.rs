@@ -7,8 +7,8 @@ fn parses_a_valid_say_statement() {
     let source = SourceFile::new("valid.say", "say hello\n");
     let parsed = SayParser.parse(&source);
 
-    assert!(parsed.is_valid(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.tree, ["hello"]);
+    assert!(parsed.is_valid(), "{:?}", parsed.diagnostics());
+    assert_eq!(parsed.tree(), ["hello"]);
 }
 
 #[test]
@@ -16,7 +16,7 @@ fn reports_byte_correct_diagnostics_after_crlf_lines() {
     let source = SourceFile::new("example.say", "say ok\r\ninvalid\r\n");
     let parsed = SayParser.parse(&source);
     let diagnostic = parsed
-        .diagnostics
+        .diagnostics()
         .first()
         .expect("invalid line should be diagnosed");
     let location = diagnostic

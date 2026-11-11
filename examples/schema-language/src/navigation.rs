@@ -20,10 +20,10 @@ impl LanguageNavigator<SchemaParser> for SchemaNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, source, offset) else {
+        let Some(symbol) = selected_symbol(analysis.result(), source, offset) else {
             return Vec::new();
         };
-        vec![analysis.result.symbols[symbol].location.clone()]
+        vec![analysis.result().symbols[symbol].location.clone()]
     }
 
     fn references(
@@ -37,18 +37,18 @@ impl LanguageNavigator<SchemaParser> for SchemaNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, source, offset) else {
+        let Some(symbol) = selected_symbol(analysis.result(), source, offset) else {
             return Vec::new();
         };
         let mut locations = analysis
-            .result
+            .result()
             .references
             .iter()
             .filter(|reference| reference.target == Some(symbol))
             .map(|reference| reference.location.clone())
             .collect::<Vec<_>>();
         if include_declaration {
-            locations.push(analysis.result.symbols[symbol].location.clone());
+            locations.push(analysis.result().symbols[symbol].location.clone());
         }
         locations
     }

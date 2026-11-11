@@ -34,7 +34,7 @@ fn run() -> Result<(), String> {
 
     if !parsed.is_valid() {
         let diagnostics = parsed
-            .diagnostics
+            .diagnostics()
             .iter()
             .map(|diagnostic| {
                 let location = diagnostic.location.as_ref();
@@ -54,8 +54,8 @@ fn run() -> Result<(), String> {
         return Err(diagnostics);
     }
 
-    let count = parsed.tree.len();
-    for message in parsed.tree {
+    let count = parsed.tree().len();
+    for message in parsed.tree() {
         println!("{message}");
     }
     println!("Parsed {count} statement(s) for {LANGUAGE_NAME}.");

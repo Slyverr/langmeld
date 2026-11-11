@@ -45,7 +45,7 @@ pub fn analyze(source: &SourceFile) -> Result<FunctionAnalysis, String> {
 }
 
 pub fn diagnostics(analysis: &FunctionAnalysis) -> Vec<Diagnostic> {
-    let mut diagnostics = analysis.parsed.diagnostics.clone();
-    diagnostics.extend(analysis.semantic.diagnostics.iter().cloned());
+    let mut diagnostics = analysis.parsed.diagnostics().to_vec();
+    diagnostics.extend(analysis.semantic.diagnostics().iter().cloned());
     diagnostics
 }

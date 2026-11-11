@@ -26,9 +26,9 @@ impl LanguageCompleter<Parser> for Completer {
         analysis: Option<&AnalysisDocument<usize>>,
         offset: usize,
     ) -> Vec<CompletionCandidate> {
-        assert_eq!(parsed.tree, source.text());
+        assert_eq!(parsed.tree(), source.text());
         assert!(offset <= source.text().len());
-        assert_eq!(analysis.map(|document| document.result), Some(3));
+        assert_eq!(analysis.map(|document| *document.result()), Some(3));
         vec![
             CompletionCandidate::new("suggestion", Span::new(0, 0)).with_detail("candidate detail"),
         ]

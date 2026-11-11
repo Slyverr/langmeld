@@ -12,18 +12,21 @@ fn accepts_parameterized_functions_and_forward_calls() {
     assert!(
         analysis.parsed.is_valid(),
         "{:?}",
-        analysis.parsed.diagnostics
+        analysis.parsed.diagnostics()
     );
     assert!(
         analysis.semantic.is_valid(),
         "{:?}",
-        analysis.semantic.diagnostics
+        analysis.semantic.diagnostics()
     );
-    assert_eq!(analysis.parsed.tree.functions.len(), 2);
-    assert_eq!(analysis.parsed.tree.functions[1].parameters.len(), 2);
-    assert_eq!(analysis.parsed.tree.functions[1].parameters[0].name, "left");
+    assert_eq!(analysis.parsed.tree().functions.len(), 2);
+    assert_eq!(analysis.parsed.tree().functions[1].parameters.len(), 2);
     assert_eq!(
-        analysis.parsed.tree.functions[1].parameters[1].name,
+        analysis.parsed.tree().functions[1].parameters[0].name,
+        "left"
+    );
+    assert_eq!(
+        analysis.parsed.tree().functions[1].parameters[1].name,
         "right"
     );
 }

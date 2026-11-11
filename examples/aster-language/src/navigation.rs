@@ -20,12 +20,12 @@ impl LanguageNavigator<AsterParser> for AsterNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, offset) else {
+        let Some(symbol) = selected_symbol(analysis.result(), offset) else {
             return Vec::new();
         };
         vec![location(
             source,
-            analysis.result.symbols[symbol].declaration,
+            analysis.result().symbols[symbol].declaration,
         )]
     }
 
@@ -40,11 +40,11 @@ impl LanguageNavigator<AsterParser> for AsterNavigator {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        let Some(symbol) = selected_symbol(&analysis.result, offset) else {
+        let Some(symbol) = selected_symbol(analysis.result(), offset) else {
             return Vec::new();
         };
         let mut locations = analysis
-            .result
+            .result()
             .references
             .iter()
             .filter(|reference| reference.target == Some(symbol))
@@ -53,7 +53,7 @@ impl LanguageNavigator<AsterParser> for AsterNavigator {
         if include_declaration {
             locations.push(location(
                 source,
-                analysis.result.symbols[symbol].declaration,
+                analysis.result().symbols[symbol].declaration,
             ));
         }
         locations
@@ -82,7 +82,7 @@ impl AsterNavigator {
         {
             return Vec::new();
         }
-        let result = &analysis.result;
+        let result = analysis.result();
         let Some(symbol_id) = selected_symbol(result, offset) else {
             return Vec::new();
         };
@@ -146,16 +146,16 @@ fn rename_preserves_resolution(
     ) else {
         return false;
     };
-    let Some(renamed_symbol_id) = renamed_analysis.result.symbols.iter().position(|symbol| {
+    let Some(renamed_symbol_id) = renamed_analysis.result().symbols.iter().position(|symbol| {
         symbol.declaration.start == new_declaration_start
             && symbol.name == new_name
             && symbol.kind == original.symbols[symbol_id].kind
     }) else {
         return false;
     };
-    let renamed_symbol = &renamed_analysis.result.symbols[renamed_symbol_id];
+    let renamed_symbol = &renamed_analysis.result().symbols[renamed_symbol_id];
     if renamed_analysis
-        .result
+        .result()
         .symbols
         .iter()
         .enumerate()
@@ -176,7 +176,7 @@ fn rename_preserves_resolution(
                 return false;
             };
             renamed_analysis
-                .result
+                .result()
                 .references
                 .iter()
                 .any(|renamed_reference| {

@@ -38,8 +38,8 @@ fn run_with_reader_and_step_limit(
 ) -> Result<Vec<u8>, String> {
     let parsed = BrainfuckParser.parse(source);
 
-    if !parsed.diagnostics.is_empty() {
-        let formatted = format_diagnostics(std::slice::from_ref(source), &parsed.diagnostics);
+    if !parsed.diagnostics().is_empty() {
+        let formatted = format_diagnostics(std::slice::from_ref(source), parsed.diagnostics());
 
         if !parsed.is_valid() {
             return Err(formatted);
@@ -48,6 +48,6 @@ fn run_with_reader_and_step_limit(
         eprintln!("{formatted}");
     }
 
-    runtime::execute(source, &parsed.tree, input, max_steps)
+    runtime::execute(source, parsed.tree(), input, max_steps)
         .map_err(|diagnostic| format_diagnostics(std::slice::from_ref(source), &[diagnostic]))
 }
