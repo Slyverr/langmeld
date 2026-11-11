@@ -2,7 +2,8 @@
 
 use langmeld_core::{SourceFile, Span};
 
-use crate::{CapturedField, CapturedValue, LexedToken, LexicalRules, ParsedConstruct, TokenKind};
+use crate::parser::model::{CapturedField, CapturedValue, ParsedConstruct};
+use crate::{LexedToken, LexicalRules, TokenKind};
 
 /// Source structure returned alongside a declarative parse.
 ///

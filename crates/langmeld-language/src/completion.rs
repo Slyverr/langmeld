@@ -1,6 +1,6 @@
 use langmeld_core::{SourceFile, Span};
 
-use crate::completion_model::CompletionKind;
+use crate::completion_kind::CompletionKind;
 use crate::lexer::{ConfiguredLexer, Lexer, lex_bounded};
 use crate::parser::parse_with_contexts;
 use crate::{

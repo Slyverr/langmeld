@@ -1,5 +1,3 @@
-use langmeld_core::Span;
-
 /// Semantic category for a completion suggestion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompletionKind {
@@ -122,14 +120,4 @@ impl CompletionKind {
     pub fn from_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|kind| kind.as_str() == name)
     }
-}
-
-/// Parser scope accepted at a source range, used to derive completions.
-pub(crate) struct ParseContext {
-    pub(crate) span: Span,
-    pub(crate) constructs: Vec<String>,
-    pub(crate) close: Option<String>,
-    pub(crate) values: Vec<String>,
-    pub(crate) value_kind: CompletionKind,
-    pub(crate) blocked: bool,
 }

@@ -1,0 +1,63 @@
+use langmeld_core::Span;
+
+use crate::completion_kind::CompletionKind;
+use crate::lexer::TokenKind;
+
+/// A field value captured by a syntax pattern.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CapturedValue {
+    /// Text and lexical category captured without narrowing its token type.
+    Token {
+        /// Exact source text of the token.
+        text: String,
+        /// Lexical category provided by the lexer.
+        kind: TokenKind,
+    },
+    /// Identifier text without transformation.
+    Identifier(String),
+    /// Decimal integer text preserved as written.
+    Integer(String),
+    /// Quoted string text preserved as written.
+    String(String),
+    /// Expression source captured before a top-level pattern terminator.
+    ///
+    /// The corresponding [`CapturedField::span`] identifies the exact source
+    /// range. Use that range with an expression parser chosen by the host.
+    Expression,
+}
+
+/// A named source value captured by a construct.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CapturedField {
+    /// Field name from the language specification.
+    pub name: String,
+    /// Captured lexical value.
+    pub value: CapturedValue,
+    /// Source range of the captured value, excluding surrounding syntax.
+    pub span: Span,
+}
+
+/// One construct recognized in the source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParsedConstruct {
+    /// Name of the matching construct specification.
+    pub name: String,
+    /// Zero-based index of the matching syntax alternative.
+    pub variant: usize,
+    /// Complete source range consumed by the construct.
+    pub span: Span,
+    /// Values captured by named fields.
+    pub fields: Vec<CapturedField>,
+    /// Child constructs parsed from this construct's delimited block.
+    pub children: Vec<ParsedConstruct>,
+}
+
+/// Parser scope accepted at a source range, used to derive completions.
+pub(crate) struct ParseContext {
+    pub(crate) span: Span,
+    pub(crate) constructs: Vec<String>,
+    pub(crate) close: Option<String>,
+    pub(crate) values: Vec<String>,
+    pub(crate) value_kind: CompletionKind,
+    pub(crate) blocked: bool,
+}

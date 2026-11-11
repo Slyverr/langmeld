@@ -3,7 +3,7 @@ use langmeld_core::Span;
 use crate::lexer::{LexedToken, TokenKind};
 use crate::{FieldKind, PatternPart, RepeatMinimum};
 
-use super::{CapturedField, CapturedValue};
+use super::model::{CapturedField, CapturedValue};
 
 pub(super) struct MatchAttempt<'a> {
     pub(super) fields: Vec<CapturedField>,

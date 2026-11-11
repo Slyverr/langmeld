@@ -1,14 +1,15 @@
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::completion_model::{CompletionKind, ParseContext};
+use crate::completion_kind::CompletionKind;
 use crate::lexer::{LexOutput, LexedToken, Lexer, lex_bounded, validate_tokens};
 use crate::syntax::{build_syntax_tree, unparsed_syntax_tree};
 use crate::{LanguageSpec, PatternPart};
 
 mod recovery;
 
+use super::model::{ParseContext, ParsedConstruct};
 use super::pattern::{MatchAttempt, any_construct_matches, describe_pattern, match_sequence};
-use super::{MAX_NESTING_DEPTH, ParseLimits, ParseResult, ParsedConstruct};
+use super::{MAX_NESTING_DEPTH, ParseLimits, ParseResult};
 
 pub(super) fn parse_with_lexer_internal(
     source: &SourceFile,
