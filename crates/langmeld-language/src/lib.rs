@@ -7,6 +7,7 @@ mod definition;
 mod format;
 mod handler;
 mod host;
+mod lexer;
 mod navigation;
 mod parser;
 mod spec;
@@ -29,12 +30,12 @@ pub use host::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument,
 };
+pub use lexer::{DefaultLexer, LexOutput, LexedToken, Lexer, TokenKind};
 pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
-    CapturedField, CapturedValue, DefaultLexer, LexOutput, LexedToken, Lexer, ParseLimits,
-    ParseResult, ParsedConstruct, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
-    parse_with_limits,
+    CapturedField, CapturedValue, ParseLimits, ParseResult, ParsedConstruct, parse,
+    parse_with_lexer, parse_with_lexer_and_limits, parse_with_limits,
 };
 pub use spec::{
     BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum,

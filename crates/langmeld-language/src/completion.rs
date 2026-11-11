@@ -1,6 +1,7 @@
 use langmeld_core::{SourceFile, Span};
 
-use crate::parser::{ConfiguredLexer, Lexer, lex_bounded, parse_with_contexts};
+use crate::lexer::{ConfiguredLexer, Lexer, lex_bounded};
+use crate::parser::parse_with_contexts;
 use crate::{
     AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParseLimits, ParsedDocument,
     PatternPart, RepeatMinimum,
