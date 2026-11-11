@@ -2,9 +2,9 @@
 
 ## v0.7.0 to the current development API
 
-The changes below are on `develop` after v0.7.0. They are unreleased and are
-not available from the v0.7.0 crates.io packages. The release notes will name
-the target version once its scope is finalized.
+The changes below are on `develop` after the v0.7.0 tag. They are unreleased
+and are not part of that tagged source. The release notes will name the target
+version once its scope is finalized.
 
 ### Read source-associated data through accessors
 
