@@ -1,7 +1,8 @@
-use langmeld_core::{SourceFile, Span};
+use langmeld_core::{SourceDatabase, SourceFile, Span};
 use langmeld_language::{
     CapturedField, CapturedValue, ConstructContext, ConstructHandler, ConstructHandlerRegistry,
-    HandlerControl, HandlerRegistrationError, ParsedConstruct,
+    ConstructSpec, HandlerControl, HandlerRegistrationError, LanguageSpec, ParsedConstruct,
+    PatternPart, parse,
 };
 
 struct RecordIdentifier;
@@ -80,6 +81,69 @@ fn construct(name: &str, span: Span, children: Vec<ParsedConstruct>) -> ParsedCo
         fields: Vec::new(),
         children,
     }
+}
+
+fn record_language() -> LanguageSpec {
+    LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "record",
+            [
+                PatternPart::literal("record"),
+                PatternPart::identifier("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .expect("the test language should be valid")
+}
+
+#[test]
+fn dispatches_top_level_constructs_from_parse_result() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.sample", "record first; record second;")?;
+    let source = sources.get(source_id).expect("source was just inserted");
+    let parsed = parse(source, &record_language());
+
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+
+    let mut state = Vec::new();
+
+    let control = handlers
+        .dispatch_parse_result(source, &parsed, &mut state)
+        .expect("parse result belongs to the supplied source snapshot");
+
+    assert_eq!(control, HandlerControl::Continue);
+    assert_eq!(state, ["first", "second"]);
+
+    Ok(())
+}
+
+#[test]
+fn rejects_parse_results_from_another_source_snapshot() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.sample", "record first;")?;
+    let original_source = sources
+        .get(source_id)
+        .expect("source was just inserted")
+        .clone();
+    let parsed = parse(&original_source, &record_language());
+
+    sources.update(source_id, "record second;")?;
+    let current_source = sources.get(source_id).expect("source still exists");
+    let handlers = ConstructHandlerRegistry::<Vec<String>>::new();
+
+    let mut state = Vec::new();
+
+    let error = handlers
+        .dispatch_parse_result(current_source, &parsed, &mut state)
+        .expect_err("stale parse results must not be dispatched");
+
+    assert_eq!(error.code, "LM-HANDLER-005");
+    assert!(state.is_empty());
+
+    Ok(())
 }
 
 #[test]

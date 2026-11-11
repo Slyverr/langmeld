@@ -128,11 +128,18 @@ walk nested children automatically. A handler calls `context.dispatch_children()
 when its semantics require it—for example, after a condition succeeds or on
 each loop iteration.
 
-If a root or module construct has behavior of its own, register its handler and
-start with `registry.dispatch_construct(source, root, &mut state)`. The handler
-can call `context.dispatch_children()` when it is time to process the body.
-This keeps the common structural-root path simple while allowing explicit
-root-level semantics.
+If top-level constructs have behavior of their own, register their handlers
+and start with `registry.dispatch_parse_result(source, &parsed, &mut state)`.
+This dispatches the top-level constructs in source order and checks that a
+database-managed parse result belongs to the supplied source snapshot. It does
+not dispatch nested children automatically; each handler can call
+`context.dispatch_children()` when its semantics require it. Check
+`parsed.is_valid()` first when execution should require a fully valid parse.
+
+Use `dispatch_construct` when intentionally dispatching one construct, and
+`dispatch_block` when the block itself is only a structural container. Those
+lower-level methods take a source and parsed construct separately, so the
+caller must pair them with the same source snapshot.
 
 Handlers can use a host-defined signal type to propagate `return`, `break`, or
 other control outcomes. The default signal type is `()`, so a simple language

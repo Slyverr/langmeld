@@ -8,7 +8,7 @@ use std::{collections::HashMap, error::Error, fmt};
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::{CapturedField, CapturedValue, ParsedConstruct};
+use crate::{CapturedField, CapturedValue, ParseResult, ParsedConstruct};
 
 /// Behavior associated with one stable construct name from a language definition.
 ///
@@ -83,9 +83,9 @@ impl Error for HandlerRegistrationError {}
 
 /// Registered behavior for parsed constructs.
 ///
-/// Registration is explicit and deterministic. Dispatch visits only the
-/// children of a block; each handler decides whether and when nested children
-/// should be dispatched.
+/// Registration is explicit and deterministic. Each dispatch entry point
+/// states whether it visits a construct or its children; handlers decide
+/// whether and when nested children should be dispatched.
 pub struct ConstructHandlerRegistry<State, Signal = ()> {
     handlers: HashMap<&'static str, Box<dyn ErasedConstructHandler<State, Signal>>>,
 }
@@ -130,15 +130,54 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ///
     /// The block itself is not dispatched. This lets a language use its root
     /// construct as a structural container without requiring a user handler.
-    /// Use [`Self::dispatch_construct`] separately when the block has behavior
-    /// of its own.
+    /// The source must be the snapshot from which `block` was parsed. Use
+    /// [`Self::dispatch_construct`] separately when the block has behavior of
+    /// its own.
     pub fn dispatch_block(
         &self,
         source: &SourceFile,
         block: &ParsedConstruct,
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
-        for construct in &block.children {
+        self.dispatch_constructs(source, &block.children, state)
+    }
+
+    /// Dispatches every top-level construct in a parser result, in source order.
+    ///
+    /// Unlike [`Self::dispatch_block`], this dispatches the top-level
+    /// constructs themselves. It does not visit their children automatically;
+    /// each handler decides whether nested constructs should be dispatched.
+    ///
+    /// The result must belong to `source`. Database-managed snapshots are
+    /// checked by identity. Detached snapshots have no identity, so callers
+    /// must pair them correctly. Recovered constructs are dispatched even when
+    /// the result has diagnostics; check [`ParseResult::is_valid`] first when
+    /// execution should require a fully valid parse.
+    pub fn dispatch_parse_result(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        state: &mut State,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        if parsed.source_identity() != source.identity() {
+            return Err(Diagnostic::error(
+                "LM-HANDLER-005",
+                "parse result belongs to a different source snapshot",
+                source,
+                Span::default(),
+            ));
+        }
+
+        self.dispatch_constructs(source, parsed.constructs(), state)
+    }
+
+    fn dispatch_constructs(
+        &self,
+        source: &SourceFile,
+        constructs: &[ParsedConstruct],
+        state: &mut State,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        for construct in constructs {
             match self.dispatch_construct(source, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
@@ -153,7 +192,8 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     /// This does not visit the construct's children automatically. The handler
     /// can call [`ConstructContext::dispatch_children`] when its semantics
     /// require nested processing. Use this method when a root or module
-    /// construct has behavior of its own.
+    /// construct has behavior of its own. `source` must be the snapshot from
+    /// which `construct` was parsed.
     pub fn dispatch_construct(
         &self,
         source: &SourceFile,
