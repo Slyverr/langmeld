@@ -72,16 +72,23 @@ cargo run -- path/to/program.widget
 cargo test
 ```
 
-Add a handler for a construct already declared in the definition with:
+Add a construct and its handler with:
 
 ```sh
-langmeld generate handler print
+langmeld generate construct repeat
 ```
 
-This creates a Rust handler module and registers it in managed sections of
-`src/constructs/mod.rs`. It refuses to overwrite an existing handler. The
-generated handler returns a clear diagnostic until you implement the
-construct's behavior. See [Construct handlers](../language/handlers.md).
+This creates `language/constructs/repeat.langmeld`, imports it from
+`language/main.langmeld`, creates `src/constructs/repeat.rs`, and registers the
+handler in managed sections of `src/constructs/mod.rs`. The command infers the
+category when the language has one block category. In an interactive terminal,
+it prompts when several categories are available; in scripts, pass
+`--category <name>`. It refuses to overwrite existing files. The generated
+handler returns a clear diagnostic until you implement the construct's
+behavior. See [Construct handlers](../language/handlers.md).
+
+To add behavior for syntax that is already declared, use
+`langmeld generate handler <name>`.
 
 The custom parser template creates a library in `src/lib.rs`, a demonstration
 binary in `src/main.rs`, a stdio LSP binary in `src/bin/language-lsp.rs`, and

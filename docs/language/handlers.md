@@ -5,10 +5,22 @@ Construct handlers attach Rust behavior to stable construct names declared in
 runtime model. Each language chooses its own state and decides what constructs
 mean.
 
-## Generate a handler
+## Generate a construct and handler
 
-Declare a construct in the language definition, then run this from the
-initialized language project:
+For the common workflow, add a new construct and handler from the initialized
+language project:
+
+```sh
+langmeld generate construct print
+```
+
+This creates `language/constructs/print.langmeld`, adds an explicit import to
+the configured root definition, and creates and registers
+`src/constructs/print.rs`. If the language has more than one block category,
+the command prompts in an interactive terminal; in scripts, choose one with
+`--category <name>`. Existing files are never overwritten.
+
+To generate behavior for syntax that already exists in the definition, run:
 
 ```sh
 langmeld generate handler print

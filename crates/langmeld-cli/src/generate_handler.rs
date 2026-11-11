@@ -9,10 +9,10 @@ use clap::Args;
 
 use crate::project::load_definition_project;
 
-const MODULES_BEGIN: &str = "// <langmeld:begin modules>";
-const MODULES_END: &str = "// <langmeld:end modules>";
-const REGISTRATIONS_BEGIN: &str = "// <langmeld:begin registrations>";
-const REGISTRATIONS_END: &str = "// <langmeld:end registrations>";
+pub(crate) const MODULES_BEGIN: &str = "// <langmeld:begin modules>";
+pub(crate) const MODULES_END: &str = "// <langmeld:end modules>";
+pub(crate) const REGISTRATIONS_BEGIN: &str = "// <langmeld:begin registrations>";
+pub(crate) const REGISTRATIONS_END: &str = "// <langmeld:end registrations>";
 
 #[derive(Debug, Args)]
 pub(crate) struct HandlerArgs {
@@ -114,7 +114,7 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     Ok(())
 }
 
-fn validate_constructs_directory(path: &Path) -> io::Result<()> {
+pub(crate) fn validate_constructs_directory(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(io::Error::new(
@@ -126,7 +126,7 @@ fn validate_constructs_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
+pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     if let Err(error) = file.write_all(contents.as_bytes()) {
         drop(file);
@@ -143,7 +143,7 @@ fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn update_managed_section(
+pub(crate) fn update_managed_section(
     source: &str,
     begin_marker: &str,
     end_marker: &str,
@@ -203,7 +203,7 @@ fn update_managed_section(
     Ok(updated)
 }
 
-fn rust_names(construct: &str) -> Result<(String, String), io::Error> {
+pub(crate) fn rust_names(construct: &str) -> Result<(String, String), io::Error> {
     let mut words = Vec::new();
     let mut word = String::new();
 
@@ -311,7 +311,7 @@ fn is_rust_keyword(identifier: &str) -> bool {
     )
 }
 
-fn handler_template(construct: &str, handler_name: &str) -> String {
+pub(crate) fn handler_template(construct: &str, handler_name: &str) -> String {
     format!(
         "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        construct: &ParsedConstruct,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            construct.span,\n        ))\n    }}\n}}\n"
     )

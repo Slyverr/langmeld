@@ -1570,6 +1570,104 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
 }
 
 #[test]
+fn generate_construct_adds_import_syntax_and_registered_handler() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let manifest = project.join("langmeld.toml");
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "trace",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+
+    let root = fs::read_to_string(project.join("language/main.langmeld"))
+        .expect("root definition should be readable");
+    assert!(root.contains("import \"constructs/trace.langmeld\";"));
+    let syntax = fs::read_to_string(project.join("language/constructs/trace.langmeld"))
+        .expect("construct syntax should be generated");
+    assert!(syntax.contains("literal \"trace\";"));
+    assert!(syntax.contains("implements \"statement\";"));
+    let handler = fs::read_to_string(project.join("src/constructs/trace.rs"))
+        .expect("construct handler should be generated");
+    assert!(handler.contains("const CONSTRUCT: &'static str = \"trace\";"));
+    let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
+        .expect("handler registry should be readable");
+    assert!(registry.contains("mod trace;"));
+    assert!(registry.contains("handlers.register(trace::TraceHandler)?;"));
+
+    let checked = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        checked.status.success(),
+        "{}",
+        String::from_utf8_lossy(&checked.stderr)
+    );
+
+    let repeated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "trace",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(!repeated.status.success());
+    assert_eq!(
+        fs::read_to_string(project.join("language/main.langmeld")).unwrap(),
+        root
+    );
+
+    let invalid_keyword = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "trace-item",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(!invalid_keyword.status.success());
+    assert!(
+        !project
+            .join("language/constructs/trace_item.langmeld")
+            .exists()
+    );
+}
+
+#[test]
 fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
     let parent = TestDirectory::new();
     let project = parent.path();

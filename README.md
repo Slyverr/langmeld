@@ -21,9 +21,10 @@ cargo run -p langmeld-cli -- check \
 ```
 
 The declarative starter runs a small language with `let` bindings and `print`.
-Add behavior for a declared construct with `langmeld generate handler <name>`;
-the generated handler is registered in the project and starts with a clear
-diagnostic until its behavior is implemented.
+Add a construct with `langmeld generate construct <name>`; it creates a syntax
+module, imports it from the language entry point, and registers a Rust handler.
+The generated handler starts with a diagnostic until its behavior is
+implemented.
 
 Browse the [documentation](docs/README.md) for project setup, language
 definitions, editor integration, and the framework architecture.

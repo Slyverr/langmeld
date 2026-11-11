@@ -4,6 +4,7 @@ use clap::{Args, Subcommand};
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 
+use crate::generate_construct::{ConstructArgs, generate_construct};
 use crate::generate_handler::{HandlerArgs, generate_handler};
 use crate::project::load_language_definition;
 
@@ -15,6 +16,8 @@ pub(crate) struct GenerateArgs {
 
 #[derive(Debug, Subcommand)]
 enum GenerateCommand {
+    /// Add a syntax declaration and Rust handler for a new construct.
+    Construct(ConstructArgs),
     /// Generate a Rust handler for a declared construct in an initialized language project.
     Handler(HandlerArgs),
     /// Generate a lexical TextMate grammar as JSON on standard output.
@@ -48,6 +51,7 @@ struct TreeSitterArgs {
 
 pub(crate) fn run(args: GenerateArgs) -> Result<(), Box<dyn Error>> {
     match args.command {
+        GenerateCommand::Construct(args) => generate_construct(args),
         GenerateCommand::Handler(args) => generate_handler(args),
         GenerateCommand::Textmate(args) => generate_textmate_grammar(args),
         GenerateCommand::TreeSitter(args) => generate_tree_sitter_grammar(args),
