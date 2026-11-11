@@ -125,11 +125,31 @@ impl SourceId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SourceIdentity {
     /// Process-local identity of the database that owns this source.
-    pub database_id: u64,
+    database_id: u64,
     /// Stable source ID within its database.
-    pub id: SourceId,
+    id: SourceId,
     /// Revision of the source text, starting at 1.
-    pub revision: u64,
+    revision: u64,
+}
+
+impl SourceIdentity {
+    /// Returns the process-local identity of the owning database.
+    #[must_use]
+    pub const fn database_id(&self) -> u64 {
+        self.database_id
+    }
+
+    /// Returns the stable source ID within the owning database.
+    #[must_use]
+    pub const fn id(&self) -> SourceId {
+        self.id
+    }
+
+    /// Returns the revision of the source text, starting at 1.
+    #[must_use]
+    pub const fn revision(&self) -> u64 {
+        self.revision
+    }
 }
 
 /// An error while inserting or updating a source snapshot.

@@ -79,32 +79,33 @@ fn database_keeps_identity_and_advances_revision_only_for_changed_text() {
     assert_eq!(sources.update(id, "two").unwrap(), 2);
     assert_eq!(sources.id_by_name("main"), Some(id));
     let identity = sources.get(id).unwrap().identity().unwrap();
-    assert_eq!(identity.id, id);
-    assert_eq!(identity.revision, 2);
+    assert_eq!(identity.id(), id);
+    assert_eq!(identity.revision(), 2);
 }
 
 #[test]
 fn source_identities_are_unique_across_database_instances_and_clones() {
     let mut original = SourceDatabase::default();
     let original_id = original.insert("main", "text").unwrap();
-    let original_identity = original.get(original_id).unwrap().identity();
+    let original_identity = original.get(original_id).unwrap().identity().unwrap();
 
     let mut separate = SourceDatabase::default();
     let separate_id = separate.insert("main", "text").unwrap();
+    let separate_identity = separate.get(separate_id).unwrap().identity().unwrap();
+    assert_ne!(original_identity, separate_identity);
     assert_ne!(
-        original_identity,
-        separate.get(separate_id).unwrap().identity()
+        original_identity.database_id(),
+        separate_identity.database_id()
     );
 
     let cloned = original.clone();
+    let cloned_identity = cloned.get(original_id).unwrap().identity().unwrap();
+    assert_ne!(original_identity, cloned_identity);
     assert_ne!(
-        original_identity,
-        cloned.get(original_id).unwrap().identity()
+        original_identity.database_id(),
+        cloned_identity.database_id()
     );
-    assert_eq!(
-        cloned.get(original_id).unwrap().identity().unwrap().id,
-        original_id
-    );
+    assert_eq!(cloned_identity.id(), original_id);
 }
 
 #[test]

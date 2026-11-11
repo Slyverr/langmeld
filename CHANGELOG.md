@@ -9,8 +9,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Source snapshots, source locations, parse and analysis results, and LSP
-  backend documents keep source association data immutable and expose it
+- Source snapshots, identities and locations, parse and analysis results, and
+  LSP backend documents keep source association data immutable and expose it
   through read-only accessors.
 - Plain-text diagnostics now include their error, warning, or info severity.
 - The declarative starter and examples use severity-aware validity checks and
