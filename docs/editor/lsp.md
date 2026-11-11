@@ -71,7 +71,10 @@ callbacks. Add `with_workspace_analyzer` when semantics depend on more than one
 open document; its analyzer receives each source with its parsed tree and must
 return one source-bound analysis result for each input. The adapter combines
 those results with parser diagnostics and reanalyzes open documents when the
-workspace changes. It parses each open source again for a workspace pass;
+workspace changes. If parsing or workspace analysis violates the source
+identity or result-count contract, the adapter falls back to per-source
+analysis for every supplied document so other open documents do not retain
+stale diagnostics. It parses each open source again for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
 parser diagnostics. Rename, formatting, and hover still require a custom

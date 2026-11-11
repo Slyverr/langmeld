@@ -117,6 +117,37 @@ where
     P: LanguageParser,
     A: LanguageAnalyzer<P>,
 {
+    fn analyze_parsed(
+        &self,
+        source: &SourceFile,
+        parsed: ParsedDocument<P::Tree>,
+    ) -> BackendDocument<HostDocument<P::Tree, A::Analysis>> {
+        let analysis = self.analyzer.analyze(source, &parsed);
+
+        let mut diagnostics = parsed
+            .diagnostics
+            .iter()
+            .chain(&analysis.diagnostics)
+            .cloned()
+            .collect::<Vec<_>>();
+        if parsed.source != source.identity() {
+            diagnostics.push(source_identity_diagnostic(
+                source,
+                PARSER_SOURCE_MISMATCH_CODE,
+                "parser",
+            ));
+        }
+        if analysis.source != source.identity() {
+            diagnostics.push(source_identity_diagnostic(
+                source,
+                ANALYZER_SOURCE_MISMATCH_CODE,
+                "analyzer",
+            ));
+        }
+
+        BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+    }
+
     /// Adds semantic analysis across the currently open parsed documents.
     #[must_use]
     pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
@@ -189,31 +220,7 @@ where
     type Document = HostDocument<P::Tree, A::Analysis>;
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
-        let parsed = self.parser.parse(source);
-        let analysis = self.analyzer.analyze(source, &parsed);
-
-        let mut diagnostics = parsed
-            .diagnostics
-            .iter()
-            .chain(&analysis.diagnostics)
-            .cloned()
-            .collect::<Vec<_>>();
-        if parsed.source != source.identity() {
-            diagnostics.push(source_identity_diagnostic(
-                source,
-                PARSER_SOURCE_MISMATCH_CODE,
-                "parser",
-            ));
-        }
-        if analysis.source != source.identity() {
-            diagnostics.push(source_identity_diagnostic(
-                source,
-                ANALYZER_SOURCE_MISMATCH_CODE,
-                "analyzer",
-            ));
-        }
-
-        BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+        self.analyze_parsed(source, self.parser.parse(source))
     }
 
     fn analyze_workspace(
@@ -230,7 +237,13 @@ where
             .zip(sources)
             .any(|(parsed, source)| parsed.source != source.identity())
         {
-            return None;
+            return Some(
+                sources
+                    .iter()
+                    .zip(parsed)
+                    .map(|(source, parsed)| self.analyze_parsed(source, parsed))
+                    .collect(),
+            );
         }
         let documents = sources.iter().zip(&parsed).collect::<Vec<_>>();
         let analyses = workspace_analyzer.analyze_workspace(&self.analyzer, &documents);
@@ -240,7 +253,13 @@ where
                 .zip(sources)
                 .any(|(analysis, source)| analysis.source != source.identity())
         {
-            return None;
+            return Some(
+                sources
+                    .iter()
+                    .zip(parsed)
+                    .map(|(source, parsed)| self.analyze_parsed(source, parsed))
+                    .collect(),
+            );
         }
 
         Some(

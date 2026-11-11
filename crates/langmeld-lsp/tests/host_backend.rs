@@ -1,7 +1,7 @@
 use langmeld_core::{SourceDatabase, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, CompletionCandidate, LanguageAnalyzer, LanguageCompleter, LanguageNavigator,
-    LanguageParser, ParsedDocument,
+    LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
 
@@ -38,6 +38,29 @@ impl LanguageAnalyzer<TestParser> for TestAnalyzer {
             result: (),
             diagnostics: Vec::new(),
         }
+    }
+}
+
+struct TestWorkspaceAnalyzer {
+    reported_source: Option<SourceIdentity>,
+    output_count: Option<usize>,
+}
+
+impl LanguageWorkspaceAnalyzer<TestParser, TestAnalyzer> for TestWorkspaceAnalyzer {
+    fn analyze_workspace(
+        &self,
+        _analyzer: &TestAnalyzer,
+        documents: &[(&SourceFile, &ParsedDocument<()>)],
+    ) -> Vec<AnalysisDocument<()>> {
+        documents
+            .iter()
+            .take(self.output_count.unwrap_or(documents.len()))
+            .map(|_| AnalysisDocument {
+                source: self.reported_source,
+                result: (),
+                diagnostics: Vec::new(),
+            })
+            .collect()
     }
 }
 
@@ -202,4 +225,88 @@ fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
             .references(&source, &mismatched_document, 0, true)
             .is_empty()
     );
+}
+
+#[test]
+fn invalid_workspace_results_fall_back_to_per_source_analysis() {
+    let (source, other_identity, _) = managed_source_and_other_identity();
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: source.identity(),
+    })
+    .with_analyzer(TestAnalyzer {
+        reported_source: source.identity(),
+    })
+    .with_workspace_analyzer(TestWorkspaceAnalyzer {
+        reported_source: Some(other_identity),
+        output_count: None,
+    });
+    let sources = [source.clone(), source.clone()];
+
+    let documents = backend
+        .analyze_workspace(&sources)
+        .expect("configured workspace analysis returns a complete result");
+
+    assert_eq!(documents.len(), sources.len());
+    for (document, source) in documents.iter().zip(&sources) {
+        assert_eq!(document.source, source.identity());
+        assert_eq!(document.state.parsed.source, source.identity());
+        assert_eq!(document.state.analysis.source, source.identity());
+    }
+}
+
+#[test]
+fn incomplete_workspace_results_fall_back_to_every_source() {
+    let (source, _, _) = managed_source_and_other_identity();
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: source.identity(),
+    })
+    .with_analyzer(TestAnalyzer {
+        reported_source: source.identity(),
+    })
+    .with_workspace_analyzer(TestWorkspaceAnalyzer {
+        reported_source: source.identity(),
+        output_count: Some(1),
+    });
+    let sources = [source.clone(), source.clone()];
+
+    let documents = backend
+        .analyze_workspace(&sources)
+        .expect("configured workspace analysis returns a complete result");
+
+    assert_eq!(documents.len(), sources.len());
+    for (document, source) in documents.iter().zip(&sources) {
+        assert_eq!(document.source, source.identity());
+        assert_eq!(document.state.parsed.source, source.identity());
+        assert_eq!(document.state.analysis.source, source.identity());
+    }
+}
+
+#[test]
+fn mismatched_parser_results_keep_workspace_documents_in_sync() {
+    let (source, other_identity, _) = managed_source_and_other_identity();
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: Some(other_identity),
+    })
+    .with_analyzer(TestAnalyzer {
+        reported_source: source.identity(),
+    })
+    .with_workspace_analyzer(TestWorkspaceAnalyzer {
+        reported_source: source.identity(),
+        output_count: None,
+    });
+    let sources = [source.clone(), source.clone()];
+
+    let documents = backend
+        .analyze_workspace(&sources)
+        .expect("parser identity failures still produce per-source documents");
+
+    assert_eq!(documents.len(), sources.len());
+    for document in &documents {
+        assert!(
+            document
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "LM-HOST-001")
+        );
+    }
 }
