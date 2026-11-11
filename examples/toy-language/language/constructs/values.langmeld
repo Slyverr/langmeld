@@ -9,3 +9,12 @@ construct "let" {
     }
     implements "statement";
 }
+construct "print" {
+    completion "keyword";
+    syntax {
+        literal "print";
+        identifier "name";
+        literal ";";
+    }
+    implements "statement";
+}

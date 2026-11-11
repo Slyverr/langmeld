@@ -1,26 +1,12 @@
-use std::path::Path;
-
 use langmeld_core::SourceFile;
 use langmeld_expression::{
     Associativity, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
 };
-use langmeld_language::{CapturedValue, parse, parse_language_definition_project};
-use langmeld_project::DirectoryDefinitionResolver;
+use langmeld_language::{CapturedValue, parse};
+use langmeld_toy_language_example::{load, run};
 
 fn load_language() -> langmeld_language::LanguageSpec {
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let resolver = DirectoryDefinitionResolver::new(project_root).unwrap();
-    let root = resolver.load("language/toy.langmeld").unwrap();
-    let definition = parse_language_definition_project(root, &resolver);
-
-    assert!(
-        definition.diagnostics.is_empty(),
-        "{:#?}",
-        definition.diagnostics
-    );
-    definition
-        .language
-        .expect("definition should produce a language")
+    load().expect("definition should produce a language")
 }
 
 #[test]
@@ -91,4 +77,26 @@ fn reports_invalid_construct_syntax() {
     let parsed = parse(&source, &language);
 
     assert!(!parsed.diagnostics.is_empty());
+}
+
+#[test]
+fn executes_construct_handlers_and_host_defined_expressions() {
+    let source = SourceFile::new(
+        "main.widget",
+        "program { let title = \"Hello\"; print title; draw circle; compute 20 + 4 * (2 + 1); }",
+    );
+
+    assert_eq!(
+        run(&source).expect("program should execute"),
+        "Hello\nDrawing circle.\n32\n"
+    );
+}
+
+#[test]
+fn reports_language_errors_at_the_source_location() {
+    let source = SourceFile::new("missing.widget", "program { print absent; }");
+    let error = run(&source).expect_err("an unresolved variable should fail");
+
+    assert!(error.contains("unknown variable `absent`"));
+    assert!(error.contains("missing.widget:1:"));
 }

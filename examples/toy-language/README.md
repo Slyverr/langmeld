@@ -1,12 +1,11 @@
 # Toy language
 
-This example shows a small declarative language split across importable
-`.langmeld` files and parsed with Langmeld's generic parser. It demonstrates
-grammar composition, primitive and finite-choice captures, and
-delimiter-bounded expression capture. Its construct declarations also mark
-keyword completions explicitly. The host passes the captured source span to
-`langmeld-expression` with its own operator table; Langmeld does not infer
-expression meaning, types, or runtime behavior.
+This example shows a small working language split across importable
+`.langmeld` files and Rust construct handlers. It demonstrates grammar
+composition, primitive and finite-choice captures, source-located runtime
+errors, and delimiter-bounded expression capture. The host evaluates
+expressions with its own operator table and semantics; Langmeld supplies the
+expression parser but does not define the meaning of operators.
 
 `language/toy.langmeld` declares the language and its `program` block. It imports
 `language/constructs/statements.langmeld`, which in turn imports
@@ -21,12 +20,12 @@ cargo test -p langmeld-toy-language-example --locked
 ```
 
 The program loads the definition and its imports from disk, validates them,
-then parses a short WidgetScript source. Its output is:
+then executes a short WidgetScript source through registered handlers. Its
+output is:
 
 ```text
 Language: WidgetScript
-Root construct: program
-  let: name=title, value="Hello"
-  draw: shape=circle
-  compute: value=20 + 4 * (2 + 1)
+Hello, Langmeld!
+Drawing circle.
+32
 ```

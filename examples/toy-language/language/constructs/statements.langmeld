@@ -1,5 +1,4 @@
 import "values.langmeld";
-
 construct "draw" {
     completion "keyword";
     syntax {
@@ -12,7 +11,6 @@ construct "draw" {
     }
     implements "statement";
 }
-
 construct "compute" {
     completion "keyword";
     syntax {

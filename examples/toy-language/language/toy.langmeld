@@ -4,7 +4,6 @@ language "WidgetScript" {
     lexical {
         line_comment "//";
     }
-
     construct "program" {
         syntax {
             literal "program";
@@ -13,5 +12,4 @@ language "WidgetScript" {
             allow_category "statement";
         }
     }
-
 }

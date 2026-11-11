@@ -31,7 +31,8 @@ definitions, editor integration, and the framework architecture.
 
 ## Examples
 
-- [Toy language](examples/toy-language): modular declarative syntax.
+- [Toy language](examples/toy-language): modular declarative syntax, Rust
+  construct handlers, expression parsing, and a small host-defined evaluator.
 - [Aster language](examples/aster-language): a Rust parser and host-owned
   analysis.
 - [Schema language](examples/schema-language): cross-file types and an LSP
