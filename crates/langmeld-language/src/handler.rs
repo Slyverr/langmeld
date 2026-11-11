@@ -159,16 +159,36 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         parsed: &ParseResult,
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
-        if parsed.source_identity() != source.identity() {
-            return Err(Diagnostic::error(
-                "LM-HANDLER-005",
-                "parse result belongs to a different source snapshot",
-                source,
-                Span::default(),
-            ));
-        }
+        validate_parsed_source(source, parsed)?;
 
         self.dispatch_constructs(source, parsed.constructs(), state)
+    }
+
+    /// Dispatches the direct children of each top-level construct in source
+    /// order, without dispatching the top-level constructs themselves.
+    ///
+    /// This is useful when top-level constructs are structural containers such
+    /// as a `program` root. The result must belong to `source`; database-managed
+    /// snapshots are checked by identity. Detached snapshots have no identity,
+    /// so callers must pair them correctly. Recovered children are dispatched
+    /// even when the result has diagnostics; check [`ParseResult::is_valid`]
+    /// first when execution should require a fully valid parse.
+    pub fn dispatch_top_level_children(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        state: &mut State,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        validate_parsed_source(source, parsed)?;
+
+        for construct in parsed.constructs() {
+            match self.dispatch_block(source, construct, state)? {
+                HandlerControl::Continue => {}
+                signal @ HandlerControl::Signal(_) => return Ok(signal),
+            }
+        }
+
+        Ok(HandlerControl::Continue)
     }
 
     fn dispatch_constructs(
@@ -221,6 +241,19 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
 
         handler.handle(&mut context)
     }
+}
+
+fn validate_parsed_source(source: &SourceFile, parsed: &ParseResult) -> Result<(), Diagnostic> {
+    if parsed.source_identity() != source.identity() {
+        return Err(Diagnostic::error(
+            "LM-HANDLER-005",
+            "parse result belongs to a different source snapshot",
+            source,
+            Span::default(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Source-aware access to the current construct, host state, and nested dispatch.

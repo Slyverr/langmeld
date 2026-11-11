@@ -35,3 +35,12 @@ fn reports_syntax_errors_before_running_handlers() {
     assert!(error.contains("invalid.widget:1:"), "{error}");
     assert!(error.contains("LM-PARSE-"), "{error}");
 }
+
+#[test]
+fn rejects_a_source_without_a_program_root() {
+    let source = SourceFile::new("empty.widget", "");
+
+    let error = run(&source).expect_err("a source must contain a program root");
+
+    assert!(error.contains("program did not produce a root construct"));
+}

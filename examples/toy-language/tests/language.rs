@@ -87,6 +87,14 @@ fn reports_invalid_construct_syntax() {
 }
 
 #[test]
+fn rejects_a_source_without_a_program_root() {
+    let error = run(&SourceFile::new("empty.widget", ""))
+        .expect_err("a source must contain a program root");
+
+    assert!(error.contains("program did not produce a root construct"));
+}
+
+#[test]
 fn executes_construct_handlers_and_host_defined_expressions() {
     let source = SourceFile::new(
         "main.widget",

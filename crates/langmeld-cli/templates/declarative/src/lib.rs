@@ -39,15 +39,15 @@ pub fn run(source: &SourceFile) -> Result<String, String> {
         eprintln!("{formatted}");
     }
 
-    let root = parsed
-        .constructs()
-        .first()
-        .ok_or_else(|| "program did not produce a root construct".to_owned())?;
+    if parsed.constructs().is_empty() {
+        return Err("program did not produce a root construct".to_owned());
+    }
+
     let mut state = RuntimeState::default();
     let handlers = constructs::registry().map_err(|error| error.to_string())?;
 
     handlers
-        .dispatch_block(source, root, &mut state)
+        .dispatch_top_level_children(source, &parsed, &mut state)
         .map_err(|diagnostic| format_diagnostics(std::slice::from_ref(source), &[diagnostic]))?;
 
     Ok(state.output)

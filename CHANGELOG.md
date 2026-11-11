@@ -42,6 +42,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 - Construct handler registries can dispatch top-level parse results with
   database-managed source-snapshot validation.
+- Construct handler registries can dispatch validated top-level children when
+  root constructs are structural containers.
 - Construct handler registries can dispatch one selected construct directly,
   enabling optional behavior for root and module constructs.
 - Project-definition LSP mode supports go-to-definition and references for

@@ -98,6 +98,28 @@ fn record_language() -> LanguageSpec {
     .expect("the test language should be valid")
 }
 
+fn program_language() -> LanguageSpec {
+    LanguageSpec::new(
+        "Example",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["record"],
+            ),
+            ConstructSpec::new(
+                "record",
+                [
+                    PatternPart::literal("record"),
+                    PatternPart::identifier("value"),
+                    PatternPart::literal(";"),
+                ],
+            ),
+        ],
+    )
+    .expect("the test language should be valid")
+}
+
 #[test]
 fn dispatches_top_level_constructs_from_parse_result() -> Result<(), Box<dyn std::error::Error>> {
     let mut sources = SourceDatabase::default();
@@ -116,6 +138,53 @@ fn dispatches_top_level_constructs_from_parse_result() -> Result<(), Box<dyn std
 
     assert_eq!(control, HandlerControl::Continue);
     assert_eq!(state, ["first", "second"]);
+
+    Ok(())
+}
+
+#[test]
+fn dispatches_validated_top_level_children_without_a_root_handler()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.sample", "program { record first; record second; }")?;
+    let source = sources.get(source_id).expect("source was just inserted");
+    let parsed = parse(source, &program_language());
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+
+    let mut state = Vec::new();
+    let control = handlers
+        .dispatch_top_level_children(source, &parsed, &mut state)
+        .expect("parse result belongs to the supplied source snapshot");
+
+    assert_eq!(control, HandlerControl::Continue);
+    assert_eq!(state, ["first", "second"]);
+
+    Ok(())
+}
+
+#[test]
+fn rejects_stale_top_level_children_before_dispatch() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.sample", "program { record first; }")?;
+    let original_source = sources
+        .get(source_id)
+        .expect("source was just inserted")
+        .clone();
+    let parsed = parse(&original_source, &program_language());
+
+    sources.update(source_id, "program { record second; }")?;
+    let current_source = sources.get(source_id).expect("source still exists");
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+    let mut state = Vec::new();
+
+    let error = handlers
+        .dispatch_top_level_children(current_source, &parsed, &mut state)
+        .expect_err("stale parse results must not dispatch their children");
+
+    assert_eq!(error.code, "LM-HANDLER-005");
+    assert!(state.is_empty());
 
     Ok(())
 }
