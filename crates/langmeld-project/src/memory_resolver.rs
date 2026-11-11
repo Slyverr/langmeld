@@ -6,6 +6,7 @@ use langmeld_language::{DefinitionResolver, DefinitionSource};
 use crate::{
     ProjectLoadError,
     definition_paths::{normalize_source_key, resolve_import_key},
+    error::path_error,
 };
 
 /// Resolves imports from an in-memory collection of `.langmeld` sources.
@@ -67,7 +68,7 @@ impl InMemoryDefinitionResolver {
 impl DefinitionResolver for InMemoryDefinitionResolver {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
         let key = resolve_import_key(from_key, import)
-            .map_err(|error| crate::path_error(import, error).to_string())?;
+            .map_err(|error| path_error(import, error).to_string())?;
         self.find_by_key(&key)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| ProjectLoadError::MissingDefinition(key).to_string())
