@@ -143,8 +143,65 @@ impl LanguageNavigator<TestParser> for TestNavigator {
     }
 }
 
+struct UncheckedCompleter;
+
+impl LanguageCompleter<TestParser> for UncheckedCompleter {
+    type Analysis = ();
+
+    fn complete(
+        &self,
+        _source: &SourceFile,
+        _parsed: &ParsedDocument<()>,
+        _analysis: Option<&AnalysisDocument<()>>,
+        _offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        [
+            CompletionCandidate::new("valid", Span::new(2, 2)),
+            CompletionCandidate::new("reversed", Span::new(2, 1)),
+            CompletionCandidate::new("outside", Span::new(0, 3)),
+            CompletionCandidate::new("inside-codepoint", Span::new(1, 1)),
+        ]
+        .into()
+    }
+}
+
+struct UncheckedNavigator;
+
+impl LanguageNavigator<TestParser> for UncheckedNavigator {
+    type Analysis = ();
+
+    fn definition(
+        &self,
+        source: &SourceFile,
+        _parsed: &ParsedDocument<()>,
+        _analysis: Option<&AnalysisDocument<()>>,
+        _offset: usize,
+    ) -> Vec<SourceLocation> {
+        vec![
+            location_at(source, Span::new(0, 3)),
+            location_at(source, Span::new(0, 2)),
+            location_at(&SourceFile::new("other.test", ""), Span::new(100, 120)),
+        ]
+    }
+
+    fn references(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<()>,
+        analysis: Option<&AnalysisDocument<()>>,
+        offset: usize,
+        _include_declaration: bool,
+    ) -> Vec<SourceLocation> {
+        self.definition(source, parsed, analysis, offset)
+    }
+}
+
 fn location(source: &SourceFile) -> SourceLocation {
     SourceLocation::new(source, Span::new(0, 0))
+}
+
+fn location_at(source: &SourceFile, span: Span) -> SourceLocation {
+    SourceLocation::new(source, span)
 }
 
 fn managed_source_and_other_identity() -> (SourceFile, SourceIdentity, SourceFile) {
@@ -256,6 +313,41 @@ fn editor_queries_reject_a_source_different_from_the_analyzed_snapshot() {
             .references(&other_source, &document, 0, true)
             .is_empty()
     );
+}
+
+#[test]
+fn host_completion_filters_invalid_offsets_and_replacement_spans() {
+    let source = SourceFile::new("main.test", "é");
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: None,
+    })
+    .with_completer(UncheckedCompleter);
+    let document = backend.analyze(&source);
+
+    let candidates = backend.complete(&source, &document, source.text().len());
+
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].text, "valid");
+    assert!(backend.complete(&source, &document, 1).is_empty());
+}
+
+#[test]
+fn host_navigation_filters_invalid_current_source_locations() {
+    let source = SourceFile::new("main.test", "é");
+    let other_source = SourceFile::new("other.test", "");
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: None,
+    })
+    .with_navigator(UncheckedNavigator);
+    let document = backend.analyze(&source);
+    let expected = [
+        location_at(&source, Span::new(0, 2)),
+        location_at(&other_source, Span::new(100, 120)),
+    ];
+
+    assert_eq!(backend.definition(&source, &document, 2), expected);
+    assert_eq!(backend.references(&source, &document, 2, true), expected);
+    assert!(backend.definition(&source, &document, 1).is_empty());
 }
 
 #[test]

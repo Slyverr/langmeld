@@ -85,7 +85,7 @@ pub fn complete_with<P, C>(
 ) -> Vec<CompletionCandidate>
 where
     P: LanguageParser,
-    C: LanguageCompleter<P>,
+    C: LanguageCompleter<P> + ?Sized,
 {
     if offset > source.text().len()
         || !source.text().is_char_boundary(offset)

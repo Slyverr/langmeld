@@ -69,6 +69,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - Diagnose host parser or analyzer results tied to a different managed source
   snapshot, discard mismatched results, and reject editor queries for invalid
   backend documents.
+- Apply the shared offset and source-span validation to host LSP completion and
+  navigation results.
 - Fall back to per-source analysis for every open document when configured host
   workspace analysis returns incomplete or mismatched results.
 - Require commas between function parameters in the declarative-functions

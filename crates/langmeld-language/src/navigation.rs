@@ -13,7 +13,7 @@ pub fn definition_at<P, N>(
 ) -> Vec<SourceLocation>
 where
     P: LanguageParser,
-    N: LanguageNavigator<P>,
+    N: LanguageNavigator<P> + ?Sized,
 {
     query_locations(source, parsed, analysis, offset, |analysis| {
         navigator.definition(source, parsed, analysis, offset)
@@ -32,7 +32,7 @@ pub fn references_at<P, N>(
 ) -> Vec<SourceLocation>
 where
     P: LanguageParser,
-    N: LanguageNavigator<P>,
+    N: LanguageNavigator<P> + ?Sized,
 {
     query_locations(source, parsed, analysis, offset, |analysis| {
         navigator.references(source, parsed, analysis, offset, include_declaration)

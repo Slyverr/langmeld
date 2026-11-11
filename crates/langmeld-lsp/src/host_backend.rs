@@ -1,7 +1,7 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
-    LanguageWorkspaceAnalyzer, ParsedDocument,
+    LanguageWorkspaceAnalyzer, ParsedDocument, complete_with, definition_at, references_at,
 };
 
 use crate::{
@@ -351,7 +351,7 @@ where
         };
 
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
-            completer.complete(source, parsed, Some(analysis), offset)
+            complete_with::<P, _>(source, parsed, Some(analysis), offset, completer.as_ref())
         })
     }
 
@@ -369,7 +369,7 @@ where
         };
 
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
-            navigator.definition(source, parsed, Some(analysis), offset)
+            definition_at::<P, _>(source, parsed, Some(analysis), offset, navigator.as_ref())
         })
     }
 
@@ -388,7 +388,14 @@ where
         };
 
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
-            navigator.references(source, parsed, Some(analysis), offset, include_declaration)
+            references_at::<P, _>(
+                source,
+                parsed,
+                Some(analysis),
+                offset,
+                include_declaration,
+                navigator.as_ref(),
+            )
         })
     }
 
