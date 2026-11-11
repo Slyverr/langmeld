@@ -208,6 +208,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(main.contains("fs::read_to_string"));
     let library = fs::read_to_string(project.join("src/lib.rs"))
         .expect("reusable language loader should be generated");
+    assert!(!library.contains('\r'));
     assert!(library.ends_with("}\n"));
     assert!(!library.ends_with("}\n\n"));
     let manifest =

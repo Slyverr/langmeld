@@ -12,6 +12,10 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - `langmeld generate construct` now treats the construct name as a stable
   semantic identity and accepts a separate starter spelling with `--literal`.
 
+### Fixed
+
+- Preserve LF line endings in generated project files across operating systems.
+
 ### Added
 
 - Generic construct handlers with host-owned state, validated captured-field
