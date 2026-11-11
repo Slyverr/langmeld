@@ -94,6 +94,92 @@ fn combines_local_and_embedded_construct_modules() {
 }
 
 #[test]
+fn overlay_sources_replace_disk_snapshots_by_import_key() {
+    let project = TestDirectory::new();
+    project.write("language/main.langmeld", "language \"Example\"");
+    project.write(
+        "language/constructs/statement.langmeld",
+        "construct \"disk\"",
+    );
+    let resolver =
+        OverlayDefinitionResolver::new(project.path(), InMemoryDefinitionResolver::new()).unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
+
+    let disk = langmeld_language::DefinitionResolver::resolve(
+        &resolver,
+        root.key(),
+        "constructs/statement.langmeld",
+    )
+    .unwrap();
+    assert_eq!(disk.source().text(), "construct \"disk\"");
+
+    let mut overlay = InMemoryDefinitionResolver::new();
+    overlay
+        .insert(
+            "language/constructs/statement.langmeld",
+            SourceFile::new("memory://statement", "construct \"overlay\""),
+        )
+        .unwrap();
+
+    let updated = resolver.with_overlay(overlay);
+    let sources = updated.sources();
+
+    assert_eq!(sources.len(), 2);
+    assert!(sources.iter().any(|source| {
+        source.name() == "memory://statement" && source.text() == "construct \"overlay\""
+    }));
+    assert!(
+        !sources
+            .iter()
+            .any(|source| source.text() == "construct \"disk\"")
+    );
+}
+
+#[test]
+fn overlay_sources_keep_distinct_keys_with_the_same_display_name() {
+    let project = TestDirectory::new();
+    project.write("language/main.langmeld", "language \"Example\"");
+    project.write(
+        "language/constructs/statement.langmeld",
+        "construct \"disk\"",
+    );
+    let resolver =
+        OverlayDefinitionResolver::new(project.path(), InMemoryDefinitionResolver::new()).unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
+    langmeld_language::DefinitionResolver::resolve(
+        &resolver,
+        root.key(),
+        "constructs/statement.langmeld",
+    )
+    .unwrap();
+
+    let mut overlay = InMemoryDefinitionResolver::new();
+    overlay
+        .insert(
+            "language/constructs/other.langmeld",
+            SourceFile::new(
+                "language/constructs/statement.langmeld",
+                "construct \"overlay\"",
+            ),
+        )
+        .unwrap();
+
+    let sources = resolver.with_overlay(overlay).sources();
+
+    assert_eq!(sources.len(), 3);
+    assert!(
+        sources
+            .iter()
+            .any(|source| source.text() == "construct \"disk\"")
+    );
+    assert!(
+        sources
+            .iter()
+            .any(|source| source.text() == "construct \"overlay\"")
+    );
+}
+
+#[test]
 fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
     let project = TestDirectory::new();
     project.write("language/main.langmeld", "language \"Example\"");

@@ -63,6 +63,10 @@ impl InMemoryDefinitionResolver {
     pub fn sources(&self) -> Vec<SourceFile> {
         self.sources.values().cloned().collect()
     }
+
+    pub(super) fn sources_by_key(&self) -> &BTreeMap<String, SourceFile> {
+        &self.sources
+    }
 }
 
 impl DefinitionResolver for InMemoryDefinitionResolver {

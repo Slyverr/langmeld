@@ -144,12 +144,14 @@ impl DirectoryDefinitionResolver {
     /// Returns loaded snapshots in stable path order for diagnostic display.
     #[must_use]
     pub fn sources(&self) -> Vec<SourceFile> {
+        self.sources_by_key().into_values().collect()
+    }
+
+    pub(super) fn sources_by_key(&self) -> BTreeMap<String, SourceFile> {
         self.sources
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .values()
-            .cloned()
-            .collect()
+            .clone()
     }
 
     fn load_path(

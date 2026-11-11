@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
@@ -55,21 +55,19 @@ impl OverlayDefinitionResolver {
         self.directory.key_for_path(path)
     }
 
-    /// Returns loaded disk sources and all overlay sources in stable name order.
+    /// Returns loaded snapshots in stable display-name order, with overlay
+    /// snapshots replacing disk sources that share the same project key.
     #[must_use]
     pub fn sources(&self) -> Vec<SourceFile> {
-        let mut overlay_sources = self.overlay.sources();
-        let overlay_names = overlay_sources
-            .iter()
-            .map(|source| source.name())
-            .collect::<HashSet<_>>();
-        let mut sources = self
-            .directory
-            .sources()
-            .into_iter()
-            .filter(|source| !overlay_names.contains(source.name()))
-            .collect::<Vec<_>>();
-        sources.append(&mut overlay_sources);
+        let mut sources = self.directory.sources_by_key();
+        sources.extend(
+            self.overlay
+                .sources_by_key()
+                .iter()
+                .map(|(key, source)| (key.clone(), source.clone())),
+        );
+
+        let mut sources = sources.into_values().collect::<Vec<_>>();
         sources.sort_by(|left, right| left.name().cmp(right.name()));
         sources
     }
