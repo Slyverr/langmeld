@@ -122,9 +122,11 @@ block dispatch.
 
 Handlers work well for local behavior such as storing a binding or emitting one
 statement. Whole-language rules such as collecting declarations, resolving
-references, or checking types belong in analysis passes. Those pass and backend
-interfaces are separate roadmap work; this handler API does not impose an
-interpreter or compiler pipeline.
+references, or checking types belong in analysis passes. Use
+[ordered analysis passes](analysis-passes.md) when those rules need shared
+facts or distinct stages. The host chooses how parsing, analysis, and handler
+execution fit together; Langmeld does not impose an interpreter or compiler
+pipeline.
 
 For a complete runnable starter, see the generated project and
 [project workflow](../guides/project-workflow.md). For syntax composition, see
