@@ -53,7 +53,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         .parent()
         .ok_or("language definition path has no parent directory")?;
     let syntax_directory = source_directory.join("constructs");
-    let syntax_path = syntax_directory.join(format!("{module_name}.langmeld"));
+    let syntax_path = syntax_directory.join(format!("{}.langmeld", args.name));
     let handler_directory = context.root.join("src/constructs");
     validate_constructs_directory(&context.root.join("src"))?;
     validate_constructs_directory(&handler_directory)?;
@@ -78,7 +78,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
 
     let root_source = read_regular_file(&root_path)?;
-    let import_path = format!("constructs/{module_name}.langmeld");
+    let import_path = format!("constructs/{}.langmeld", args.name);
     let updated_root = add_root_import(&root_source, &import_path)?;
     let syntax_source = syntax_template(&args.name, &category);
     let handler_source = handler_template(&args.name, &handler_name);

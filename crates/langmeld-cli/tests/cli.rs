@@ -1649,6 +1649,28 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
         root
     );
 
+    let keyword = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "loop",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        keyword.status.success(),
+        "{}",
+        String::from_utf8_lossy(&keyword.stderr)
+    );
+    assert!(project.join("language/constructs/loop.langmeld").is_file());
+    assert!(project.join("src/constructs/loop_handler.rs").is_file());
+    let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
+        .expect("keyword handler should be registered");
+    assert!(registry.contains("mod loop_handler;"));
+    assert!(registry.contains("handlers.register(loop_handler::LoopHandler)?;"));
+
     let invalid_keyword = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([
             "generate",
