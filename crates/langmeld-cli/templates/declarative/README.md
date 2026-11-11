@@ -20,6 +20,14 @@ The generated `language::load()` helper finds the project definition from this
 Cargo package. The CLI and Rust host share the same parser, handler registry,
 and diagnostics.
 
+## Editor support
+
+With the Langmeld CLI installed, run `langmeld lsp` from this project directory
+for syntax diagnostics and grammar-based completions. These features come from
+the language definition; host-specific semantic checks and runtime behavior
+are not inferred. Run `langmeld lsp --definitions` to get editor support while
+editing `.langmeld` files.
+
 ## License
 
 Licensed under either the MIT License or Apache License 2.0, at your option.

@@ -178,6 +178,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("langmeld lsp`"));
     assert!(project.join("Cargo.toml").is_file());
     assert_eq!(
         fs::read_to_string(project.join("LICENSE-MIT")).unwrap(),

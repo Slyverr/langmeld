@@ -99,6 +99,8 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     println!("Next: run `cargo run` from the project directory.");
     if matches!(template, Template::CustomParser) {
         println!("LSP: run `cargo run --bin language-lsp` from the project directory.");
+    } else {
+        println!("Editor: run `langmeld lsp` from the project directory for syntax support.");
     }
     Ok(())
 }
