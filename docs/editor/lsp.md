@@ -77,8 +77,10 @@ analysis for every supplied document so other open documents do not retain
 stale diagnostics. It parses each open source again for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
-parser diagnostics. Rename, formatting, and hover still require a custom
-`LanguageBackend`.
+parser diagnostics. Configure the analyzer before its workspace analyzer,
+completer, or navigator: those providers use the current analysis type, so
+adding the analyzer afterward clears any already attached providers. Rename,
+formatting, and hover still require a custom `LanguageBackend`.
 Hosts can implement `format_document` to return formatted text for a complete
 document. Langmeld passes through the editor's formatting options and returns
 one whole-document edit using the negotiated position encoding. Formatting
