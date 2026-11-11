@@ -1790,6 +1790,62 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
 }
 
 #[test]
+fn generate_construct_escapes_quoted_syntax_literals() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("quoted-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let manifest = project.join("langmeld.toml");
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "quoted",
+            "--literal",
+            r#""hello \"world\"""#,
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+
+    let syntax = fs::read_to_string(project.join("language/constructs/quoted.langmeld"))
+        .expect("generated syntax should be readable");
+    assert!(syntax.contains(r#"literal "\"hello \\\"world\\\"\"";"#));
+
+    let checked = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        checked.status.success(),
+        "{}",
+        String::from_utf8_lossy(&checked.stderr)
+    );
+}
+
+#[test]
 fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
     let parent = TestDirectory::new();
     let project = parent.path();

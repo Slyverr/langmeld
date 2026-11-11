@@ -6,7 +6,7 @@ use langmeld_language::{
 };
 use url::Url;
 
-use crate::definition_index::DefinitionIndex;
+use crate::{definition_index::DefinitionIndex, definition_strings::quote};
 
 const MAX_DIRECTORY_SUGGESTIONS: usize = 200;
 const IGNORED_DIRECTORIES: &[&str] = &[".git", "node_modules", "target"];
@@ -74,7 +74,7 @@ fn complete_values(
         .iter()
         .filter(|value| prefix.is_empty() || value.starts_with(&prefix))
         .map(|value| {
-            CompletionCandidate::new(quote_definition_string(value), replace)
+            CompletionCandidate::new(quote(value), replace)
                 .with_label(value)
                 .with_filter_text(value)
                 .with_kind(CompletionKind::Reference)
@@ -158,7 +158,7 @@ fn complete_import_path(
             ".langmeld definition"
         };
         candidates.push(
-            CompletionCandidate::new(quote_definition_string(&label), replace)
+            CompletionCandidate::new(quote(&label), replace)
                 .with_label(&label)
                 .with_filter_text(&label)
                 .with_kind(kind)
@@ -191,21 +191,4 @@ fn field_prefix(source: &SourceFile, span: Span, offset: usize) -> String {
         return String::new();
     }
     source.text.get(start..end).unwrap_or_default().to_owned()
-}
-
-fn quote_definition_string(value: &str) -> String {
-    let mut quoted = String::with_capacity(value.len() + 2);
-    quoted.push('"');
-    for character in value.chars() {
-        match character {
-            '\\' => quoted.push_str("\\\\"),
-            '"' => quoted.push_str("\\\""),
-            '\n' => quoted.push_str("\\n"),
-            '\r' => quoted.push_str("\\r"),
-            '\t' => quoted.push_str("\\t"),
-            character => quoted.push(character),
-        }
-    }
-    quoted.push('"');
-    quoted
 }
