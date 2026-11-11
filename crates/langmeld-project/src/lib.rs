@@ -5,6 +5,7 @@
 //! [`InMemoryDefinitionResolver`] resolves embedded, virtual, or editor-owned
 //! source snapshots without filesystem access; [`OverlayDefinitionResolver`]
 //! combines a project directory with in-memory imports.
+#![deny(missing_docs)]
 
 mod definition_paths;
 mod definition_project;

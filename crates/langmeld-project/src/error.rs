@@ -6,7 +6,12 @@ use crate::definition_paths::DefinitionPathError;
 #[derive(Debug)]
 pub enum ProjectLoadError {
     /// The configured root could not be resolved or is not a directory.
-    RootIo { path: PathBuf, source: io::Error },
+    RootIo {
+        /// Requested project root path.
+        path: PathBuf,
+        /// Underlying filesystem error.
+        source: io::Error,
+    },
     /// The configured root exists but is not a directory.
     RootNotDirectory(PathBuf),
     /// The requested path is not a portable relative definition path.
@@ -14,7 +19,12 @@ pub enum ProjectLoadError {
     /// A definition path resolves outside the configured root.
     OutsideRoot(String),
     /// A definition could not be read as a regular UTF-8 file.
-    Read { path: PathBuf, source: io::Error },
+    Read {
+        /// Path of the definition that could not be read.
+        path: PathBuf,
+        /// Underlying filesystem or UTF-8 decoding error.
+        source: io::Error,
+    },
     /// A definition is absent from an in-memory source collection.
     MissingDefinition(String),
 }

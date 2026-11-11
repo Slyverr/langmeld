@@ -101,7 +101,9 @@ pub enum ProjectManifestError {
     InvalidDefinitionPath(String),
     /// The manifest file could not be read.
     Read {
+        /// Path of the manifest that could not be read.
         path: std::path::PathBuf,
+        /// Underlying filesystem or UTF-8 decoding error.
         source: io::Error,
     },
 }
