@@ -126,6 +126,15 @@ Benchmark only when a change has a concrete performance goal or a measured
 performance concern. Use representative workloads and compare against a
 baseline; do not add benchmark infrastructure speculatively.
 
+Run the checked-in language workloads with:
+
+```sh
+cargo bench \
+  --manifest-path benchmarks/langmeld-performance/Cargo.toml \
+  --target-dir target \
+  --locked -- --noplot
+```
+
 ## Changelog and releases
 
 Record notable user-facing changes in `CHANGELOG.md` under `Unreleased`,

@@ -1,0 +1,20 @@
+[package]
+name = "langmeld-performance"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+autobins = false
+autobenches = false
+
+[dev-dependencies]
+aster-language = { package = "langmeld-aster-language-example", path = "../../examples/aster-language" }
+criterion = "0.8.2"
+langmeld-core = { path = "../../crates/langmeld-core" }
+langmeld-language = { path = "../../crates/langmeld-language" }
+schema-language = { package = "langmeld-schema-language-example", path = "../../examples/schema-language" }
+toy-language = { package = "langmeld-toy-language-example", path = "../../examples/toy-language" }
+
+[[bench]]
+name = "language_workloads"
+harness = false

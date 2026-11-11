@@ -126,6 +126,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all -- --check
       - run: cargo check --workspace --locked
+      - name: Check isolated performance workloads
+        run: >-
+          cargo check
+          --manifest-path benchmarks/langmeld-performance/Cargo.toml
+          --target-dir target
+          --all-targets
+          --locked
       - uses: actions/setup-node@v4
         with:
           node-version: 22
