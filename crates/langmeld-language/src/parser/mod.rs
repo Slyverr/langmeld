@@ -62,7 +62,7 @@ pub struct ParsedConstruct {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ParseResult {
     /// Identity and revision of the parsed snapshot, if database-managed.
-    pub source: Option<SourceIdentity>,
+    source: Option<SourceIdentity>,
     /// Successfully recognized constructs in source order.
     pub constructs: Vec<ParsedConstruct>,
     /// Lossless source structure for editor integrations and other tools.
@@ -75,6 +75,12 @@ pub struct ParseResult {
 }
 
 impl ParseResult {
+    /// Returns the identity and revision of the parsed source snapshot.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.source
+    }
+
     /// Returns whether parsing completed without errors or resource limits.
     #[must_use]
     pub fn is_valid(&self) -> bool {

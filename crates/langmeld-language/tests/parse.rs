@@ -658,7 +658,7 @@ fn parse_result_and_diagnostics_keep_source_revision() {
     let result = parse(source, &language());
     let expected = source.identity();
 
-    assert_eq!(result.source, expected);
+    assert_eq!(result.source_identity(), expected);
     assert_eq!(
         result.diagnostics[0]
             .location
