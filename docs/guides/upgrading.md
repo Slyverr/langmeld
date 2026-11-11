@@ -14,6 +14,27 @@ other values are rejected. `.langmeld` files do not have a separate format
 field, so their compatibility follows the Langmeld release. The CLI does not
 currently provide an automatic migration command.
 
+## Unreleased API changes
+
+### Bind direct construct dispatch to its parse result
+
+`ConstructHandlerRegistry::dispatch_construct` and `dispatch_block` now take
+the `ParseResult` that produced the selected construct, and require the
+construct to be borrowed from that result. This lets Langmeld reject a node
+from another parse result even when both parses use the same source snapshot.
+
+Pass the result alongside the selected construct:
+
+```rust,ignore
+let parsed = parse(source, &language_spec);
+let program = &parsed.constructs()[0];
+
+registry.dispatch_block(source, &parsed, program, &mut state)?;
+```
+
+The `dispatch_parse_result` and `dispatch_top_level_children` methods already
+take a complete parse result and need no call-site changes.
+
 ## Migrating from v0.8.0 to v0.9.0
 
 The changes below are included in v0.9.0. See the [changelog](../../CHANGELOG.md)

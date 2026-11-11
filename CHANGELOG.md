@@ -21,6 +21,9 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `ConstructHandlerRegistry::dispatch_construct` and
+  `dispatch_block` now require the originating `ParseResult` and reject a
+  selected node from another parse result.
 - The declarative starter and toy language return structured diagnostics from
   program runs, leaving diagnostic presentation to the host and preserving
   output emitted before an execution failure.

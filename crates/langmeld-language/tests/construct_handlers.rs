@@ -1,8 +1,7 @@
 use langmeld_core::{SourceDatabase, SourceFile, Span};
 use langmeld_language::{
-    CapturedField, CapturedValue, ConstructContext, ConstructHandler, ConstructHandlerRegistry,
-    ConstructSpec, HandlerControl, HandlerRegistrationError, LanguageSpec, ParsedConstruct,
-    PatternPart, parse,
+    ConstructContext, ConstructHandler, ConstructHandlerRegistry, ConstructSpec, HandlerControl,
+    HandlerRegistrationError, LanguageSpec, PatternPart, parse,
 };
 
 struct RecordIdentifier;
@@ -73,16 +72,6 @@ impl ConstructHandler<Vec<String>> for DispatchProgram {
     }
 }
 
-fn construct(name: &str, span: Span, children: Vec<ParsedConstruct>) -> ParsedConstruct {
-    ParsedConstruct {
-        name: name.to_owned(),
-        variant: 0,
-        span,
-        fields: Vec::new(),
-        children,
-    }
-}
-
 fn record_language() -> LanguageSpec {
     LanguageSpec::new(
         "Example",
@@ -118,6 +107,33 @@ fn program_language() -> LanguageSpec {
         ],
     )
     .expect("the test language should be valid")
+}
+
+fn nested_program_language() -> LanguageSpec {
+    LanguageSpec::new(
+        "Example",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["block"],
+            ),
+            ConstructSpec::new("block", [PatternPart::literal("block")]).block(
+                "{",
+                "}",
+                &["record"],
+            ),
+            ConstructSpec::new(
+                "record",
+                [
+                    PatternPart::literal("record"),
+                    PatternPart::identifier("value"),
+                    PatternPart::literal(";"),
+                ],
+            ),
+        ],
+    )
+    .expect("the nested test language should be valid")
 }
 
 #[test]
@@ -226,43 +242,31 @@ fn rejects_parse_results_from_another_standalone_snapshot() {
     let error = handlers
         .dispatch_parse_result(&current_source, &parsed, &mut state)
         .expect_err("parse results from another standalone source must be rejected");
+    let direct_error = handlers
+        .dispatch_construct(
+            &current_source,
+            &parsed,
+            &parsed.constructs()[0],
+            &mut state,
+        )
+        .expect_err("direct construct dispatch must reject a mismatched source");
 
     assert_eq!(error.code, "LM-HANDLER-005");
+    assert_eq!(direct_error.code, "LM-HANDLER-005");
     assert!(state.is_empty());
 }
 
 #[test]
 fn dispatches_block_children_in_source_order() -> Result<(), Box<dyn std::error::Error>> {
-    let source = SourceFile::new("main.sample", "record first; record second;");
-    let first = ParsedConstruct {
-        name: "record".to_owned(),
-        variant: 0,
-        span: Span::new(0, 13),
-        fields: vec![CapturedField {
-            name: "value".to_owned(),
-            value: CapturedValue::Identifier("first".to_owned()),
-            span: Span::new(7, 12),
-        }],
-        children: Vec::new(),
-    };
-    let second = ParsedConstruct {
-        name: "record".to_owned(),
-        variant: 0,
-        span: Span::new(14, 27),
-        fields: vec![CapturedField {
-            name: "value".to_owned(),
-            value: CapturedValue::Identifier("second".to_owned()),
-            span: Span::new(21, 27),
-        }],
-        children: Vec::new(),
-    };
-    let block = construct("program", Span::new(0, 27), vec![first, second]);
+    let source = SourceFile::new("main.sample", "program { record first; record second; }");
+    let parsed = parse(&source, &program_language());
+    let block = &parsed.constructs()[0];
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(RecordIdentifier)?;
     let mut state = Vec::new();
 
     let result = handlers
-        .dispatch_block(&source, &block, &mut state)
+        .dispatch_block(&source, &parsed, block, &mut state)
         .expect("registered handlers should process their constructs");
 
     assert_eq!(result, HandlerControl::Continue);
@@ -273,32 +277,33 @@ fn dispatches_block_children_in_source_order() -> Result<(), Box<dyn std::error:
 
 #[test]
 fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error::Error>> {
-    let source = SourceFile::new("main.sample", "record alpha beta");
-    let node = ParsedConstruct {
-        name: "record".to_owned(),
-        variant: 0,
-        span: Span::new(0, source.text().len()),
-        fields: vec![
-            CapturedField {
-                name: "value".to_owned(),
-                value: CapturedValue::Identifier("alpha".to_owned()),
-                span: Span::new(7, 12),
-            },
-            CapturedField {
-                name: "value".to_owned(),
-                value: CapturedValue::Identifier("beta".to_owned()),
-                span: Span::new(13, 17),
-            },
+    let language = LanguageSpec::new(
+        "Example",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["record"],
+            ),
+            ConstructSpec::new(
+                "record",
+                [
+                    PatternPart::literal("record"),
+                    PatternPart::one_or_more([PatternPart::identifier("value")]),
+                    PatternPart::literal(";"),
+                ],
+            ),
         ],
-        children: Vec::new(),
-    };
-    let block = construct("program", Span::new(0, source.text().len()), vec![node]);
+    )?;
+    let source = SourceFile::new("main.sample", "program { record alpha beta; }");
+    let parsed = parse(&source, &language);
+    let block = &parsed.constructs()[0];
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(RecordRepeatedFields)?;
     let mut state = Vec::new();
 
     handlers
-        .dispatch_block(&source, &block, &mut state)
+        .dispatch_block(&source, &parsed, block, &mut state)
         .expect("registered handler should process repeated fields");
 
     assert_eq!(state, ["alpha", "beta"]);
@@ -309,27 +314,16 @@ fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error:
 #[test]
 fn dispatches_nested_children_when_the_current_handler_requests_it()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = SourceFile::new("main.sample", "block { record child; }");
-    let record = ParsedConstruct {
-        name: "record".to_owned(),
-        variant: 0,
-        span: Span::new(8, 21),
-        fields: vec![CapturedField {
-            name: "value".to_owned(),
-            value: CapturedValue::Identifier("child".to_owned()),
-            span: Span::new(15, 20),
-        }],
-        children: Vec::new(),
-    };
-    let nested_block = construct("block", Span::new(0, 23), vec![record]);
-    let root = construct("program", Span::new(0, 23), vec![nested_block]);
+    let source = SourceFile::new("main.sample", "program { block { record child; } }");
+    let parsed = parse(&source, &nested_program_language());
+    let nested_block = &parsed.constructs()[0].children[0];
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(RecordIdentifier)?;
     handlers.register(DispatchChildren)?;
     let mut state = Vec::new();
 
     handlers
-        .dispatch_block(&source, &root, &mut state)
+        .dispatch_construct(&source, &parsed, nested_block, &mut state)
         .expect("nested handlers should process their children");
 
     assert_eq!(state, ["child"]);
@@ -340,26 +334,16 @@ fn dispatches_nested_children_when_the_current_handler_requests_it()
 #[test]
 fn dispatches_a_root_construct_handler_and_its_children() -> Result<(), Box<dyn std::error::Error>>
 {
-    let source = SourceFile::new("main.sample", "program record child");
-    let record = ParsedConstruct {
-        name: "record".to_owned(),
-        variant: 0,
-        span: Span::new(8, 20),
-        fields: vec![CapturedField {
-            name: "value".to_owned(),
-            value: CapturedValue::Identifier("child".to_owned()),
-            span: Span::new(15, 20),
-        }],
-        children: Vec::new(),
-    };
-    let root = construct("program", Span::new(0, 20), vec![record]);
+    let source = SourceFile::new("main.sample", "program { record child; }");
+    let parsed = parse(&source, &program_language());
+    let root = &parsed.constructs()[0];
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(RecordIdentifier)?;
     handlers.register(DispatchProgram)?;
     let mut state = Vec::new();
 
     let control = handlers
-        .dispatch_construct(&source, &root, &mut state)
+        .dispatch_construct(&source, &parsed, root, &mut state)
         .expect("root handler should dispatch its children");
 
     assert_eq!(control, HandlerControl::Continue);
@@ -370,13 +354,21 @@ fn dispatches_a_root_construct_handler_and_its_children() -> Result<(), Box<dyn 
 
 #[test]
 fn reports_unregistered_construct_at_its_source_span() {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "unknown",
+            [PatternPart::literal("unknown"), PatternPart::literal(";")],
+        )],
+    )
+    .expect("the test language should be valid");
     let source = SourceFile::new("main.sample", "unknown;");
-    let node = construct("unknown", Span::new(0, 8), Vec::new());
-    let block = construct("program", Span::new(0, 8), vec![node]);
+    let parsed = parse(&source, &language);
+    let node = &parsed.constructs()[0];
     let handlers = ConstructHandlerRegistry::<()>::new();
 
     let error = handlers
-        .dispatch_block(&source, &block, &mut ())
+        .dispatch_construct(&source, &parsed, node, &mut ())
         .expect_err("an unregistered construct should be rejected");
 
     assert_eq!(error.code, "LM-HANDLER-001");
@@ -419,14 +411,20 @@ impl ConstructHandler<()> for MissingField {
 
 #[test]
 fn reports_missing_fields_at_the_construct() -> Result<(), Box<dyn std::error::Error>> {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "record",
+            [PatternPart::literal("record"), PatternPart::literal(";")],
+        )],
+    )?;
     let source = SourceFile::new("main.sample", "record;");
-    let node = construct("record", Span::new(0, 7), Vec::new());
-    let block = construct("program", Span::new(0, 7), vec![node]);
+    let parsed = parse(&source, &language);
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(MissingField)?;
 
     let error = handlers
-        .dispatch_block(&source, &block, &mut ())
+        .dispatch_parse_result(&source, &parsed, &mut ())
         .expect_err("missing required fields should be diagnosed");
 
     assert_eq!(error.code, "LM-HANDLER-002");
@@ -454,23 +452,61 @@ impl ConstructHandler<(), String> for ReturnSignal {
 #[test]
 fn propagates_host_control_signals_and_stops_the_current_block()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = SourceFile::new("main.sample", "return; ignored;");
-    let block = construct(
-        "program",
-        Span::new(0, 16),
-        vec![
-            construct("return", Span::new(0, 7), Vec::new()),
-            construct("ignored", Span::new(8, 16), Vec::new()),
+    let language = LanguageSpec::new(
+        "Example",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["return", "ignored"],
+            ),
+            ConstructSpec::new(
+                "return",
+                [PatternPart::literal("return"), PatternPart::literal(";")],
+            ),
+            ConstructSpec::new(
+                "ignored",
+                [PatternPart::literal("ignored"), PatternPart::literal(";")],
+            ),
         ],
-    );
+    )?;
+    let source = SourceFile::new("main.sample", "program { return; ignored; }");
+    let parsed = parse(&source, &language);
+    let block = &parsed.constructs()[0];
     let mut handlers = ConstructHandlerRegistry::<(), String>::new();
     handlers.register(ReturnSignal)?;
 
     let result = handlers
-        .dispatch_block(&source, &block, &mut ())
+        .dispatch_block(&source, &parsed, block, &mut ())
         .expect("return signal should propagate");
 
     assert_eq!(result, HandlerControl::Signal("returned".to_owned()));
+
+    Ok(())
+}
+
+#[test]
+fn rejects_direct_dispatch_of_constructs_from_another_parse_result()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = SourceFile::new("main.sample", "program { record value; }");
+    let parsed = parse(&source, &program_language());
+    let other_parse = parse(&source, &program_language());
+    let foreign_root = &other_parse.constructs()[0];
+    let foreign_child = &foreign_root.children[0];
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+    let mut state = Vec::new();
+
+    let construct_error = handlers
+        .dispatch_construct(&source, &parsed, foreign_child, &mut state)
+        .expect_err("selected nodes must come from the supplied parse result");
+    let block_error = handlers
+        .dispatch_block(&source, &parsed, foreign_root, &mut state)
+        .expect_err("selected blocks must come from the supplied parse result");
+
+    assert_eq!(construct_error.code, "LM-HANDLER-006");
+    assert_eq!(block_error.code, "LM-HANDLER-006");
+    assert!(state.is_empty());
 
     Ok(())
 }

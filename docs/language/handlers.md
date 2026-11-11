@@ -137,9 +137,20 @@ nested children automatically; each handler can call
 `parsed.is_valid()` first when execution should require a fully valid parse.
 
 Use `dispatch_construct` when intentionally dispatching one construct, and
-`dispatch_block` when the block itself is only a structural container. Those
-lower-level methods take a source and parsed construct separately, so the
-caller must pair them with the same source snapshot.
+`dispatch_block` when the block itself is only a structural container. Pass
+both the `ParseResult` and a construct borrowed from it; Langmeld validates the
+source identity and rejects a node from a different parse result. For example:
+
+```rust,ignore
+let parsed = parse(source, &language_spec);
+let program = &parsed.constructs()[0];
+
+registry.dispatch_block(source, &parsed, program, &mut state)?;
+```
+
+The usual `dispatch_parse_result` and `dispatch_top_level_children` entry
+points already receive the complete parse result and do not require selecting a
+construct manually.
 
 Handlers can use a host-defined signal type to propagate `return`, `break`, or
 other control outcomes. The default signal type is `()`, so a simple language

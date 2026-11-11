@@ -130,16 +130,25 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ///
     /// The block itself is not dispatched. This lets a language use its root
     /// construct as a structural container without requiring a user handler.
-    /// The source must be the snapshot from which `block` was parsed. Use
-    /// [`Self::dispatch_construct`] separately when the block has behavior of
-    /// its own.
+    /// `block` must be borrowed from `parsed`; the parse result and selected
+    /// construct are checked against `source`. Use [`Self::dispatch_construct`]
+    /// separately when the block has behavior of its own.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic if `parsed` belongs to another
+    /// source snapshot, `block` is not part of `parsed`, or a child handler
+    /// returns a diagnostic.
     pub fn dispatch_block(
         &self,
         source: &SourceFile,
+        parsed: &ParseResult,
         block: &ParsedConstruct,
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
-        self.dispatch_constructs(source, &block.children, state)
+        validate_parsed_construct(source, parsed, block)?;
+
+        self.dispatch_block_children(source, block, state)
     }
 
     /// Dispatches every top-level construct in a parser result, in source order.
@@ -180,7 +189,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         validate_parsed_source(source, parsed)?;
 
         for construct in parsed.constructs() {
-            match self.dispatch_block(source, construct, state)? {
+            match self.dispatch_block_children(source, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
             }
@@ -196,7 +205,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         for construct in constructs {
-            match self.dispatch_construct(source, construct, state)? {
+            match self.dispatch_one_construct(source, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
             }
@@ -210,9 +219,37 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     /// This does not visit the construct's children automatically. The handler
     /// can call [`ConstructContext::dispatch_children`] when its semantics
     /// require nested processing. Use this method when a root or module
-    /// construct has behavior of its own. `source` must be the snapshot from
-    /// which `construct` was parsed.
+    /// construct has behavior of its own. `construct` must be borrowed from
+    /// `parsed`; the parse result and selected construct are checked against
+    /// `source`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic if `parsed` belongs to another
+    /// source snapshot, `construct` is not part of `parsed`, or no handler is
+    /// registered for its name.
     pub fn dispatch_construct(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        construct: &ParsedConstruct,
+        state: &mut State,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        validate_parsed_construct(source, parsed, construct)?;
+
+        self.dispatch_one_construct(source, construct, state)
+    }
+
+    fn dispatch_block_children(
+        &self,
+        source: &SourceFile,
+        block: &ParsedConstruct,
+        state: &mut State,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        self.dispatch_constructs(source, &block.children, state)
+    }
+
+    fn dispatch_one_construct(
         &self,
         source: &SourceFile,
         construct: &ParsedConstruct,
@@ -252,6 +289,31 @@ fn validate_parsed_source(source: &SourceFile, parsed: &ParseResult) -> Result<(
     }
 
     Ok(())
+}
+
+fn validate_parsed_construct(
+    source: &SourceFile,
+    parsed: &ParseResult,
+    construct: &ParsedConstruct,
+) -> Result<(), Diagnostic> {
+    validate_parsed_source(source, parsed)?;
+
+    if !contains_construct(parsed.constructs(), construct) {
+        return Err(Diagnostic::error(
+            "LM-HANDLER-006",
+            "selected construct does not belong to the supplied parse result",
+            source,
+            Span::default(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn contains_construct(constructs: &[ParsedConstruct], target: &ParsedConstruct) -> bool {
+    constructs.iter().any(|construct| {
+        std::ptr::eq(construct, target) || contains_construct(&construct.children, target)
+    })
 }
 
 /// Source-aware access to the current construct, host state, and nested dispatch.
@@ -373,7 +435,7 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// only when the condition is true.
     pub fn dispatch_children(&mut self) -> Result<HandlerControl<Signal>, Diagnostic> {
         self.handlers
-            .dispatch_block(self.source, self.construct, self.state)
+            .dispatch_block_children(self.source, self.construct, self.state)
     }
 
     /// Creates an error diagnostic at an explicit source range.
