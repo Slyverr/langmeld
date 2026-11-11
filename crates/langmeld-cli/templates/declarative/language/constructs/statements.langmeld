@@ -1,0 +1,21 @@
+construct "let" {
+    completion "keyword";
+    syntax {
+        literal "let";
+        identifier "name";
+        literal "=";
+        string "value";
+        literal ";";
+    }
+    implements "statement";
+}
+
+construct "print" {
+    completion "keyword";
+    syntax {
+        literal "print";
+        identifier "name";
+        literal ";";
+    }
+    implements "statement";
+}

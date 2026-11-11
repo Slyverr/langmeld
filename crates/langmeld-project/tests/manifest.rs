@@ -5,7 +5,8 @@ use std::{
 };
 
 use langmeld_project::{
-    PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError, read_project_manifest,
+    DEFAULT_DEFINITION_PATH, PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError,
+    read_project_manifest,
 };
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
@@ -40,6 +41,13 @@ fn parses_the_root_definition_from_a_supported_manifest() {
 }
 
 #[test]
+fn defaults_to_the_conventional_main_definition() {
+    let manifest = ProjectManifest::parse("format = 1\n").unwrap();
+
+    assert_eq!(manifest.definition, DEFAULT_DEFINITION_PATH);
+}
+
+#[test]
 fn rejects_unsupported_formats_and_unknown_fields() {
     let version = ProjectManifest::parse("format = 2\ndefinition = \"language.langmeld\"\n");
     assert!(matches!(
@@ -53,6 +61,12 @@ fn rejects_unsupported_formats_and_unknown_fields() {
     assert!(matches!(
         unknown,
         Err(ProjectManifestError::UnknownField(_))
+    ));
+
+    let invalid_definition_type = ProjectManifest::parse("format = 1\ndefinition = 42\n");
+    assert!(matches!(
+        invalid_definition_type,
+        Err(ProjectManifestError::MissingOrInvalidField("definition"))
     ));
 }
 
@@ -81,13 +95,10 @@ fn rejects_invalid_or_non_portable_definition_paths() {
 #[test]
 fn reads_the_conventional_manifest_from_a_project_root() {
     let project = TestDirectory::new();
-    fs::write(
-        project.0.join(PROJECT_MANIFEST_FILE),
-        "format = 1\ndefinition = \"lang/main.langmeld\"\n",
-    )
-    .expect("manifest should be written");
+    fs::write(project.0.join(PROJECT_MANIFEST_FILE), "format = 1\n")
+        .expect("manifest should be written");
 
     let manifest = read_project_manifest(&project.0).unwrap();
 
-    assert_eq!(manifest.definition, "lang/main.langmeld");
+    assert_eq!(manifest.definition, DEFAULT_DEFINITION_PATH);
 }

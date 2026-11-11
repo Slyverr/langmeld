@@ -17,8 +17,8 @@ pub use definition_project::{
     load_definition_project_from_manifest,
 };
 pub use manifest::{
-    PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError, read_project_manifest,
-    read_project_manifest_file,
+    DEFAULT_DEFINITION_PATH, PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError,
+    read_project_manifest, read_project_manifest_file,
 };
 pub use memory_resolver::InMemoryDefinitionResolver;
 pub use overlay_resolver::OverlayDefinitionResolver;

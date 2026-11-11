@@ -10,7 +10,7 @@ behavior it needs.
 | Crate | Responsibility |
 | --- | --- |
 | `langmeld-core` | Source snapshots and identities, byte spans, and structured diagnostics. |
-| `langmeld-language` | Language grammar model, `.langmeld` frontend and validation, built-in lexer and parser, and host parser, analysis, completion, and navigation contracts. |
+| `langmeld-language` | Language grammar model, `.langmeld` frontend and validation, built-in lexer and parser, construct-handler dispatch, and host parser, analysis, completion, and navigation contracts. |
 | `langmeld-project` | Project manifests and modular definition loading through directory, in-memory, and overlay resolvers. |
 | `langmeld-expression` | Optional configurable expression grammar, parser, and host-defined type and evaluation hooks. |
 | `langmeld-lsp` | LSP protocol adapter for declarative languages and Rust-hosted backends. |
@@ -33,9 +33,12 @@ For a declarative project, the main flow is:
    `LanguageSpec`.
 3. The built-in parser uses that specification to parse source files into
    generic construct and field data, with source-located diagnostics.
-4. Optional adapters use the same validated specification to provide grammar
+4. A host may register construct handlers with its own state. The dispatcher
+   provides validated field access, source-aware diagnostics, and explicit
+   child dispatch; handlers decide how their language treats nested constructs.
+5. Optional adapters use the same validated specification to provide grammar
    scoped LSP behavior or emit TextMate and Tree-sitter grammar artifacts.
-5. The language's Rust host adds semantics and behavior that declarations
+6. The language's Rust host adds semantics and behavior that declarations
    cannot determine, such as name resolution, type checking, execution, or
    compilation.
 

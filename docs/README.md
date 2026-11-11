@@ -7,6 +7,8 @@ framework users. The guides describe behavior available in the current codebase.
 
 - [Project workflow](guides/project-workflow.md): initialize, run, and validate
   a language project.
+- [Construct handlers](language/handlers.md): implement and register Rust
+  behavior for declarative constructs.
 - [Language definitions](language/definitions.md): organize `.langmeld` files,
   describe token patterns, and decide when to use Rust code.
 

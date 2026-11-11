@@ -204,29 +204,51 @@ fn project_files(
             files.extend([
                 (
                     "README.md".to_owned(),
-                    declarative_readme(language_name),
+                    include_str!("../templates/declarative/README.md")
+                        .replace("{{LANGUAGE_NAME}}", language_name),
+                ),
+                ("langmeld.toml".to_owned(), "format = 1\n".to_owned()),
+                (
+                    "src/lib.rs".to_owned(),
+                    include_str!("../templates/declarative/src/lib.rs").to_owned(),
                 ),
                 (
-                    "langmeld.toml".to_owned(),
-                    "format = 1\ndefinition = \"language/language.langmeld\"\n".to_owned(),
+                    "src/main.rs".to_owned(),
+                    include_str!("../templates/declarative/src/main.rs").to_owned(),
                 ),
-                ("src/lib.rs".to_owned(), declarative_library_template().to_owned()),
-                ("src/main.rs".to_owned(), main_template().to_owned()),
+                (
+                    "src/runtime.rs".to_owned(),
+                    include_str!("../templates/declarative/src/runtime.rs").to_owned(),
+                ),
+                (
+                    "src/constructs/mod.rs".to_owned(),
+                    include_str!("../templates/declarative/src/constructs/mod.rs").to_owned(),
+                ),
+                (
+                    "src/constructs/let_handler.rs".to_owned(),
+                    include_str!("../templates/declarative/src/constructs/let_handler.rs")
+                        .to_owned(),
+                ),
+                (
+                    "src/constructs/print.rs".to_owned(),
+                    include_str!("../templates/declarative/src/constructs/print.rs").to_owned(),
+                ),
                 (
                     "tests/language.rs".to_owned(),
-                    declarative_test_template().to_owned(),
+                    include_str!("../templates/declarative/tests/language.rs")
+                        .replace("{{LANGUAGE_NAME}}", &format!("{language_name:?}")),
                 ),
                 (
-                    "language/language.langmeld".to_owned(),
-                    format!(
-                        "language {} {{\n    import \"constructs/statements.langmeld\";\n    root \"program\";\n\n    construct \"program\" {{\n        syntax {{\n            literal \"program\";\n        }}\n        block \"{{\" \"}}\" {{\n            allow \"let\";\n            allow \"print\";\n        }}\n    }}\n}}\n",
-                        quote_lm(language_name)
-                    ),
+                    "language/main.langmeld".to_owned(),
+                    include_str!("../templates/declarative/language/main.langmeld")
+                        .replace("{{LANGUAGE_NAME}}", &quote_lm(language_name)),
                 ),
                 (
                     "language/constructs/statements.langmeld".to_owned(),
-                    "construct \"let\" {\n    syntax {\n        literal \"let\";\n        identifier \"name\";\n        literal \"=\";\n        string \"value\";\n        literal \";\";\n    }\n}\n\nconstruct \"print\" {\n    syntax {\n        literal \"print\";\n        identifier \"name\";\n        literal \";\";\n    }\n}\n"
-                        .to_owned(),
+                    include_str!(
+                        "../templates/declarative/language/constructs/statements.langmeld"
+                    )
+                    .to_owned(),
                 ),
             ]);
         }
@@ -254,34 +276,6 @@ fn project_files(
     }
 
     files
-}
-
-fn declarative_readme(language_name: &str) -> String {
-    format!(
-        r#"# {language_name}
-
-A Rust-hosted language project built with Langmeld.
-
-## Run
-
-```sh
-cargo run
-cargo run -- path/to/program.widget
-cargo test
-```
-
-Without a path, the CLI parses a small built-in sample. Pass a source file to
-parse your own program. Edit `language/language.langmeld` and files in
-`language/constructs/` to change the syntax. The reusable loader lives in
-`src/lib.rs`, the CLI entry point in `src/main.rs`, and public behavior tests
-in `tests/`. Add language-specific analysis and execution to the Rust host.
-
-## License
-
-Licensed under either the MIT License or Apache License 2.0; choose either
-license. Replace the copyright placeholder in `LICENSE-MIT` before distributing.
-"#
-    )
 }
 
 fn custom_parser_readme(language_name: &str) -> String {
@@ -366,121 +360,6 @@ fn ensure_parent_directories(
         }
     }
     Ok(())
-}
-
-fn declarative_library_template() -> &'static str {
-    r#"use std::path::Path;
-
-use langmeld_core::{SourceFile, format_diagnostics};
-use langmeld_language::LanguageSpec;
-use langmeld_project::load_definition_project;
-
-pub fn load_language(project_root: &Path) -> Result<LanguageSpec, String> {
-    let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
-
-    if !project.is_valid() {
-        return Err(format_diagnostics(
-            &project.sources,
-            &project.definition.diagnostics,
-        ));
-    }
-    project
-        .definition
-        .language
-        .ok_or_else(|| "validated definition did not produce a language".to_owned())
-}
-"#
-}
-
-fn declarative_test_template() -> &'static str {
-    r#"use std::path::Path;
-
-use langmeld_core::SourceFile;
-use langmeld_language::{CapturedValue, parse};
-use language::load_language;
-
-#[test]
-fn parses_a_program_from_the_project_definition() {
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let language = load_language(project_root).expect("starter definition should load");
-
-    let source = SourceFile::new(
-        "valid.widget",
-        "program { let message = \"Hello\"; print message; }",
-    );
-
-    let parsed = parse(&source, &language);
-
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 1);
-    assert_eq!(parsed.constructs[0].children.len(), 2);
-    assert_eq!(
-        parsed.constructs[0].children[0].fields[1].value,
-        CapturedValue::String("\"Hello\"".to_owned())
-    );
-}
-
-#[test]
-fn reports_invalid_program_syntax() {
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let language = load_language(project_root).expect("starter definition should load");
-    let source = SourceFile::new("invalid.widget", "program { let message = 42; }");
-
-    let parsed = parse(&source, &language);
-
-    assert!(!parsed.diagnostics.is_empty());
-}
-"#
-}
-
-fn main_template() -> &'static str {
-    r#"use std::{env, fs, path::Path};
-
-use langmeld_core::{SourceFile, format_diagnostics};
-use langmeld_language::parse;
-use language::load_language;
-
-const SAMPLE: &str = "program { let message = \"Hello, Langmeld!\"; print message; }";
-
-fn main() {
-    if let Err(error) = run() {
-        eprintln!("{error}");
-        std::process::exit(1);
-    }
-}
-
-fn run() -> Result<(), String> {
-    let mut arguments = env::args_os().skip(1);
-    let (source_name, source_text) = match arguments.next() {
-        Some(path) => {
-            if arguments.next().is_some() {
-                return Err("usage: language [SOURCE]".to_owned());
-            }
-            let path = std::path::PathBuf::from(path);
-            let source_text = fs::read_to_string(&path)
-                .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
-            (path.display().to_string(), source_text)
-        }
-        None => ("example.widget".to_owned(), SAMPLE.to_owned()),
-    };
-
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let language = load_language(project_root)?;
-    let source = SourceFile::new(source_name, source_text);
-    let parsed = parse(&source, &language);
-
-    if !parsed.diagnostics.is_empty() {
-        return Err(format_diagnostics(&[source], &parsed.diagnostics));
-    }
-
-    println!(
-        "Parsed {} top-level construct(s) for {}.",
-        parsed.constructs.len(),
-        language.name()
-    );
-    Ok(())
-}
-"#
 }
 
 fn custom_parser_library_template() -> &'static str {

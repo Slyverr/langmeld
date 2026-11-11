@@ -42,20 +42,27 @@ my-language/
 ├── README.md
 ├── src/
 │   ├── lib.rs
-│   └── main.rs
+│   ├── main.rs
+│   ├── runtime.rs
+│   └── constructs/
+│       ├── mod.rs
+│       ├── let_handler.rs
+│       └── print.rs
 ├── tests/
 │   └── language.rs
 └── language/
-    ├── language.langmeld
+    ├── main.langmeld
     └── constructs/
         └── statements.langmeld
 ```
 
-The starter `.langmeld` files describe a small `program` block with `let` and `print`
-statements. `src/lib.rs` loads the modular definition and formats diagnostics;
-`src/main.rs` provides a runnable CLI that parses a built-in sample or a source
-file path. Public behavior tests live in `tests/language.rs`. Language-specific
-semantics and execution remain Rust code that the language author adds.
+The starter definition at `language/main.langmeld` imports construct
+definitions for a small `program` block with string `let` bindings and `print`
+statements. Rust behavior lives in `src/constructs/`; `src/runtime.rs` holds
+the example's state, and `src/lib.rs` loads the definition, parses source, and
+dispatches handlers. The generated `language::load()` helper resolves the
+definition from the Cargo project root. Public behavior tests live in
+`tests/language.rs`.
 
 Run the sample or pass a source file to the generated CLI:
 
@@ -64,6 +71,17 @@ cargo run
 cargo run -- path/to/program.widget
 cargo test
 ```
+
+Add a handler for a construct already declared in the definition with:
+
+```sh
+langmeld generate handler print
+```
+
+This creates a Rust handler module and registers it in managed sections of
+`src/constructs/mod.rs`. It refuses to overwrite an existing handler. The
+generated handler returns a clear diagnostic until you implement the
+construct's behavior. See [Construct handlers](../language/handlers.md).
 
 The custom parser template creates a library in `src/lib.rs`, a demonstration
 binary in `src/main.rs`, a stdio LSP binary in `src/bin/language-lsp.rs`, and
@@ -79,17 +97,23 @@ Use `cargo test` to run the generated integration tests.
 
 ```toml
 format = 1
-definition = "language/language.langmeld"
 ```
 
-Format `1` accepts only these two fields. The definition path must be a
-project-relative `.langmeld` path without parent-directory segments.
+`definition` is optional and defaults to `language/main.langmeld`. Set it only
+when a project needs a different root. The conventional entry point imports
+other definition files explicitly. CLI commands use `langmeld.toml` by default
+when run from the project directory; generated Rust code exposes
+`language::load()` so application code does not need to name the root
+definition or project path.
+
+Format `1` requires the `format` field and optionally accepts `definition`.
+The definition path must be a project-relative `.langmeld` path without
+parent-directory segments.
 
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. Its
-dual-license files match the manifest; replace the copyright placeholders in
-`LICENSE-MIT`. The generated README reminds you to fill in the copyright
-holder. It does not yet generate editor configuration or build artifacts.
+dual-license files match the manifest. It does not generate editor
+configuration or build artifacts.
 
 To install the CLI from a Langmeld source checkout, run this from the repository
 root:
@@ -148,12 +172,5 @@ The command resolves imported definitions through the project manifest. The
 scope name is required; file types are optional and can be repeated. Redirect
 the output to a file or pipe it to another tool. See the editor integration
 guide for the grammar's lexical-only limits.
-For the declarative example host, run:
-
-```sh
-cd my-language
-cargo run
-```
-
 For `.langmeld` syntax and import behavior, see
 [Language definitions](../language/definitions.md).

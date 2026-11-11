@@ -7,17 +7,18 @@ semantics, and execution when the declarative subset is not a fit.
 
 ## Project layout
 
-Keep a root language file and split constructs into files by responsibility:
+Use `language/main.langmeld` as the project's conventional root file and split
+constructs into imported files by responsibility:
 
 ```text
 language/
-├── language.langmeld
+├── main.langmeld
 └── constructs/
     ├── statements.langmeld
     └── expressions.langmeld
 ```
 
-The root file declares the language and imports construct files. Imported
+`main.langmeld` declares the language and imports construct files. Imported
 files contain top-level `construct` and `import` declarations; they do not
 declare another language or root constructs. Imports are explicit and may be
 nested.
@@ -328,14 +329,14 @@ use langmeld_project::InMemoryDefinitionResolver;
 
 let mut resolver = InMemoryDefinitionResolver::new();
 resolver.insert(
-    "language/language.langmeld",
-    SourceFile::new("language/language.langmeld", language_source),
+    "language/main.langmeld",
+    SourceFile::new("language/main.langmeld", language_source),
 )?;
 resolver.insert(
     "language/constructs/statements.langmeld",
     SourceFile::new("language/constructs/statements.langmeld", statements_source),
 )?;
-let root = resolver.load("language/language.langmeld")?;
+let root = resolver.load("language/main.langmeld")?;
 let result = parse_language_definition_project(root, &resolver);
 let sources = resolver.sources();
 ```
@@ -355,7 +356,7 @@ bundled.insert(
     SourceFile::new("language/extensions/geometry/drawing.langmeld", drawing_source),
 )?;
 let resolver = OverlayDefinitionResolver::new(".", bundled)?;
-let root = resolver.load("language/language.langmeld")?;
+let root = resolver.load("language/main.langmeld")?;
 let result = parse_language_definition_project(root, &resolver);
 let sources = resolver.sources();
 ```

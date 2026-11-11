@@ -12,6 +12,9 @@ pub const PROJECT_MANIFEST_FILE: &str = "langmeld.toml";
 /// Current supported project manifest format.
 pub const PROJECT_MANIFEST_FORMAT: i64 = 1;
 
+/// Default project-relative root definition when `definition` is omitted.
+pub const DEFAULT_DEFINITION_PATH: &str = "language/main.langmeld";
+
 /// Parsed project settings needed to locate the language definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectManifest {
@@ -22,9 +25,10 @@ pub struct ProjectManifest {
 impl ProjectManifest {
     /// Parses and validates a Langmeld project manifest.
     ///
-    /// The current manifest has two required fields: `format = 1` and a
-    /// project-relative `.langmeld` path in `definition`. Unknown fields are rejected
-    /// so misspellings do not silently change project behavior.
+    /// The manifest requires `format = 1`. The optional `definition` field
+    /// selects a project-relative root `.langmeld` file and defaults to
+    /// [`DEFAULT_DEFINITION_PATH`]. Unknown fields are rejected so misspellings
+    /// do not silently change project behavior.
     pub fn parse(source: &str) -> Result<Self, ProjectManifestError> {
         let document =
             toml::from_str::<toml::Value>(source).map_err(ProjectManifestError::Parse)?;
@@ -46,19 +50,18 @@ impl ProjectManifest {
             return Err(ProjectManifestError::UnsupportedFormat(format));
         }
 
-        let definition = table
-            .get("definition")
-            .and_then(toml::Value::as_str)
-            .ok_or(ProjectManifestError::MissingOrInvalidField("definition"))?;
-        if !is_definition_path(definition) {
-            return Err(ProjectManifestError::InvalidDefinitionPath(
-                definition.to_owned(),
-            ));
+        let definition = match table.get("definition") {
+            Some(value) => value
+                .as_str()
+                .ok_or(ProjectManifestError::MissingOrInvalidField("definition"))?
+                .to_owned(),
+            None => DEFAULT_DEFINITION_PATH.to_owned(),
+        };
+        if !is_definition_path(&definition) {
+            return Err(ProjectManifestError::InvalidDefinitionPath(definition));
         }
 
-        Ok(Self {
-            definition: definition.to_owned(),
-        })
+        Ok(Self { definition })
     }
 }
 

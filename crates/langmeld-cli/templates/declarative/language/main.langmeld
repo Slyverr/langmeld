@@ -1,0 +1,13 @@
+language {{LANGUAGE_NAME}} {
+    import "constructs/statements.langmeld";
+    root "program";
+
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+        block "{" "}" {
+            allow_category "statement";
+        }
+    }
+}

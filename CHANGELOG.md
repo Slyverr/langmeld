@@ -9,6 +9,13 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Generic construct handlers with host-owned state, validated captured-field
+  access, source-located diagnostics, explicit child dispatch, and host-defined
+  control-signal propagation.
+- A working declarative `langmeld init` starter with string bindings, `print`,
+  runnable sample output, and syntax and semantic error tests.
+- `langmeld generate handler <construct>` for validated construct names,
+  additive handler stubs, and safe registration in generated source sections.
 - Incremental LSP document updates using negotiated UTF-8, UTF-16, or UTF-32
   positions, plus host workspace-symbol search and document outlines.
 - Host-resolved navigation and references across closed project files, with
@@ -16,6 +23,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Use `language/main.langmeld` as the generated project's conventional root
+  definition and keep initializer templates in separate files.
 - Cross-platform file-URI comparison and workspace lockfile package versions.
 
 ## [0.5.0] - 2026-11-10

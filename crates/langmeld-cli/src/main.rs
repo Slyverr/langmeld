@@ -4,6 +4,7 @@ mod definition_completion;
 mod definition_index;
 mod format;
 mod generate;
+mod generate_handler;
 mod init;
 mod lsp;
 mod project;

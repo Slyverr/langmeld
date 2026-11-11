@@ -20,6 +20,11 @@ cargo run -p langmeld-cli -- check \
   --manifest-path my-language/langmeld.toml
 ```
 
+The declarative starter runs a small language with `let` bindings and `print`.
+Add behavior for a declared construct with `langmeld generate handler <name>`;
+the generated handler is registered in the project and starts with a clear
+diagnostic until its behavior is implemented.
+
 Browse the [documentation](docs/README.md) for project setup, language
 definitions, editor integration, and the framework architecture.
 
