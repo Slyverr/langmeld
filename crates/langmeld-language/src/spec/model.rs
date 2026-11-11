@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::completion::CompletionKind;
+use crate::completion_model::CompletionKind;
 
 use super::SpecError;
 

@@ -3,6 +3,7 @@
 
 mod analysis;
 mod completion;
+mod completion_model;
 mod definition;
 mod format;
 mod handler;
@@ -14,9 +15,8 @@ mod spec;
 mod syntax;
 
 pub use analysis::{AnalysisContext, LanguagePass};
-pub use completion::{
-    CompletionCandidate, CompletionKind, complete_at, complete_at_with_lexer, complete_with,
-};
+pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer, complete_with};
+pub use completion_model::CompletionKind;
 pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
     decode_definition_string, language_definition_grammar, parse_language_definition,

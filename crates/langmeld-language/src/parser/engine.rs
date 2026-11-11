@@ -1,6 +1,6 @@
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::completion::ParseContext;
+use crate::completion_model::{CompletionKind, ParseContext};
 use crate::lexer::{LexOutput, LexedToken, Lexer, lex_bounded, validate_tokens};
 use crate::syntax::{build_syntax_tree, unparsed_syntax_tree};
 use crate::{LanguageSpec, PatternPart};
@@ -145,7 +145,7 @@ impl Parser<'_> {
                     .collect(),
                 close: close.map(str::to_owned),
                 values: Vec::new(),
-                value_kind: crate::CompletionKind::EnumMember,
+                value_kind: CompletionKind::EnumMember,
                 blocked: self.completion_blocked,
             });
         }

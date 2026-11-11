@@ -3,7 +3,7 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span, has_errors};
 
 use crate::LanguageSpec;
-use crate::completion::ParseContext;
+use crate::completion_model::ParseContext;
 use crate::lexer::{ConfiguredLexer, Lexer, TokenKind};
 
 mod engine;
