@@ -11,6 +11,7 @@ use langmeld_core::SourceFile;
 use langmeld_language::{language_definition_grammar, parse, quote_definition_string};
 
 use crate::{
+    atomic_file::replace_existing,
     generate_handler::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
         rust_names, update_managed_section, validate_constructs_directory, write_new_file,
@@ -120,7 +121,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         return Err(with_rollback_errors(error, rollback_errors).into());
     }
 
-    if let Err(error) = fs::write(&root_path, updated_root) {
+    if let Err(error) = replace_existing(&root_path, &updated_root) {
         let mut rollback_errors = rollback_generated_paths(
             &[handler_path.as_path(), syntax_path.as_path()],
             created_directory.then_some(syntax_directory.as_path()),
@@ -135,7 +136,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         return Err(with_rollback_errors(error, rollback_errors).into());
     }
 
-    if let Err(error) = fs::write(&registry_path, updated_registry) {
+    if let Err(error) = replace_existing(&registry_path, &updated_registry) {
         let mut rollback_errors = rollback_generated_paths(
             &[handler_path.as_path(), syntax_path.as_path()],
             created_directory.then_some(syntax_directory.as_path()),
@@ -365,7 +366,7 @@ fn restore_file(path: &Path, contents: &str, description: &str, errors: &mut Vec
         return;
     }
 
-    if let Err(error) = fs::write(path, contents) {
+    if let Err(error) = replace_existing(path, contents) {
         errors.push(format!(
             "could not restore {description} `{}`: {error}",
             path.display()

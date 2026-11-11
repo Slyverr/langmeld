@@ -7,6 +7,7 @@ use std::{
 
 use clap::Args;
 
+use crate::atomic_file::replace_existing;
 use crate::project::load_definition_project;
 
 pub(crate) const MODULES_BEGIN: &str = "// <langmeld:begin modules>";
@@ -92,18 +93,21 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     let handler_source = handler_template(&args.construct, &handler_name);
 
     write_new_file(&handler_path, &handler_source)?;
-    if let Err(error) = fs::write(&registry_path, updated_registry) {
-        let restore_error = fs::write(&registry_path, registry_source).err();
+    if let Err(error) = replace_existing(&registry_path, &updated_registry) {
         let cleanup_error = fs::remove_file(&handler_path).err();
-        let detail = match (restore_error, cleanup_error) {
-            (None, None) => error.to_string(),
-            (restore, cleanup) => format!(
-                "{error}; registry restore: {}; generated file cleanup: {}",
-                restore.map_or_else(|| "succeeded".to_owned(), |error| error.to_string()),
-                cleanup.map_or_else(|| "succeeded".to_owned(), |error| error.to_string()),
-            ),
+        let error = match cleanup_error {
+            Some(cleanup_error) if cleanup_error.kind() != io::ErrorKind::NotFound => {
+                io::Error::new(
+                    error.kind(),
+                    format!(
+                        "{error}; rollback was incomplete: could not remove generated handler `{}`: {cleanup_error}",
+                        handler_path.display()
+                    ),
+                )
+            }
+            _ => error,
         };
-        return Err(io::Error::other(detail).into());
+        return Err(error.into());
     }
 
     println!(

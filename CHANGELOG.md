@@ -84,6 +84,8 @@ Migration notes for the current unreleased API are in the
   example and reject trailing commas.
 - Restore the language definition and handler registry when construct generation
   fails, and report all rollback failures.
+- Replace existing language files atomically when formatting or generating
+  constructs and handlers.
 
 ## [0.7.0] - 2026-11-11
 

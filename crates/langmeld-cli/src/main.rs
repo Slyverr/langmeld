@@ -1,3 +1,4 @@
+mod atomic_file;
 mod check;
 mod definition_backend;
 mod definition_completion;

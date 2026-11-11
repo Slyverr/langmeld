@@ -4,6 +4,7 @@ use clap::Args;
 use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::{DefinitionFormatOptions, format_language_definition};
 
+use crate::atomic_file::replace_existing;
 use crate::project::load_definition_project;
 
 #[derive(Debug, Args)]
@@ -69,7 +70,7 @@ pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
 
     for (path, original, formatted) in outputs {
         if formatted != original {
-            fs::write(&path, formatted)?;
+            replace_existing(&path, &formatted)?;
             println!("Formatted {}", path.display());
         }
     }
