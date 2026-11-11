@@ -225,12 +225,17 @@ expression forms or write a host parser for another grammar. The Tree-sitter
 exporter reports these host-parsed captures as unsupported because it cannot
 infer the embedded expression grammar.
 
+Use a custom `LanguageParser` when syntax needs rules that token patterns
+cannot express. The [Brainfuck example](../../examples/brainfuck) uses one
+because `[` is both a command and the opening delimiter of its loop.
+
 ## Blocks
 
 A construct may declare one delimited block. The delimiters are exact lexer
-tokens. `allow` lists construct names permitted as direct children. When
-several blocks share the same child group, constructs can implement a named
-category and a block can allow that category:
+tokens consumed after the construct's syntax pattern. `allow` lists construct
+names permitted as direct children. When several blocks share the same child
+group, constructs can implement a named category and a block can allow that
+category:
 
 ```langmeld
 construct "conditional" {
@@ -263,6 +268,11 @@ An unknown or empty category is a validation error.
 Categories only group grammar constructs. They do not infer variable
 visibility, declaration order, name resolution, or control-flow meaning from
 blocks.
+
+Because the opening delimiter follows the construct pattern, this block form
+does not model syntax where the opening token is itself the entire construct
+prefix, such as Brainfuck's `[...]` loop. Use a custom parser for that syntax;
+do not add a placeholder keyword to the user's language.
 
 ## Parser resource limits
 

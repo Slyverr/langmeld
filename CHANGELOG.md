@@ -11,6 +11,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 - A declarative function-language example showing parameter captures, typed
   AST lowering, forward declarations, and ordered semantic analysis in Rust.
+- A complete Brainfuck interpreter demonstrating host-owned parsing,
+  source-located diagnostics, and bounded execution.
 
 ## [0.7.0] - 2026-11-11
 

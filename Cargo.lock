@@ -337,6 +337,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-brainfuck-example"
+version = "0.7.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-language",
+]
+
+[[package]]
 name = "langmeld-cli"
 version = "0.7.0"
 dependencies = [
@@ -364,15 +372,6 @@ dependencies = [
  "langmeld-core",
  "langmeld-language",
  "langmeld-project",
-]
-
-[[package]]
-name = "langmeld-custom-parser-example"
-version = "0.7.0"
-dependencies = [
- "langmeld-core",
- "langmeld-expression",
- "langmeld-language",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 [package]
-name = "langmeld-custom-parser-example"
-description = "A host-owned parser and AST consumer example for Langmeld."
+name = "langmeld-brainfuck-example"
+description = "A complete Brainfuck interpreter using Langmeld source and lexer APIs."
 publish = false
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,6 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-langmeld-expression.workspace = true
 langmeld-core.workspace = true
 langmeld-language.workspace = true
 
