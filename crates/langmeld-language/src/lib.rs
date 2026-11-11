@@ -1,6 +1,7 @@
 //! Declarative syntax models and a generic parser for Langmeld languages.
 #![deny(missing_docs)]
 
+mod analysis;
 mod completion;
 mod definition;
 mod format;
@@ -10,6 +11,7 @@ mod navigation;
 mod parser;
 mod spec;
 
+pub use analysis::{AnalysisContext, LanguagePass};
 pub use completion::{
     CompletionCandidate, CompletionKind, complete_at, complete_at_with_lexer, complete_with,
 };

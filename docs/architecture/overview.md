@@ -10,7 +10,7 @@ behavior it needs.
 | Crate | Responsibility |
 | --- | --- |
 | `langmeld-core` | Source snapshots and identities, byte spans, and structured diagnostics. |
-| `langmeld-language` | Language grammar model, `.langmeld` frontend and validation, built-in lexer and parser, construct-handler dispatch, and host parser, analysis, completion, and navigation contracts. |
+| `langmeld-language` | Language grammar model, `.langmeld` frontend and validation, built-in lexer and parser, construct-handler dispatch, ordered analysis passes, and host parser, analysis, completion, and navigation contracts. |
 | `langmeld-project` | Project manifests and modular definition loading through directory, in-memory, and overlay resolvers. |
 | `langmeld-expression` | Optional configurable expression grammar, parser, and host-defined type and evaluation hooks. |
 | `langmeld-lsp` | LSP protocol adapter for declarative languages and Rust-hosted backends. |
@@ -42,6 +42,12 @@ For a declarative project, the main flow is:
    cannot determine, such as name resolution, type checking, execution, or
    compilation.
 
+When semantic analysis needs multiple phases, a host can run `LanguagePass`
+implementations through `AnalysisContext`. The host owns the pass order and
+typed state; the context associates the result and diagnostics with the parsed
+source snapshot. A single `LanguageAnalyzer` callback remains suitable for
+smaller languages.
+
 Custom parser projects can implement `LanguageParser` and return a host-owned
 tree instead of using the generic construct parser. Hosts can implement
 `LanguageAnalyzer`, completion, and navigation contracts, or provide a
@@ -58,11 +64,14 @@ invent language-specific meaning from syntax alone.
   parse expression captures in host code.
 - Implement `LanguageParser` for a different grammar strategy or a
   language-specific AST.
-- Add host analysis and editor callbacks for semantic behavior. Implement
+- Add `LanguagePass` implementations for ordered semantic phases, or keep a
+  single `LanguageAnalyzer` for simpler analysis. Add editor callbacks for
+  semantic behavior. Implement
   `LanguageBackend` directly when the adapter contracts need more control.
 - Use TextMate and Tree-sitter exporters only when their documented grammar
   subsets represent the language accurately.
 
 See the [language definition guide](../language/definitions.md),
+[analysis pass guide](../language/analysis-passes.md),
 [editor integration guides](../editor/README.md), and
 [project workflow](../guides/project-workflow.md) for usage details.

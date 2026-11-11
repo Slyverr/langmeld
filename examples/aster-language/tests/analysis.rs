@@ -122,7 +122,7 @@ fn reports_unresolved_names_and_same_scope_duplicates() {
         "fn main() -> i32 { let value = missing; let value = 2; let before = later; let later = 1; return later; }",
     );
     let parsed = parse_program(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, &parsed);
 
     assert!(
         analysis
@@ -163,7 +163,7 @@ fn checks_call_arity_argument_types_and_return_types() {
     );
     let parsed = parse_program(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, &parsed);
 
     assert!(
         analysis
@@ -207,7 +207,7 @@ fn analysis_keeps_the_source_revision_it_describes() {
     let source = sources.get(id).unwrap();
     let parsed = parse_program(source);
 
-    let analysis = analyze(source, &parsed.tree);
+    let analysis = analyze(source, &parsed);
 
     assert_eq!(analysis.source, parsed.source);
 }
@@ -219,7 +219,7 @@ fn reports_values_that_shadow_functions_when_called() {
         "fn value() -> i32 { return 1; } fn main() -> i32 { let value = 2; return value(); }",
     );
     let parsed = parse_program(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, &parsed);
 
     let reference = analysis
         .result
@@ -248,7 +248,7 @@ fn keeps_function_navigation_for_a_function_used_as_a_value() {
         "fn value() -> i32 { return 1; } fn main() -> i32 { return value; }",
     );
     let parsed = parse_program(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, &parsed);
 
     let reference = analysis
         .result
@@ -275,7 +275,7 @@ fn requires_functions_to_return_in_the_current_language_subset() {
         "fn main() -> i32 { let value = 1; }",
     );
     let parsed = parse_program(&source);
-    let analysis = analyze(&source, &parsed.tree);
+    let analysis = analyze(&source, &parsed);
 
     assert!(
         analysis

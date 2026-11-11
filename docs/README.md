@@ -9,6 +9,8 @@ framework users. The guides describe behavior available in the current codebase.
   a language project.
 - [Construct handlers](language/handlers.md): implement and register Rust
   behavior for declarative constructs.
+- [Analysis passes](language/analysis-passes.md): organize ordered semantic
+  phases over parsed documents with host-owned state.
 - [Language definitions](language/definitions.md): organize `.langmeld` files,
   describe token patterns, and decide when to use Rust code.
 

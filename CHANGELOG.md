@@ -16,6 +16,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   runnable sample output, and syntax and semantic error tests.
 - `langmeld generate handler <construct>` for validated construct names,
   additive handler stubs, and safe registration in generated source sections.
+- Ordered `LanguagePass` analysis with host-owned state and diagnostics, while
+  retaining the existing single-callback `LanguageAnalyzer` option.
 - Incremental LSP document updates using negotiated UTF-8, UTF-16, or UTF-32
   positions, plus host workspace-symbol search and document outlines.
 - Host-resolved navigation and references across closed project files, with

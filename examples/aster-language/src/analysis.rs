@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_expression::{Expression, ExpressionKind};
-use langmeld_language::{AnalysisDocument, LanguageAnalyzer, ParsedDocument};
+use langmeld_language::{
+    AnalysisContext, AnalysisDocument, LanguageAnalyzer, LanguagePass, ParsedDocument,
+};
 
 use crate::{AsterParser, Function, Program, Statement, ValueType};
 
@@ -74,8 +76,16 @@ pub struct Analysis {
 
 /// Resolves Aster names and checks its small built-in type system.
 #[must_use]
-pub fn analyze(source: &SourceFile, program: &Program) -> AnalysisDocument<Analysis> {
-    Analyzer::new(source, program).run()
+pub fn analyze(
+    source: &SourceFile,
+    parsed: &ParsedDocument<Program>,
+) -> AnalysisDocument<Analysis> {
+    let mut context = AnalysisContext::new(source, parsed, Analyzer::new(source));
+    context.run_pass(&DeclareFunctions);
+    context.run_pass(&AnalyzeFunctionBodies);
+
+    let analysis = context.finish();
+    AnalysisDocument::new(source, analysis.result.analysis, analysis.diagnostics)
 }
 
 /// Analyzer for Aster's scope and type rules.
@@ -90,7 +100,7 @@ impl LanguageAnalyzer<AsterParser> for AsterAnalyzer {
         source: &SourceFile,
         parsed: &ParsedDocument<Program>,
     ) -> AnalysisDocument<Self::Analysis> {
-        analyze(source, &parsed.tree)
+        analyze(source, parsed)
     }
 }
 
@@ -102,7 +112,6 @@ struct Scope {
 
 struct Analyzer<'a> {
     source: &'a SourceFile,
-    program: &'a Program,
     analysis: Analysis,
     diagnostics: Vec<Diagnostic>,
     scopes: Vec<Scope>,
@@ -110,10 +119,9 @@ struct Analyzer<'a> {
 }
 
 impl<'a> Analyzer<'a> {
-    fn new(source: &'a SourceFile, program: &'a Program) -> Self {
+    fn new(source: &'a SourceFile) -> Self {
         Self {
             source,
-            program,
             analysis: Analysis::default(),
             diagnostics: Vec::new(),
             scopes: vec![Scope::default()],
@@ -121,16 +129,8 @@ impl<'a> Analyzer<'a> {
         }
     }
 
-    fn run(mut self) -> AnalysisDocument<Analysis> {
-        self.declare_functions();
-        for function in &self.program.functions {
-            self.analyze_function(function);
-        }
-        AnalysisDocument::new(self.source, self.analysis, self.diagnostics)
-    }
-
-    fn declare_functions(&mut self) {
-        for function in &self.program.functions {
+    fn declare_functions(&mut self, program: &Program) {
+        for function in &program.functions {
             let symbol = self.add_symbol(
                 &function.name,
                 SymbolKind::Function,
@@ -514,6 +514,38 @@ impl<'a> Analyzer<'a> {
     fn error(&mut self, code: &str, message: impl Into<String>, span: Span) {
         self.diagnostics
             .push(Diagnostic::error(code, message, self.source, span));
+    }
+}
+
+struct DeclareFunctions;
+
+impl<'a> LanguagePass<Program, Analyzer<'a>> for DeclareFunctions {
+    fn run(
+        &self,
+        _source: &SourceFile,
+        parsed: &ParsedDocument<Program>,
+        state: &mut Analyzer<'a>,
+    ) -> Vec<Diagnostic> {
+        state.declare_functions(&parsed.tree);
+
+        std::mem::take(&mut state.diagnostics)
+    }
+}
+
+struct AnalyzeFunctionBodies;
+
+impl<'a> LanguagePass<Program, Analyzer<'a>> for AnalyzeFunctionBodies {
+    fn run(
+        &self,
+        _source: &SourceFile,
+        parsed: &ParsedDocument<Program>,
+        state: &mut Analyzer<'a>,
+    ) -> Vec<Diagnostic> {
+        for function in &parsed.tree.functions {
+            state.analyze_function(function);
+        }
+
+        std::mem::take(&mut state.diagnostics)
     }
 }
 

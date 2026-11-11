@@ -17,6 +17,11 @@ the proposed edit by reanalyzing the result, rejecting same-scope collisions
 and changes that would redirect a resolved reference. Aster has no runtime or
 compiler.
 
+The analyzer uses two ordered `LanguagePass` implementations: it collects
+function signatures first, then analyzes function bodies. This permits forward
+function references while keeping Aster's symbol and type policies in the
+example rather than in Langmeld.
+
 Run it with:
 
 ```sh
