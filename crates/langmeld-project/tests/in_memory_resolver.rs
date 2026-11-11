@@ -69,18 +69,18 @@ fn rejects_keys_and_imports_that_escape_the_virtual_project() {
 
     assert!(
         resolver
-            .resolve(&root.key, "../../outside.langmeld")
+            .resolve(root.key(), "../../outside.langmeld")
             .is_err()
     );
-    assert!(resolver.resolve(&root.key, "/outside.langmeld").is_err());
+    assert!(resolver.resolve(root.key(), "/outside.langmeld").is_err());
     assert!(
         resolver
-            .resolve(&root.key, "folder\\outside.langmeld")
+            .resolve(root.key(), "folder\\outside.langmeld")
             .is_err()
     );
     assert!(
         resolver
-            .resolve(&root.key, "missing.langmeld")
+            .resolve(root.key(), "missing.langmeld")
             .unwrap_err()
             .contains("not in the source collection")
     );

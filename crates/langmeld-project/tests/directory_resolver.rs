@@ -47,10 +47,10 @@ fn resolves_nested_imports_and_retains_source_snapshots() {
     let root = resolver.load("language/main.langmeld").unwrap();
 
     let imported = resolver
-        .resolve(&root.key, "constructs/items.langmeld")
+        .resolve(root.key(), "constructs/items.langmeld")
         .unwrap();
 
-    assert_eq!(imported.key, "language/constructs/items.langmeld");
+    assert_eq!(imported.key(), "language/constructs/items.langmeld");
     assert_eq!(
         resolver
             .sources()
@@ -103,9 +103,9 @@ fn allows_parent_segments_while_target_remains_inside_project() {
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
     let root = resolver.load("language/main.langmeld").unwrap();
 
-    let imported = resolver.resolve(&root.key, "../constructs/items.langmeld");
+    let imported = resolver.resolve(root.key(), "../constructs/items.langmeld");
 
-    assert_eq!(imported.unwrap().key, "constructs/items.langmeld");
+    assert_eq!(imported.unwrap().key(), "constructs/items.langmeld");
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn rejects_imports_that_escape_the_project_root() {
         .expect("temporary directory name should be UTF-8");
     let relative = format!("../../{outside_name}/private.langmeld");
 
-    let result = resolver.resolve(&root.key, &relative);
+    let result = resolver.resolve(root.key(), &relative);
 
     assert!(result.unwrap_err().contains("outside the project root"));
 }
@@ -135,11 +135,11 @@ fn rejects_absolute_and_non_portable_import_paths() {
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
     let root = resolver.load("main.langmeld").unwrap();
 
-    assert!(resolver.resolve(&root.key, "/etc/passwd").is_err());
-    assert!(resolver.resolve(&root.key, "C:/outside.langmeld").is_err());
+    assert!(resolver.resolve(root.key(), "/etc/passwd").is_err());
+    assert!(resolver.resolve(root.key(), "C:/outside.langmeld").is_err());
     assert!(
         resolver
-            .resolve(&root.key, "folder\\items.langmeld")
+            .resolve(root.key(), "folder\\items.langmeld")
             .is_err()
     );
     assert!(resolver.load("../main.langmeld").is_err());
@@ -160,7 +160,7 @@ fn rejects_symlinks_that_escape_the_project_root() {
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
     let root = resolver.load("language/main.langmeld").unwrap();
 
-    let result = resolver.resolve(&root.key, "../secret.langmeld");
+    let result = resolver.resolve(root.key(), "../secret.langmeld");
 
     assert!(result.unwrap_err().contains("outside the project root"));
 }

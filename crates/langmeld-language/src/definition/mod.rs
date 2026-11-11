@@ -33,9 +33,9 @@ impl DefinitionResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DefinitionSource {
     /// Stable resolver key used to detect duplicate imports and cycles.
-    pub key: String,
+    key: String,
     /// Immutable source snapshot containing the definition text.
-    pub source: SourceFile,
+    source: SourceFile,
 }
 
 /// Maximum number of nested definition imports accepted in one project.
@@ -49,6 +49,24 @@ impl DefinitionSource {
             key: key.into(),
             source,
         }
+    }
+
+    /// Returns the stable resolver key for this source.
+    #[must_use]
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    /// Returns the immutable source snapshot containing the definition.
+    #[must_use]
+    pub const fn source(&self) -> &SourceFile {
+        &self.source
+    }
+
+    /// Consumes this value and returns its resolver key and source snapshot.
+    #[must_use]
+    pub fn into_parts(self) -> (String, SourceFile) {
+        (self.key, self.source)
     }
 }
 

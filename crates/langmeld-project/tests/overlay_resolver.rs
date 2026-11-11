@@ -103,7 +103,7 @@ fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
 
     let error = langmeld_language::DefinitionResolver::resolve(
         &resolver,
-        &root.key,
+        root.key(),
         "../../outside.langmeld",
     )
     .unwrap_err();

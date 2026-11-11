@@ -70,7 +70,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
         } else {
             self.resolver.load(&self.root_definition).ok()?
         };
-        let root_source = root.source.clone();
+        let root_source = root.source().clone();
         let resolver = OpenFileOverlayResolver {
             resolver: &self.resolver,
             open_sources: &open_sources,
@@ -213,8 +213,8 @@ impl LanguageBackend for ProjectDefinitionBackend {
 
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
         let resolved = self.resolver.load(location.source_name()).ok()?;
-        if resolved.source.identity() != location.source_identity()
-            || resolved.source.name() != location.source_name()
+        if resolved.source().identity() != location.source_identity()
+            || resolved.source().name() != location.source_name()
         {
             return None;
         }
@@ -223,7 +223,8 @@ impl LanguageBackend for ProjectDefinitionBackend {
             return None;
         }
         let uri = Url::from_file_path(path).ok()?.as_str().parse().ok()?;
-        Some(BackendSource::new(uri, resolved.source))
+        let (_, source) = resolved.into_parts();
+        Some(BackendSource::new(uri, source))
     }
 
     fn format_document(
@@ -277,27 +278,28 @@ struct OpenFileOverlayResolver<'a> {
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
         let resolved = self.resolver.resolve(from_key, import)?;
+        let (resolved_key, resolved_source) = resolved.into_parts();
         let is_new_source = self
             .loaded
             .lock()
             .expect("definition resolver lock is not poisoned")
-            .insert(resolved.key.clone());
-        let source = if let Some(source) = self.open_sources.get(&resolved.key) {
+            .insert(resolved_key.clone());
+        let source = if let Some(source) = self.open_sources.get(&resolved_key) {
             source.clone()
         } else {
-            resolved.source
+            resolved_source
         };
         let mut sources = self
             .sources
             .lock()
             .expect("definition source lock is not poisoned");
         if is_new_source {
-            sources.push((resolved.key.clone(), source.clone()));
+            sources.push((resolved_key.clone(), source.clone()));
         } else if let Some((_, loaded_source)) =
-            sources.iter_mut().find(|(key, _)| key == &resolved.key)
+            sources.iter_mut().find(|(key, _)| key == &resolved_key)
         {
             *loaded_source = source.clone();
         }
-        Ok(DefinitionSource::new(resolved.key, source))
+        Ok(DefinitionSource::new(resolved_key, source))
     }
 }
