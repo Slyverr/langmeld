@@ -1,4 +1,6 @@
-use langmeld_core::{Diagnostic, Severity, SourceDatabase, SourceFile, Span, format_diagnostics};
+use langmeld_core::{
+    Diagnostic, Severity, SourceDatabase, SourceFile, Span, format_diagnostics, has_errors,
+};
 
 #[test]
 fn constructs_source_and_project_diagnostics_at_every_severity() {
@@ -34,6 +36,22 @@ fn constructs_source_and_project_diagnostics_at_every_severity() {
         assert_eq!(diagnostic.severity, severity);
         assert!(diagnostic.location.is_none());
     }
+}
+
+#[test]
+fn detects_errors_without_treating_warnings_or_information_as_errors() {
+    let non_errors = [
+        Diagnostic::spec_warning("TEST-001", "warning"),
+        Diagnostic::spec_info("TEST-002", "information"),
+    ];
+    let errors = [
+        Diagnostic::spec_warning("TEST-003", "warning"),
+        Diagnostic::spec_error("TEST-004", "error"),
+        Diagnostic::spec_info("TEST-005", "information"),
+    ];
+
+    assert!(!has_errors(&non_errors));
+    assert!(has_errors(&errors));
 }
 
 #[test]

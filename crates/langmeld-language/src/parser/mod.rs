@@ -1,6 +1,6 @@
 //! Recovering parser for token-pattern constructs and delimited blocks.
 
-use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
+use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span, has_errors};
 
 use crate::LanguageSpec;
 use crate::completion::ParseContext;
@@ -72,6 +72,14 @@ pub struct ParseResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Whether a configured parser resource limit truncated this result.
     pub resource_limited: bool,
+}
+
+impl ParseResult {
+    /// Returns whether parsing completed without errors or resource limits.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        !self.resource_limited && !has_errors(&self.diagnostics)
+    }
 }
 
 /// Input and work bounds for the generic token-pattern parser.

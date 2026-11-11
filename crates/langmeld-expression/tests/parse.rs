@@ -21,6 +21,7 @@ fn respects_precedence_and_left_associativity() {
     let parsed =
         ExpressionParser::new(&arithmetic()).parse(&source, Span::new(0, source.text.len()));
 
+    assert!(parsed.is_valid());
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let Some(ExpressionKind::Infix {
         operator,
@@ -103,6 +104,7 @@ fn reports_invalid_ranges_and_malformed_expressions() {
     assert_eq!(invalid_range.diagnostics[0].code, "LM-EXPR-001");
 
     let malformed = parser.parse(&source, Span::new(0, source.text.len()));
+    assert!(!malformed.is_valid());
     assert!(malformed.expression.is_none());
     assert!(
         malformed
@@ -137,6 +139,7 @@ fn rejects_expression_ranges_over_the_configured_source_limit() {
 
     let parsed = parser.parse(&source, Span::new(7, 12));
 
+    assert!(!parsed.is_valid());
     assert!(parsed.resource_limited);
     assert!(parsed.expression.is_none());
     assert_eq!(parsed.diagnostics[0].code, "LM-EXPR-012");

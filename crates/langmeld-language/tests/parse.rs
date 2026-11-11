@@ -37,6 +37,7 @@ fn parses_multiple_declarations_and_captures_values_with_spans() {
     let source = SourceFile::new("main", "let answer = 42; print answer;");
     let result = parse(&source, &language());
 
+    assert!(result.is_valid());
     assert!(result.diagnostics.is_empty());
     assert_eq!(result.constructs.len(), 2);
     assert_eq!(result.constructs[0].name, "let");
@@ -76,6 +77,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
 
     let result = parse(&source, &grammar);
 
+    assert!(!result.is_valid());
     assert_eq!(
         result.constructs[0]
             .children
@@ -799,6 +801,7 @@ fn rejects_oversized_source_before_calling_a_host_lexer() {
         },
     );
 
+    assert!(!result.is_valid());
     assert!(result.resource_limited);
     assert!(result.constructs.is_empty());
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-007");

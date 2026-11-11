@@ -1,6 +1,6 @@
 //! Contracts for host-owned parsers and parse trees.
 
-use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
+use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, has_errors};
 
 use crate::CompletionCandidate;
 
@@ -29,9 +29,7 @@ impl<T> ParsedDocument<T> {
     /// Returns whether parsing produced no error diagnostics.
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        self.diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.severity != langmeld_core::Severity::Error)
+        !has_errors(&self.diagnostics)
     }
 }
 
@@ -60,9 +58,7 @@ impl<T> AnalysisDocument<T> {
     /// Returns whether analysis produced no error diagnostics.
     #[must_use]
     pub fn is_valid(&self) -> bool {
-        self.diagnostics
-            .iter()
-            .all(|diagnostic| diagnostic.severity != langmeld_core::Severity::Error)
+        !has_errors(&self.diagnostics)
     }
 }
 

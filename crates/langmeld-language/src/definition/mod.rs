@@ -6,7 +6,7 @@ mod project;
 mod strings;
 mod unit;
 
-use langmeld_core::{Diagnostic, Severity, SourceFile};
+use langmeld_core::{Diagnostic, SourceFile, has_errors};
 
 use crate::LanguageSpec;
 
@@ -27,12 +27,6 @@ impl DefinitionResult {
     pub fn is_valid(&self) -> bool {
         self.language.is_some() && !has_errors(&self.diagnostics)
     }
-}
-
-pub(super) fn has_errors(diagnostics: &[Diagnostic]) -> bool {
-    diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity == Severity::Error)
 }
 
 /// A named `.langmeld` source supplied to a language-definition project.

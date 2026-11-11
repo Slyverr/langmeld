@@ -1,13 +1,11 @@
 //! Loading and composing imported language-definition sources.
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span, has_errors};
 
 use crate::{ConstructSpec, LanguageSpec, LexicalRules, SpecError};
 
 use super::unit::{ImportDirective, parse_definition_unit};
-use super::{
-    DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH, has_errors,
-};
+use super::{DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH};
 
 /// Loads and composes a language root and its explicitly imported local modules.
 ///

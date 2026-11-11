@@ -1,6 +1,6 @@
 //! Source-spanned Pratt parser for common expression forms.
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceFile, Span, has_errors};
 
 use crate::ExpressionGrammar;
 
@@ -107,6 +107,14 @@ pub struct ExpressionParseResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Whether a parser resource limit stopped or truncated the result.
     pub resource_limited: bool,
+}
+
+impl ExpressionParseResult {
+    /// Returns whether an expression was parsed without errors or resource limits.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.expression.is_some() && !self.resource_limited && !has_errors(&self.diagnostics)
+    }
 }
 
 /// Parses source ranges with one validated operator table.

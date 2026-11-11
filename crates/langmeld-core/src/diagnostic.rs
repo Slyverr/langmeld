@@ -47,6 +47,14 @@ pub struct SourceLocation {
     pub span: Span,
 }
 
+/// Returns whether a diagnostic collection contains an error.
+#[must_use]
+pub fn has_errors(diagnostics: &[Diagnostic]) -> bool {
+    diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.severity == Severity::Error)
+}
+
 impl Diagnostic {
     /// Creates a source-located error.
     #[must_use]
