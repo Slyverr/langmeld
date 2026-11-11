@@ -74,6 +74,21 @@ pub struct ParseResult {
     resource_limited: bool,
 }
 
+/// Owned components of a consumed [`ParseResult`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ParseResultParts {
+    /// Identity and revision of the parsed snapshot, if database-managed.
+    pub source_identity: Option<SourceIdentity>,
+    /// Successfully recognized constructs in source order.
+    pub constructs: Vec<ParsedConstruct>,
+    /// Lossless source structure for editor integrations and other tools.
+    pub syntax_tree: crate::SyntaxTree,
+    /// Lexical and syntax errors, including recoverable findings.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Whether a configured parser resource limit truncated this result.
+    pub resource_limited: bool,
+}
+
 impl ParseResult {
     /// Returns the identity and revision of the parsed source snapshot.
     #[must_use]
@@ -103,6 +118,18 @@ impl ParseResult {
     #[must_use]
     pub const fn resource_limited(&self) -> bool {
         self.resource_limited
+    }
+
+    /// Consumes the result and returns its source identity and owned components.
+    #[must_use]
+    pub fn into_parts(self) -> ParseResultParts {
+        ParseResultParts {
+            source_identity: self.source,
+            constructs: self.constructs,
+            syntax_tree: self.syntax_tree,
+            diagnostics: self.diagnostics,
+            resource_limited: self.resource_limited,
+        }
     }
 
     /// Returns whether parsing completed without errors or resource limits.

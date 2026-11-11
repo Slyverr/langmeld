@@ -686,6 +686,30 @@ fn parse_result_and_diagnostics_keep_source_revision() {
 }
 
 #[test]
+fn parse_result_can_be_consumed_without_separating_its_source_identity() {
+    let mut sources = SourceDatabase::default();
+    let id = sources
+        .insert("main", "let answer = 42; print answer;")
+        .unwrap();
+    let source = sources.get(id).unwrap();
+    let expected_identity = source.identity();
+    let result = parse(source, &language());
+
+    assert!(result.is_valid());
+
+    let parts = result.into_parts();
+
+    assert_eq!(parts.source_identity, expected_identity);
+    assert_eq!(parts.constructs.len(), 2);
+    assert_eq!(
+        parts.syntax_tree.root.span,
+        Span::new(0, source.text().len())
+    );
+    assert!(parts.diagnostics.is_empty());
+    assert!(!parts.resource_limited);
+}
+
+#[test]
 fn parses_nested_blocks_and_restricts_children_to_the_declared_scope() {
     let grammar = LanguageSpec::new(
         "Nested",

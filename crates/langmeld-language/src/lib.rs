@@ -35,8 +35,8 @@ pub use lexer::{DefaultLexer, LexOutput, LexedToken, Lexer, TokenKind};
 pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
-    CapturedField, CapturedValue, ParseLimits, ParseResult, ParsedConstruct, parse,
-    parse_with_lexer, parse_with_lexer_and_limits, parse_with_limits,
+    CapturedField, CapturedValue, ParseLimits, ParseResult, ParseResultParts, ParsedConstruct,
+    parse, parse_with_lexer, parse_with_lexer_and_limits, parse_with_limits,
 };
 pub use spec::{
     BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum,

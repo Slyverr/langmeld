@@ -80,6 +80,9 @@ source-preserving structure. It does not choose formatting rules or infer
 language semantics. Custom `LanguageParser` implementations continue to return
 their own tree through `ParsedDocument<T>`. If the source-size limit rejects
 input before lexing, the tree contains one unknown token spanning the source.
+Borrow parse output through its accessors, or consume `ParseResult` with
+`into_parts()` to move its constructs, syntax tree, diagnostics, and source
+identity without cloning.
 
 `constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
 used by the root block. See the complete consumer in
