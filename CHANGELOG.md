@@ -4,6 +4,8 @@ All notable changes to Langmeld are documented here.
 
 The format follows [Keep a Changelog 2.0.0](https://keepachangelog.com/en/2.0.0/),
 and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+Migration notes for the current unreleased API are in the
+[upgrading guide](docs/guides/upgrading.md).
 
 ## [Unreleased]
 
@@ -18,20 +20,23 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   Use `context.construct()` for the current node and omit the construct
   argument from field access and child dispatch methods.
 - Cloned source snapshots now share immutable source text instead of copying it.
-- Loaded definition projects keep their manifest, parsed definition, and
-  source snapshots together behind read-only accessors and `into_parts()`.
-- LSP backend documents keep source identity, host state, and diagnostics
-  associated through read-only accessors and `into_parts()`.
-- Host parser and analysis documents keep their source identity, payload, and
+- **Breaking:** Loaded definition projects keep their manifest, parsed
+  definition, and source snapshots together behind read-only accessors and
+  `into_parts()`.
+- **Breaking:** LSP backend documents keep source identity, host state, and
   diagnostics associated through read-only accessors and `into_parts()`.
-- Generic parse results expose constructs, syntax trees, diagnostics, and
-  resource-limit status through read-only accessors and can transfer owned
-  results with `into_parts()`.
-- Expression parse results keep source identity, AST, consumed range, and
-  diagnostics associated through read-only accessors and `into_parts()`.
-- Source snapshots, identities, locations, parser and analysis results,
-  definition sources, and LSP source mappings and host document bundles keep
-  source associations immutable and expose them through read-only accessors.
+- **Breaking:** Host parser and analysis documents keep their source identity,
+  payload, and diagnostics associated through read-only accessors and
+  `into_parts()`.
+- **Breaking:** Generic parse results expose constructs, syntax trees,
+  diagnostics, and resource-limit status through read-only accessors and can
+  transfer owned results with `into_parts()`.
+- **Breaking:** Expression parse results keep source identity, AST, consumed
+  range, and diagnostics associated through read-only accessors and
+  `into_parts()`.
+- **Breaking:** Source snapshots, identities, locations, definition sources,
+  and LSP source mappings and host document bundles expose source-associated
+  data through read-only accessors instead of public fields.
 - Plain-text diagnostics now include their error, warning, or info severity.
 - The declarative starter and examples use severity-aware validity checks and
   report non-error findings without treating them as failures.
