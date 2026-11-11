@@ -171,6 +171,19 @@ jobs:
           -p langmeld-textmate
           -p langmeld-tree-sitter
           --locked
+      - name: Check downstream in-memory language loading for WebAssembly
+        run: >-
+          cargo check
+          --manifest-path tests/fixtures/downstream-consumer/Cargo.toml
+          --target wasm32-unknown-unknown
+          --target-dir target
+          --locked
+          --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"'
+          --config 'patch.crates-io.langmeld-expression.path="crates/langmeld-expression"'
+          --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"'
+          --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
+          --config 'patch.crates-io.langmeld-textmate.path="crates/langmeld-textmate"'
+          --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Verify packaged workspace crates
         run: >-

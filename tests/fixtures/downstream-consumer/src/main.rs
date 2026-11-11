@@ -1,12 +1,14 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_expression::{Associativity, ExpressionGrammar, ExpressionParser, OperatorSpec};
 use langmeld_language::{CapturedValue, parse, parse_language_definition_project};
-use langmeld_project::DirectoryDefinitionResolver;
+use langmeld_project::{DirectoryDefinitionResolver, InMemoryDefinitionResolver};
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 use std::path::Path;
 
 fn main() {
+    verify_in_memory_language_project();
+
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let resolver = DirectoryDefinitionResolver::new(project_root)
         .expect("downstream fixture should be a valid project root");
@@ -62,4 +64,42 @@ fn main() {
     assert!(expression.expression.is_some());
 
     println!("standalone Langmeld consumer, project imports, and editor exports passed");
+}
+
+fn verify_in_memory_language_project() {
+    let mut resolver = InMemoryDefinitionResolver::new();
+    let sources = [
+        (
+            "language/main.langmeld",
+            include_str!("../language/main.langmeld"),
+        ),
+        (
+            "language/constructs/statements.langmeld",
+            include_str!("../language/constructs/statements.langmeld"),
+        ),
+        (
+            "language/constructs/draw.langmeld",
+            include_str!("../language/constructs/draw.langmeld"),
+        ),
+    ];
+
+    for (key, text) in sources {
+        resolver
+            .insert(key, SourceFile::new(key, text))
+            .expect("embedded definition paths should be valid");
+    }
+
+    let root = resolver
+        .load("language/main.langmeld")
+        .expect("embedded root definition should load");
+    let definition = parse_language_definition_project(root, &resolver);
+
+    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
+
+    let language = definition.language.expect("valid embedded language");
+    let source = SourceFile::new("main.mini", "program { let answer = 42; draw answer; }");
+    let parsed = parse(&source, &language);
+
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert_eq!(parsed.constructs[0].children[1].name, "draw");
 }
