@@ -148,9 +148,8 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     /// constructs themselves. It does not visit their children automatically;
     /// each handler decides whether nested constructs should be dispatched.
     ///
-    /// The result must belong to `source`. Database-managed snapshots are
-    /// checked by identity. Detached snapshots have no identity, so callers
-    /// must pair them correctly. Recovered constructs are dispatched even when
+    /// The result must belong to `source`; all snapshots are checked by
+    /// identity. Recovered constructs are dispatched even when
     /// the result has diagnostics; check [`ParseResult::is_valid`] first when
     /// execution should require a fully valid parse.
     pub fn dispatch_parse_result(
@@ -168,9 +167,8 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     /// order, without dispatching the top-level constructs themselves.
     ///
     /// This is useful when top-level constructs are structural containers such
-    /// as a `program` root. The result must belong to `source`; database-managed
-    /// snapshots are checked by identity. Detached snapshots have no identity,
-    /// so callers must pair them correctly. Recovered children are dispatched
+    /// as a `program` root. The result must belong to `source`; all snapshots
+    /// are checked by identity. Recovered children are dispatched
     /// even when the result has diagnostics; check [`ParseResult::is_valid`]
     /// first when execution should require a fully valid parse.
     pub fn dispatch_top_level_children(

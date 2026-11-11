@@ -130,9 +130,9 @@ impl LanguageBackend for InvalidWorkspaceBackend {
             sources
                 .iter()
                 .map(|source| {
-                    let detached_source = SourceFile::new(source.name(), source.text());
+                    let standalone_source = SourceFile::new(source.name(), source.text());
 
-                    BackendDocument::new(&detached_source, (), Vec::new())
+                    BackendDocument::new(&standalone_source, (), Vec::new())
                 })
                 .collect(),
         )

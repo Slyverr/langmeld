@@ -115,7 +115,7 @@ fn parse_until_leaves_the_terminator_for_its_caller() {
     assert!(parts.diagnostics.is_empty());
     assert!(parts.expression.is_some());
     assert_eq!(parts.consumed, Span::new(0, 5));
-    assert_eq!(parts.source_identity, None);
+    assert_eq!(parts.source_identity, source.identity());
     assert!(!parts.resource_limited);
 }
 

@@ -39,10 +39,10 @@ pub struct Diagnostic {
 /// A source range tied to the identity and revision that were analyzed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceLocation {
-    /// Display name of the source snapshot, including for detached sources.
+    /// Display name of the associated source snapshot.
     source_name: String,
-    /// Source identity and revision, absent only for a detached source.
-    identity: Option<SourceIdentity>,
+    /// Identity and revision of the associated source snapshot.
+    identity: SourceIdentity,
     /// Byte range in the associated source snapshot.
     span: Span,
 }
@@ -66,7 +66,7 @@ impl SourceLocation {
 
     /// Returns the identity and revision of the associated source snapshot.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.identity
     }
 
@@ -165,9 +165,9 @@ impl Diagnostic {
 /// Formats diagnostics as plain text with source name, one-based line and
 /// column, severity, code, and message.
 ///
-/// Managed locations are matched to `sources` by source identity and revision;
-/// detached locations are matched by display name. If a matching source
-/// snapshot is unavailable, the location is shown at line 1, column 1.
+/// Locations are matched to `sources` by source identity and revision. If a
+/// matching source snapshot is unavailable, the location is shown at line 1,
+/// column 1.
 /// Diagnostics without a source location use `<project>` as their display
 /// name.
 #[must_use]
@@ -179,10 +179,7 @@ pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) ->
             let source = location.and_then(|location| {
                 sources
                     .iter()
-                    .find(|source| match location.source_identity() {
-                        Some(identity) => source.identity() == Some(identity),
-                        None => source.name() == location.source_name(),
-                    })
+                    .find(|source| source.identity() == location.source_identity())
             });
             let (line, column) = match (source, location) {
                 (Some(source), Some(location)) => source.line_column(location.span().start),

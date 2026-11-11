@@ -71,10 +71,10 @@ impl CompletionCandidate {
 
 /// Requests host-defined completions for a parsed source snapshot.
 ///
-/// Parse or analysis results from a different database-managed revision are
-/// rejected. Detached snapshots have no revision identity, so callers must
-/// pair those values correctly. Candidates with replacement spans outside the
-/// source or inside a UTF-8 code point are discarded.
+/// Parse or analysis results from a different source revision are rejected for
+/// database-managed and standalone snapshots alike. Candidates with
+/// replacement spans outside the source or inside a UTF-8 code point are
+/// discarded.
 #[must_use]
 pub fn complete_with<P, C>(
     source: &SourceFile,

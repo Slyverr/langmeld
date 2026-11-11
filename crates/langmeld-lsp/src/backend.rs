@@ -17,8 +17,8 @@ use crate::{
 /// A host's retained document state and diagnostics for one source revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackendDocument<T> {
-    /// Identity and revision analyzed by the backend, when database-managed.
-    source: Option<SourceIdentity>,
+    /// Identity and revision analyzed by the backend.
+    source: SourceIdentity,
     /// Host-owned parse tree, analysis state, or combined document data.
     state: T,
     /// Findings to publish for this document.
@@ -70,7 +70,7 @@ impl<T> BackendDocument<T> {
 
     /// Returns the identity and revision of the source snapshot this document belongs to.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.source
     }
 
@@ -88,7 +88,7 @@ impl<T> BackendDocument<T> {
 
     /// Consumes the document and returns its source identity, state, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
         (self.source, self.state, self.diagnostics)
     }
 }

@@ -107,6 +107,25 @@ fn stale_parse_and_analysis_snapshots_are_rejected() {
 }
 
 #[test]
+fn standalone_parse_and_analysis_from_another_source_are_rejected() {
+    let stale_source = SourceFile::new("main.test", "abc");
+    let current_source = SourceFile::new("main.test", "abc");
+    let parsed = Parser.parse(&stale_source);
+    let analysis = AnalysisDocument::new(&stale_source, 3, Vec::new());
+
+    assert!(
+        complete_with(
+            &current_source,
+            &parsed,
+            Some(&analysis),
+            current_source.text().len(),
+            &Completer,
+        )
+        .is_empty()
+    );
+}
+
+#[test]
 fn invalid_offsets_and_replacement_spans_are_rejected() {
     struct InvalidSpanCompleter;
 

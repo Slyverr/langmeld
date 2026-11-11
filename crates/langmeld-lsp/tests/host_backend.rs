@@ -214,9 +214,7 @@ fn managed_source_and_other_identity() -> (SourceFile, SourceIdentity, SourceFil
         .expect("source inserts");
     let source = database.get(source_id).expect("source exists").clone();
     let other_source = database.get(other_id).expect("other source exists").clone();
-    let other_identity = other_source
-        .identity()
-        .expect("managed source has an identity");
+    let other_identity = other_source.identity();
 
     (source, other_identity, other_source)
 }
@@ -238,6 +236,27 @@ fn backend(
 #[test]
 fn parser_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
     let (source, _, other_source) = managed_source_and_other_identity();
+    let backend = backend(Some(other_source), None);
+
+    let document = backend.analyze(&source);
+
+    assert!(
+        document
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code == "LM-HOST-001")
+    );
+    assert!(backend.complete(&source, &document, 0).is_empty());
+    assert!(backend.definition(&source, &document, 0).is_empty());
+    assert!(backend.references(&source, &document, 0, true).is_empty());
+    assert!(document.state().parsed().is_none());
+    assert!(document.state().analysis().is_none());
+}
+
+#[test]
+fn standalone_parser_source_mismatch_is_diagnosed_and_suppresses_queries() {
+    let source = SourceFile::new("main.test", "source");
+    let other_source = SourceFile::new("main.test", "source");
     let backend = backend(Some(other_source), None);
 
     let document = backend.analyze(&source);
@@ -483,12 +502,12 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-HOST-001")
     );
-    assert_eq!(documents[1].source_identity(), Some(other_identity));
+    assert_eq!(documents[1].source_identity(), other_identity);
     assert_eq!(
         documents[1]
             .state()
             .parsed()
             .map(ParsedDocument::source_identity),
-        Some(Some(other_identity))
+        Some(other_identity)
     );
 }

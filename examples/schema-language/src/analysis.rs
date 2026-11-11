@@ -52,8 +52,8 @@ pub struct Analysis {
 
 /// Resolves named record types in one parsed schema source.
 ///
-/// Database-managed parse and source identities must match. Detached snapshots
-/// have no identity, so callers must pair them correctly.
+/// Parse and source identities must match for both database-managed and
+/// standalone snapshots.
 #[must_use]
 pub fn analyze(source: &SourceFile, parsed: &ParsedDocument<Schema>) -> AnalysisDocument<Analysis> {
     if parsed.source_identity() != source.identity() {

@@ -22,10 +22,10 @@ analysis.run_pass(&CheckTypes);
 let result = analysis.finish();
 ```
 
-`AnalysisContext::new` checks database-managed source identity and returns a
-diagnostic if `parsed` belongs to a different snapshot. Detached snapshots
-have no identity, so callers must pair them correctly. The context still
-accepts partial parse trees from the matching snapshot; each pass can inspect
+`AnalysisContext::new` checks source identity and returns a diagnostic if
+`parsed` belongs to a different snapshot, including when both sources were
+created directly with `SourceFile::new`. The context still accepts partial
+parse trees from the matching snapshot; each pass can inspect
 `parsed.diagnostics()` and choose whether it can proceed.
 
 Implement a pass for the language's parsed tree and state:

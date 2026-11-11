@@ -1,10 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-};
+use std::{collections::HashMap, sync::Arc};
 
 use super::{SourceFile, SourceId, SourceIdentity};
 
@@ -43,34 +37,14 @@ struct SourceRecord {
 
 /// Stores source snapshots with stable IDs and monotonically increasing revisions.
 ///
-/// Cloning a database creates a distinct database identity while preserving
+/// Cloning a database creates a distinct namespace identity while preserving
 /// each source's local ID and revision.
 #[derive(Debug)]
 pub struct SourceDatabase {
     records: HashMap<SourceId, SourceRecord>,
     ids_by_name: HashMap<String, SourceId>,
     next_id: u64,
-    database_id: u64,
-}
-
-static NEXT_DATABASE_ID: AtomicU64 = AtomicU64::new(1);
-
-fn allocate_database_id() -> u64 {
-    let mut current = NEXT_DATABASE_ID.load(Ordering::Relaxed);
-    loop {
-        let next = current
-            .checked_add(1)
-            .expect("source database identity space exhausted");
-        match NEXT_DATABASE_ID.compare_exchange_weak(
-            current,
-            next,
-            Ordering::Relaxed,
-            Ordering::Relaxed,
-        ) {
-            Ok(_) => return current,
-            Err(observed) => current = observed,
-        }
-    }
+    namespace_id: u64,
 }
 
 impl Default for SourceDatabase {
@@ -79,30 +53,26 @@ impl Default for SourceDatabase {
             records: HashMap::new(),
             ids_by_name: HashMap::new(),
             next_id: 0,
-            database_id: allocate_database_id(),
+            namespace_id: super::allocate_source_namespace_id(),
         }
     }
 }
 
 impl Clone for SourceDatabase {
     fn clone(&self) -> Self {
-        let database_id = allocate_database_id();
+        let namespace_id = super::allocate_source_namespace_id();
         let mut records = self.records.clone();
         for record in records.values_mut() {
-            let identity = record
-                .source
-                .identity
-                .expect("database sources carry an identity");
-            record.source.identity = Some(SourceIdentity {
-                database_id,
-                ..identity
-            });
+            record.source.identity = SourceIdentity {
+                namespace_id,
+                ..record.source.identity
+            };
         }
         Self {
             records,
             ids_by_name: self.ids_by_name.clone(),
             next_id: self.next_id,
-            database_id,
+            namespace_id,
         }
     }
 }
@@ -123,12 +93,16 @@ impl SourceDatabase {
             .checked_add(1)
             .ok_or(SourceDatabaseError::IdExhausted)?;
         let id = SourceId(id_value);
-        let mut source = SourceFile::new(name.clone(), text);
-        source.identity = Some(SourceIdentity {
-            database_id: self.database_id,
-            id,
-            revision: 1,
-        });
+        let source = SourceFile::with_identity(
+            name.clone(),
+            text,
+            SourceIdentity {
+                namespace_id: self.namespace_id,
+                id,
+                revision: 1,
+            },
+            true,
+        );
         self.records.insert(id, SourceRecord { source });
         self.ids_by_name.insert(name, id);
         self.next_id = following_id;
@@ -164,25 +138,18 @@ impl SourceDatabase {
             .get_mut(&id)
             .ok_or(SourceDatabaseError::UnknownSource(id))?;
         if record.source.text.as_str() != text {
-            let identity = record
-                .source
-                .identity
-                .expect("database sources carry an identity");
+            let identity = record.source.identity;
             let revision = identity
                 .revision
                 .checked_add(1)
                 .ok_or(SourceDatabaseError::RevisionExhausted(id))?;
             record.source.text = Arc::new(text);
-            record.source.identity = Some(SourceIdentity {
+            record.source.identity = SourceIdentity {
                 revision,
                 ..identity
-            });
+            };
         }
-        Ok(record
-            .source
-            .identity
-            .expect("database sources carry an identity")
-            .revision)
+        Ok(record.source.identity.revision)
     }
 
     /// Removes a source and returns its most recent snapshot.
@@ -209,7 +176,6 @@ impl SourceDatabase {
     pub fn revision(&self, id: SourceId) -> Option<u64> {
         self.records
             .get(&id)
-            .and_then(|r| r.source.identity)
-            .map(|identity| identity.revision)
+            .map(|record| record.source.identity.revision)
     }
 }

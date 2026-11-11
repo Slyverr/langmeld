@@ -40,13 +40,13 @@ pub struct AnalysisContext<'a, Tree, State> {
 impl<'a, Tree, State> AnalysisContext<'a, Tree, State> {
     /// Starts analysis for a source snapshot and its parsed document.
     ///
-    /// Database-managed source identities must match. Detached snapshots have
-    /// no identity, so callers must pair them correctly.
+    /// The source identity must match for database-managed and standalone
+    /// snapshots alike.
     ///
     /// # Errors
     ///
     /// Returns `LM-ANALYSIS-001` when the parsed document belongs to a
-    /// different database-managed source snapshot.
+    /// different source snapshot.
     pub fn new(
         source: &'a SourceFile,
         parsed: &'a ParsedDocument<Tree>,

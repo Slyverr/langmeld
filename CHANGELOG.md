@@ -11,6 +11,13 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** Standalone `SourceFile`s now receive unique snapshot identities,
+  and source-associated parse, analysis, diagnostic-location, and backend
+  results require those identities so mismatched snapshots are rejected
+  consistently. Source-bound result types no longer implement `Default`.
+- **Breaking:** `SourceIdentity::database_id()` is renamed to `namespace_id()`.
+  Use `SourceFile::is_database_managed()` to distinguish database-managed
+  sources from standalone snapshots.
 - Generated starter binaries use Clap for standard help, version, and argument
   handling.
 

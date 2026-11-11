@@ -216,6 +216,22 @@ fn rejects_parse_results_from_another_source_snapshot() -> Result<(), Box<dyn st
 }
 
 #[test]
+fn rejects_parse_results_from_another_standalone_snapshot() {
+    let parsed_source = SourceFile::new("main.sample", "record first;");
+    let current_source = SourceFile::new("main.sample", "record first;");
+    let parsed = parse(&parsed_source, &record_language());
+    let handlers = ConstructHandlerRegistry::<Vec<String>>::new();
+    let mut state = Vec::new();
+
+    let error = handlers
+        .dispatch_parse_result(&current_source, &parsed, &mut state)
+        .expect_err("parse results from another standalone source must be rejected");
+
+    assert_eq!(error.code, "LM-HANDLER-005");
+    assert!(state.is_empty());
+}
+
+#[test]
 fn dispatches_block_children_in_source_order() -> Result<(), Box<dyn std::error::Error>> {
     let source = SourceFile::new("main.sample", "record first; record second;");
     let first = ParsedConstruct {

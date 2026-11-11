@@ -130,9 +130,9 @@ each loop iteration.
 
 If top-level constructs have behavior of their own, register their handlers
 and start with `registry.dispatch_parse_result(source, &parsed, &mut state)`.
-This dispatches the top-level constructs in source order and checks that a
-database-managed parse result belongs to the supplied source snapshot. It does
-not dispatch nested children automatically; each handler can call
+This dispatches the top-level constructs in source order and checks that the
+parse result belongs to the supplied source snapshot. It does not dispatch
+nested children automatically; each handler can call
 `context.dispatch_children()` when its semantics require it. Check
 `parsed.is_valid()` first when execution should require a fully valid parse.
 

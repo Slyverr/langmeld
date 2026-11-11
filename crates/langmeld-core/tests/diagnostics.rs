@@ -99,7 +99,7 @@ fn formats_warning_and_info_severities() {
 }
 
 #[test]
-fn formats_managed_locations_against_matching_identity_when_names_collide() {
+fn formats_locations_against_matching_identity_when_names_collide() {
     let mut first_database = SourceDatabase::default();
     let first_id = first_database.insert("shared.lang", "abcdefg").unwrap();
     let first_source = first_database.get(first_id).unwrap().clone();
@@ -113,6 +113,31 @@ fn formats_managed_locations_against_matching_identity_when_names_collide() {
     assert_eq!(
         format_diagnostics(&[first_source, second_source], &[diagnostic]),
         "shared.lang:2:1: error[TEST-001]: invalid token"
+    );
+}
+
+#[test]
+fn formats_standalone_locations_by_identity_when_names_collide() {
+    let first_source = SourceFile::new("shared.lang", "abcdefg");
+    let second_source = SourceFile::new("shared.lang", "abc\ndef");
+    let diagnostic =
+        Diagnostic::error("TEST-001", "invalid token", &second_source, Span::new(4, 7));
+
+    assert_eq!(
+        format_diagnostics(&[first_source, second_source], &[diagnostic]),
+        "shared.lang:2:1: error[TEST-001]: invalid token"
+    );
+}
+
+#[test]
+fn does_not_format_stale_standalone_location_against_a_same_name_source() {
+    let old_source = SourceFile::new("shared.lang", "first\ninvalid");
+    let diagnostic = Diagnostic::error("TEST-001", "invalid token", &old_source, Span::new(6, 13));
+    let current_source = SourceFile::new("shared.lang", "replacement");
+
+    assert_eq!(
+        format_diagnostics(&[current_source], &[diagnostic]),
+        "shared.lang:1:1: error[TEST-001]: invalid token"
     );
 }
 

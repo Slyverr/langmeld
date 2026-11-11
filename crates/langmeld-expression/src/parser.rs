@@ -97,10 +97,10 @@ pub enum ExpressionKind {
 }
 
 /// An expression parse result with its consumed range and diagnostics.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpressionParseResult {
-    /// Identity and revision of the parsed snapshot, if database-managed.
-    source: Option<SourceIdentity>,
+    /// Identity and revision of the parsed source snapshot.
+    source: SourceIdentity,
     /// Parsed expression when a valid root was recognized.
     expression: Option<Expression>,
     /// Range consumed by the root expression, empty when parsing failed.
@@ -112,10 +112,10 @@ pub struct ExpressionParseResult {
 }
 
 /// Owned components of a consumed expression parse result.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExpressionParseResultParts {
-    /// Identity and revision of the parsed snapshot, if database-managed.
-    pub source_identity: Option<SourceIdentity>,
+    /// Identity and revision of the parsed source snapshot.
+    pub source_identity: SourceIdentity,
     /// Parsed expression when a valid root was recognized.
     pub expression: Option<Expression>,
     /// Range consumed by the root expression, empty when parsing failed.
@@ -129,7 +129,7 @@ pub struct ExpressionParseResultParts {
 impl ExpressionParseResult {
     /// Returns the identity and revision of the parsed source snapshot.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.source
     }
 

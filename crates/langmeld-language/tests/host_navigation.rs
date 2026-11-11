@@ -103,6 +103,36 @@ fn navigation_rejects_stale_database_managed_snapshots() {
 }
 
 #[test]
+fn navigation_rejects_results_from_another_standalone_source() {
+    let stale_source = SourceFile::new("main.test", "x");
+    let current_source = SourceFile::new("main.test", "x");
+    let parsed = Parser.parse(&stale_source);
+    let analysis = AnalysisDocument::new(&stale_source, (), Vec::new());
+
+    assert!(
+        definition_at(
+            &current_source,
+            &parsed,
+            Some(&analysis),
+            current_source.text().len(),
+            &Navigator,
+        )
+        .is_empty()
+    );
+    assert!(
+        references_at(
+            &current_source,
+            &parsed,
+            Some(&analysis),
+            0,
+            true,
+            &Navigator,
+        )
+        .is_empty()
+    );
+}
+
+#[test]
 fn navigation_rejects_invalid_current_file_locations_but_keeps_other_files() {
     struct InvalidNavigator;
 

@@ -12,10 +12,10 @@ use model::ParseContext;
 pub use model::{CapturedField, CapturedValue, ParsedConstruct};
 
 /// Parsed constructs and recoverable source diagnostics.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseResult {
-    /// Identity and revision of the parsed snapshot, if database-managed.
-    source: Option<SourceIdentity>,
+    /// Identity and revision of the parsed source snapshot.
+    source: SourceIdentity,
     /// Successfully recognized constructs in source order.
     constructs: Vec<ParsedConstruct>,
     /// Lossless source structure for editor integrations and other tools.
@@ -28,10 +28,10 @@ pub struct ParseResult {
 }
 
 /// Owned components of a consumed [`ParseResult`].
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseResultParts {
-    /// Identity and revision of the parsed snapshot, if database-managed.
-    pub source_identity: Option<SourceIdentity>,
+    /// Identity and revision of the parsed source snapshot.
+    pub source_identity: SourceIdentity,
     /// Successfully recognized constructs in source order.
     pub constructs: Vec<ParsedConstruct>,
     /// Lossless source structure for editor integrations and other tools.
@@ -45,7 +45,7 @@ pub struct ParseResultParts {
 impl ParseResult {
     /// Returns the identity and revision of the parsed source snapshot.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.source
     }
 

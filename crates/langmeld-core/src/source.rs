@@ -1,6 +1,9 @@
 //! Source snapshots and stable identities.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 use crate::LineIndex;
 
@@ -41,17 +44,57 @@ pub struct SourceFile {
     name: String,
     /// Immutable UTF-8 source text shared by cloned snapshots.
     text: Arc<String>,
-    identity: Option<SourceIdentity>,
+    identity: SourceIdentity,
+    database_managed: bool,
+}
+
+static NEXT_SOURCE_NAMESPACE_ID: AtomicU64 = AtomicU64::new(1);
+
+fn allocate_source_namespace_id() -> u64 {
+    let mut current = NEXT_SOURCE_NAMESPACE_ID.load(Ordering::Relaxed);
+    loop {
+        let next = current
+            .checked_add(1)
+            .expect("source namespace identity space exhausted");
+        match NEXT_SOURCE_NAMESPACE_ID.compare_exchange_weak(
+            current,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => return current,
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 impl SourceFile {
-    /// Creates a source snapshot.
+    /// Creates a standalone source snapshot with a unique process-local identity.
     #[must_use]
     pub fn new(name: impl Into<String>, text: impl Into<String>) -> Self {
+        Self::with_identity(
+            name,
+            text,
+            SourceIdentity {
+                namespace_id: allocate_source_namespace_id(),
+                id: SourceId(1),
+                revision: 1,
+            },
+            false,
+        )
+    }
+
+    fn with_identity(
+        name: impl Into<String>,
+        text: impl Into<String>,
+        identity: SourceIdentity,
+        database_managed: bool,
+    ) -> Self {
         Self {
             name: name.into(),
             text: Arc::new(text.into()),
-            identity: None,
+            identity,
+            database_managed,
         }
     }
 
@@ -67,11 +110,16 @@ impl SourceFile {
         self.text.as_str()
     }
 
-    /// Returns this snapshot's stable database identity and revision, if it is
-    /// managed by a [`SourceDatabase`]. Detached snapshots have no identity.
+    /// Returns this snapshot's stable identity and revision.
     #[must_use]
-    pub const fn identity(&self) -> Option<SourceIdentity> {
+    pub const fn identity(&self) -> SourceIdentity {
         self.identity
+    }
+
+    /// Returns whether this snapshot's identity was allocated by a [`SourceDatabase`].
+    #[must_use]
+    pub const fn is_database_managed(&self) -> bool {
+        self.database_managed
     }
 
     /// Builds a line index for converting between byte offsets and encoded
@@ -106,7 +154,9 @@ impl SourceFile {
     }
 }
 
-/// Stable identity for a source in one [`SourceDatabase`].
+/// Stable identity for a source snapshot within a process-local namespace.
+/// Database-managed sources share their database's namespace; each standalone
+/// source receives a unique namespace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SourceId(u64);
 
@@ -118,25 +168,31 @@ impl SourceId {
     }
 }
 
-/// Identity and revision of one managed source snapshot.
+/// Identity and revision of one source snapshot.
+///
+/// These values are process-local validation tokens and are not persistent
+/// identifiers for files or projects.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SourceIdentity {
-    /// Process-local identity of the database that owns this source.
-    database_id: u64,
-    /// Stable source ID within its database.
+    /// Process-local identity of the source namespace.
+    namespace_id: u64,
+    /// Stable source ID within its namespace.
     id: SourceId,
     /// Revision of the source text, starting at 1.
     revision: u64,
 }
 
 impl SourceIdentity {
-    /// Returns the process-local identity of the owning database.
+    /// Returns the process-local identity of the source namespace.
+    ///
+    /// Database-managed sources share their database's namespace; a standalone
+    /// source has its own namespace.
     #[must_use]
-    pub const fn database_id(&self) -> u64 {
-        self.database_id
+    pub const fn namespace_id(&self) -> u64 {
+        self.namespace_id
     }
 
-    /// Returns the stable source ID within the owning database.
+    /// Returns the stable source ID within the namespace.
     #[must_use]
     pub const fn id(&self) -> SourceId {
         self.id

@@ -100,3 +100,16 @@ fn rejects_parsed_documents_from_another_managed_snapshot() -> Result<(), Box<dy
 
     Ok(())
 }
+
+#[test]
+fn rejects_parsed_documents_from_another_standalone_snapshot() {
+    let parsed_source = SourceFile::new("main.lang", "x");
+    let current_source = SourceFile::new("main.lang", "x");
+    let parsed = ParsedDocument::new(&parsed_source, vec!["old".to_owned()], Vec::new());
+
+    let error = AnalysisContext::new(&current_source, &parsed, Vec::<String>::new())
+        .err()
+        .expect("standalone source identities must be checked");
+
+    assert_eq!(error.code, "LM-ANALYSIS-001");
+}

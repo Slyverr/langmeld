@@ -7,8 +7,8 @@ use crate::CompletionCandidate;
 /// A host parser's tree and findings for one immutable source snapshot.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParsedDocument<T> {
-    /// Identity and revision of the analyzed source, if database-managed.
-    source: Option<SourceIdentity>,
+    /// Identity and revision of the source snapshot this parse belongs to.
+    source: SourceIdentity,
     /// Parser-owned syntax tree or intermediate representation.
     tree: T,
     /// Lexical and syntactic findings associated with the parse.
@@ -28,7 +28,7 @@ impl<T> ParsedDocument<T> {
 
     /// Returns the identity and revision of the source snapshot this parse belongs to.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.source
     }
 
@@ -46,7 +46,7 @@ impl<T> ParsedDocument<T> {
 
     /// Consumes the parse and returns its source identity, tree, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
         (self.source, self.tree, self.diagnostics)
     }
 
@@ -60,8 +60,8 @@ impl<T> ParsedDocument<T> {
 /// A host-owned semantic result and findings for one source snapshot.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnalysisDocument<T> {
-    /// Identity and revision of the analyzed source, if database-managed.
-    source: Option<SourceIdentity>,
+    /// Identity and revision of the source snapshot this analysis belongs to.
+    source: SourceIdentity,
     /// Language-specific semantic result, such as symbols or typed facts.
     result: T,
     /// Semantic findings associated with the source snapshot.
@@ -81,7 +81,7 @@ impl<T> AnalysisDocument<T> {
 
     /// Returns the identity and revision of the source snapshot this analysis belongs to.
     #[must_use]
-    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+    pub const fn source_identity(&self) -> SourceIdentity {
         self.source
     }
 
@@ -99,7 +99,7 @@ impl<T> AnalysisDocument<T> {
 
     /// Consumes the analysis and returns its source identity, result, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
         (self.source, self.result, self.diagnostics)
     }
 
@@ -131,7 +131,6 @@ pub trait LanguageParser {
 /// trees and parse diagnostics when recovery produced useful syntax.
 /// Check that the parsed document belongs to `source` before using its tree;
 /// [`crate::AnalysisContext::new`] performs this check for pass-based analyzers.
-/// Detached snapshots have no identity, so callers must pair them correctly.
 /// The returned document must retain the identity of the supplied source.
 pub trait LanguageAnalyzer<P: LanguageParser> {
     /// Language-specific analysis result.
@@ -148,8 +147,7 @@ pub trait LanguageAnalyzer<P: LanguageParser> {
 /// Optional semantic analysis across several parsed source snapshots.
 ///
 /// Implement this when references or validation span multiple documents.
-/// Each parsed document must belong to its paired source; detached snapshots
-/// have no identity, so callers must pair them correctly.
+/// Each parsed document must belong to its paired source.
 /// Each returned result must correspond to the source at the same input index
 /// and retain that source's identity. Hosts that need to load unopened files or
 /// retain project indexes can implement the lower-level workspace backend.

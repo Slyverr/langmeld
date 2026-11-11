@@ -439,10 +439,10 @@ For host-owned trees, implement `LanguageCompleter<P>` to provide
 language-specific completion candidates. Its callback receives the current
 source, the existing parsed document, an optional analysis document, and a byte
 offset. `complete_with` rejects parse or analysis documents from another
-database-managed source revision and filters candidates whose replacement
-spans are outside the source or split a UTF-8 character. Detached
-`SourceFile`s have no revision identity, so hosts must pair their parse and
-analysis results with the matching text. Use `type Analysis = ()` when
+source revision and filters candidates whose replacement spans are outside the
+source or split a UTF-8 character. Standalone `SourceFile`s also have unique
+snapshot identities, so their parse and analysis results are checked against
+the exact source. Use `type Analysis = ()` when
 completion does not need semantic analysis. This keeps completion behavior
 with the host language while allowing an editor integration to reuse its
 current parse and analysis results.
@@ -451,10 +451,9 @@ For definition and references queries, implement `LanguageNavigator<P>`. The
 host receives the same parsed and optional analyzed snapshot and returns
 `SourceLocation`s for the selected symbol. This supports different resolution
 policies while keeping the result consumable by editor adapters. `definition_at`
-and `references_at` reject stale database-managed snapshots, invalid query
-offsets, malformed spans, and invalid locations in the current source. Hosts
-remain responsible for validating locations in other source files. Detached
-sources have no revision identity, as with completions.
+and `references_at` reject stale snapshots, invalid query offsets, malformed
+spans, and invalid locations in the current source. Hosts remain responsible
+for validating locations in other source files.
 
 ## Syntax completions
 

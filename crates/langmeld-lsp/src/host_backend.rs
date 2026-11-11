@@ -42,7 +42,7 @@ impl<Tree, Analysis> HostDocument<Tree, Analysis> {
 
     fn results_for(
         &self,
-        document_source: Option<SourceIdentity>,
+        document_source: SourceIdentity,
         source: &SourceFile,
     ) -> Option<(&ParsedDocument<Tree>, &AnalysisDocument<Analysis>)> {
         let source_identity = source.identity();
