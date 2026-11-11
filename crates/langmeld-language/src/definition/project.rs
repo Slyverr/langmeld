@@ -5,7 +5,9 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 use crate::{ConstructSpec, LanguageSpec, LexicalRules, SpecError};
 
 use super::unit::{ImportDirective, parse_definition_unit};
-use super::{DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH};
+use super::{
+    DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH, has_errors,
+};
 
 /// Loads and composes a language root and its explicitly imported local modules.
 ///
@@ -222,7 +224,7 @@ pub(super) fn finish_definition(
             None
         }
     };
-    let language = language.filter(|_| diagnostics.is_empty());
+    let language = language.filter(|_| !has_errors(&diagnostics));
     DefinitionResult {
         language,
         diagnostics,

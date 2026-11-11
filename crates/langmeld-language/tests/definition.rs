@@ -1,8 +1,8 @@
-use langmeld_core::SourceFile;
+use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_language::{
-    CapturedValue, CompletionKind, DefinitionResolver, DefinitionSource, complete_at,
-    decode_definition_string, parse, parse_language_definition, parse_language_definition_project,
-    quote_definition_string,
+    CapturedValue, CompletionKind, DefinitionResolver, DefinitionResult, DefinitionSource,
+    complete_at, decode_definition_string, parse, parse_language_definition,
+    parse_language_definition_project, quote_definition_string,
 };
 use std::collections::HashMap;
 
@@ -98,6 +98,43 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
 
     let top_level_statement = parse(&SourceFile::new("main.toy", "let answer = 42;"), &language);
     assert!(top_level_statement.diagnostics.is_empty());
+}
+
+#[test]
+fn definition_validity_ignores_warnings_but_rejects_errors() {
+    let source = SourceFile::new("language.langmeld", DEFINITION);
+    let language = parse_language_definition(&source).language.unwrap();
+    let warning = Diagnostic::warning(
+        "LM-DEF-W001",
+        "style recommendation",
+        &source,
+        Span::new(0, 1),
+    );
+    let info = Diagnostic::info(
+        "LM-DEF-I001",
+        "additional context",
+        &source,
+        Span::new(0, 1),
+    );
+
+    let result = DefinitionResult {
+        language: Some(language.clone()),
+        diagnostics: vec![warning, info],
+    };
+
+    assert!(result.is_valid());
+
+    let result = DefinitionResult {
+        language: Some(language),
+        diagnostics: vec![Diagnostic::error(
+            "LM-DEF-E001",
+            "invalid language declaration",
+            &source,
+            Span::new(0, 1),
+        )],
+    };
+
+    assert!(!result.is_valid());
 }
 
 #[test]
