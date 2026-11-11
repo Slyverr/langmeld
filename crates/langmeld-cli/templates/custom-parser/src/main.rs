@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageParser;
 use language::SayParser;
 
@@ -37,25 +37,10 @@ fn run() -> Result<(), String> {
     let parsed = SayParser.parse(&source);
 
     if !parsed.is_valid() {
-        let diagnostics = parsed
-            .diagnostics()
-            .iter()
-            .map(|diagnostic| {
-                let location = diagnostic.location.as_ref();
-                let source_name = location
-                    .map(|location| location.source_name())
-                    .unwrap_or(source.name());
-                let (line, column) = location
-                    .map(|location| source.line_column(location.span().start))
-                    .unwrap_or((1, 1));
-                format!(
-                    "{source_name}:{line}:{column}: {}: {}",
-                    diagnostic.code, diagnostic.message
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(diagnostics);
+        return Err(format_diagnostics(
+            std::slice::from_ref(&source),
+            parsed.diagnostics(),
+        ));
     }
 
     let count = parsed.tree().len();
