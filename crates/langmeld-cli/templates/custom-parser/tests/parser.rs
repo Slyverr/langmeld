@@ -4,12 +4,13 @@ use language::SayParser;
 
 #[test]
 fn parses_a_valid_say_statement() {
-    let source = SourceFile::new("valid.say", "say hello\n");
+    let source = SourceFile::new("valid.say", "  say hello  \n");
     let parsed = SayParser.parse(&source);
 
     assert!(parsed.is_valid(), "{:?}", parsed.diagnostics());
-    assert_eq!(parsed.tree().len(), 1);
-    assert_eq!(parsed.tree()[0], "hello");
+    assert_eq!(parsed.tree().statements.len(), 1);
+    assert_eq!(parsed.tree().statements[0].message, "hello");
+    assert_eq!(parsed.tree().statements[0].span, Span::new(2, 11));
 }
 
 #[test]

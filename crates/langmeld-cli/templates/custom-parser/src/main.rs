@@ -43,9 +43,9 @@ fn run() -> Result<(), String> {
         ));
     }
 
-    let count = parsed.tree().len();
-    for message in parsed.tree() {
-        println!("{message}");
+    let count = parsed.tree().statements.len();
+    for statement in &parsed.tree().statements {
+        println!("{}", statement.message);
     }
     println!("Parsed {count} statement(s) for {LANGUAGE_NAME}.");
     Ok(())

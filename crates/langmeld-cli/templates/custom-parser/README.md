@@ -12,10 +12,10 @@ cargo test
 ```
 
 Without a path, the CLI parses a small built-in sample. Pass a source file to
-parse your own program. The parser and AST live in `src/lib.rs`; the CLI entry
-point is `src/main.rs`, and public behavior tests belong in `tests/`. This
-template uses Langmeld's `LanguageParser` contract and leaves grammar design
-to your Rust code.
+parse your own program. The parser, typed program tree, and source-spanned
+statements live in `src/lib.rs`; the CLI entry point is `src/main.rs`, and
+public behavior tests belong in `tests/`. This template uses Langmeld's
+`LanguageParser` contract and leaves grammar design to your Rust code.
 
 ## Language server
 
