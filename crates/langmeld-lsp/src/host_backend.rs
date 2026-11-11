@@ -121,6 +121,10 @@ where
     }
 
     /// Adds host semantic analysis to this backend.
+    ///
+    /// Call this before adding a workspace analyzer, completer, or navigator.
+    /// Those providers are typed against the current analyzer's result, so
+    /// changing the analyzer type clears providers that were already attached.
     #[must_use]
     pub fn with_analyzer<A>(self, analyzer: A) -> HostLanguageBackend<P, A>
     where
