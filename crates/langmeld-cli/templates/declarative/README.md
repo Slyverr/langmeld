@@ -17,9 +17,11 @@ definitions from `language/constructs/`. Rust behavior lives in
 `src/constructs/`; shared state and the runner live in `src/runtime.rs` and
 `src/lib.rs`. Add public language behavior tests under `tests/`.
 
-The generated `language::load()` helper finds the project definition from this
-Cargo package. The CLI and Rust host share the same parser, handler registry,
-and diagnostics.
+Load the definition once with `language::load()`, then reuse the returned
+`Language` to parse or run source files. Its `specification()` method exposes
+the validated grammar for editor integrations. Each run gets fresh runtime
+state and handler instances. The CLI and Rust host share the same parser,
+handler behavior, and diagnostics.
 
 ## Add a construct
 

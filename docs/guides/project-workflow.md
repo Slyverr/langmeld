@@ -66,9 +66,9 @@ The starter definition at `language/main.langmeld` imports construct
 definitions for a small `program` block with string `let` bindings and `print`
 statements. Rust behavior lives in `src/constructs/`; `src/runtime.rs` holds
 the example's state, and `src/lib.rs` loads the definition, parses source, and
-dispatches handlers. The generated `language::load()` helper resolves the
-definition from the Cargo project root. Public behavior tests live in
-`tests/language.rs`.
+dispatches handlers. The generated `language::load()` helper resolves and
+validates the definition from the Cargo project root and returns a reusable
+`Language` instance. Public behavior tests live in `tests/language.rs`.
 
 Run the sample or pass a source file to the generated CLI:
 
@@ -125,7 +125,9 @@ when a project needs a different root. The conventional entry point imports
 other definition files explicitly. CLI commands use `langmeld.toml` by default
 when run from the project directory; generated Rust code exposes
 `language::load()` so application code does not need to name the root
-definition or project path.
+definition or project path. Load once, then call `Language::parse` or
+`Language::run` for each source file; `Language::specification()` exposes the
+validated grammar to host tooling.
 
 Format `1` requires the `format` field and optionally accepts `definition`.
 The definition path must be a project-relative `.langmeld` path without

@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf};
 
 use langmeld_core::SourceFile;
-use langmeld_toy_language_example::run;
+use langmeld_toy_language_example::load;
 
 const SAMPLE: &str = "program { let title = \"Hello, Langmeld!\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }";
 
@@ -30,7 +30,8 @@ fn run_cli() -> Result<(), String> {
     };
 
     let source = SourceFile::new(source_name, source_text);
-    print!("{}", run(&source)?);
+    let language = load()?;
+    print!("{}", language.run(&source)?);
 
     Ok(())
 }

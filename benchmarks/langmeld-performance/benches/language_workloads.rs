@@ -15,11 +15,12 @@ fn language_workloads(criterion: &mut Criterion) {
 
 fn benchmark_declarative_parser(criterion: &mut Criterion) {
     let language = toy_language::load().expect("WidgetScript definition loads");
+    let specification = language.specification();
     let mut group = criterion.benchmark_group("declarative/widgetscript");
 
     for count in SIZES {
         let source = SourceFile::new("benchmark.widget", widgetscript_source(count));
-        let parsed = parse(&source, &language);
+        let parsed = parse(&source, specification);
 
         assert!(
             parsed.diagnostics().is_empty(),
@@ -33,7 +34,7 @@ fn benchmark_declarative_parser(criterion: &mut Criterion) {
             BenchmarkId::new("parse", count),
             &source,
             |bencher, source| {
-                bencher.iter(|| black_box(parse(black_box(source), &language)));
+                bencher.iter(|| black_box(parse(black_box(source), specification)));
             },
         );
     }

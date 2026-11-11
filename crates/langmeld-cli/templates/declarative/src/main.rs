@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use langmeld_core::SourceFile;
-use language::run;
+use language::load;
 
 const SAMPLE: &str = "program { let message = \"Hello, Langmeld!\"; print message; }";
 
@@ -33,7 +33,8 @@ fn run_cli() -> Result<(), String> {
     };
 
     let source = SourceFile::new(source_name, source_text);
-    let output = run(&source)?;
+    let language = load()?;
+    let output = language.run(&source)?;
 
     print!("{output}");
 
