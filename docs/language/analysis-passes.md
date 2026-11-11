@@ -13,7 +13,7 @@ passes in the order selected by the host, retains all diagnostics, and returns
 an `AnalysisDocument` tied to the source snapshot:
 
 ```rust,ignore
-let mut analysis = AnalysisContext::new(source, parsed, LanguageFacts::default());
+let mut analysis = AnalysisContext::new(source, parsed, LanguageFacts::default())?;
 
 analysis.run_pass(&CollectDeclarations);
 analysis.run_pass(&ResolveReferences);
@@ -21,6 +21,12 @@ analysis.run_pass(&CheckTypes);
 
 let result = analysis.finish();
 ```
+
+`AnalysisContext::new` checks database-managed source identity and returns a
+diagnostic if `parsed` belongs to a different snapshot. Detached snapshots
+have no identity, so callers must pair them correctly. The context still
+accepts partial parse trees from the matching snapshot; each pass can inspect
+`parsed.diagnostics()` and choose whether it can proceed.
 
 Implement a pass for the language's parsed tree and state:
 

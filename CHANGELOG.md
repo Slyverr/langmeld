@@ -9,6 +9,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `AnalysisContext::new` now returns `Result` and rejects parsed
+  documents from a different database-managed source snapshot.
 - **Breaking:** `ConstructHandler::handle` now takes only `ConstructContext`.
   Use `context.construct()` for the current node and omit the construct
   argument from field access and child dispatch methods.

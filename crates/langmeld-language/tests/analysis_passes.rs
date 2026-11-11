@@ -1,4 +1,4 @@
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceDatabase, SourceFile, Span};
 use langmeld_language::{AnalysisContext, LanguagePass, ParsedDocument};
 
 struct RecordPhase(&'static str);
@@ -37,7 +37,8 @@ impl LanguagePass<Vec<String>, Vec<&'static str>> for ReportProblem {
 fn runs_passes_in_host_selected_order_and_shares_state() {
     let source = SourceFile::new("main.lang", "x");
     let parsed = ParsedDocument::new(&source, vec!["parsed".to_owned()], Vec::new());
-    let mut context = AnalysisContext::new(&source, &parsed, Vec::new());
+    let mut context = AnalysisContext::new(&source, &parsed, Vec::new())
+        .expect("parsed document belongs to the supplied source snapshot");
 
     context.run_pass(&RecordPhase("declare"));
     context.run_pass(&RecordPhase("resolve"));
@@ -53,7 +54,8 @@ fn runs_passes_in_host_selected_order_and_shares_state() {
 fn later_passes_run_and_diagnostics_keep_their_source_spans() {
     let source = SourceFile::new("main.lang", "x");
     let parsed = ParsedDocument::new(&source, vec!["partial".to_owned()], Vec::new());
-    let mut context = AnalysisContext::new(&source, &parsed, Vec::new());
+    let mut context = AnalysisContext::new(&source, &parsed, Vec::new())
+        .expect("parsed document belongs to the supplied source snapshot");
 
     context.run_pass(&ReportProblem);
     assert_eq!(context.diagnostics().len(), 1);
@@ -73,4 +75,28 @@ fn later_passes_run_and_diagnostics_keep_their_source_spans() {
             .span(),
         Span::new(0, 1)
     );
+}
+
+#[test]
+fn rejects_parsed_documents_from_another_managed_snapshot() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.lang", "x")?;
+    let original_source = sources
+        .get(source_id)
+        .expect("source was just inserted")
+        .clone();
+    let parsed = ParsedDocument::new(&original_source, vec!["old".to_owned()], Vec::new());
+
+    assert!(AnalysisContext::new(&original_source, &parsed, Vec::<String>::new()).is_ok());
+
+    sources.update(source_id, "y")?;
+    let current_source = sources.get(source_id).expect("source still exists");
+    let error = AnalysisContext::new(current_source, &parsed, Vec::<String>::new())
+        .err()
+        .expect("stale parsed documents must be rejected");
+
+    assert_eq!(error.code, "LM-ANALYSIS-001");
+
+    Ok(())
 }

@@ -80,7 +80,12 @@ pub fn analyze(
     source: &SourceFile,
     parsed: &ParsedDocument<Program>,
 ) -> AnalysisDocument<Analysis> {
-    let mut context = AnalysisContext::new(source, parsed, Analyzer::new(source));
+    let mut context = match AnalysisContext::new(source, parsed, Analyzer::new(source)) {
+        Ok(context) => context,
+        Err(diagnostic) => {
+            return AnalysisDocument::new(source, Analysis::default(), vec![diagnostic]);
+        }
+    };
     context.run_pass(&DeclareFunctions);
     context.run_pass(&AnalyzeFunctionBodies);
 

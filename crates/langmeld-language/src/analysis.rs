@@ -1,6 +1,9 @@
 //! Ordered, host-owned analysis passes for parsed language documents.
 
-use langmeld_core::{Diagnostic, SourceFile};
+// Returning the shared diagnostic type directly keeps source errors ergonomic.
+#![allow(clippy::result_large_err)]
+
+use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{AnalysisDocument, ParsedDocument};
 
@@ -35,15 +38,35 @@ pub struct AnalysisContext<'a, Tree, State> {
 }
 
 impl<'a, Tree, State> AnalysisContext<'a, Tree, State> {
-    /// Starts analysis for an existing source snapshot and parsed document.
-    #[must_use]
-    pub fn new(source: &'a SourceFile, parsed: &'a ParsedDocument<Tree>, state: State) -> Self {
-        Self {
+    /// Starts analysis for a source snapshot and its parsed document.
+    ///
+    /// Database-managed source identities must match. Detached snapshots have
+    /// no identity, so callers must pair them correctly.
+    ///
+    /// # Errors
+    ///
+    /// Returns `LM-ANALYSIS-001` when the parsed document belongs to a
+    /// different database-managed source snapshot.
+    pub fn new(
+        source: &'a SourceFile,
+        parsed: &'a ParsedDocument<Tree>,
+        state: State,
+    ) -> Result<Self, Diagnostic> {
+        if parsed.source_identity() != source.identity() {
+            return Err(Diagnostic::error(
+                "LM-ANALYSIS-001",
+                "parsed document belongs to a different source snapshot",
+                source,
+                Span::default(),
+            ));
+        }
+
+        Ok(Self {
             source,
             parsed,
             state,
             diagnostics: Vec::new(),
-        }
+        })
     }
 
     /// Runs one pass and appends its diagnostics in pass order.

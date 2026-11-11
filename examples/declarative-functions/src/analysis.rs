@@ -20,7 +20,12 @@ pub fn analyze(
     source: &SourceFile,
     parsed: &ParsedDocument<Program>,
 ) -> AnalysisDocument<FunctionFacts> {
-    let mut context = AnalysisContext::new(source, parsed, FunctionFacts::default());
+    let mut context = match AnalysisContext::new(source, parsed, FunctionFacts::default()) {
+        Ok(context) => context,
+        Err(diagnostic) => {
+            return AnalysisDocument::new(source, FunctionFacts::default(), vec![diagnostic]);
+        }
+    };
 
     context.run_pass(&CollectSignatures);
     context.run_pass(&ResolveCalls);

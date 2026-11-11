@@ -37,6 +37,26 @@ fn navigation_follows_the_resolved_shadowed_local() {
 }
 
 #[test]
+fn reports_a_stale_parse_snapshot_in_analysis() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("main.aster", "fn main() -> i32 { return 0; }")?;
+    let original_source = sources
+        .get(source_id)
+        .expect("source was just inserted")
+        .clone();
+    let parsed = parse_program(&original_source);
+
+    sources.update(source_id, "fn main() -> i32 { return 1; }")?;
+    let current_source = sources.get(source_id).expect("source still exists");
+    let analysis = analyze(current_source, &parsed);
+
+    assert_eq!(analysis.diagnostics()[0].code, "LM-ANALYSIS-001");
+    assert!(analysis.result().symbols.is_empty());
+
+    Ok(())
+}
+
+#[test]
 fn refuses_a_rename_that_would_capture_a_reference() {
     let text = "fn main() -> i32 { let value = 1; { let other = 2; return value; } }";
     let source = SourceFile::new("main.aster", text);
