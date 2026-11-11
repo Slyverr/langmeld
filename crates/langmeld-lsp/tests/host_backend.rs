@@ -165,7 +165,9 @@ impl LanguageCompleter<TestParser> for UncheckedCompleter {
     }
 }
 
-struct UncheckedNavigator;
+struct UncheckedNavigator {
+    other_source: SourceFile,
+}
 
 impl LanguageNavigator<TestParser> for UncheckedNavigator {
     type Analysis = ();
@@ -180,7 +182,7 @@ impl LanguageNavigator<TestParser> for UncheckedNavigator {
         vec![
             location_at(source, Span::new(0, 3)),
             location_at(source, Span::new(0, 2)),
-            location_at(&SourceFile::new("other.test", ""), Span::new(100, 120)),
+            location_at(&self.other_source, Span::new(100, 120)),
         ]
     }
 
@@ -357,7 +359,9 @@ fn host_navigation_filters_invalid_current_source_locations() {
     let backend = HostLanguageBackend::new(TestParser {
         reported_source: None,
     })
-    .with_navigator(UncheckedNavigator);
+    .with_navigator(UncheckedNavigator {
+        other_source: other_source.clone(),
+    });
     let document = backend.analyze(&source);
     let expected = [
         location_at(&source, Span::new(0, 2)),
