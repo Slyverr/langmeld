@@ -22,7 +22,8 @@ use crate::{
 pub(crate) struct ConstructArgs {
     /// Stable construct name used by the definition and Rust handler.
     name: Option<String>,
-    /// Syntax literal used by the generated declaration. Defaults to the name.
+    /// Syntax literal used by the generated declaration; prompts interactively
+    /// and defaults to the name in noninteractive use.
     #[arg(long)]
     literal: Option<String>,
     /// Category accepted by a block in the language definition.
@@ -161,7 +162,17 @@ fn construct_name(requested: Option<String>) -> Result<String, io::Error> {
 }
 
 fn syntax_literal(requested: Option<String>, name: &str) -> Result<String, io::Error> {
-    let literal = requested.unwrap_or_else(|| name.to_owned());
+    let literal = match requested {
+        Some(literal) => literal,
+        None if io::stdin().is_terminal() && io::stdout().is_terminal() => {
+            Input::<String>::with_theme(&ColorfulTheme::default())
+                .with_prompt("Starter syntax literal (edit for compound syntax)")
+                .default(name.to_owned())
+                .interact_text()?
+        }
+        None => name.to_owned(),
+    };
+
     if literal.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

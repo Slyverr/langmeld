@@ -11,6 +11,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 - `langmeld generate construct` now treats the construct name as a stable
   semantic identity and accepts a separate starter spelling with `--literal`.
+- Interactive construct generation asks for the initial syntax spelling while
+  keeping the name-based default for noninteractive use.
 
 ### Fixed
 

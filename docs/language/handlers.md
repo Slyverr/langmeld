@@ -9,10 +9,13 @@ mean.
 
 For the common workflow, add a new construct and handler from the initialized
 language project. In an interactive terminal you can omit the name and answer
-the prompt; scripts should provide it explicitly:
+the prompts for its stable identity and initial syntax spelling. The spelling
+defaults to the construct name, and scripts keep that same deterministic
+default unless `--literal` is supplied:
 
 ```sh
-langmeld generate construct print
+# Interactive: prompts for the construct name and starter spelling.
+langmeld generate construct
 ```
 
 This creates `language/constructs/print.langmeld`, adds an explicit import to
@@ -21,7 +24,7 @@ the configured root definition, and creates and registers
 the command prompts in an interactive terminal; in scripts, choose one with
 `--category <name>`. The construct name is its stable semantic identity; the
 starter syntax literal defaults to the same text. Use `--literal` when the
-spelling differs:
+spelling differs in a script:
 
 ```sh
 langmeld generate construct function --literal fn
