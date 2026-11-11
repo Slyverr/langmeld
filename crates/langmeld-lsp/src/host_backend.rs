@@ -1,4 +1,4 @@
-use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
+use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument,
@@ -25,8 +25,12 @@ pub struct HostDocument<Tree, Analysis> {
 }
 
 impl<Tree, Analysis> HostDocument<Tree, Analysis> {
-    fn belongs_to(&self, source: &SourceFile) -> bool {
-        self.parsed.source == source.identity() && self.analysis.source == source.identity()
+    fn belongs_to(&self, document_source: Option<SourceIdentity>, source: &SourceFile) -> bool {
+        let source_identity = source.identity();
+
+        document_source == source_identity
+            && self.parsed.source == source_identity
+            && self.analysis.source == source_identity
     }
 }
 
@@ -50,8 +54,9 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 ///
 /// Parser and semantic diagnostics are always published. Completion and
 /// navigation capabilities are enabled only when their providers are attached.
-/// Results with source identities that differ from the input are diagnosed,
-/// and editor queries are suppressed for those documents.
+/// Parser and analyzer results with identities that differ from the input are
+/// diagnosed. Editor queries are suppressed when either result or the
+/// enclosing backend document belongs to another source snapshot.
 /// Workspace analysis, rename, formatting, hover, and other queries remain
 /// available through a custom [`LanguageBackend`] implementation.
 pub struct HostLanguageBackend<P, A = NoAnalyzer>
@@ -272,7 +277,7 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        if !document.state.belongs_to(source) {
+        if !document.state.belongs_to(document.source, source) {
             return Vec::new();
         }
 
@@ -292,7 +297,7 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<SourceLocation> {
-        if !document.state.belongs_to(source) {
+        if !document.state.belongs_to(document.source, source) {
             return Vec::new();
         }
 
@@ -313,7 +318,7 @@ where
         offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
-        if !document.state.belongs_to(source) {
+        if !document.state.belongs_to(document.source, source) {
             return Vec::new();
         }
 

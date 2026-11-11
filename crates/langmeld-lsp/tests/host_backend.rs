@@ -3,7 +3,7 @@ use langmeld_language::{
     AnalysisDocument, CompletionCandidate, LanguageAnalyzer, LanguageCompleter, LanguageNavigator,
     LanguageParser, ParsedDocument,
 };
-use langmeld_lsp::{HostLanguageBackend, LanguageBackend};
+use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
 
 struct TestParser {
     reported_source: Option<SourceIdentity>,
@@ -175,6 +175,31 @@ fn editor_queries_reject_a_source_different_from_the_analyzed_snapshot() {
     assert!(
         backend
             .references(&other_source, &document, 0, true)
+            .is_empty()
+    );
+}
+
+#[test]
+fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
+    let (source, _, other_source) = managed_source_and_other_identity();
+    let backend = backend(source.identity(), source.identity());
+
+    let document = backend.analyze(&source);
+    let mismatched_document = BackendDocument::new(&other_source, document.state, Vec::new());
+
+    assert!(
+        backend
+            .complete(&source, &mismatched_document, 0)
+            .is_empty()
+    );
+    assert!(
+        backend
+            .definition(&source, &mismatched_document, 0)
+            .is_empty()
+    );
+    assert!(
+        backend
+            .references(&source, &mismatched_document, 0, true)
             .is_empty()
     );
 }
