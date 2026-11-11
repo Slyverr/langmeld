@@ -10,6 +10,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Plain-text diagnostics now include their error, warning, or info severity.
+- The declarative starter and examples use severity-aware validity checks and
+  report non-error findings without treating them as failures.
 - The generated starter README now explains how to add a construct and where
   to implement its Rust behavior.
 

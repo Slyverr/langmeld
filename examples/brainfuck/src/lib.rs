@@ -39,10 +39,13 @@ fn run_with_reader_and_step_limit(
     let parsed = BrainfuckParser.parse(source);
 
     if !parsed.diagnostics.is_empty() {
-        return Err(format_diagnostics(
-            std::slice::from_ref(source),
-            &parsed.diagnostics,
-        ));
+        let formatted = format_diagnostics(std::slice::from_ref(source), &parsed.diagnostics);
+
+        if !parsed.is_valid() {
+            return Err(formatted);
+        }
+
+        eprintln!("{formatted}");
     }
 
     runtime::execute(source, &parsed.tree, input, max_steps)

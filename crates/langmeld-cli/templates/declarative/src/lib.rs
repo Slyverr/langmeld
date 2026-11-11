@@ -33,10 +33,13 @@ pub fn run(source: &SourceFile) -> Result<String, String> {
     let parsed = parse(source, &language);
 
     if !parsed.diagnostics.is_empty() {
-        return Err(format_diagnostics(
-            std::slice::from_ref(source),
-            &parsed.diagnostics,
-        ));
+        let formatted = format_diagnostics(std::slice::from_ref(source), &parsed.diagnostics);
+
+        if !parsed.is_valid() {
+            return Err(formatted);
+        }
+
+        eprintln!("{formatted}");
     }
 
     let root = parsed

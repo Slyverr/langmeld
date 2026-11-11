@@ -32,10 +32,13 @@ fn run() -> Result<(), String> {
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
     if !parsed.diagnostics.is_empty() {
-        return Err(format_diagnostics(
-            std::slice::from_ref(&source),
-            &parsed.diagnostics,
-        ));
+        let formatted = format_diagnostics(std::slice::from_ref(&source), &parsed.diagnostics);
+
+        if !parsed.is_valid() {
+            return Err(formatted);
+        }
+
+        eprintln!("{formatted}");
     }
 
     let Some(field) = parsed

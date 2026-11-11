@@ -57,6 +57,29 @@ not automatically add name resolution, type checking, or control-flow rules.
 Simple languages can keep using one `LanguageAnalyzer` implementation and omit
 the pass context entirely.
 
+## Result validity and diagnostic severity
+
+Diagnostics distinguish errors from warnings and informational findings.
+`has_errors(&diagnostics)` checks an aggregated collection; warning and info
+findings do not make a result invalid. Results expose `is_valid()` so callers
+do not have to duplicate that rule. Generic and expression parse results also
+report invalidity when resource limits stopped parsing, and expression results
+require a parsed expression.
+
+Invalid results still retain their partial syntax or analysis data and all
+diagnostics. Hosts can use the partial data for editor features while deciding
+whether to stop a later stage. When displaying findings, format the complete
+diagnostic list so warnings and information are not lost:
+
+```rust,ignore
+let diagnostics = parsed.diagnostics.iter().chain(&analysis.diagnostics);
+let diagnostics = diagnostics.cloned().collect::<Vec<_>>();
+
+if has_errors(&diagnostics) {
+    // Report the findings and stop a pipeline that requires valid input.
+}
+```
+
 The [Aster example](../../examples/aster-language) demonstrates a custom parser
 with declaration collection followed by function-body analysis. Its types,
 scope rules, and resolution policies remain specific to Aster.

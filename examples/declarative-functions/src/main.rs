@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
-use langmeld_core::{SourceFile, format_diagnostics};
+use langmeld_core::{SourceFile, format_diagnostics, has_errors};
 use langmeld_declarative_functions_example::{analyze, diagnostics};
 
 const SAMPLE: &str = include_str!("../program.functionflow");
@@ -36,10 +36,13 @@ fn run() -> Result<(), String> {
     let diagnostics = diagnostics(&analysis);
 
     if !diagnostics.is_empty() {
-        return Err(format_diagnostics(
-            std::slice::from_ref(&source),
-            &diagnostics,
-        ));
+        let formatted = format_diagnostics(std::slice::from_ref(&source), &diagnostics);
+
+        if has_errors(&diagnostics) {
+            return Err(formatted);
+        }
+
+        eprintln!("{formatted}");
     }
 
     println!(

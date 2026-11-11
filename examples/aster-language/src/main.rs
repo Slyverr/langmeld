@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use langmeld_aster_language_example::{AsterAnalyzer, parse_program};
-use langmeld_core::{SourceFile, format_diagnostics};
+use langmeld_core::{SourceFile, format_diagnostics, has_errors};
 use langmeld_language::LanguageAnalyzer;
 
 fn main() {
@@ -26,10 +26,13 @@ fn run() -> Result<(), String> {
         .collect::<Vec<_>>();
 
     if !diagnostics.is_empty() {
-        return Err(format_diagnostics(
-            std::slice::from_ref(&source),
-            &diagnostics,
-        ));
+        let formatted = format_diagnostics(std::slice::from_ref(&source), &diagnostics);
+
+        if has_errors(&diagnostics) {
+            return Err(formatted);
+        }
+
+        eprintln!("{formatted}");
     }
 
     println!(
