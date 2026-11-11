@@ -37,12 +37,16 @@ fn main() {
     let program = SourceFile::new("main.mini", "program { let answer = 42; draw answer; }");
     let parsed = parse(&program, &language);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].children[0].fields[1].value,
+        parsed.constructs()[0].children[0].fields[1].value,
         CapturedValue::Integer("42".into())
     );
-    assert_eq!(parsed.constructs[0].children[1].name, "draw");
+    assert_eq!(parsed.constructs()[0].children[1].name, "draw");
 
     let operators = ExpressionGrammar::new([
         OperatorSpec::infix("+", 1, Associativity::Left),
@@ -100,6 +104,10 @@ fn verify_in_memory_language_project() {
     let source = SourceFile::new("main.mini", "program { let answer = 42; draw answer; }");
     let parsed = parse(&source, &language);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].children[1].name, "draw");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].children[1].name, "draw");
 }
