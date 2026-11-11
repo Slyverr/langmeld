@@ -45,11 +45,11 @@ fn benchmark_host_language(criterion: &mut Criterion) {
         let parsed = aster_language::parse_program(&source);
         let analysis = aster_language::analyze(&source, &parsed);
 
-        assert!(parsed.is_valid(), "{:#?}", parsed.diagnostics);
-        assert!(analysis.is_valid(), "{:#?}", analysis.diagnostics);
-        assert_eq!(parsed.tree.functions.len(), count);
-        assert_eq!(analysis.result.symbols.len(), count * 3);
-        assert_eq!(analysis.result.references.len(), count * 2);
+        assert!(parsed.is_valid(), "{:#?}", parsed.diagnostics());
+        assert!(analysis.is_valid(), "{:#?}", analysis.diagnostics());
+        assert_eq!(parsed.tree().functions.len(), count);
+        assert_eq!(analysis.result().symbols.len(), count * 3);
+        assert_eq!(analysis.result().references.len(), count * 2);
 
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(
@@ -98,8 +98,8 @@ fn benchmark_workspace_editor(criterion: &mut Criterion) {
             analysis.iter().all(|document| document.is_valid()),
             "schema fixture failed to analyze"
         );
-        assert_eq!(analysis[0].result.symbols.len(), count);
-        assert_eq!(analysis[0].result.references.len(), count);
+        assert_eq!(analysis[0].result().symbols.len(), count);
+        assert_eq!(analysis[0].result().references.len(), count);
 
         let type_reference_start = sources[0]
             .text()
