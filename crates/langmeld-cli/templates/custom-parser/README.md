@@ -7,6 +7,7 @@ A Rust-defined language parser built with Langmeld.
 ```sh
 cargo run
 cargo run -- path/to/program.say
+cargo run -- --help
 cargo test
 ```
 

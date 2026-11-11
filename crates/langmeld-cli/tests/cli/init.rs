@@ -51,7 +51,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
             .is_file()
     );
     let main = fs::read_to_string(project.join("src/main.rs")).expect("CLI should be generated");
-    assert!(main.contains("args_os()"));
+    assert!(main.contains("Cli::parse()"));
     assert!(main.contains("fs::read_to_string"));
     let library = fs::read_to_string(project.join("src/lib.rs"))
         .expect("reusable language loader should be generated");
@@ -62,6 +62,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));
     assert!(manifest.contains("license = \"MIT OR Apache-2.0\""));
+    assert!(manifest.contains("clap = { version = \"4.6\", features = [\"derive\"] }"));
     let readme = fs::read_to_string(project.join("README.md")).expect("README should be generated");
     assert!(readme.contains("## License"));
     assert!(readme.contains("language/main.langmeld"));
@@ -146,6 +147,7 @@ fn init_normalizes_directory_names_into_valid_package_defaults() {
     let manifest = fs::read_to_string(project.join("Cargo.toml"))
         .expect("generated project manifest should exist");
     assert!(manifest.contains("name = \"widget-language\""));
+    assert!(manifest.contains("clap = { version = \"4.6\", features = [\"derive\"] }"));
 }
 
 #[cfg(unix)]
@@ -280,6 +282,7 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("default-run = \"custom-language\""));
+    assert!(manifest.contains("clap = { version = \"4.6\", features = [\"derive\"] }"));
     assert!(!manifest.contains("langmeld-project"));
     assert!(manifest.contains("langmeld-lsp = "));
     let readme = fs::read_to_string(project.join("README.md")).expect("README should be generated");
@@ -292,7 +295,7 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     let binary =
         fs::read_to_string(project.join("src/main.rs")).expect("binary should be generated");
     assert!(binary.contains("Custom Language"));
-    assert!(binary.contains("args_os()"));
+    assert!(binary.contains("Cli::parse()"));
     assert!(binary.contains("fs::read_to_string"));
     let lsp = fs::read_to_string(project.join("src/bin/language-lsp.rs"))
         .expect("language server entry point should be generated");

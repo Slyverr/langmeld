@@ -11,11 +11,11 @@ pub(super) fn project_files(
     let version = env!("CARGO_PKG_VERSION");
     let dependencies = match template {
         Template::Declarative => format!(
-            "langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
+            "clap = {{ version = \"4.6\", features = [\"derive\"] }}\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
         ),
         Template::CustomParser => {
             format!(
-                "langmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-lsp = \"{version}\"\n"
+                "clap = {{ version = \"4.6\", features = [\"derive\"] }}\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-lsp = \"{version}\"\n"
             )
         }
     };

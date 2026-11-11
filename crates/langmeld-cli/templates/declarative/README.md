@@ -7,6 +7,7 @@ A small Rust-hosted language project built with Langmeld.
 ```sh
 cargo run
 cargo run -- path/to/program.widget
+cargo run -- --help
 cargo test
 ```
 

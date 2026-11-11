@@ -71,6 +71,13 @@ jobs:
             --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
             --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
             --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
+          cargo run \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --target-dir target \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
+            -- --help
           printf '%s\n' 'program { let message = "Hello from a file"; print message; }' \
             > "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
           cargo run \
@@ -113,6 +120,13 @@ jobs:
             --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
             --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
             -- "$RUNNER_TEMP/langmeld-init-custom-parser/sample.say"
+          cargo run \
+            --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
+            --target-dir target \
+            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
+            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
+            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
+            -- --help
 
   quality:
     name: Formatting, check, and Clippy

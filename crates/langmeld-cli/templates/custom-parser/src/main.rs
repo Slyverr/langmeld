@@ -1,11 +1,19 @@
-use std::{env, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
+use clap::Parser;
 use langmeld_core::SourceFile;
 use langmeld_language::LanguageParser;
 use language::SayParser;
 
 const LANGUAGE_NAME: &str = {{LANGUAGE_NAME}};
 const SAMPLE: &str = "say Hello from a custom parser!\n";
+
+#[derive(Debug, Parser)]
+#[command(version, about = "Run the generated language parser.")]
+struct Cli {
+    #[arg(value_name = "SOURCE")]
+    source: Option<PathBuf>,
+}
 
 fn main() {
     if let Err(error) = run() {
@@ -15,13 +23,9 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let mut arguments = env::args_os().skip(1);
-    let (source_name, source_text) = match arguments.next() {
+    let cli = Cli::parse();
+    let (source_name, source_text) = match cli.source {
         Some(path) => {
-            if arguments.next().is_some() {
-                return Err("usage: language [SOURCE]".to_owned());
-            }
-            let path = PathBuf::from(path);
             let source_text = fs::read_to_string(&path)
                 .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
             (path.display().to_string(), source_text)

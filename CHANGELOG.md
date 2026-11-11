@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- Generated starter binaries use Clap for standard help, version, and argument
+  handling.
+
 ## [0.8.0] - 2026-11-11
 
 ### Changed
