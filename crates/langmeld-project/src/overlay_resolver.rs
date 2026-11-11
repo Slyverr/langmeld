@@ -1,4 +1,4 @@
-use std::{collections::HashSet, path::Path};
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
@@ -14,7 +14,7 @@ use crate::{
 /// import. All other imports fall back to the directory resolver, which
 /// retains its canonical-root and symlink protections.
 pub struct OverlayDefinitionResolver {
-    directory: DirectoryDefinitionResolver,
+    directory: Arc<DirectoryDefinitionResolver>,
     overlay: InMemoryDefinitionResolver,
 }
 
@@ -25,14 +25,34 @@ impl OverlayDefinitionResolver {
         overlay: InMemoryDefinitionResolver,
     ) -> Result<Self, ProjectLoadError> {
         Ok(Self {
-            directory: DirectoryDefinitionResolver::new(root)?,
+            directory: Arc::new(DirectoryDefinitionResolver::new(root)?),
             overlay,
         })
     }
 
-    /// Loads the project root definition from disk.
+    /// Returns a resolver that shares the project directory and uses a new
+    /// in-memory overlay.
+    #[must_use]
+    pub fn with_overlay(&self, overlay: InMemoryDefinitionResolver) -> Self {
+        Self {
+            directory: Arc::clone(&self.directory),
+            overlay,
+        }
+    }
+
+    /// Loads the project root definition, preferring an overlay snapshot.
     pub fn load(&self, relative_path: &str) -> Result<DefinitionSource, ProjectLoadError> {
-        self.directory.load(relative_path)
+        match self.overlay.load(relative_path) {
+            Ok(source) => Ok(source),
+            Err(ProjectLoadError::MissingDefinition(_)) => self.directory.load(relative_path),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Maps a filesystem path to a project key, including paths that do not
+    /// exist yet.
+    pub fn key_for_path(&self, path: impl AsRef<Path>) -> Result<String, ProjectLoadError> {
+        self.directory.key_for_path(path)
     }
 
     /// Returns loaded disk sources and all overlay sources in stable name order.

@@ -110,3 +110,61 @@ fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
 
     assert!(error.contains("outside the project root"));
 }
+
+#[test]
+fn resolves_new_imports_from_the_overlay_before_reading_disk() {
+    let project = TestDirectory::new();
+    project.write(
+        "language/main.langmeld",
+        r#"language "Example" {
+            import "constructs/new.langmeld";
+            root "program";
+        }"#,
+    );
+    let mut overlay = InMemoryDefinitionResolver::new();
+    overlay
+        .insert(
+            "language/constructs/new.langmeld",
+            SourceFile::new(
+                "file:///workspace/language/constructs/new.langmeld",
+                r#"construct "program" { syntax { literal "program"; } }"#,
+            ),
+        )
+        .unwrap();
+    let resolver = OverlayDefinitionResolver::new(project.path(), overlay).unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
+
+    let result = parse_language_definition_project(root, &resolver);
+
+    assert!(result.is_valid(), "{:?}", result.diagnostics);
+    assert!(
+        resolver.sources().iter().any(|source| {
+            source.name() == "file:///workspace/language/constructs/new.langmeld"
+        })
+    );
+}
+
+#[test]
+fn loads_an_open_root_definition_from_the_overlay() {
+    let project = TestDirectory::new();
+    project.write("language/main.langmeld", "language \"Disk version\" {");
+    let mut overlay = InMemoryDefinitionResolver::new();
+    overlay
+        .insert(
+            "language/main.langmeld",
+            SourceFile::new(
+                "file:///workspace/language/main.langmeld",
+                "language \"Open version\"",
+            ),
+        )
+        .unwrap();
+    let resolver = OverlayDefinitionResolver::new(project.path(), overlay).unwrap();
+
+    let root = resolver.load("language/main.langmeld").unwrap();
+
+    assert_eq!(root.source().text(), "language \"Open version\"");
+    assert_eq!(
+        root.source().name(),
+        "file:///workspace/language/main.langmeld"
+    );
+}

@@ -27,7 +27,7 @@ use std::{
     collections::BTreeMap,
     error::Error,
     fmt, fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Mutex,
 };
 
@@ -154,6 +154,90 @@ impl DirectoryDefinitionResolver {
             .map_err(|_| ProjectLoadError::InvalidPath(relative_path.to_owned()))?;
         let path = self.root.join(key);
         self.load_path(path, relative_path.to_owned())
+    }
+
+    /// Maps an absolute or project-relative filesystem path to a project key.
+    ///
+    /// The file does not need to exist yet, which allows editor buffers for
+    /// newly created definitions to participate in project analysis. Existing
+    /// path components are canonicalized so symlinks outside the project root
+    /// are rejected.
+    pub fn key_for_path(&self, path: impl AsRef<Path>) -> Result<String, ProjectLoadError> {
+        let requested = path.as_ref();
+        let absolute = if requested.is_absolute() {
+            requested.to_path_buf()
+        } else {
+            self.root.join(requested)
+        };
+        let mut ancestor = absolute.as_path();
+        let mut missing_components = Vec::new();
+
+        loop {
+            match ancestor.canonicalize() {
+                Ok(canonical) => {
+                    if !canonical.starts_with(&self.root) {
+                        return Err(ProjectLoadError::OutsideRoot(
+                            requested.display().to_string(),
+                        ));
+                    }
+
+                    let mut relative = canonical
+                        .strip_prefix(&self.root)
+                        .map_err(|_| {
+                            ProjectLoadError::OutsideRoot(requested.display().to_string())
+                        })?
+                        .to_path_buf();
+                    for component in missing_components.iter().rev() {
+                        relative.push(component);
+                    }
+
+                    let key = relative
+                        .to_str()
+                        .ok_or_else(|| {
+                            ProjectLoadError::InvalidPath(requested.display().to_string())
+                        })?
+                        .replace('\\', "/");
+                    return normalize_source_key(&key)
+                        .map_err(|_| ProjectLoadError::InvalidPath(key));
+                }
+                Err(source) => match fs::symlink_metadata(ancestor) {
+                    Ok(_) => {
+                        return Err(ProjectLoadError::Read {
+                            path: ancestor.to_path_buf(),
+                            source,
+                        });
+                    }
+                    Err(metadata_error) if metadata_error.kind() == io::ErrorKind::NotFound => {
+                        let Some(component) = ancestor.file_name() else {
+                            return Err(ProjectLoadError::InvalidPath(
+                                requested.display().to_string(),
+                            ));
+                        };
+                        if !matches!(
+                            Path::new(component).components().next(),
+                            Some(Component::Normal(_))
+                        ) {
+                            return Err(ProjectLoadError::InvalidPath(
+                                requested.display().to_string(),
+                            ));
+                        }
+                        missing_components.push(component.to_os_string());
+                        let Some(parent) = ancestor.parent() else {
+                            return Err(ProjectLoadError::InvalidPath(
+                                requested.display().to_string(),
+                            ));
+                        };
+                        ancestor = parent;
+                    }
+                    Err(metadata_error) => {
+                        return Err(ProjectLoadError::Read {
+                            path: ancestor.to_path_buf(),
+                            source: metadata_error,
+                        });
+                    }
+                },
+            }
+        }
     }
 
     /// Returns loaded snapshots in stable path order for diagnostic display.

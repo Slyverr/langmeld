@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     error::Error,
     path::PathBuf,
     sync::{Mutex, RwLock},
@@ -13,7 +13,7 @@ use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
     DocumentSymbolInfo, LanguageBackend, LanguageDefinitionBackend,
 };
-use langmeld_project::{DirectoryDefinitionResolver, ProjectManifest};
+use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver, ProjectManifest};
 use url::Url;
 
 use crate::definition_completion::complete_definition_field;
@@ -23,7 +23,7 @@ use crate::project::DefinitionProjectContext;
 pub(crate) struct ProjectDefinitionBackend {
     root: PathBuf,
     root_definition: String,
-    resolver: DirectoryDefinitionResolver,
+    resolver: OverlayDefinitionResolver,
     syntax_backend: LanguageDefinitionBackend,
     definition_index: RwLock<Option<DefinitionIndex>>,
 }
@@ -32,10 +32,12 @@ impl ProjectDefinitionBackend {
     pub(crate) fn new(manifest_path: impl Into<PathBuf>) -> Result<Self, Box<dyn Error>> {
         let project = DefinitionProjectContext::new(manifest_path.into())?;
         let root_definition = canonical_definition_key(&project.root, &project.manifest);
+        let resolver =
+            OverlayDefinitionResolver::new(&project.root, InMemoryDefinitionResolver::new())?;
         Ok(Self {
             root: project.root,
             root_definition,
-            resolver: project.resolver,
+            resolver,
             syntax_backend: LanguageDefinitionBackend,
             definition_index: RwLock::new(None),
         })
@@ -63,17 +65,17 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .iter()
             .zip(&keys)
             .filter_map(|(source, key)| key.as_ref().map(|key| (key.clone(), source.clone())))
-            .collect::<HashMap<_, _>>();
+            .collect::<BTreeMap<_, _>>();
 
-        let root = if let Some(source) = open_sources.get(&self.root_definition) {
-            DefinitionSource::new(&self.root_definition, source.clone())
-        } else {
-            self.resolver.load(&self.root_definition).ok()?
-        };
+        let mut overlay = InMemoryDefinitionResolver::new();
+        for (key, source) in &open_sources {
+            overlay.insert(key, source.clone()).ok()?;
+        }
+        let resolver = self.resolver.with_overlay(overlay);
+        let root = resolver.load(&self.root_definition).ok()?;
         let root_source = root.source().clone();
         let resolver = OpenFileOverlayResolver {
-            resolver: &self.resolver,
-            open_sources: &open_sources,
+            resolver: &resolver,
             loaded: Mutex::new(HashSet::from([self.root_definition.clone()])),
             sources: Mutex::new(vec![(self.root_definition.clone(), root_source)]),
         };
@@ -251,11 +253,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
 impl ProjectDefinitionBackend {
     fn source_key(&self, source: &SourceFile) -> Option<String> {
         let path = Url::parse(source.name()).ok()?.to_file_path().ok()?;
-        let canonical = path.canonicalize().ok()?;
-        let relative = canonical.strip_prefix(&self.root).ok()?;
-        relative
-            .to_str()
-            .map(|path| path.replace(std::path::MAIN_SEPARATOR, "/"))
+        self.resolver.key_for_path(path).ok()
     }
 }
 
@@ -271,8 +269,7 @@ fn canonical_definition_key(root: &std::path::Path, manifest: &ProjectManifest) 
 }
 
 struct OpenFileOverlayResolver<'a> {
-    resolver: &'a DirectoryDefinitionResolver,
-    open_sources: &'a HashMap<String, SourceFile>,
+    resolver: &'a OverlayDefinitionResolver,
     loaded: Mutex<HashSet<String>>,
     sources: Mutex<Vec<(String, SourceFile)>>,
 }
@@ -286,11 +283,7 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
             .lock()
             .expect("definition resolver lock is not poisoned")
             .insert(resolved_key.clone());
-        let source = if let Some(source) = self.open_sources.get(&resolved_key) {
-            source.clone()
-        } else {
-            resolved_source
-        };
+        let source = resolved_source;
         let mut sources = self
             .sources
             .lock()

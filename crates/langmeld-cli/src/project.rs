@@ -3,14 +3,12 @@ use std::{error::Error, path::Path};
 use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::{
-    DirectoryDefinitionResolver, ProjectManifest, load_definition_project_from_manifest,
-    read_project_manifest_file,
+    ProjectManifest, load_definition_project_from_manifest, read_project_manifest_file,
 };
 
 pub(crate) struct DefinitionProjectContext {
     pub(crate) root: std::path::PathBuf,
     pub(crate) manifest: ProjectManifest,
-    pub(crate) resolver: DirectoryDefinitionResolver,
 }
 
 impl DefinitionProjectContext {
@@ -22,12 +20,7 @@ impl DefinitionProjectContext {
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."))
             .canonicalize()?;
-        let resolver = DirectoryDefinitionResolver::new(&root)?;
-        Ok(Self {
-            root,
-            manifest,
-            resolver,
-        })
+        Ok(Self { root, manifest })
     }
 }
 

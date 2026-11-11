@@ -74,6 +74,45 @@ fn requires_an_existing_directory_as_project_root() {
 }
 
 #[test]
+fn maps_existing_and_not_yet_created_paths_to_project_keys() {
+    let project = TestDirectory::new();
+    project.write("language/main.langmeld", "language \"Example\"");
+    let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
+
+    assert_eq!(
+        resolver
+            .key_for_path(project.path().join("language/main.langmeld"))
+            .unwrap(),
+        "language/main.langmeld"
+    );
+    assert_eq!(
+        resolver
+            .key_for_path(project.path().join("language/constructs/new.langmeld"))
+            .unwrap(),
+        "language/constructs/new.langmeld"
+    );
+    assert_eq!(
+        resolver
+            .key_for_path("language/constructs/other.langmeld")
+            .unwrap(),
+        "language/constructs/other.langmeld"
+    );
+}
+
+#[test]
+fn rejects_nonexistent_paths_outside_the_project_root() {
+    let project = TestDirectory::new();
+    let outside = TestDirectory::new();
+    let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
+
+    let error = resolver
+        .key_for_path(outside.path().join("new.langmeld"))
+        .unwrap_err();
+
+    assert!(error.to_string().contains("outside the project root"));
+}
+
+#[test]
 fn imported_definition_diagnostics_keep_the_imported_source_name() {
     let project = TestDirectory::new();
     project.write(
@@ -163,4 +202,20 @@ fn rejects_symlinks_that_escape_the_project_root() {
     let result = resolver.resolve(root.key(), "../secret.langmeld");
 
     assert!(result.unwrap_err().contains("outside the project root"));
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_nonexistent_paths_beneath_symlinks_that_escape_the_project_root() {
+    let project = TestDirectory::new();
+    let outside = TestDirectory::new();
+    std::os::unix::fs::symlink(outside.path(), project.path().join("external"))
+        .expect("test symlink should be created");
+    let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
+
+    let error = resolver
+        .key_for_path(project.path().join("external/new.langmeld"))
+        .unwrap_err();
+
+    assert!(error.to_string().contains("outside the project root"));
 }
