@@ -89,11 +89,14 @@ fn reports_invalid_construct_syntax() {
 #[test]
 fn rejects_a_source_without_a_program_root() {
     let language = load_language();
-    let error = language
+    let failure = language
         .run(&SourceFile::new("empty.widget", ""))
         .expect_err("a source must contain a program root");
 
-    assert!(error.contains("program did not produce a root construct"));
+    assert!(failure.diagnostics.iter().any(|diagnostic| {
+        diagnostic.message == "program did not produce a root construct"
+            && diagnostic.location.is_some()
+    }));
 }
 
 #[test]
@@ -104,10 +107,13 @@ fn executes_construct_handlers_and_host_defined_expressions() {
         "program { let title = \"Hello\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }",
     );
 
+    let report = language.run(&source).expect("program should execute");
+
     assert_eq!(
-        language.run(&source).expect("program should execute"),
+        report.output,
         "Hello\nDrawing circle labeled \"main target\".\nfirst\nsecond\n32\n"
     );
+    assert!(report.diagnostics.is_empty());
 }
 
 #[test]
@@ -119,45 +125,82 @@ fn reuses_one_loaded_language_for_multiple_programs() {
     );
     let second = SourceFile::new("second.widget", "program { print missing; }");
 
-    assert_eq!(
-        language.run(&first).expect("first program should run"),
-        "First\n"
-    );
-    let error = language
+    let report = language.run(&first).expect("first program should run");
+    assert_eq!(report.output, "First\n");
+
+    let failure = language
         .run(&second)
         .expect_err("each program should start with fresh runtime state");
 
-    assert!(error.contains("unknown variable `missing`"), "{error}");
+    assert!(
+        failure
+            .diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message == "unknown variable `missing`" })
+    );
 }
 
 #[test]
 fn supports_optional_fields_and_requires_repeated_items() {
     let language = load_language();
 
-    assert_eq!(
-        language
-            .run(&SourceFile::new(
-                "optional.widget",
-                "program { draw square; }",
-            ))
-            .expect("draw label is optional"),
-        "Drawing square.\n"
-    );
+    let report = language
+        .run(&SourceFile::new(
+            "optional.widget",
+            "program { draw square; }",
+        ))
+        .expect("draw label is optional");
 
-    let error = language
+    assert_eq!(report.output, "Drawing square.\n");
+
+    let failure = language
         .run(&SourceFile::new("empty.widget", "program { emit; }"))
         .expect_err("one_or_more must contain at least one string");
-    assert!(error.contains("expected"));
+    assert!(
+        failure
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("expected"))
+    );
 }
 
 #[test]
 fn reports_language_errors_at_the_source_location() {
     let language = load_language();
     let source = SourceFile::new("missing.widget", "program { print absent; }");
-    let error = language
+    let failure = language
         .run(&source)
         .expect_err("an unresolved variable should fail");
 
-    assert!(error.contains("unknown variable `absent`"));
-    assert!(error.contains("missing.widget:1:"));
+    assert!(failure.diagnostics.iter().any(|diagnostic| {
+        diagnostic.message == "unknown variable `absent`"
+            && diagnostic.location.as_ref().is_some_and(|location| {
+                location.source_name() == "missing.widget"
+                    && source
+                        .text()
+                        .get(location.span().start..location.span().end)
+                        == Some("absent")
+            })
+    }));
+}
+
+#[test]
+fn returns_partial_output_with_execution_diagnostics() {
+    let language = load_language();
+    let source = SourceFile::new(
+        "partial.widget",
+        "program { let message = \"Hello\"; say message; print missing; }",
+    );
+
+    let failure = language
+        .run(&source)
+        .expect_err("the unresolved variable should fail the run");
+
+    assert_eq!(failure.partial_output, "Hello\n");
+    assert!(
+        failure
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message == "unknown variable `missing`")
+    );
 }

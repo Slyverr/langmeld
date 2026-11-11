@@ -89,7 +89,9 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(definition.contains("root \"program\";"));
     let test_source = fs::read_to_string(project.join("tests/language.rs"))
         .expect("behavior tests should be generated");
-    assert!(test_source.contains("assert_eq!(output, \"Hello\\n\")"));
+    assert!(test_source.contains("assert_eq!(report.output, \"Hello\\n\")"));
+    assert!(test_source.contains("failure.diagnostics"));
+    assert!(test_source.contains("failure.partial_output"));
     assert!(test_source.contains("unknown variable `missing`"));
 }
 

@@ -17,7 +17,9 @@ parser but does not define the meaning of operators.
 The example loads and validates its definition once, then reuses the resulting
 `Language` to parse and run source files. Its `parse` and `specification`
 methods also expose the loaded grammar for host tooling. Each run creates fresh
-runtime state and handler instances.
+runtime state and handler instances. `Language::run` returns structured
+diagnostics and preserves output emitted before an execution failure; the CLI
+chooses to format diagnostics for the terminal.
 
 Run it from the workspace root:
 

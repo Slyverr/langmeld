@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- The declarative starter and toy language return structured diagnostics from
+  program runs, leaving diagnostic presentation to the host and preserving
+  output emitted before an execution failure.
+
 ## [0.9.0] - 2026-11-11
 
 ### Changed

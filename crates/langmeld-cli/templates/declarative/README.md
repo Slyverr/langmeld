@@ -20,8 +20,10 @@ definitions from `language/constructs/`. Rust behavior lives in
 Load the definition once with `language::load()`, then reuse the returned
 `Language` to parse or run source files. Its `specification()` method exposes
 the validated grammar for editor integrations. Each run gets fresh runtime
-state and handler instances. The CLI and Rust host share the same parser,
-handler behavior, and diagnostics.
+state and handler instances. `Language::run` returns output and structured
+diagnostics; the CLI formats them for the terminal, while other hosts can
+present them in their own way. A failed run also retains output emitted before
+the failure.
 
 ## Add a construct
 

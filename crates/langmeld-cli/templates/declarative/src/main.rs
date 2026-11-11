@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use language::load;
 
 const SAMPLE: &str = "program { let message = \"Hello, Langmeld!\"; print message; }";
@@ -34,9 +34,18 @@ fn run_cli() -> Result<(), String> {
 
     let source = SourceFile::new(source_name, source_text);
     let language = load()?;
-    let output = language.run(&source)?;
+    let report = language.run(&source).map_err(|failure| {
+        format_diagnostics(std::slice::from_ref(&source), &failure.diagnostics)
+    })?;
 
-    print!("{output}");
+    if !report.diagnostics.is_empty() {
+        eprintln!(
+            "{}",
+            format_diagnostics(std::slice::from_ref(&source), &report.diagnostics)
+        );
+    }
+
+    print!("{}", report.output);
 
     Ok(())
 }

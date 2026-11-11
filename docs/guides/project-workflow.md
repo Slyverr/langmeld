@@ -127,7 +127,9 @@ when run from the project directory; generated Rust code exposes
 `language::load()` so application code does not need to name the root
 definition or project path. Load once, then call `Language::parse` or
 `Language::run` for each source file; `Language::specification()` exposes the
-validated grammar to host tooling.
+validated grammar to host tooling. The starter's `Language::run` returns
+structured diagnostics alongside output, leaving their presentation to the
+host. A failed run also includes output emitted before execution stopped.
 
 Format `1` requires the `format` field and optionally accepts `definition`.
 The definition path must be a project-relative `.langmeld` path without
