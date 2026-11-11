@@ -35,6 +35,19 @@ fn check_uses_the_project_manifest_and_reports_the_language_name() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("Widget Script"));
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["check"])
+        .current_dir(&project)
+        .output()
+        .expect("CLI should start from the project directory");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Widget Script"));
 }
 
 #[test]
