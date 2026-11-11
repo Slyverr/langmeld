@@ -15,34 +15,48 @@ type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + 
 type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
 type DocumentCloseHandler = dyn Fn(&SourceFile) + Send + Sync;
 
-/// Retained parse and analysis results produced by a [`HostLanguageBackend`].
+/// Validated parse and analysis results produced by a [`HostLanguageBackend`].
+/// Results tied to another source snapshot are discarded and exposed as `None`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostDocument<Tree, Analysis> {
-    /// Host-owned parse tree and parser diagnostics.
-    parsed: ParsedDocument<Tree>,
-    /// Host-owned semantic result and diagnostics.
-    analysis: AnalysisDocument<Analysis>,
+    /// Validated host-owned parse tree and parser diagnostics.
+    parsed: Option<ParsedDocument<Tree>>,
+    /// Validated host-owned semantic result and diagnostics.
+    analysis: Option<AnalysisDocument<Analysis>>,
 }
 
 impl<Tree, Analysis> HostDocument<Tree, Analysis> {
-    /// Returns the parsed syntax tree and parser diagnostics.
+    /// Returns the parsed syntax tree and parser diagnostics when the parser
+    /// associated the result with the requested source snapshot.
     #[must_use]
-    pub const fn parsed(&self) -> &ParsedDocument<Tree> {
-        &self.parsed
+    pub const fn parsed(&self) -> Option<&ParsedDocument<Tree>> {
+        self.parsed.as_ref()
     }
 
-    /// Returns the semantic result and analyzer diagnostics.
+    /// Returns the semantic result and analyzer diagnostics when analysis
+    /// associated the result with the requested source snapshot.
     #[must_use]
-    pub const fn analysis(&self) -> &AnalysisDocument<Analysis> {
-        &self.analysis
+    pub const fn analysis(&self) -> Option<&AnalysisDocument<Analysis>> {
+        self.analysis.as_ref()
     }
 
-    fn belongs_to(&self, document_source: Option<SourceIdentity>, source: &SourceFile) -> bool {
+    fn results_for(
+        &self,
+        document_source: Option<SourceIdentity>,
+        source: &SourceFile,
+    ) -> Option<(&ParsedDocument<Tree>, &AnalysisDocument<Analysis>)> {
         let source_identity = source.identity();
 
-        document_source == source_identity
-            && self.parsed().source_identity() == source_identity
-            && self.analysis().source_identity() == source_identity
+        if document_source != source_identity {
+            return None;
+        }
+
+        let parsed = self.parsed.as_ref()?;
+        let analysis = self.analysis.as_ref()?;
+
+        (parsed.source_identity() == source_identity
+            && analysis.source_identity() == source_identity)
+            .then_some((parsed, analysis))
     }
 }
 
@@ -64,11 +78,12 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 
 /// Connects host parser and analysis contracts to an LSP backend.
 ///
-/// Parser and semantic diagnostics are always published. Completion and
-/// navigation capabilities are enabled only when their providers are attached.
-/// Parser and analyzer results with identities that differ from the input are
-/// diagnosed. Editor queries are suppressed when either result or the
-/// enclosing backend document belongs to another source snapshot.
+/// Diagnostics from source-matched parser and analysis results are published.
+/// Completion and navigation capabilities are enabled only when their
+/// providers are attached. Parser and analyzer results with identities that
+/// differ from the input are diagnosed and discarded. Editor queries are
+/// suppressed unless both validated results and the enclosing backend document
+/// belong to the requested source snapshot.
 /// Workspace analysis, rename, formatting, hover, and other queries remain
 /// available through a custom [`LanguageBackend`] implementation.
 pub struct HostLanguageBackend<P, A = NoAnalyzer>
@@ -134,30 +149,43 @@ where
         source: &SourceFile,
         parsed: ParsedDocument<P::Tree>,
     ) -> BackendDocument<HostDocument<P::Tree, A::Analysis>> {
-        let analysis = self.analyzer.analyze(source, &parsed);
-
-        let mut diagnostics = parsed
-            .diagnostics()
-            .iter()
-            .chain(analysis.diagnostics())
-            .cloned()
-            .collect::<Vec<_>>();
         if parsed.source_identity() != source.identity() {
-            diagnostics.push(source_identity_diagnostic(
+            return BackendDocument::new(
                 source,
-                PARSER_SOURCE_MISMATCH_CODE,
-                "parser",
-            ));
+                HostDocument {
+                    parsed: None,
+                    analysis: None,
+                },
+                vec![source_identity_diagnostic(
+                    source,
+                    PARSER_SOURCE_MISMATCH_CODE,
+                    "parser",
+                )],
+            );
         }
+
+        let mut diagnostics = parsed.diagnostics().to_vec();
+        let analysis = self.analyzer.analyze(source, &parsed);
         if analysis.source_identity() != source.identity() {
             diagnostics.push(source_identity_diagnostic(
                 source,
                 ANALYZER_SOURCE_MISMATCH_CODE,
                 "analyzer",
             ));
+        } else {
+            diagnostics.extend(analysis.diagnostics().iter().cloned());
         }
 
-        BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+        let analysis = (analysis.source_identity() == source.identity()).then_some(analysis);
+
+        BackendDocument::new(
+            source,
+            HostDocument {
+                parsed: Some(parsed),
+                analysis,
+            },
+            diagnostics,
+        )
     }
 
     /// Adds semantic analysis across the currently open parsed documents.
@@ -286,7 +314,14 @@ where
                         .chain(analysis.diagnostics())
                         .cloned()
                         .collect();
-                    BackendDocument::new(source, HostDocument { parsed, analysis }, diagnostics)
+                    BackendDocument::new(
+                        source,
+                        HostDocument {
+                            parsed: Some(parsed),
+                            analysis: Some(analysis),
+                        },
+                        diagnostics,
+                    )
                 })
                 .collect(),
         )
@@ -308,20 +343,15 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
-        if !document
+        let Some((parsed, analysis)) = document
             .state()
-            .belongs_to(document.source_identity(), source)
-        {
+            .results_for(document.source_identity(), source)
+        else {
             return Vec::new();
-        }
+        };
 
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
-            completer.complete(
-                source,
-                document.state().parsed(),
-                Some(document.state().analysis()),
-                offset,
-            )
+            completer.complete(source, parsed, Some(analysis), offset)
         })
     }
 
@@ -331,20 +361,15 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<SourceLocation> {
-        if !document
+        let Some((parsed, analysis)) = document
             .state()
-            .belongs_to(document.source_identity(), source)
-        {
+            .results_for(document.source_identity(), source)
+        else {
             return Vec::new();
-        }
+        };
 
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
-            navigator.definition(
-                source,
-                document.state().parsed(),
-                Some(document.state().analysis()),
-                offset,
-            )
+            navigator.definition(source, parsed, Some(analysis), offset)
         })
     }
 
@@ -355,21 +380,15 @@ where
         offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
-        if !document
+        let Some((parsed, analysis)) = document
             .state()
-            .belongs_to(document.source_identity(), source)
-        {
+            .results_for(document.source_identity(), source)
+        else {
             return Vec::new();
-        }
+        };
 
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
-            navigator.references(
-                source,
-                document.state().parsed(),
-                Some(document.state().analysis()),
-                offset,
-                include_declaration,
-            )
+            navigator.references(source, parsed, Some(analysis), offset, include_declaration)
         })
     }
 

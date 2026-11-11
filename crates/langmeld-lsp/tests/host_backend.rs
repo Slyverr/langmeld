@@ -1,9 +1,11 @@
-use langmeld_core::{SourceDatabase, SourceFile, SourceIdentity, SourceLocation, Span};
+use langmeld_core::{Diagnostic, SourceDatabase, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, CompletionCandidate, LanguageAnalyzer, LanguageCompleter, LanguageNavigator,
     LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct TestParser {
     reported_source: Option<SourceFile>,
@@ -14,8 +16,18 @@ impl LanguageParser for TestParser {
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
         let reported_source = self.reported_source.as_ref().unwrap_or(source);
+        let diagnostics = if reported_source.identity() != source.identity() {
+            vec![Diagnostic::error(
+                "TEST-STALE-PARSE",
+                "stale parser diagnostic",
+                reported_source,
+                Span::default(),
+            )]
+        } else {
+            Vec::new()
+        };
 
-        ParsedDocument::new(reported_source, (), Vec::new())
+        ParsedDocument::new(reported_source, (), diagnostics)
     }
 }
 
@@ -32,8 +44,34 @@ impl LanguageAnalyzer<TestParser> for TestAnalyzer {
         _parsed: &ParsedDocument<()>,
     ) -> AnalysisDocument<Self::Analysis> {
         let reported_source = self.reported_source.as_ref().unwrap_or(source);
+        let diagnostics = if reported_source.identity() != source.identity() {
+            vec![Diagnostic::error(
+                "TEST-STALE-ANALYSIS",
+                "stale analyzer diagnostic",
+                reported_source,
+                Span::default(),
+            )]
+        } else {
+            Vec::new()
+        };
 
-        AnalysisDocument::new(reported_source, (), Vec::new())
+        AnalysisDocument::new(reported_source, (), diagnostics)
+    }
+}
+
+struct CountingAnalyzer(Arc<AtomicUsize>);
+
+impl LanguageAnalyzer<TestParser> for CountingAnalyzer {
+    type Analysis = ();
+
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        _parsed: &ParsedDocument<()>,
+    ) -> AnalysisDocument<Self::Analysis> {
+        self.0.fetch_add(1, Ordering::Relaxed);
+
+        AnalysisDocument::new(source, (), Vec::new())
     }
 }
 
@@ -156,6 +194,26 @@ fn parser_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
     assert!(backend.complete(&source, &document, 0).is_empty());
     assert!(backend.definition(&source, &document, 0).is_empty());
     assert!(backend.references(&source, &document, 0, true).is_empty());
+    assert!(document.state().parsed().is_none());
+    assert!(document.state().analysis().is_none());
+}
+
+#[test]
+fn stale_parser_result_is_discarded_before_analysis() {
+    let (source, _, other_source) = managed_source_and_other_identity();
+    let analyzer_calls = Arc::new(AtomicUsize::new(0));
+    let backend = HostLanguageBackend::new(TestParser {
+        reported_source: Some(other_source),
+    })
+    .with_analyzer(CountingAnalyzer(Arc::clone(&analyzer_calls)));
+
+    let document = backend.analyze(&source);
+
+    assert_eq!(analyzer_calls.load(Ordering::Relaxed), 0);
+    assert!(document.state().parsed().is_none());
+    assert!(document.state().analysis().is_none());
+    assert_eq!(document.diagnostics().len(), 1);
+    assert_eq!(document.diagnostics()[0].code, "LM-HOST-001");
 }
 
 #[test]
@@ -174,6 +232,10 @@ fn analysis_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
     assert!(backend.complete(&source, &document, 0).is_empty());
     assert!(backend.definition(&source, &document, 0).is_empty());
     assert!(backend.references(&source, &document, 0, true).is_empty());
+    assert!(document.state().parsed().is_some());
+    assert!(document.state().analysis().is_none());
+    assert_eq!(document.diagnostics().len(), 1);
+    assert_eq!(document.diagnostics()[0].code, "LM-HOST-002");
 }
 
 #[test]
@@ -245,12 +307,18 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
         assert_eq!(
-            document.state().parsed().source_identity(),
-            source.identity()
+            document
+                .state()
+                .parsed()
+                .map(ParsedDocument::source_identity),
+            Some(source.identity())
         );
         assert_eq!(
-            document.state().analysis().source_identity(),
-            source.identity()
+            document
+                .state()
+                .analysis()
+                .map(AnalysisDocument::source_identity),
+            Some(source.identity())
         );
     }
 }
@@ -278,12 +346,18 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
         assert_eq!(
-            document.state().parsed().source_identity(),
-            source.identity()
+            document
+                .state()
+                .parsed()
+                .map(ParsedDocument::source_identity),
+            Some(source.identity())
         );
         assert_eq!(
-            document.state().analysis().source_identity(),
-            source.identity()
+            document
+                .state()
+                .analysis()
+                .map(AnalysisDocument::source_identity),
+            Some(source.identity())
         );
     }
 }
@@ -309,10 +383,8 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
 
     assert_eq!(documents.len(), sources.len());
     assert_eq!(documents[0].source_identity(), source.identity());
-    assert_eq!(
-        documents[0].state().parsed().source_identity(),
-        Some(other_identity)
-    );
+    assert!(documents[0].state().parsed().is_none());
+    assert!(documents[0].state().analysis().is_none());
     assert!(
         documents[0]
             .diagnostics()
@@ -321,7 +393,10 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
     );
     assert_eq!(documents[1].source_identity(), Some(other_identity));
     assert_eq!(
-        documents[1].state().parsed().source_identity(),
-        Some(other_identity)
+        documents[1]
+            .state()
+            .parsed()
+            .map(ParsedDocument::source_identity),
+        Some(Some(other_identity))
     );
 }

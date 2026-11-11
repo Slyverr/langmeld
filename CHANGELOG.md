@@ -9,6 +9,9 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `HostDocument::parsed()` and `analysis()` now return `Option`;
+  mismatched snapshot results are discarded, and stale parse trees are never
+  passed to analyzers.
 - **Breaking:** `AnalysisContext::new` now returns `Result` and rejects parsed
   documents from a different database-managed source snapshot.
 - **Breaking:** `ConstructHandler::handle` now takes only `ConstructContext`.
@@ -62,7 +65,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   avoiding incorrect line and column values for colliding names or stale
   revisions.
 - Diagnose host parser or analyzer results tied to a different managed source
-  snapshot, and reject editor queries for mismatched backend documents.
+  snapshot, discard mismatched results, and reject editor queries for invalid
+  backend documents.
 - Fall back to per-source analysis for every open document when configured host
   workspace analysis returns incomplete or mismatched results.
 - Require commas between function parameters in the declarative-functions
