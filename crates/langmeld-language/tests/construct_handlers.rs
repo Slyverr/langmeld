@@ -21,6 +21,27 @@ impl ConstructHandler<Vec<String>> for RecordIdentifier {
     }
 }
 
+struct RecordRepeatedFields;
+
+impl ConstructHandler<Vec<String>> for RecordRepeatedFields {
+    const CONSTRUCT: &'static str = "record";
+
+    fn handle(
+        &self,
+        construct: &ParsedConstruct,
+        context: &mut ConstructContext<'_, Vec<String>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        let mut values = Vec::new();
+        for field in context.fields(construct, "value") {
+            values.push(context.captured_text(field)?.to_owned());
+        }
+
+        context.state_mut().extend(values);
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
 fn construct(name: &str, span: Span, children: Vec<ParsedConstruct>) -> ParsedConstruct {
     ParsedConstruct {
         name: name.to_owned(),
@@ -67,6 +88,41 @@ fn dispatches_block_children_in_source_order() -> Result<(), Box<dyn std::error:
 
     assert_eq!(result, HandlerControl::Continue);
     assert_eq!(state, ["first", "second"]);
+
+    Ok(())
+}
+
+#[test]
+fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error::Error>> {
+    let source = SourceFile::new("main.sample", "record alpha beta");
+    let node = ParsedConstruct {
+        name: "record".to_owned(),
+        variant: 0,
+        span: Span::new(0, source.text.len()),
+        fields: vec![
+            CapturedField {
+                name: "value".to_owned(),
+                value: CapturedValue::Identifier("alpha".to_owned()),
+                span: Span::new(7, 12),
+            },
+            CapturedField {
+                name: "value".to_owned(),
+                value: CapturedValue::Identifier("beta".to_owned()),
+                span: Span::new(13, 17),
+            },
+        ],
+        children: Vec::new(),
+    };
+    let block = construct("program", Span::new(0, source.text.len()), vec![node]);
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordRepeatedFields)?;
+    let mut state = Vec::new();
+
+    handlers
+        .dispatch_block(&source, &block, &mut state)
+        .expect("registered handler should process repeated fields");
+
+    assert_eq!(state, ["alpha", "beta"]);
 
     Ok(())
 }

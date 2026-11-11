@@ -1,5 +1,6 @@
 mod compute;
 mod draw;
+mod emit;
 mod let_handler;
 mod print;
 
@@ -13,6 +14,7 @@ pub(super) fn registry() -> Result<ConstructHandlerRegistry<RuntimeState>, Handl
 
     handlers.register(compute::ComputeHandler)?;
     handlers.register(draw::DrawHandler)?;
+    handlers.register(emit::EmitHandler)?;
     handlers.register(let_handler::LetHandler)?;
     handlers.register(print::PrintHandler)?;
 

@@ -202,7 +202,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
         self.state
     }
 
-    /// Finds a named captured field or returns a source-located diagnostic.
+    /// Finds the first capture with this name or returns a source-located
+    /// diagnostic.
+    ///
+    /// Use [`Self::fields`] when the grammar can capture the same field more
+    /// than once.
     pub fn field<'node>(
         &self,
         construct: &'node ParsedConstruct,
@@ -225,7 +229,25 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
             })
     }
 
-    /// Returns the exact source text captured by a named field.
+    /// Returns every capture with this name in source order.
+    ///
+    /// This is useful for fields inside repeated grammar patterns. Optional
+    /// fields and zero-or-more patterns may have no captures, in which case
+    /// the iterator is empty.
+    pub fn fields<'node>(
+        &self,
+        construct: &'node ParsedConstruct,
+        name: &str,
+    ) -> impl Iterator<Item = &'node CapturedField> {
+        construct
+            .fields
+            .iter()
+            .filter(move |field| field.name == name)
+    }
+
+    /// Returns the exact source text of the first capture with this name.
+    ///
+    /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
     pub fn field_text(
         &self,
         construct: &ParsedConstruct,
@@ -233,13 +255,18 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     ) -> Result<&'source str, Diagnostic> {
         let field = self.field(construct, name)?;
 
+        self.captured_text(field)
+    }
+
+    /// Returns the exact source text covered by a captured field.
+    pub fn captured_text(&self, field: &CapturedField) -> Result<&'source str, Diagnostic> {
         self.source
             .text
             .get(field.span.start..field.span.end)
             .ok_or_else(|| {
                 Diagnostic::error(
                     "LM-HANDLER-003",
-                    format!("captured field `{name}` has an invalid source span"),
+                    format!("captured field `{}` has an invalid source span", field.name),
                     self.source,
                     field.span,
                 )

@@ -3,6 +3,7 @@ language "WidgetScript" {
     root "program";
     lexical {
         line_comment "//";
+        block_comment "/*" "*/";
     }
     construct "program" {
         syntax {

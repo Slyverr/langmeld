@@ -7,6 +7,10 @@ construct "draw" {
             value "circle";
             value "square";
         }
+        optional {
+            literal "labeled";
+            string "label";
+        }
         literal ";";
     }
     implements "statement";
@@ -16,6 +20,20 @@ construct "compute" {
     syntax {
         literal "compute";
         expression "value" until ";";
+    }
+    implements "statement";
+}
+construct "emit" {
+    completion "keyword";
+    syntax {
+        literal "emit";
+        one_or_more {
+            string "message";
+            optional {
+                literal ",";
+            }
+        }
+        literal ";";
     }
     implements "statement";
 }

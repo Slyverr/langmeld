@@ -14,7 +14,7 @@ fn imports_constructs_and_parses_the_example_program() {
     let language = load_language();
     let source = SourceFile::new(
         "main.widget",
-        "// a comment before the program\nprogram { let title = \"Hello\"; draw circle; compute 20 + 4 * (2 + 1); }",
+        "// a line comment\nprogram { /* a block comment */ let title = \"Hello\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }",
     );
     let parsed = parse(&source, &language);
 
@@ -27,7 +27,7 @@ fn imports_constructs_and_parses_the_example_program() {
             .iter()
             .map(|construct| construct.name.as_str())
             .collect::<Vec<_>>(),
-        ["let", "draw", "compute"]
+        ["let", "print", "draw", "emit", "compute"]
     );
     assert_eq!(
         root.children[0].fields[0].value,
@@ -37,15 +37,22 @@ fn imports_constructs_and_parses_the_example_program() {
         root.children[0].fields[1].value,
         CapturedValue::String("\"Hello\"".into())
     );
-    assert_eq!(root.children[1].fields[0].name, "shape");
+    assert_eq!(root.children[1].variant, 1);
+    assert_eq!(root.children[1].fields[0].name, "name");
+    assert_eq!(root.children[2].fields[0].name, "shape");
     assert_eq!(
-        root.children[1].fields[0].value,
+        root.children[2].fields[0].value,
         CapturedValue::Token {
             text: "circle".into(),
             kind: langmeld_language::TokenKind::Identifier,
         }
     );
-    let expression = &root.children[2].fields[0];
+    assert_eq!(root.children[2].fields[1].name, "label");
+    assert_eq!(root.children[3].fields.len(), 2);
+    assert_eq!(root.children[3].fields[0].name, "message");
+    assert_eq!(root.children[3].fields[1].name, "message");
+
+    let expression = &root.children[4].fields[0];
     assert_eq!(expression.name, "value");
     assert_eq!(expression.value, CapturedValue::Expression);
     assert_eq!(
@@ -83,13 +90,29 @@ fn reports_invalid_construct_syntax() {
 fn executes_construct_handlers_and_host_defined_expressions() {
     let source = SourceFile::new(
         "main.widget",
-        "program { let title = \"Hello\"; print title; draw circle; compute 20 + 4 * (2 + 1); }",
+        "program { let title = \"Hello\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }",
     );
 
     assert_eq!(
         run(&source).expect("program should execute"),
-        "Hello\nDrawing circle.\n32\n"
+        "Hello\nDrawing circle labeled \"main target\".\nfirst\nsecond\n32\n"
     );
+}
+
+#[test]
+fn supports_optional_fields_and_requires_repeated_items() {
+    assert_eq!(
+        run(&SourceFile::new(
+            "optional.widget",
+            "program { draw square; }",
+        ))
+        .expect("draw label is optional"),
+        "Drawing square.\n"
+    );
+
+    let error = run(&SourceFile::new("empty.widget", "program { emit; }"))
+        .expect_err("one_or_more must contain at least one string");
+    assert!(error.contains("expected"));
 }
 
 #[test]

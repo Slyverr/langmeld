@@ -3,7 +3,7 @@ use std::{env, fs, path::PathBuf};
 use langmeld_core::SourceFile;
 use langmeld_toy_language_example::run;
 
-const SAMPLE: &str = "program { let title = \"Hello, Langmeld!\"; print title; draw circle; compute 20 + 4 * (2 + 1); }";
+const SAMPLE: &str = "program { let title = \"Hello, Langmeld!\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }";
 
 fn main() {
     if let Err(error) = run_cli() {

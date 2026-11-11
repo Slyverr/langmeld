@@ -16,5 +16,10 @@ construct "print" {
         identifier "name";
         literal ";";
     }
+    syntax {
+        literal "say";
+        identifier "name";
+        literal ";";
+    }
     implements "statement";
 }
