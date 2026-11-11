@@ -3,11 +3,14 @@
 mod grammar;
 mod lower;
 mod project;
+mod strings;
 mod unit;
 
 use langmeld_core::{Diagnostic, SourceFile};
 
 use crate::LanguageSpec;
+
+pub use strings::{decode_definition_string, quote_definition_string};
 
 /// Result of parsing and validating one language-definition source.
 #[derive(Clone, Debug, PartialEq, Eq)]

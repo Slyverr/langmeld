@@ -8,10 +8,9 @@ use std::{
 use clap::Args;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 use langmeld_core::SourceFile;
-use langmeld_language::{language_definition_grammar, parse};
+use langmeld_language::{language_definition_grammar, parse, quote_definition_string};
 
 use crate::{
-    definition_strings::quote,
     generate_handler::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
         rust_names, update_managed_section, validate_constructs_directory, write_new_file,
@@ -271,9 +270,9 @@ fn add_root_import(source: &str, import_path: &str) -> Result<String, io::Error>
 fn syntax_template(name: &str, literal: &str, category: &str) -> String {
     format!(
         "construct {} {{\n    syntax {{\n        literal {};\n    }}\n    implements {};\n}}\n",
-        quote(name),
-        quote(literal),
-        quote(category)
+        quote_definition_string(name),
+        quote_definition_string(literal),
+        quote_definition_string(category)
     )
 }
 

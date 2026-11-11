@@ -210,6 +210,11 @@ TextMate export includes configured line and block comments. Tree-sitter export
 includes line comments, but reports block comments as unsupported so it does
 not emit a grammar with misleading behavior.
 
+The Langmeld definition helpers, `decode_definition_string` and
+`quote_definition_string`, decode and encode quoted strings in
+.langmeld definition files. They do not define string escaping for languages
+built with Langmeld.
+
 Captured values preserve their lexical text. For example, integer captures
 are not parsed into numeric values and strings retain their quotes. Hosts
 decide how to validate or interpret them. `token` is useful for a host lexer

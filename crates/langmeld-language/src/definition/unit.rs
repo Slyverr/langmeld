@@ -4,9 +4,10 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{ConstructSpec, LexicalRules, parse};
 
-use super::grammar::definition_grammar;
-use super::lower::{
-    decode_quoted, lower_construct, lower_import, lower_lexical_rules, string_field,
+use super::{
+    decode_definition_string,
+    grammar::definition_grammar,
+    lower::{lower_construct, lower_import, lower_lexical_rules, string_field},
 };
 
 #[derive(Clone)]
@@ -72,7 +73,7 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
             ));
         }
         let root = language_nodes[0];
-        let Some(name) = string_field(root, "name").and_then(decode_quoted) else {
+        let Some(name) = string_field(root, "name").and_then(decode_definition_string) else {
             unit.diagnostics.push(Diagnostic::error(
                 "LM-DEF-003",
                 "language declaration requires a valid quoted name",
@@ -107,7 +108,9 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
                     }
                 }
                 "root" => {
-                    if let Some(name) = string_field(node, "name").and_then(decode_quoted) {
+                    if let Some(name) =
+                        string_field(node, "name").and_then(decode_definition_string)
+                    {
                         unit.root_constructs.push((name, node.span));
                     } else {
                         unit.diagnostics.push(Diagnostic::error(

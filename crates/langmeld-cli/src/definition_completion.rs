@@ -3,10 +3,11 @@ use std::{fs, path::Path};
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
     CapturedField, CompletionCandidate, CompletionKind, ParseResult, ParsedConstruct,
+    quote_definition_string,
 };
 use url::Url;
 
-use crate::{definition_index::DefinitionIndex, definition_strings::quote};
+use crate::definition_index::DefinitionIndex;
 
 const MAX_DIRECTORY_SUGGESTIONS: usize = 200;
 const IGNORED_DIRECTORIES: &[&str] = &[".git", "node_modules", "target"];
@@ -74,7 +75,7 @@ fn complete_values(
         .iter()
         .filter(|value| prefix.is_empty() || value.starts_with(&prefix))
         .map(|value| {
-            CompletionCandidate::new(quote(value), replace)
+            CompletionCandidate::new(quote_definition_string(value), replace)
                 .with_label(value)
                 .with_filter_text(value)
                 .with_kind(CompletionKind::Reference)
@@ -158,7 +159,7 @@ fn complete_import_path(
             ".langmeld definition"
         };
         candidates.push(
-            CompletionCandidate::new(quote(&label), replace)
+            CompletionCandidate::new(quote_definition_string(&label), replace)
                 .with_label(&label)
                 .with_filter_text(&label)
                 .with_kind(kind)

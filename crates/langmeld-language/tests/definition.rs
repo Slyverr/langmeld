@@ -1,7 +1,8 @@
 use langmeld_core::SourceFile;
 use langmeld_language::{
-    CapturedValue, CompletionKind, DefinitionResolver, DefinitionSource, complete_at, parse,
-    parse_language_definition, parse_language_definition_project,
+    CapturedValue, CompletionKind, DefinitionResolver, DefinitionSource, complete_at,
+    decode_definition_string, parse, parse_language_definition, parse_language_definition_project,
+    quote_definition_string,
 };
 use std::collections::HashMap;
 
@@ -46,6 +47,33 @@ language "Toy" {
     }
 }
 "#;
+
+#[test]
+fn definition_string_helpers_round_trip_supported_escapes() {
+    let value = "quotes: \" slash: \\ newline:\nreturn:\rtab:\t";
+    let encoded = quote_definition_string(value);
+
+    assert_eq!(
+        encoded,
+        "\"quotes: \\\" slash: \\\\ newline:\\nreturn:\\rtab:\\t\""
+    );
+    assert_eq!(decode_definition_string(&encoded).as_deref(), Some(value));
+}
+
+#[test]
+fn decode_definition_string_rejects_invalid_literals_and_escapes() {
+    let invalid_values = [
+        "",
+        "\"unterminated",
+        "\"unsupported\\q\"",
+        "\"unescaped\"quote\"",
+        "\"trailing\\",
+    ];
+
+    for value in invalid_values {
+        assert_eq!(decode_definition_string(value), None, "{value:?}");
+    }
+}
 
 #[test]
 fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {

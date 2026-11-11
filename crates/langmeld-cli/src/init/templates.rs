@@ -1,4 +1,4 @@
-use crate::definition_strings::quote;
+use langmeld_language::quote_definition_string;
 
 use super::{AgentGuidance, Template};
 
@@ -78,7 +78,7 @@ pub(super) fn project_files(
                 (
                     "language/main.langmeld".to_owned(),
                     include_str!("../../templates/declarative/language/main.langmeld")
-                        .replace("{{LANGUAGE_NAME}}", &quote(language_name)),
+                        .replace("{{LANGUAGE_NAME}}", &quote_definition_string(language_name)),
                 ),
                 (
                     "language/constructs/statements.langmeld".to_owned(),

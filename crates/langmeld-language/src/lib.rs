@@ -19,7 +19,8 @@ pub use completion::{
 };
 pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,
-    language_definition_grammar, parse_language_definition, parse_language_definition_project,
+    decode_definition_string, language_definition_grammar, parse_language_definition,
+    parse_language_definition_project, quote_definition_string,
 };
 pub use format::{DefinitionFormatOptions, format_language_definition};
 pub use handler::{

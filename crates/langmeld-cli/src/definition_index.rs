@@ -1,6 +1,7 @@
 use langmeld_core::{SourceFile, SourceLocation, Span};
 use langmeld_language::{
-    CapturedValue, ParseResult, ParsedConstruct, language_definition_grammar, parse,
+    CapturedValue, ParseResult, ParsedConstruct, decode_definition_string,
+    language_definition_grammar, parse,
 };
 
 #[derive(Clone, Default)]
@@ -176,7 +177,7 @@ fn symbol_at(constructs: &[ParsedConstruct], offset: usize) -> Option<(IndexName
                     reference_field(construct.name.as_str(), field.name.as_str())
                 && let CapturedValue::String(raw_name) = &field.value
             {
-                return Some((namespace, decode_quoted(raw_name)?));
+                return Some((namespace, decode_definition_string(raw_name)?));
             }
         }
         if let Some(symbol) = symbol_at(&construct.children, offset) {
@@ -202,28 +203,7 @@ fn string_field<'a>(
     let CapturedValue::String(value) = &field.value else {
         return None;
     };
-    Some((decode_quoted(value)?, field))
-}
-
-fn decode_quoted(value: &str) -> Option<String> {
-    let inner = value.strip_prefix('"')?.strip_suffix('"')?;
-    let mut decoded = String::with_capacity(inner.len());
-    let mut characters = inner.chars();
-    while let Some(character) = characters.next() {
-        if character != '\\' {
-            decoded.push(character);
-            continue;
-        }
-        match characters.next()? {
-            '\\' => decoded.push('\\'),
-            '"' => decoded.push('"'),
-            'n' => decoded.push('\n'),
-            'r' => decoded.push('\r'),
-            't' => decoded.push('\t'),
-            _ => return None,
-        }
-    }
-    Some(decoded)
+    Some((decode_definition_string(value)?, field))
 }
 
 fn valid_location(source: &SourceFile, location: &SourceLocation) -> bool {

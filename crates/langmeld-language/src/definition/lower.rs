@@ -5,7 +5,7 @@ use crate::{
     PatternPart,
 };
 
-use super::unit::ImportDirective;
+use super::{decode_definition_string as decode_quoted, unit::ImportDirective};
 
 pub(super) fn lower_lexical_rules(
     node: &ParsedConstruct,
@@ -422,25 +422,4 @@ fn completion_kind_value(node: &ParsedConstruct) -> Option<String> {
             } => Some(text.clone()),
             _ => None,
         })
-}
-
-pub(super) fn decode_quoted(value: &str) -> Option<String> {
-    let inner = value.strip_prefix('"')?.strip_suffix('"')?;
-    let mut decoded = String::with_capacity(inner.len());
-    let mut characters = inner.chars();
-    while let Some(character) = characters.next() {
-        if character != '\\' {
-            decoded.push(character);
-            continue;
-        }
-        match characters.next()? {
-            '\\' => decoded.push('\\'),
-            '"' => decoded.push('"'),
-            'n' => decoded.push('\n'),
-            'r' => decoded.push('\r'),
-            't' => decoded.push('\t'),
-            _ => return None,
-        }
-    }
-    Some(decoded)
 }
