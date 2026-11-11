@@ -1,7 +1,7 @@
 use std::{env, fs, path::PathBuf};
 
 use langmeld_core::{SourceFile, format_diagnostics};
-use langmeld_toy_language_example::load;
+use langmeld_toy_language_example::{LanguageLoadError, load};
 
 const SAMPLE: &str = "program { let title = \"Hello, Langmeld!\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }";
 
@@ -30,7 +30,7 @@ fn run_cli() -> Result<(), String> {
     };
 
     let source = SourceFile::new(source_name, source_text);
-    let language = load()?;
+    let language = load().map_err(format_language_load_error)?;
     let report = language.run(&source).map_err(|failure| {
         format_diagnostics(std::slice::from_ref(&source), &failure.diagnostics)
     })?;
@@ -45,4 +45,12 @@ fn run_cli() -> Result<(), String> {
     print!("{}", report.output);
 
     Ok(())
+}
+
+fn format_language_load_error(error: LanguageLoadError) -> String {
+    if error.diagnostics().is_empty() {
+        return error.to_string();
+    }
+
+    format_diagnostics(error.sources(), error.diagnostics())
 }

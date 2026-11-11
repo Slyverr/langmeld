@@ -130,6 +130,9 @@ definition or project path. Load once, then call `Language::parse` or
 validated grammar to host tooling. The starter's `Language::run` returns
 structured diagnostics alongside output, leaving their presentation to the
 host. A failed run also includes output emitted before execution stopped.
+`language::load()` returns project-loading errors as typed errors and invalid
+definition diagnostics with their source snapshots, leaving their formatting
+to the host.
 
 Format `1` requires the `format` field and optionally accepts `definition`.
 The definition path must be a project-relative `.langmeld` path without

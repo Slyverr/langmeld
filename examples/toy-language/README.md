@@ -19,7 +19,8 @@ The example loads and validates its definition once, then reuses the resulting
 methods also expose the loaded grammar for host tooling. Each run creates fresh
 runtime state and handler instances. `Language::run` returns structured
 diagnostics and preserves output emitted before an execution failure; the CLI
-chooses to format diagnostics for the terminal.
+chooses to format diagnostics for the terminal. `load()` returns typed project
+errors or source-backed definition diagnostics for host-controlled handling.
 
 Run it from the workspace root:
 

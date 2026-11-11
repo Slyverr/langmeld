@@ -1,11 +1,11 @@
 mod constructs;
 mod runtime;
 
-use std::path::Path;
+use std::{error::Error, fmt, path::Path};
 
-use langmeld_core::{Diagnostic, SourceFile, Span, format_diagnostics};
+use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_language::{LanguageSpec, ParseResult, parse};
-use langmeld_project::load_definition_project;
+use langmeld_project::{DefinitionProjectError, load_definition_project};
 
 use crate::runtime::RuntimeState;
 
@@ -34,6 +34,71 @@ pub struct RunFailure {
     pub partial_output: String,
     /// Diagnostics associated with the failed run.
     pub diagnostics: Vec<Diagnostic>,
+}
+
+/// Failure while loading the WidgetScript definition project.
+#[derive(Debug)]
+pub enum LanguageLoadError {
+    /// The project manifest or definition files could not be loaded.
+    Project(DefinitionProjectError),
+    /// The loaded definition did not produce a valid language.
+    InvalidDefinition {
+        /// Diagnostics tied to the loaded definition source snapshots.
+        diagnostics: Vec<Diagnostic>,
+        /// Source snapshots used to resolve diagnostic locations.
+        sources: Vec<SourceFile>,
+    },
+}
+
+impl LanguageLoadError {
+    fn invalid_definition(diagnostics: Vec<Diagnostic>, sources: Vec<SourceFile>) -> Self {
+        Self::InvalidDefinition {
+            diagnostics,
+            sources,
+        }
+    }
+
+    /// Returns definition diagnostics, or an empty slice for project I/O errors.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        match self {
+            Self::Project(_) => &[],
+            Self::InvalidDefinition { diagnostics, .. } => diagnostics,
+        }
+    }
+
+    /// Returns source snapshots used to locate definition diagnostics.
+    #[must_use]
+    pub fn sources(&self) -> &[SourceFile] {
+        match self {
+            Self::Project(_) => &[],
+            Self::InvalidDefinition { sources, .. } => sources,
+        }
+    }
+}
+
+impl fmt::Display for LanguageLoadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Project(error) => error.fmt(formatter),
+            Self::InvalidDefinition { .. } => formatter.write_str("language definition is invalid"),
+        }
+    }
+}
+
+impl Error for LanguageLoadError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Project(error) => Some(error),
+            Self::InvalidDefinition { .. } => None,
+        }
+    }
+}
+
+impl From<DefinitionProjectError> for LanguageLoadError {
+    fn from(error: DefinitionProjectError) -> Self {
+        Self::Project(error)
+    }
 }
 
 impl Language {
@@ -116,18 +181,21 @@ impl Language {
 }
 
 /// Loads and validates the WidgetScript definition.
-pub fn load() -> Result<Language, String> {
+pub fn load() -> Result<Language, LanguageLoadError> {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
+    let project = load_definition_project(project_root)?;
     let (_, _, definition, sources) = project.into_parts();
 
     if !definition.is_valid() {
-        return Err(format_diagnostics(&sources, &definition.diagnostics));
+        return Err(LanguageLoadError::invalid_definition(
+            definition.diagnostics,
+            sources,
+        ));
     }
 
-    let specification = definition
-        .language
-        .ok_or_else(|| "validated definition did not produce a language".to_owned())?;
+    let Some(specification) = definition.language else {
+        return Err(LanguageLoadError::invalid_definition(Vec::new(), sources));
+    };
 
     Ok(Language { specification })
 }

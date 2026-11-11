@@ -23,7 +23,8 @@ the validated grammar for editor integrations. Each run gets fresh runtime
 state and handler instances. `Language::run` returns output and structured
 diagnostics; the CLI formats them for the terminal, while other hosts can
 present them in their own way. A failed run also retains output emitted before
-the failure.
+the failure. `language::load()` returns typed project errors or definition
+diagnostics with their source snapshots, so hosts can format or inspect them.
 
 ## Add a construct
 
