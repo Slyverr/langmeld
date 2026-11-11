@@ -46,9 +46,59 @@ impl Diagnostic {
         source: &SourceFile,
         span: Span,
     ) -> Self {
+        Self::at_source(Severity::Error, code, message, source, span)
+    }
+
+    /// Creates a source-located warning.
+    #[must_use]
+    pub fn warning(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        source: &SourceFile,
+        span: Span,
+    ) -> Self {
+        Self::at_source(Severity::Warning, code, message, source, span)
+    }
+
+    /// Creates source-located information.
+    #[must_use]
+    pub fn info(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        source: &SourceFile,
+        span: Span,
+    ) -> Self {
+        Self::at_source(Severity::Info, code, message, source, span)
+    }
+
+    /// Creates an error that is not tied to a source span.
+    #[must_use]
+    pub fn spec_error(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::at_project(Severity::Error, code, message)
+    }
+
+    /// Creates a warning that is not tied to a source span.
+    #[must_use]
+    pub fn spec_warning(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::at_project(Severity::Warning, code, message)
+    }
+
+    /// Creates information that is not tied to a source span.
+    #[must_use]
+    pub fn spec_info(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::at_project(Severity::Info, code, message)
+    }
+
+    fn at_source(
+        severity: Severity,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        source: &SourceFile,
+        span: Span,
+    ) -> Self {
         Self {
             code: code.into(),
-            severity: Severity::Error,
+            severity,
             message: message.into(),
             location: Some(SourceLocation {
                 source_name: source.name.clone(),
@@ -58,12 +108,10 @@ impl Diagnostic {
         }
     }
 
-    /// Creates an error that is not tied to a source span.
-    #[must_use]
-    pub fn spec_error(code: impl Into<String>, message: impl Into<String>) -> Self {
+    fn at_project(severity: Severity, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             code: code.into(),
-            severity: Severity::Error,
+            severity,
             message: message.into(),
             location: None,
         }

@@ -1,4 +1,40 @@
-use langmeld_core::{Diagnostic, SourceFile, Span, format_diagnostics};
+use langmeld_core::{Diagnostic, Severity, SourceFile, Span, format_diagnostics};
+
+#[test]
+fn constructs_source_and_project_diagnostics_at_every_severity() {
+    let source = SourceFile::new("main.lang", "text");
+    let span = Span::new(1, 3);
+    let source_diagnostics = [
+        Diagnostic::error("TEST-001", "error", &source, span),
+        Diagnostic::warning("TEST-002", "warning", &source, span),
+        Diagnostic::info("TEST-003", "info", &source, span),
+    ];
+    let project_diagnostics = [
+        Diagnostic::spec_error("TEST-004", "error"),
+        Diagnostic::spec_warning("TEST-005", "warning"),
+        Diagnostic::spec_info("TEST-006", "info"),
+    ];
+
+    for (diagnostic, severity) in
+        source_diagnostics
+            .iter()
+            .zip([Severity::Error, Severity::Warning, Severity::Info])
+    {
+        assert_eq!(diagnostic.severity, severity);
+        let location = diagnostic.location.as_ref().expect("source location");
+        assert_eq!(location.source_name, source.name);
+        assert_eq!(location.span, span);
+    }
+
+    for (diagnostic, severity) in
+        project_diagnostics
+            .iter()
+            .zip([Severity::Error, Severity::Warning, Severity::Info])
+    {
+        assert_eq!(diagnostic.severity, severity);
+        assert!(diagnostic.location.is_none());
+    }
+}
 
 #[test]
 fn formats_source_locations_using_unicode_scalar_columns() {
