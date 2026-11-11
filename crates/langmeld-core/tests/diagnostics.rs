@@ -1,4 +1,4 @@
-use langmeld_core::{Diagnostic, Severity, SourceFile, Span, format_diagnostics};
+use langmeld_core::{Diagnostic, Severity, SourceDatabase, SourceFile, Span, format_diagnostics};
 
 #[test]
 fn constructs_source_and_project_diagnostics_at_every_severity() {
@@ -77,5 +77,39 @@ fn formats_warning_and_info_severities() {
     assert_eq!(
         format_diagnostics(&[source], &diagnostics),
         "main.lang:1:1: warning[TEST-001]: warning\nmain.lang:1:2: info[TEST-002]: information"
+    );
+}
+
+#[test]
+fn formats_managed_locations_against_matching_identity_when_names_collide() {
+    let mut first_database = SourceDatabase::default();
+    let first_id = first_database.insert("shared.lang", "abcdefg").unwrap();
+    let first_source = first_database.get(first_id).unwrap().clone();
+
+    let mut second_database = SourceDatabase::default();
+    let second_id = second_database.insert("shared.lang", "abc\ndef").unwrap();
+    let second_source = second_database.get(second_id).unwrap().clone();
+    let diagnostic =
+        Diagnostic::error("TEST-001", "invalid token", &second_source, Span::new(4, 7));
+
+    assert_eq!(
+        format_diagnostics(&[first_source, second_source], &[diagnostic]),
+        "shared.lang:2:1: error[TEST-001]: invalid token"
+    );
+}
+
+#[test]
+fn does_not_format_managed_location_against_a_different_revision() {
+    let mut database = SourceDatabase::default();
+    let source_id = database.insert("main.lang", "abcdefg").unwrap();
+    let old_source = database.get(source_id).unwrap().clone();
+    let diagnostic = Diagnostic::error("TEST-001", "invalid token", &old_source, Span::new(4, 5));
+
+    database.update(source_id, "a\nb\ncdef").unwrap();
+    let current_source = database.get(source_id).unwrap().clone();
+
+    assert_eq!(
+        format_diagnostics(&[current_source], &[diagnostic]),
+        "main.lang:1:1: error[TEST-001]: invalid token"
     );
 }

@@ -24,6 +24,9 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Format managed diagnostic locations against their exact source snapshot,
+  avoiding incorrect line and column values for colliding names or stale
+  revisions.
 - Diagnose host parser or analyzer results tied to a different managed source
   snapshot, and reject editor queries for mismatched backend documents.
 - Fall back to per-source analysis for every open document when configured host

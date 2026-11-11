@@ -131,9 +131,11 @@ impl Diagnostic {
 /// Formats diagnostics as plain text with source name, one-based line and
 /// column, severity, code, and message.
 ///
-/// Locations are matched to `sources` by display name. If a source snapshot is
-/// unavailable, the location is shown at line 1, column 1. Diagnostics without
-/// a source location use `<project>` as their display name.
+/// Managed locations are matched to `sources` by source identity and revision;
+/// detached locations are matched by display name. If a matching source
+/// snapshot is unavailable, the location is shown at line 1, column 1.
+/// Diagnostics without a source location use `<project>` as their display
+/// name.
 #[must_use]
 pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) -> String {
     diagnostics
@@ -141,9 +143,10 @@ pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) ->
         .map(|diagnostic| {
             let location = diagnostic.location.as_ref();
             let source = location.and_then(|location| {
-                sources
-                    .iter()
-                    .find(|source| source.name == location.source_name)
+                sources.iter().find(|source| match location.identity {
+                    Some(identity) => source.identity() == Some(identity),
+                    None => source.name == location.source_name,
+                })
             });
             let (line, column) = match (source, location) {
                 (Some(source), Some(location)) => source.line_column(location.span.start),
