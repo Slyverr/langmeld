@@ -64,6 +64,8 @@ Migration notes for the current unreleased API are in the
 
 ### Fixed
 
+- Report cleanup failures when project initialization rolls back a partial
+  scaffold, while preserving the original write error.
 - Reject stale managed parse snapshots in the schema language example's
   per-file and workspace analysis.
 - Treat warnings and informational findings as non-fatal in language-definition
