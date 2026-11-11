@@ -52,7 +52,9 @@ impl LoadedDefinitionProject {
         (self.root, self.manifest, self.definition, self.sources)
     }
 
-    /// Returns whether the definition produced a valid language without diagnostics.
+    /// Returns whether the definition produced a language without errors.
+    ///
+    /// Warning and informational diagnostics do not make the project invalid.
     #[must_use]
     pub fn is_valid(&self) -> bool {
         self.definition.is_valid()
