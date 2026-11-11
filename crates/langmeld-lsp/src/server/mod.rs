@@ -34,14 +34,14 @@ impl ResolvedLocationSource<'_> {
     fn uri(&self) -> &Uri {
         match self {
             Self::Open { uri, .. } => uri,
-            Self::External(source) => &source.uri,
+            Self::External(source) => source.uri(),
         }
     }
 
     fn source(&self) -> &SourceFile {
         match self {
             Self::Open { source, .. } => source,
-            Self::External(source) => &source.source,
+            Self::External(source) => source.source(),
         }
     }
 }

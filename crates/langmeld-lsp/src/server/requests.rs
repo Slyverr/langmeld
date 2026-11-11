@@ -314,8 +314,8 @@ impl<B: LanguageBackend> ServerState<B> {
         }
 
         let target = self.backend.source_for_location(location)?;
-        (target.source.name() == location.source_name()
-            && target.source.identity() == location.source_identity())
+        (target.source().name() == location.source_name()
+            && target.source().identity() == location.source_identity())
         .then_some(ResolvedLocationSource::External(target))
     }
 }

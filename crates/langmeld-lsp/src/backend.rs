@@ -32,9 +32,9 @@ pub struct BackendDocument<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackendSource {
     /// URI the editor uses to open this source.
-    pub uri: Uri,
+    uri: Uri,
     /// Immutable source snapshot used to validate and convert locations.
-    pub source: Arc<SourceFile>,
+    source: Arc<SourceFile>,
 }
 
 impl BackendSource {
@@ -45,6 +45,18 @@ impl BackendSource {
             uri,
             source: source.into(),
         }
+    }
+
+    /// Returns the URI the editor uses to open this source.
+    #[must_use]
+    pub const fn uri(&self) -> &Uri {
+        &self.uri
+    }
+
+    /// Returns the immutable source snapshot associated with this URI.
+    #[must_use]
+    pub fn source(&self) -> &SourceFile {
+        &self.source
     }
 }
 
