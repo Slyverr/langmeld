@@ -11,16 +11,47 @@ use crate::{
 /// A manifest-backed language definition and the source snapshots it loaded.
 pub struct LoadedDefinitionProject {
     /// Canonical directory containing the project manifest.
-    pub root: PathBuf,
+    root: PathBuf,
     /// Validated project settings used to locate the root definition.
-    pub manifest: ProjectManifest,
+    manifest: ProjectManifest,
     /// Parsed language definition and its source-located diagnostics.
-    pub definition: DefinitionResult,
+    definition: DefinitionResult,
     /// Root and imported definition snapshots in stable path order.
-    pub sources: Vec<SourceFile>,
+    sources: Vec<SourceFile>,
 }
 
 impl LoadedDefinitionProject {
+    /// Returns the canonical directory containing the project manifest.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Returns the validated project settings used to locate the root definition.
+    #[must_use]
+    pub const fn manifest(&self) -> &ProjectManifest {
+        &self.manifest
+    }
+
+    /// Returns the parsed language definition and its diagnostics.
+    #[must_use]
+    pub const fn definition(&self) -> &DefinitionResult {
+        &self.definition
+    }
+
+    /// Returns the root and imported definition snapshots in stable path order.
+    #[must_use]
+    pub fn sources(&self) -> &[SourceFile] {
+        &self.sources
+    }
+
+    /// Consumes the loaded project and returns its root, manifest, parsed
+    /// definition, and source snapshots in that order.
+    #[must_use]
+    pub fn into_parts(self) -> (PathBuf, ProjectManifest, DefinitionResult, Vec<SourceFile>) {
+        (self.root, self.manifest, self.definition, self.sources)
+    }
+
     /// Returns whether the definition produced a valid language without diagnostics.
     #[must_use]
     pub fn is_valid(&self) -> bool {

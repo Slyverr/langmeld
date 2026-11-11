@@ -53,13 +53,13 @@ fn loads_and_parses_a_manifest_backed_definition_project() {
 
     let loaded = load_definition_project(project.path()).unwrap();
 
-    assert!(loaded.is_valid(), "{:?}", loaded.definition.diagnostics);
+    assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
     assert_eq!(
-        loaded.definition.language.as_ref().unwrap().name(),
+        loaded.definition().language.as_ref().unwrap().name(),
         "Example"
     );
-    assert_eq!(loaded.sources.len(), 1);
-    assert_eq!(loaded.manifest.definition, "language/main.langmeld");
+    assert_eq!(loaded.sources().len(), 1);
+    assert_eq!(loaded.manifest().definition, "language/main.langmeld");
 }
 
 #[test]
@@ -81,8 +81,8 @@ fn preserves_definition_diagnostics_and_imported_sources_for_rendering() {
     let loaded = load_definition_project(project.path()).unwrap();
 
     assert!(!loaded.is_valid());
-    assert_eq!(loaded.sources.len(), 2);
-    assert!(loaded.definition.diagnostics.iter().any(|diagnostic| {
+    assert_eq!(loaded.sources().len(), 2);
+    assert!(loaded.definition().diagnostics.iter().any(|diagnostic| {
         diagnostic
             .location
             .as_ref()
@@ -105,9 +105,13 @@ fn loads_a_project_from_a_non_default_manifest_path() {
     let loaded =
         load_definition_project_from_manifest(project.path().join("config/langmeld.toml")).unwrap();
 
-    assert!(loaded.is_valid(), "{:?}", loaded.definition.diagnostics);
-    assert_eq!(
-        loaded.root,
-        project.path().join("config").canonicalize().unwrap()
-    );
+    assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
+    let expected_root = project.path().join("config").canonicalize().unwrap();
+    assert_eq!(loaded.root(), expected_root);
+
+    let (root, manifest, definition, sources) = loaded.into_parts();
+    assert_eq!(root, expected_root);
+    assert_eq!(manifest.definition, "language/main.langmeld");
+    assert!(definition.is_valid());
+    assert_eq!(sources.len(), 1);
 }

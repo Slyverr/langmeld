@@ -18,16 +18,16 @@ pub struct FunctionAnalysis {
 pub fn load() -> Result<LanguageSpec, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let project = load_definition_project(root).map_err(|error| error.to_string())?;
+    let (_, _, definition, sources) = project.into_parts();
 
-    if !project.is_valid() {
+    if !definition.is_valid() {
         return Err(langmeld_core::format_diagnostics(
-            &project.sources,
-            &project.definition.diagnostics,
+            &sources,
+            &definition.diagnostics,
         ));
     }
 
-    project
-        .definition
+    definition
         .language
         .ok_or_else(|| "validated definition did not produce a language".to_owned())
 }

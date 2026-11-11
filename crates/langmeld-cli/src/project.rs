@@ -47,16 +47,18 @@ pub(crate) fn load_definition_project(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, Box<dyn Error>> {
     let project = load_definition_project_from_manifest(manifest_path)?;
-    if !project.definition.is_valid() {
-        return Err(format_diagnostics(&project.sources, &project.definition.diagnostics).into());
+    let (root, _, definition, sources) = project.into_parts();
+
+    if !definition.is_valid() {
+        return Err(format_diagnostics(&sources, &definition.diagnostics).into());
     }
-    let language = project
-        .definition
+    let language = definition
         .language
         .ok_or("validated definition did not produce a language")?;
+
     Ok(LoadedDefinitionProject {
-        root: project.root,
+        root,
         language,
-        sources: project.sources,
+        sources,
     })
 }

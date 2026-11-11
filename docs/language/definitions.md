@@ -344,20 +344,20 @@ use langmeld_core::format_diagnostics;
 use langmeld_project::load_definition_project;
 
 let project = load_definition_project(".")?;
-if !project.is_valid() {
-    eprintln!("{}", format_diagnostics(
-        &project.sources,
-        &project.definition.diagnostics,
-    ));
+let (_, _, definition, sources) = project.into_parts();
+if !definition.is_valid() {
+    eprintln!("{}", format_diagnostics(&sources, &definition.diagnostics));
 }
-let language = project.definition.language;
+let language = definition.language;
 ```
 
 Definition syntax and validation errors stay in the returned diagnostics so
-the caller can render them with the included `project.sources` using the
-optional plain-text `format_diagnostics` helper. File-system and manifest
-failures are returned as errors. Use `load_definition_project_from_manifest`
-when the manifest is not at the project root.
+the caller can render them with the included source snapshots using the
+optional plain-text `format_diagnostics` helper. Borrow the loaded result with
+`root()`, `manifest()`, `definition()`, and `sources()`, or consume it with
+`into_parts()` when ownership is useful. File-system and manifest failures are
+returned as errors. Use `load_definition_project_from_manifest` when the
+manifest is not at the project root.
 
 For custom source storage, embedded modules, or editor overlays, use
 `InMemoryDefinitionResolver` or implement `DefinitionResolver` directly. The

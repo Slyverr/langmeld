@@ -9,6 +9,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Loaded definition projects keep their manifest, parsed definition, and
+  source snapshots together behind read-only accessors and `into_parts()`.
 - Source snapshots, identities, locations, parser and analysis results,
   definition sources, and LSP source mappings and host document bundles keep
   source associations immutable and expose them through read-only accessors.
