@@ -6,6 +6,7 @@ on:
       - "v*"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -14,7 +15,7 @@ concurrency:
 
 jobs:
   preflight:
-    name: Validate release version
+    name: Validate release prerequisites
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,15 +24,35 @@ jobs:
           ref: ${{ github.ref }}
       - uses: dtolnay/rust-toolchain@stable
       - run: bash scripts/publish-workspace.sh --check-only
+      - name: Require successful CI for the release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          runs="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" \
+            --branch develop \
+            --workflow ci.yml \
+            --event push \
+            --limit 100 \
+            --json databaseId,headSha,status,conclusion)"
+          successful_run="$(jq -r \
+            --arg sha "$GITHUB_SHA" \
+            '[.[] | select(.headSha == $sha and .status == "completed" and .conclusion == "success")] | first | .databaseId // empty' \
+            <<< "$runs")"
 
-  validate:
-    needs: preflight
-    uses: ./.github/workflows/ci.yml
+          if [[ -z "$successful_run" ]]; then
+            echo "::error::No successful CI run for $GITHUB_SHA on develop. Push the release commit to develop and wait for CI before tagging it."
+            exit 1
+          fi
+
+          echo "Found successful CI run $successful_run for $GITHUB_SHA on develop."
 
   publish:
     name: Publish crates to crates.io
     if: vars.LANGMELD_CRATES_IO_PUBLISH_ENABLED == 'true'
-    needs: [preflight, validate]
+    needs: preflight
     runs-on: ubuntu-latest
     environment: crates-io
     permissions:
