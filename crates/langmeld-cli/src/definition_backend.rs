@@ -1,8 +1,9 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashSet},
     error::Error,
     path::PathBuf,
-    sync::{Mutex, RwLock},
+    sync::RwLock,
 };
 
 use langmeld_core::{SourceFile, SourceLocation};
@@ -76,26 +77,22 @@ impl LanguageBackend for ProjectDefinitionBackend {
         let root_source = root.source().clone();
         let resolver = OpenFileOverlayResolver {
             resolver: &resolver,
-            loaded: Mutex::new(HashSet::from([self.root_definition.clone()])),
-            sources: Mutex::new(vec![(self.root_definition.clone(), root_source)]),
+            loaded: RefCell::new(HashSet::from([self.root_definition.clone()])),
+            sources: RefCell::new(vec![(self.root_definition.clone(), root_source)]),
         };
         let result = parse_language_definition_project(root, &resolver);
         let loaded_sources = resolver
             .sources
-            .lock()
-            .expect("definition source lock is not poisoned")
-            .iter()
-            .map(|(_, source)| source.clone())
+            .into_inner()
+            .into_iter()
+            .map(|(_, source)| source)
             .collect::<Vec<_>>();
         *self
             .definition_index
             .write()
             .expect("definition reference lock is not poisoned") =
             Some(DefinitionIndex::from_sources(&loaded_sources));
-        let loaded = resolver
-            .loaded
-            .lock()
-            .expect("definition resolver lock is not poisoned");
+        let loaded = resolver.loaded.into_inner();
 
         Some(
             sources
@@ -270,24 +267,17 @@ fn canonical_definition_key(root: &std::path::Path, manifest: &ProjectManifest) 
 
 struct OpenFileOverlayResolver<'a> {
     resolver: &'a OverlayDefinitionResolver,
-    loaded: Mutex<HashSet<String>>,
-    sources: Mutex<Vec<(String, SourceFile)>>,
+    loaded: RefCell<HashSet<String>>,
+    sources: RefCell<Vec<(String, SourceFile)>>,
 }
 
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
         let resolved = self.resolver.resolve(from_key, import)?;
         let (resolved_key, resolved_source) = resolved.into_parts();
-        let is_new_source = self
-            .loaded
-            .lock()
-            .expect("definition resolver lock is not poisoned")
-            .insert(resolved_key.clone());
+        let is_new_source = self.loaded.borrow_mut().insert(resolved_key.clone());
         let source = resolved_source;
-        let mut sources = self
-            .sources
-            .lock()
-            .expect("definition source lock is not poisoned");
+        let mut sources = self.sources.borrow_mut();
         if is_new_source {
             sources.push((resolved_key.clone(), source.clone()));
         } else if let Some((_, loaded_source)) =
