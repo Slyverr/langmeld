@@ -3,6 +3,7 @@
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span};
 
 use crate::completion::ParseContext;
+use crate::syntax::{build_syntax_tree, unparsed_syntax_tree};
 use crate::{FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum};
 
 /// A token emitted by a language lexer.
@@ -143,6 +144,8 @@ pub struct ParseResult {
     pub source: Option<SourceIdentity>,
     /// Successfully recognized constructs in source order.
     pub constructs: Vec<ParsedConstruct>,
+    /// Lossless source structure for editor integrations and other tools.
+    pub syntax_tree: crate::SyntaxTree,
     /// Lexical and syntax errors. Parsing continues after recoverable errors
     /// unless a resource limit stops it.
     pub diagnostics: Vec<Diagnostic>,
@@ -256,6 +259,7 @@ fn parse_with_lexer_internal(
             ParseResult {
                 source: source.identity(),
                 constructs: Vec::new(),
+                syntax_tree: unparsed_syntax_tree(source),
                 diagnostics: vec![Diagnostic::error(
                     "LM-PARSE-007",
                     format!(
@@ -300,11 +304,19 @@ fn parse_with_lexer_internal(
     let constructs = parser.parse_children(&allowed, None, 0);
     let resource_limited = parser.resource_limited;
     let contexts = std::mem::take(&mut parser.completion_contexts);
+    let syntax_tokens = std::mem::take(&mut parser.tokens);
     drop(parser);
+    let syntax_tree = build_syntax_tree(
+        source,
+        &constructs,
+        &syntax_tokens,
+        language.lexical_rules(),
+    );
     (
         ParseResult {
             source: source.identity(),
             constructs,
+            syntax_tree,
             diagnostics,
             resource_limited,
         },

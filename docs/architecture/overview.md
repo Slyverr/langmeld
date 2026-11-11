@@ -55,6 +55,10 @@ tree instead of using the generic construct parser. Hosts can implement
 workspace behavior. The framework adapts those callbacks to LSP; it does not
 invent language-specific meaning from syntax alone.
 
+The declarative parser also returns a lossless source syntax tree alongside
+its construct nodes. It preserves token and trivia spans for host tooling while
+leaving formatting policy and semantic meaning to the language author.
+
 ## Choosing an extension point
 
 - Use `.langmeld` for ordered token patterns, captures, alternatives, and

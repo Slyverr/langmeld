@@ -7,6 +7,12 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The declarative parser now returns a lossless syntax tree alongside parsed
+  constructs, preserving token, comment, whitespace, and unclassified-source
+  spans for host tooling.
+
 ## [0.6.0] - 2026-11-11
 
 ### Added

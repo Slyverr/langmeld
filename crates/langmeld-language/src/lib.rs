@@ -10,6 +10,7 @@ mod host;
 mod navigation;
 mod parser;
 mod spec;
+mod syntax;
 
 pub use analysis::{AnalysisContext, LanguagePass};
 pub use completion::{
@@ -38,4 +39,7 @@ pub use parser::{
 pub use spec::{
     BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum,
     SpecError,
+};
+pub use syntax::{
+    SyntaxElement, SyntaxNode, SyntaxNodeKind, SyntaxToken, SyntaxTokenKind, SyntaxTree,
 };

@@ -54,6 +54,33 @@ the root. A construct that also parses as a valid child remains a child. The
 `root` directive belongs in the root language file; its name can refer to a
 construct declared in an imported file.
 
+## Parsed syntax tree
+
+The declarative parser returns both its `ParsedConstruct` hierarchy and a
+lossless `SyntaxTree`. `SyntaxTree::root` groups source-file, construct, field,
+and captured-expression nodes. Its flat token table retains lexical tokens,
+configured comments, whitespace, line endings, and unclassified source text;
+spans refer to the original `SourceFile` and can be sliced with
+`SyntaxToken::text`.
+
+```rust
+let parsed = langmeld_language::parse(&source, &language);
+let reconstructed = parsed
+    .syntax_tree
+    .tokens
+    .iter()
+    .map(|token| token.text(&source).expect("token span belongs to source"))
+    .collect::<String>();
+
+assert_eq!(reconstructed, source.text);
+```
+
+The tree is useful for editor features and host transformations that need
+source-preserving structure. It does not choose formatting rules or infer
+language semantics. Custom `LanguageParser` implementations continue to return
+their own tree through `ParsedDocument<T>`. If the source-size limit rejects
+input before lexing, the tree contains one unknown token spanning the source.
+
 `constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
 used by the root block. See the complete consumer in
 [`examples/toy-language`](../../examples/toy-language).
