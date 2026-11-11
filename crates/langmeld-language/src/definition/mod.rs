@@ -1,6 +1,7 @@
 //! Frontend for the first user-facing `.langmeld` language-definition syntax.
 
 mod grammar;
+mod lower;
 mod project;
 mod unit;
 
