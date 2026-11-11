@@ -1,7 +1,8 @@
 use langmeld_core::SourceFile;
 use langmeld_language::{
     CapturedValue, CompletionCandidate, DefinitionFormatOptions, ParseResult, ParsedConstruct,
-    complete_at, format_language_definition, language_definition_grammar, parse,
+    complete_at, decode_definition_string, format_language_definition, language_definition_grammar,
+    parse,
 };
 use lsp_types::FormattingOptions;
 
@@ -91,25 +92,4 @@ fn definition_document_symbol(node: &ParsedConstruct) -> Option<DocumentSymbolIn
         .filter_map(definition_document_symbol)
         .collect::<Vec<_>>();
     Some(DocumentSymbolInfo::new(name, kind, node.span, field.span).with_children(children))
-}
-
-fn decode_definition_string(value: &str) -> Option<String> {
-    let inner = value.strip_prefix('"')?.strip_suffix('"')?;
-    let mut decoded = String::with_capacity(inner.len());
-    let mut characters = inner.chars();
-    while let Some(character) = characters.next() {
-        if character != '\\' {
-            decoded.push(character);
-            continue;
-        }
-        match characters.next()? {
-            '\\' => decoded.push('\\'),
-            '"' => decoded.push('"'),
-            'n' => decoded.push('\n'),
-            'r' => decoded.push('\r'),
-            't' => decoded.push('\t'),
-            _ => return None,
-        }
-    }
-    Some(decoded)
 }
