@@ -1,8 +1,5 @@
 use langmeld_core::{SourceFile, SourceLocation, Span};
-use langmeld_language::{
-    CapturedValue, ParseResult, ParsedConstruct, decode_definition_string,
-    language_definition_grammar, parse,
-};
+use langmeld_language::{CapturedValue, ParseResult, ParsedConstruct, decode_definition_string};
 
 #[derive(Default)]
 pub(crate) struct DefinitionIndex {
@@ -12,13 +9,8 @@ pub(crate) struct DefinitionIndex {
 }
 
 impl DefinitionIndex {
-    pub(crate) fn from_sources(sources: &[SourceFile]) -> Self {
-        let mut index = Self::default();
-        for source in sources {
-            let parsed = parse(source, language_definition_grammar());
-            index.add_constructs(source, parsed.constructs());
-        }
-        index
+    pub(crate) fn add_parsed_source(&mut self, source: &SourceFile, parsed: &ParseResult) {
+        self.add_constructs(source, parsed.constructs());
     }
 
     pub(crate) fn constructs(&self) -> &[String] {

@@ -8,7 +8,8 @@ use std::{
 
 use langmeld_core::{SourceFile, SourceLocation};
 use langmeld_language::{
-    DefinitionResolver, DefinitionSource, ParseResult, parse_language_definition_project,
+    DefinitionResolver, DefinitionSource, ParseResult, language_definition_grammar, parse,
+    parse_language_definition_project,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
@@ -88,13 +89,17 @@ impl LanguageBackend for ProjectDefinitionBackend {
             sources: RefCell::new(vec![(self.root_definition.clone(), root_source)]),
         };
         let result = parse_language_definition_project(root, &resolver);
-        let loaded_sources = resolver
-            .sources
-            .into_inner()
-            .into_iter()
-            .map(|(_, source)| source)
-            .collect::<Vec<_>>();
-        let definition_index = Arc::new(DefinitionIndex::from_sources(&loaded_sources));
+        let mut definition_index = DefinitionIndex::default();
+        let mut parsed_sources = BTreeMap::new();
+        for (key, source) in resolver.sources.into_inner() {
+            let parsed = parse(&source, language_definition_grammar());
+            definition_index.add_parsed_source(&source, &parsed);
+
+            if open_sources.contains_key(&key) {
+                parsed_sources.insert(key, parsed);
+            }
+        }
+        let definition_index = Arc::new(definition_index);
         *self
             .definition_index
             .write()
@@ -106,23 +111,23 @@ impl LanguageBackend for ProjectDefinitionBackend {
                 .iter()
                 .zip(keys)
                 .map(|(source, key)| {
-                    let syntax = self.syntax_backend.analyze(source);
-                    let (_, syntax_state, syntax_diagnostics) = syntax.into_parts();
-                    let diagnostics = if key.as_ref().is_some_and(|key| loaded.contains(key)) {
-                        result
+                    if let Some(key) = key.as_ref().filter(|key| loaded.contains(*key)) {
+                        let syntax_state = parsed_sources
+                            .remove(key)
+                            .unwrap_or_else(|| self.syntax_backend.analyze(source).into_parts().1);
+                        let diagnostics = result
                             .diagnostics
                             .iter()
                             .filter(|diagnostic| match diagnostic.location.as_ref() {
                                 Some(location) => location.source_name() == source.name(),
-                                None => key.as_deref() == Some(&self.root_definition),
+                                None => key == &self.root_definition,
                             })
                             .cloned()
-                            .collect()
+                            .collect();
+                        BackendDocument::new(source, syntax_state, diagnostics)
                     } else {
-                        syntax_diagnostics
-                    };
-
-                    BackendDocument::new(source, syntax_state, diagnostics)
+                        self.syntax_backend.analyze(source)
+                    }
                 })
                 .collect(),
         )
