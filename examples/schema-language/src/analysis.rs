@@ -50,12 +50,32 @@ pub struct Analysis {
     pub references: Arc<[TypeReference]>,
 }
 
-/// Resolves named record types in one schema source.
+/// Resolves named record types in one parsed schema source.
+///
+/// Database-managed parse and source identities must match. Detached snapshots
+/// have no identity, so callers must pair them correctly.
 #[must_use]
-pub fn analyze(source: &SourceFile, schema: &Schema) -> AnalysisDocument<Analysis> {
-    analyze_sources(&[(source, schema)])
+pub fn analyze(source: &SourceFile, parsed: &ParsedDocument<Schema>) -> AnalysisDocument<Analysis> {
+    if parsed.source_identity() != source.identity() {
+        return source_mismatch_analysis(source);
+    }
+
+    analyze_sources(&[(source, parsed.tree())])
         .pop()
         .expect("one source produces one analysis")
+}
+
+fn source_mismatch_analysis(source: &SourceFile) -> AnalysisDocument<Analysis> {
+    AnalysisDocument::new(
+        source,
+        Analysis::default(),
+        vec![Diagnostic::error(
+            "LM-ANALYSIS-001",
+            "parsed document belongs to a different source snapshot",
+            source,
+            Span::default(),
+        )],
+    )
 }
 
 fn analyze_sources(sources: &[(&SourceFile, &Schema)]) -> Vec<AnalysisDocument<Analysis>> {
@@ -158,11 +178,14 @@ impl LanguageAnalyzer<SchemaParser> for SchemaAnalyzer {
         source: &SourceFile,
         parsed: &ParsedDocument<Schema>,
     ) -> AnalysisDocument<Self::Analysis> {
-        analyze(source, parsed.tree())
+        analyze(source, parsed)
     }
 }
 
 /// Resolves record types across all currently open schema documents.
+///
+/// Documents whose parsed snapshot does not match the supplied source are
+/// excluded from workspace resolution and receive a source-mismatch finding.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SchemaWorkspaceAnalyzer;
 
@@ -172,10 +195,31 @@ impl LanguageWorkspaceAnalyzer<SchemaParser, SchemaAnalyzer> for SchemaWorkspace
         _analyzer: &SchemaAnalyzer,
         documents: &[(&SourceFile, &ParsedDocument<Schema>)],
     ) -> Vec<AnalysisDocument<Analysis>> {
-        let sources = documents
+        let mut analyses = documents.iter().map(|_| None).collect::<Vec<_>>();
+        let mut valid_indices = Vec::new();
+
+        for (index, (source, parsed)) in documents.iter().enumerate() {
+            if parsed.source_identity() == source.identity() {
+                valid_indices.push(index);
+            } else {
+                analyses[index] = Some(source_mismatch_analysis(source));
+            }
+        }
+
+        let sources = valid_indices
             .iter()
-            .map(|(source, parsed)| (*source, parsed.tree()))
+            .map(|&index| {
+                let (source, parsed) = documents[index];
+                (source, parsed.tree())
+            })
             .collect::<Vec<_>>();
-        analyze_sources(&sources)
+        for (index, analysis) in valid_indices.into_iter().zip(analyze_sources(&sources)) {
+            analyses[index] = Some(analysis);
+        }
+
+        analyses
+            .into_iter()
+            .map(|analysis| analysis.expect("every workspace document receives an analysis"))
+            .collect()
     }
 }

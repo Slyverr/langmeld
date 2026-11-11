@@ -129,6 +129,9 @@ pub trait LanguageParser {
 /// The output type and semantic policies belong to the host language. Simple
 /// languages can omit this stage, while analyzers can inspect partial parse
 /// trees and parse diagnostics when recovery produced useful syntax.
+/// Check that the parsed document belongs to `source` before using its tree;
+/// [`crate::AnalysisContext::new`] performs this check for pass-based analyzers.
+/// Detached snapshots have no identity, so callers must pair them correctly.
 /// The returned document must retain the identity of the supplied source.
 pub trait LanguageAnalyzer<P: LanguageParser> {
     /// Language-specific analysis result.
@@ -145,6 +148,8 @@ pub trait LanguageAnalyzer<P: LanguageParser> {
 /// Optional semantic analysis across several parsed source snapshots.
 ///
 /// Implement this when references or validation span multiple documents.
+/// Each parsed document must belong to its paired source; detached snapshots
+/// have no identity, so callers must pair them correctly.
 /// Each returned result must correspond to the source at the same input index
 /// and retain that source's identity. Hosts that need to load unopened files or
 /// retain project indexes can implement the lower-level workspace backend.

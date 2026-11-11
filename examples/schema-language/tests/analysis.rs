@@ -1,5 +1,7 @@
-use langmeld_core::{SourceFile, Span};
-use langmeld_language::{LanguageAnalyzer, complete_with, definition_at, references_at};
+use langmeld_core::{SourceDatabase, SourceFile, Span};
+use langmeld_language::{
+    LanguageAnalyzer, LanguageWorkspaceAnalyzer, complete_with, definition_at, references_at,
+};
 use langmeld_lsp::{HostLanguageBackend, LanguageBackend};
 use langmeld_schema_language_example::{
     SchemaAnalyzer, SchemaCompleter, SchemaNavigator, SchemaParser, SchemaWorkspaceAnalyzer,
@@ -183,7 +185,7 @@ fn reports_duplicate_records_fields_and_unknown_types() {
         "record User { id: int, id: string, owner: Missing } record User {}",
     );
     let parsed = parse_schema(&source);
-    let analysis = analyze(&source, parsed.tree());
+    let analysis = analyze(&source, &parsed);
 
     assert!(
         analysis
@@ -260,7 +262,60 @@ fn analysis_retains_source_identity() {
     let parsed = parse_schema(source);
 
     assert_eq!(
-        analyze(source, parsed.tree()).source_identity(),
+        analyze(source, &parsed).source_identity(),
         parsed.source_identity()
     );
+}
+
+#[test]
+fn rejects_stale_parse_snapshots_in_single_file_analysis() -> Result<(), Box<dyn std::error::Error>>
+{
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("schema.lang", "record User { id: int }")?;
+    let original_source = sources
+        .get(source_id)
+        .expect("source was just inserted")
+        .clone();
+    let parsed = parse_schema(&original_source);
+
+    sources.update(source_id, "record User { id: string }")?;
+    let current_source = sources.get(source_id).expect("source still exists");
+    let analysis = analyze(current_source, &parsed);
+
+    assert_eq!(analysis.diagnostics()[0].code, "LM-ANALYSIS-001");
+    assert!(analysis.result().symbols.is_empty());
+
+    Ok(())
+}
+
+#[test]
+fn excludes_stale_snapshots_from_workspace_analysis() -> Result<(), Box<dyn std::error::Error>> {
+    let mut sources = SourceDatabase::default();
+    let user_id = sources.insert("user.schema", "record User { manager: Manager }")?;
+    let manager_id = sources.insert("manager.schema", "record Manager {}")?;
+    let original_user = sources
+        .get(user_id)
+        .expect("user source was just inserted")
+        .clone();
+    let manager = sources
+        .get(manager_id)
+        .expect("manager source was just inserted")
+        .clone();
+    let stale_user_parse = parse_schema(&original_user);
+    let manager_parse = parse_schema(&manager);
+
+    sources.update(user_id, "record User { manager: Missing }")?;
+    let current_user = sources.get(user_id).expect("user source still exists");
+    let documents = [
+        (current_user, &stale_user_parse),
+        (&manager, &manager_parse),
+    ];
+    let analyses = SchemaWorkspaceAnalyzer.analyze_workspace(&SchemaAnalyzer, &documents);
+
+    assert_eq!(analyses[0].diagnostics()[0].code, "LM-ANALYSIS-001");
+    assert!(analyses[0].result().symbols.is_empty());
+    assert_eq!(analyses[1].source_identity(), manager.identity());
+    assert_eq!(analyses[1].result().symbols.len(), 1);
+
+    Ok(())
 }

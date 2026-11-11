@@ -54,6 +54,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reject stale managed parse snapshots in the schema language example's
+  per-file and workspace analysis.
 - Treat warnings and informational findings as non-fatal in language-definition
   validity checks; only error diagnostics prevent a definition from being valid.
 - Format managed diagnostic locations against their exact source snapshot,
