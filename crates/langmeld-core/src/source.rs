@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    sync::Arc,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -42,8 +43,8 @@ impl Span {
 pub struct SourceFile {
     /// Display name used by diagnostics. It is not interpreted as a path.
     name: String,
-    /// UTF-8 source text.
-    text: String,
+    /// Immutable UTF-8 source text shared by cloned snapshots.
+    text: Arc<String>,
     identity: Option<SourceIdentity>,
 }
 
@@ -53,7 +54,7 @@ impl SourceFile {
     pub fn new(name: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            text: text.into(),
+            text: Arc::new(text.into()),
             identity: None,
         }
     }
@@ -67,7 +68,7 @@ impl SourceFile {
     /// Returns the UTF-8 text in this immutable source snapshot.
     #[must_use]
     pub fn text(&self) -> &str {
-        &self.text
+        self.text.as_str()
     }
 
     /// Returns this snapshot's stable database identity and revision, if it is
@@ -307,7 +308,7 @@ impl SourceDatabase {
             .records
             .get_mut(&id)
             .ok_or(SourceDatabaseError::UnknownSource(id))?;
-        if record.source.text != text {
+        if record.source.text.as_str() != text {
             let identity = record
                 .source
                 .identity
@@ -316,7 +317,7 @@ impl SourceDatabase {
                 .revision
                 .checked_add(1)
                 .ok_or(SourceDatabaseError::RevisionExhausted(id))?;
-            record.source.text = text;
+            record.source.text = Arc::new(text);
             record.source.identity = Some(SourceIdentity {
                 revision,
                 ..identity

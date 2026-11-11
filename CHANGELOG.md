@@ -9,6 +9,7 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Cloned source snapshots now share immutable source text instead of copying it.
 - Loaded definition projects keep their manifest, parsed definition, and
   source snapshots together behind read-only accessors and `into_parts()`.
 - LSP backend documents keep source identity, host state, and diagnostics

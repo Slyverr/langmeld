@@ -84,6 +84,21 @@ fn database_keeps_identity_and_advances_revision_only_for_changed_text() {
 }
 
 #[test]
+fn cloned_source_keeps_its_snapshot_after_database_update() {
+    let mut sources = SourceDatabase::default();
+    let id = sources.insert("main", "before").unwrap();
+    let old_source = sources.get(id).unwrap().clone();
+
+    sources.update(id, "after").unwrap();
+    let current_source = sources.get(id).unwrap();
+
+    assert_eq!(old_source.text(), "before");
+    assert_eq!(old_source.identity().unwrap().revision(), 1);
+    assert_eq!(current_source.text(), "after");
+    assert_eq!(current_source.identity().unwrap().revision(), 2);
+}
+
+#[test]
 fn source_identities_are_unique_across_database_instances_and_clones() {
     let mut original = SourceDatabase::default();
     let original_id = original.insert("main", "text").unwrap();
