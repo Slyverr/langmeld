@@ -23,7 +23,6 @@ pub trait ConstructHandler<State, Signal = ()> {
     /// Handles one parsed construct.
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, State, Signal>,
     ) -> Result<HandlerControl<Signal>, Diagnostic>;
 }
@@ -40,7 +39,6 @@ pub enum HandlerControl<Signal = ()> {
 trait ErasedConstructHandler<State, Signal> {
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, State, Signal>,
     ) -> Result<HandlerControl<Signal>, Diagnostic>;
 }
@@ -53,10 +51,9 @@ where
 {
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, State, Signal>,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
-        self.0.handle(construct, context)
+        self.0.handle(context)
     }
 }
 
@@ -168,23 +165,31 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         };
 
         let mut context = ConstructContext {
+            construct,
             source,
             state,
             handlers: self,
         };
 
-        handler.handle(construct, &mut context)
+        handler.handle(&mut context)
     }
 }
 
-/// Source-aware access to host state and nested construct dispatch.
+/// Source-aware access to the current construct, host state, and nested dispatch.
 pub struct ConstructContext<'a, State, Signal = ()> {
+    construct: &'a ParsedConstruct,
     source: &'a SourceFile,
     state: &'a mut State,
     handlers: &'a ConstructHandlerRegistry<State, Signal>,
 }
 
 impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
+    /// Returns the construct currently being handled.
+    #[must_use]
+    pub fn construct(&self) -> &'source ParsedConstruct {
+        self.construct
+    }
+
     /// Returns the immutable source snapshot containing the current construct.
     #[must_use]
     pub fn source(&self) -> &SourceFile {
@@ -202,17 +207,13 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
         self.state
     }
 
-    /// Finds the first capture with this name or returns a source-located
-    /// diagnostic.
+    /// Finds the first capture with this name on the current construct or
+    /// returns a source-located diagnostic.
     ///
     /// Use [`Self::fields`] when the grammar can capture the same field more
     /// than once.
-    pub fn field<'node>(
-        &self,
-        construct: &'node ParsedConstruct,
-        name: &str,
-    ) -> Result<&'node CapturedField, Diagnostic> {
-        construct
+    pub fn field(&self, name: &str) -> Result<&'source CapturedField, Diagnostic> {
+        self.construct
             .fields
             .iter()
             .find(|field| field.name == name)
@@ -221,39 +222,36 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
                     "LM-HANDLER-002",
                     format!(
                         "construct `{}` has no captured field `{name}`",
-                        construct.name
+                        self.construct.name
                     ),
                     self.source,
-                    construct.span,
+                    self.construct.span,
                 )
             })
     }
 
-    /// Returns every capture with this name in source order.
+    /// Returns every capture with this name from the current construct in
+    /// source order.
     ///
     /// This is useful for fields inside repeated grammar patterns. Optional
     /// fields and zero-or-more patterns may have no captures, in which case
     /// the iterator is empty.
-    pub fn fields<'node>(
-        &self,
-        construct: &'node ParsedConstruct,
-        name: &str,
-    ) -> impl Iterator<Item = &'node CapturedField> {
-        construct
+    pub fn fields<'iter>(
+        &'iter self,
+        name: &'iter str,
+    ) -> impl Iterator<Item = &'source CapturedField> + 'iter {
+        self.construct
             .fields
             .iter()
             .filter(move |field| field.name == name)
     }
 
-    /// Returns the exact source text of the first capture with this name.
+    /// Returns the exact source text of the current construct's first capture
+    /// with this name.
     ///
     /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
-    pub fn field_text(
-        &self,
-        construct: &ParsedConstruct,
-        name: &str,
-    ) -> Result<&'source str, Diagnostic> {
-        let field = self.field(construct, name)?;
+    pub fn field_text(&self, name: &str) -> Result<&'source str, Diagnostic> {
+        let field = self.field(name)?;
 
         self.captured_text(field)
     }
@@ -273,13 +271,10 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
             })
     }
 
-    /// Returns an identifier capture or a source-located kind diagnostic.
-    pub fn field_identifier<'node>(
-        &self,
-        construct: &'node ParsedConstruct,
-        name: &str,
-    ) -> Result<&'node str, Diagnostic> {
-        let field = self.field(construct, name)?;
+    /// Returns the current construct's identifier capture or a source-located
+    /// kind diagnostic.
+    pub fn field_identifier(&self, name: &str) -> Result<&'source str, Diagnostic> {
+        let field = self.field(name)?;
 
         match &field.value {
             CapturedValue::Identifier(value) => Ok(value),
@@ -297,12 +292,9 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Handlers call this only when the language's semantics require child
     /// processing. For example, a conditional handler can dispatch its body
     /// only when the condition is true.
-    pub fn dispatch_children(
-        &mut self,
-        construct: &ParsedConstruct,
-    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+    pub fn dispatch_children(&mut self) -> Result<HandlerControl<Signal>, Diagnostic> {
         self.handlers
-            .dispatch_block(self.source, construct, self.state)
+            .dispatch_block(self.source, self.construct, self.state)
     }
 
     /// Creates an error diagnostic at an explicit source range.

@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct};
+use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 
 use crate::runtime::RuntimeState;
 
@@ -9,13 +9,12 @@ impl ConstructHandler<RuntimeState> for LetHandler {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let name = context.field_identifier(construct, "name")?.to_owned();
-        let value_field = context.field(construct, "value")?;
+        let name = context.field_identifier("name")?.to_owned();
+        let value_field = context.field("value")?;
         let value_span = value_field.span;
-        let value_text = context.field_text(construct, "value")?;
+        let value_text = context.field_text("value")?;
         let value = decode_string(value_text)
             .map_err(|message| context.error_at("EXAMPLE-001", message, value_span))?;
 

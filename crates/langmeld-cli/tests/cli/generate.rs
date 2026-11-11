@@ -64,6 +64,8 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
     let handler = project.join("src/constructs/trace.rs");
     let handler_source = fs::read_to_string(&handler).expect("handler should be generated");
     assert!(handler_source.contains("const CONSTRUCT: &'static str = \"trace\";"));
+    assert!(handler_source.contains("context.construct().span"));
+    assert!(!handler_source.contains("ParsedConstruct"));
     assert!(handler_source.contains("implement this construct's language behavior"));
     let registry_path = project.join("src/constructs/mod.rs");
     let registry = fs::read_to_string(&registry_path).expect("registry should be updated");

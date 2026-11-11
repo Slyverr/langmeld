@@ -11,10 +11,9 @@ impl ConstructHandler<Vec<String>> for RecordIdentifier {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, Vec<String>>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let value = context.field_identifier(construct, "value")?;
+        let value = context.field_identifier("value")?;
         context.state_mut().push(value.to_owned());
 
         Ok(HandlerControl::Continue)
@@ -28,17 +27,31 @@ impl ConstructHandler<Vec<String>> for RecordRepeatedFields {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, Vec<String>>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
         let mut values = Vec::new();
-        for field in context.fields(construct, "value") {
+        for field in context.fields("value") {
             values.push(context.captured_text(field)?.to_owned());
         }
 
         context.state_mut().extend(values);
 
         Ok(HandlerControl::Continue)
+    }
+}
+
+struct DispatchChildren;
+
+impl ConstructHandler<Vec<String>> for DispatchChildren {
+    const CONSTRUCT: &'static str = "block";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<String>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        assert_eq!(context.construct().name, "block");
+
+        context.dispatch_children()
     }
 }
 
@@ -128,6 +141,37 @@ fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
+fn dispatches_nested_children_when_the_current_handler_requests_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = SourceFile::new("main.sample", "block { record child; }");
+    let record = ParsedConstruct {
+        name: "record".to_owned(),
+        variant: 0,
+        span: Span::new(8, 21),
+        fields: vec![CapturedField {
+            name: "value".to_owned(),
+            value: CapturedValue::Identifier("child".to_owned()),
+            span: Span::new(15, 20),
+        }],
+        children: Vec::new(),
+    };
+    let nested_block = construct("block", Span::new(0, 23), vec![record]);
+    let root = construct("program", Span::new(0, 23), vec![nested_block]);
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifier)?;
+    handlers.register(DispatchChildren)?;
+    let mut state = Vec::new();
+
+    handlers
+        .dispatch_block(&source, &root, &mut state)
+        .expect("nested handlers should process their children");
+
+    assert_eq!(state, ["child"]);
+
+    Ok(())
+}
+
+#[test]
 fn reports_unregistered_construct_at_its_source_span() {
     let source = SourceFile::new("main.sample", "unknown;");
     let node = construct("unknown", Span::new(0, 8), Vec::new());
@@ -169,10 +213,9 @@ impl ConstructHandler<()> for MissingField {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, ()>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        context.field_identifier(construct, "value")?;
+        context.field_identifier("value")?;
         Ok(HandlerControl::Continue)
     }
 }
@@ -205,7 +248,6 @@ impl ConstructHandler<(), String> for ReturnSignal {
 
     fn handle(
         &self,
-        _construct: &ParsedConstruct,
         _context: &mut ConstructContext<'_, (), String>,
     ) -> Result<HandlerControl<String>, langmeld_core::Diagnostic> {
         Ok(HandlerControl::Signal("returned".to_owned()))

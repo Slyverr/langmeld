@@ -313,6 +313,6 @@ fn is_rust_keyword(identifier: &str) -> bool {
 
 pub(crate) fn handler_template(construct: &str, handler_name: &str) -> String {
     format!(
-        "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        construct: &ParsedConstruct,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            construct.span,\n        ))\n    }}\n}}\n"
+        "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            context.construct().span,\n        ))\n    }}\n}}\n"
     )
 }

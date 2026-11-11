@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct};
+use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 
 use crate::runtime::{RuntimeState, decode_string};
 
@@ -9,11 +9,10 @@ impl ConstructHandler<RuntimeState> for DrawHandler {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let shape = context.field_text(construct, "shape")?;
-        let label = match context.fields(construct, "label").next() {
+        let shape = context.field_text("shape")?;
+        let label = match context.fields("label").next() {
             Some(field) => {
                 let text = context.captured_text(field)?;
                 Some(

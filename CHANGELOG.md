@@ -9,6 +9,9 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `ConstructHandler::handle` now takes only `ConstructContext`.
+  Use `context.construct()` for the current node and omit the construct
+  argument from field access and child dispatch methods.
 - Cloned source snapshots now share immutable source text instead of copying it.
 - Loaded definition projects keep their manifest, parsed definition, and
   source snapshots together behind read-only accessors and `into_parts()`.

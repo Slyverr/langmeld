@@ -2,7 +2,7 @@ use langmeld_core::Span;
 use langmeld_expression::{
     Associativity, Expression, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
 };
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct};
+use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 
 use crate::runtime::RuntimeState;
 
@@ -13,10 +13,9 @@ impl ConstructHandler<RuntimeState> for ComputeHandler {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let expression_field = context.field(construct, "value")?;
+        let expression_field = context.field("value")?;
         let grammar = ExpressionGrammar::new([
             OperatorSpec::infix("+", 1, Associativity::Left),
             OperatorSpec::infix("*", 2, Associativity::Left),

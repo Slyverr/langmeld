@@ -53,15 +53,16 @@ are rejected.
 
 ## Implement behavior
 
-`ConstructHandler<State>` receives the parsed construct and a context holding
-the host's state. The context provides named-field lookup, checked identifier
-access, source text for captures, source-located diagnostics, and explicit
-dispatch of child constructs.
+`ConstructHandler<State>` receives a context bound to the current parsed
+construct and the host's state. The context provides direct access to that
+construct, named-field lookup, checked identifier access, source text for
+captures, source-located diagnostics, and explicit dispatch of child
+constructs.
 
 ```rust,ignore
 use langmeld_core::Diagnostic;
 use langmeld_language::{
-    ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct,
+    ConstructContext, ConstructHandler, HandlerControl,
 };
 
 use crate::runtime::RuntimeState;
@@ -73,11 +74,10 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, Diagnostic> {
-        let field = context.field(construct, "name")?;
-        let name = context.field_identifier(construct, "name")?.to_owned();
+        let field = context.field("name")?;
+        let name = context.field_identifier("name")?.to_owned();
         let value = context
             .state()
             .variables
@@ -111,7 +111,7 @@ produced no capture. `captured_text` reads the original source for a particular
 capture:
 
 ```rust,ignore
-for field in context.fields(construct, "message") {
+for field in context.fields("message") {
     let message = context.captured_text(field)?;
     // Interpret the captured text according to this language's rules.
 }
@@ -124,7 +124,7 @@ captures parsed from a real `.langmeld` definition and used by Rust behavior.
 ## Child constructs and control flow
 
 `dispatch_block` visits a block's direct children in source order. It does not
-walk nested children automatically. A handler calls `context.dispatch_children`
+walk nested children automatically. A handler calls `context.dispatch_children()`
 when its semantics require it—for example, after a condition succeeds or on
 each loop iteration.
 

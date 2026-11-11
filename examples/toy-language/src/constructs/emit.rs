@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl, ParsedConstruct};
+use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 
 use crate::runtime::{RuntimeState, decode_string};
 
@@ -9,11 +9,10 @@ impl ConstructHandler<RuntimeState> for EmitHandler {
 
     fn handle(
         &self,
-        construct: &ParsedConstruct,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
         let mut messages = Vec::new();
-        for field in context.fields(construct, "message") {
+        for field in context.fields("message") {
             let text = context.captured_text(field)?;
             let message = decode_string(text)
                 .map_err(|message| context.error_at("TOY-001", message, field.span))?;
