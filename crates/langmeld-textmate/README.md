@@ -9,5 +9,5 @@ reproduce parser structure, infer semantic roles, or represent host-defined
 lexer rules. Extend the generated grammar for other language-specific lexical
 behavior.
 
-See the [editor integration guide](../../docs/editor-integration.md) for how
-this output fits with LSP-based language features.
+See the [TextMate integration guide](../../docs/editor/textmate.md) for how this
+output fits with LSP-based language features.

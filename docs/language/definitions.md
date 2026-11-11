@@ -55,7 +55,7 @@ construct declared in an imported file.
 
 `constructs/statements.langmeld` can import `expressions.langmeld` and declare constructs
 used by the root block. See the complete consumer in
-[`examples/toy-language`](../examples/toy-language).
+[`examples/toy-language`](../../examples/toy-language).
 
 ## Syntax patterns
 

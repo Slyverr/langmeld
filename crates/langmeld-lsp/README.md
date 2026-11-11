@@ -36,5 +36,5 @@ and refreshes diagnostics for every open document. Hosts that need persistent
 parse caches or unopened project files can implement `LanguageBackend`
 directly.
 
-See [Editor integration](../../docs/editor-integration.md) for the current
+See the [LSP integration guide](../../docs/editor/lsp.md) for the current
 scope and embedding API.

@@ -1,4 +1,4 @@
-# Editor integration
+# Language Server Protocol
 
 `langmeld-lsp` provides a Language Server Protocol adapter for Langmeld
 languages. It supports full-document replacements and incremental ranged
@@ -31,38 +31,6 @@ project file. Project mode also provides go-to-definition and references for
 construct and category names across imported definition files. Use
 `langmeld check --manifest-path langmeld.toml` to validate the complete on-disk
 project definition and imports.
-
-### Neovim
-
-Neovim 0.11 or newer can use its built-in LSP client and completion menu for
-`.langmeld` files. Add this to your Lua configuration, replacing the command
-with an absolute executable path if `langmeld` is not on Neovim's `PATH`:
-
-```lua
-vim.filetype.add({ extension = { langmeld = "langmeld" } })
-
-vim.lsp.config("langmeld-definitions", {
-  cmd = { "langmeld", "lsp", "--definitions" },
-  filetypes = { "langmeld" },
-  root_markers = { "langmeld.toml" },
-  on_attach = function(client, bufnr)
-    vim.lsp.completion.enable(true, client.id, bufnr)
-    vim.keymap.set("i", "<C-Space>", function()
-      vim.lsp.completion.get()
-    end, { buffer = bufnr, desc = "Langmeld completion" })
-  end,
-})
-
-vim.lsp.enable("langmeld-definitions")
-```
-
-Start Neovim from the language project's root (for example, `nvim .`) so the
-server finds `langmeld.toml` and enables project validation and imported-name
-completion. Opening a `.langmeld` file without a project manifest still gives
-the built-in syntax diagnostics, completion, and formatting. Use `<C-Space>`
-to open the completion menu and `<C-y>` to accept a selected item. See the
-[Neovim LSP guide](https://neovim.io/doc/user/lsp.html) for client setup and
-completion details.
 
 ## Rust hosts
 
@@ -191,75 +159,13 @@ corresponding source snapshots. Cross-file locations are converted when their
 target document is open, or when the backend resolves a closed-file target to
 its current source snapshot and URI.
 
-The [Aster example](../examples/aster-language) demonstrates a host backend
+The [Aster example](../../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition,
 reference, and rename queries. It also provides semantic token types for
 functions, parameters, and variables, classifying declarations and resolved references.
 Hosts return token names and UTF-8 byte spans; the adapter validates the legend,
 converts spans using the negotiated position encoding, and splits multiline
 spans into line-local tokens. Declarative grammars do not imply semantic roles.
-
-## TextMate grammar export
-
-The optional `langmeld-textmate` crate converts a declarative `LanguageSpec`
-into a JSON TextMate grammar. Supply a unique scope name such as
-`source.widget`; file extensions are optional metadata:
-
-```rust,ignore
-use langmeld_textmate::{TextMateOptions, generate};
-
-let options = TextMateOptions::new("source.widget").file_types(["widget"]);
-let grammar_json = generate(&language, &options)?;
-```
-
-The output highlights declared literal words and punctuation, decimal
-integers, double-quoted strings, and comments configured in the language
-definition. It is lexical highlighting, not a generated parser: undeclared
-comments, semantic roles, and host-specific lexer rules are not inferred. CI
-tokenizes the generated example grammar with VS Code's TextMate
-engine and checks representative keyword, punctuation, number, string, escape,
-and non-keyword scopes. This validates the emitted grammar's behavior in the
-TextMate tokenizer; it does not test VS Code extension packaging, themes, or
-editor UI. Use the LSP for semantic diagnostics and navigation. See the
-[VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
-for TextMate grammar integration details.
-
-## Tree-sitter grammar export
-
-The optional `langmeld-tree-sitter` crate converts a declarative `LanguageSpec`
-to a Tree-sitter `grammar.js` source. It maps construct variants, captures,
-optional and repeated groups, and child blocks. The generated lexer covers the
-configured line comments and the built-in identifier, decimal integer, quoted
-string, and punctuation categories. Configured block comments are reported as
-unsupported.
-It cannot infer a host lexer, custom parser, semantic rules, or runtime
-behavior, so those languages need a host-authored Tree-sitter grammar.
-
-Generate a grammar from a project manifest with:
-
-```sh
-langmeld generate tree-sitter \
-  --manifest-path langmeld.toml \
-  --grammar-name my_language > grammar.js
-```
-
-The Tree-sitter CLI is required to validate and compile the generated grammar:
-run `tree-sitter generate grammar.js` from the grammar project. Tree-sitter can
-reject conflicts that Langmeld's generic grammar model cannot resolve; edit
-the generated grammar or keep a host-authored grammar for those cases. The
-exporter does not generate a Tree-sitter project, parser bindings, or
-highlighting queries.
-
-## WebAssembly
-
-The `langmeld-core`, `langmeld-expression`, `langmeld-language`,
-`langmeld-project`, `langmeld-textmate`, and `langmeld-tree-sitter` crates
-compile for `wasm32-unknown-unknown`. A browser host can use
-`InMemoryDefinitionResolver` for embedded or virtual definition sources. The
-manifest and directory loaders in `langmeld-project` still require native
-filesystem access. Langmeld does not provide JavaScript bindings or a browser
-editor adapter, and the LSP adapter currently serves protocol connections
-rather than browser workers.
 
 ## Current limits
 

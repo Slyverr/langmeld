@@ -20,10 +20,8 @@ cargo run -p langmeld-cli -- check \
   --manifest-path my-language/langmeld.toml
 ```
 
-See the [project workflow](docs/project-workflow.md) for generated project
-layouts and commands. The [language definition guide](docs/language-definitions.md)
-describes `.langmeld` syntax and when to use a custom Rust parser. For editor
-setup and host integration, see the [editor integration guide](docs/editor-integration.md).
+Browse the [documentation](docs/README.md) for project setup, language
+definitions, editor integration, and the framework architecture.
 
 ## Examples
 

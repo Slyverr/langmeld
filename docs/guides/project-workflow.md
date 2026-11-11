@@ -91,6 +91,17 @@ dual-license files match the manifest; replace the copyright placeholders in
 `LICENSE-MIT`. The generated README reminds you to fill in the copyright
 holder. It does not yet generate editor configuration or build artifacts.
 
+To install the CLI from a Langmeld source checkout, run this from the repository
+root:
+
+```sh
+cargo install --path crates/langmeld-cli
+```
+
+This installs the `langmeld` executable. While developing Langmeld, use
+`cargo run -p langmeld-cli -- <command>` instead of installing each local
+change.
+
 ## Validate the project
 
 Validate the project from the Langmeld checkout with:
@@ -122,7 +133,7 @@ paths. When supported by the editor, it watches project `.langmeld` files and
 refreshes the open definition analysis when one changes on disk. Open buffers
 continue to take precedence over disk contents.
 See
-[Editor integration](editor-integration.md) for supported features and host
+[Editor integration](../editor/README.md) for supported features and host
 extension points.
 Generate a lexical TextMate grammar to standard output with:
 
@@ -145,4 +156,4 @@ cargo run
 ```
 
 For `.langmeld` syntax and import behavior, see
-[Language definitions](language-definitions.md).
+[Language definitions](../language/definitions.md).
