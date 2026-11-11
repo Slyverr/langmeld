@@ -104,6 +104,23 @@ table, value type, output stream, or runtime context. Field helpers report
 missing fields, wrong capture kinds, and invalid spans as source-located
 diagnostics instead of requiring unchecked indexing.
 
+When a grammar can capture the same field more than once, `field` and
+`field_text` return the first capture. Use `fields` to process all captures in
+source order; it returns an empty iterator when an optional or repeated group
+produced no capture. `captured_text` reads the original source for a particular
+capture:
+
+```rust,ignore
+for field in context.fields(construct, "message") {
+    let message = context.captured_text(field)?;
+    // Interpret the captured text according to this language's rules.
+}
+```
+
+The `emit` handler in the
+[`toy-language` example](../../examples/toy-language/README.md) shows repeated
+captures parsed from a real `.langmeld` definition and used by Rust behavior.
+
 ## Child constructs and control flow
 
 `dispatch_block` visits a block's direct children in source order. It does not
