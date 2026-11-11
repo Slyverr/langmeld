@@ -75,6 +75,7 @@ Run the sample or pass a source file to the generated CLI:
 ```sh
 cargo run
 cargo run -- path/to/program.widget
+cargo run -- --help
 cargo test
 ```
 
