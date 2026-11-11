@@ -14,7 +14,12 @@ other values are rejected. `.langmeld` files do not have a separate format
 field, so their compatibility follows the Langmeld release. The CLI does not
 currently provide an automatic migration command.
 
-## Unreleased source identity changes
+## Migrating from v0.8.0 to v0.9.0
+
+The changes below are included in v0.9.0. See the [changelog](../../CHANGELOG.md)
+for the complete release notes.
+
+### Track and validate source snapshots
 
 Standalone `SourceFile::new` snapshots now receive distinct, process-local
 identities. Cloning a snapshot keeps its identity; constructing another source
@@ -23,11 +28,15 @@ completion, navigation, diagnostic, and backend validation use that identity for
 standalone and database-managed sources alike. Callers no longer need to pair
 standalone parse results manually.
 
+### Use the renamed namespace accessor
+
 `SourceFile::identity()` and source-result `source_identity()` accessors now
 return `SourceIdentity` directly. `SourceIdentity::database_id()` is renamed to
 `namespace_id()`, since a namespace can belong to a database or to one
 standalone source. Use `SourceFile::is_database_managed()` when code needs to
 distinguish those cases; do not use an absent identity as that check.
+
+### Construct source-bound results through their APIs
 
 Source-bound result types no longer implement `Default`: create them through
 the parser or their source-aware constructors so every result retains the
@@ -123,10 +132,6 @@ let mut context = match AnalysisContext::new(source, parsed, Facts::default()) {
     }
 };
 ```
-
-In v0.8.0, standalone sources did not have database identities, so callers had
-to pair those snapshots correctly. The unreleased source identity change above
-removes that requirement.
 
 ### Bind construct handlers to their context
 

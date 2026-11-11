@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-11
+
 ### Changed
 
 - **Breaking:** Standalone `SourceFile`s now receive unique snapshot identities,
@@ -22,6 +24,11 @@ API migration notes are in the
   handling.
 - Clarify how host projects provide interpretation or compilation after
   parsing.
+
+### Fixed
+
+- Preserve filesystem source identities across repeated reads of unchanged
+  definition files so project navigation can resolve valid locations.
 
 ## [0.8.0] - 2026-11-11
 
