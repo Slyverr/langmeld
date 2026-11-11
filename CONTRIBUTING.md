@@ -138,6 +138,13 @@ cargo bench \
 
 ## Changelog and releases
 
+Before 1.0.0, keep the major version at `0`. Use a minor release for a
+cohesive feature milestone; it may contain documented breaking API or
+`.langmeld` changes. Use a patch release for compatible fixes. Do not create a
+release boundary just to match a commit count. Reserve 1.0.0 until the public
+APIs, `.langmeld` format, and documented user workflows are ready to be treated
+as stable.
+
 Record notable user-facing changes in `CHANGELOG.md` under `Unreleased`,
 grouped as `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`
 as needed. Curate entries for users; do not copy the commit log.

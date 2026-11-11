@@ -1,5 +1,19 @@
 # Upgrading
 
+## Compatibility status
+
+Langmeld is pre-1.0.0. Its public Rust APIs and `.langmeld` syntax are still
+evolving, and a minor 0.x release may contain breaking changes. Breaking
+changes are called out in the changelog and migration guidance is provided
+when users need to update their code or definitions. Patch releases are
+reserved for compatible fixes.
+
+The `format` field in `langmeld.toml` versions the project-manifest schema,
+independently of the Langmeld crate version. Format `1` is currently supported;
+other values are rejected. `.langmeld` files do not have a separate format
+field, so their compatibility follows the Langmeld release. The CLI does not
+currently provide an automatic migration command.
+
 ## Migrating from v0.7.0 to v0.8.0
 
 The changes below are included in v0.8.0. See the [changelog](../../CHANGELOG.md)
