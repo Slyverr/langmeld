@@ -1,10 +1,9 @@
 # Upgrading
 
-## v0.7.0 to the current development API
+## Migrating from v0.7.0 to v0.8.0
 
-The changes below are on `develop` after the v0.7.0 tag. They are unreleased
-and are not part of that tagged source. The release notes will name the target
-version once its scope is finalized.
+The changes below are included in v0.8.0. See the [changelog](../../CHANGELOG.md)
+for the complete release notes.
 
 ### Read source-associated data through accessors
 

@@ -7,8 +7,7 @@ framework users. The guides describe behavior available in the current codebase.
 
 - [Project workflow](guides/project-workflow.md): initialize, run, and validate
   a language project.
-- [Upgrading](guides/upgrading.md): migrate code using the v0.7.0 API to the
-  current unreleased API.
+- [Upgrading](guides/upgrading.md): migrate from the v0.7.0 API to v0.8.0.
 - [Construct handlers](language/handlers.md): implement and register Rust
   behavior for declarative constructs.
 - [Analysis passes](language/analysis-passes.md): organize ordered semantic

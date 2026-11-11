@@ -212,7 +212,7 @@ dependencies = [
 
 [[package]]
 name = "geometry-language-extension-example"
-version = "0.7.0"
+version = "0.8.0"
 
 [[package]]
 name = "getrandom"
@@ -365,7 +365,7 @@ checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
 name = "langmeld-aster-language-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-brainfuck-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-cli"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "clap",
  "dialoguer",
@@ -403,11 +403,11 @@ dependencies = [
 
 [[package]]
 name = "langmeld-core"
-version = "0.7.0"
+version = "0.8.0"
 
 [[package]]
 name = "langmeld-custom-lexer-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-declarative-functions-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-embedded-definitions-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "geometry-language-extension-example",
  "langmeld-core",
@@ -436,21 +436,21 @@ dependencies = [
 
 [[package]]
 name = "langmeld-expression"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-language"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-lsp"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-project"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-schema-language-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -480,7 +480,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-textmate"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-language",
  "serde",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-toy-language-example"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -499,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-tree-sitter"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "langmeld-language",
 ]
