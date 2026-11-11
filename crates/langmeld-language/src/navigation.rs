@@ -57,16 +57,17 @@ fn query_locations<P, A>(
     query(analysis)
         .into_iter()
         .filter(|location| {
-            if location.span.start > location.span.end {
+            let span = location.span();
+            if span.start > span.end {
                 return false;
             }
-            if location.source_name != source.name() {
+            if location.source_name() != source.name() {
                 return true;
             }
-            location.identity == source.identity()
-                && location.span.end <= source.text().len()
-                && source.text().is_char_boundary(location.span.start)
-                && source.text().is_char_boundary(location.span.end)
+            location.source_identity() == source.identity()
+                && span.end <= source.text().len()
+                && source.text().is_char_boundary(span.start)
+                && source.text().is_char_boundary(span.end)
         })
         .collect()
 }

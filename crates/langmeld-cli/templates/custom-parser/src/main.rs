@@ -39,10 +39,10 @@ fn run() -> Result<(), String> {
             .map(|diagnostic| {
                 let location = diagnostic.location.as_ref();
                 let source_name = location
-                    .map(|location| location.source_name.as_str())
+                    .map(|location| location.source_name())
                     .unwrap_or(source.name());
                 let (line, column) = location
-                    .map(|location| source.line_column(location.span.start))
+                    .map(|location| source.line_column(location.span().start))
                     .unwrap_or((1, 1));
                 format!(
                     "{source_name}:{line}:{column}: {}: {}",

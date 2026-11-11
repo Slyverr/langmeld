@@ -70,7 +70,7 @@ fn later_passes_run_and_diagnostics_keep_their_source_spans() {
             .location
             .as_ref()
             .expect("finding should retain its source span")
-            .span,
+            .span(),
         Span::new(0, 1)
     );
 }

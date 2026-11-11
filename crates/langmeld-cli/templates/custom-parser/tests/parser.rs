@@ -24,6 +24,6 @@ fn reports_byte_correct_diagnostics_after_crlf_lines() {
         .as_ref()
         .expect("diagnostic should have a source span");
 
-    assert_eq!(location.span, Span::new(8, 15));
-    assert_eq!(source.line_column(location.span.start), (2, 1));
+    assert_eq!(location.span(), Span::new(8, 15));
+    assert_eq!(source.line_column(location.span().start), (2, 1));
 }

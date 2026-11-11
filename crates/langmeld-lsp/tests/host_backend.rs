@@ -106,11 +106,7 @@ impl LanguageNavigator<TestParser> for TestNavigator {
 }
 
 fn location(source: &SourceFile) -> SourceLocation {
-    SourceLocation {
-        source_name: source.name().to_owned(),
-        identity: source.identity(),
-        span: Span::new(0, 0),
-    }
+    SourceLocation::new(source, Span::new(0, 0))
 }
 
 fn managed_source_and_other_identity() -> (SourceFile, SourceIdentity, SourceFile) {

@@ -40,11 +40,41 @@ pub struct Diagnostic {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceLocation {
     /// Display name of the source snapshot, including for detached sources.
-    pub source_name: String,
+    source_name: String,
     /// Source identity and revision, absent only for a detached source.
-    pub identity: Option<SourceIdentity>,
+    identity: Option<SourceIdentity>,
     /// Byte range in the associated source snapshot.
-    pub span: Span,
+    span: Span,
+}
+
+impl SourceLocation {
+    /// Creates a location tied to the supplied source snapshot.
+    #[must_use]
+    pub fn new(source: &SourceFile, span: Span) -> Self {
+        Self {
+            source_name: source.name().to_owned(),
+            identity: source.identity(),
+            span,
+        }
+    }
+
+    /// Returns the display name of the associated source snapshot.
+    #[must_use]
+    pub fn source_name(&self) -> &str {
+        &self.source_name
+    }
+
+    /// Returns the identity and revision of the associated source snapshot.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.identity
+    }
+
+    /// Returns the UTF-8 byte range in the associated source snapshot.
+    #[must_use]
+    pub const fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// Returns whether a diagnostic collection contains an error.
@@ -118,11 +148,7 @@ impl Diagnostic {
             code: code.into(),
             severity,
             message: message.into(),
-            location: Some(SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span,
-            }),
+            location: Some(SourceLocation::new(source, span)),
         }
     }
 
@@ -151,17 +177,19 @@ pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) ->
         .map(|diagnostic| {
             let location = diagnostic.location.as_ref();
             let source = location.and_then(|location| {
-                sources.iter().find(|source| match location.identity {
-                    Some(identity) => source.identity() == Some(identity),
-                    None => source.name() == location.source_name,
-                })
+                sources
+                    .iter()
+                    .find(|source| match location.source_identity() {
+                        Some(identity) => source.identity() == Some(identity),
+                        None => source.name() == location.source_name(),
+                    })
             });
             let (line, column) = match (source, location) {
-                (Some(source), Some(location)) => source.line_column(location.span.start),
+                (Some(source), Some(location)) => source.line_column(location.span().start),
                 _ => (1, 1),
             };
             let source_name = location
-                .map(|location| location.source_name.as_str())
+                .map(SourceLocation::source_name)
                 .unwrap_or("<project>");
             format!(
                 "{source_name}:{line}:{column}: {}[{}]: {}",

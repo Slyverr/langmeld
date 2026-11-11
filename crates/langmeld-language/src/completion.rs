@@ -313,7 +313,7 @@ pub fn complete_at_with_lexer(
         diagnostic
             .location
             .as_ref()
-            .is_some_and(|location| location.span.end >= prefix_end)
+            .is_some_and(|location| location.span().end >= prefix_end)
             && diagnostic.code != "LM-PARSE-004"
             && !(is_choice_value_position && diagnostic.code == "LM-PARSE-002")
     }) {

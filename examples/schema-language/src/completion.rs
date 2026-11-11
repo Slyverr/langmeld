@@ -54,5 +54,5 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
 }
 
 fn is_current_source(location: &langmeld_core::SourceLocation, source: &SourceFile) -> bool {
-    location.identity == source.identity() && location.source_name == source.name()
+    location.source_identity() == source.identity() && location.source_name() == source.name()
 }

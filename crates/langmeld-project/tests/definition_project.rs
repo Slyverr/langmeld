@@ -86,7 +86,7 @@ fn preserves_definition_diagnostics_and_imported_sources_for_rendering() {
         diagnostic
             .location
             .as_ref()
-            .is_some_and(|location| location.source_name == "language/constructs/items.langmeld")
+            .is_some_and(|location| location.source_name() == "language/constructs/items.langmeld")
     }));
 }
 

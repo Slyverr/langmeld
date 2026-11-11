@@ -140,7 +140,7 @@ fn reports_unregistered_construct_at_its_source_span() {
 
     assert_eq!(error.code, "LM-HANDLER-001");
     assert_eq!(
-        error.location.expect("error should have a span").span,
+        error.location.expect("error should have a span").span(),
         Span::new(0, 8)
     );
 }
@@ -191,7 +191,7 @@ fn reports_missing_fields_at_the_construct() -> Result<(), Box<dyn std::error::E
 
     assert_eq!(error.code, "LM-HANDLER-002");
     assert_eq!(
-        error.location.expect("error should have a span").span,
+        error.location.expect("error should have a span").span(),
         Span::new(0, 7)
     );
 

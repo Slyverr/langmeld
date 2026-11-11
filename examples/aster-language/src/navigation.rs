@@ -225,11 +225,7 @@ fn selected_symbol(analysis: &Analysis, offset: usize) -> Option<usize> {
 }
 
 fn location(source: &SourceFile, span: Span) -> SourceLocation {
-    SourceLocation {
-        source_name: source.name().to_owned(),
-        identity: source.identity(),
-        span,
-    }
+    SourceLocation::new(source, span)
 }
 
 fn contains(span: Span, offset: usize) -> bool {

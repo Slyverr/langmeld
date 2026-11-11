@@ -140,6 +140,6 @@ fn imported_definition_diagnostics_keep_the_embedded_source_name() {
         diagnostic
             .location
             .as_ref()
-            .is_some_and(|location| location.source_name == "bundled/geometry/broken.langmeld")
+            .is_some_and(|location| location.source_name() == "bundled/geometry/broken.langmeld")
     }));
 }

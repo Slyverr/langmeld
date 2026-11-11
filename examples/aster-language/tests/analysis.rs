@@ -31,9 +31,9 @@ fn navigation_follows_the_resolved_shadowed_local() {
     );
 
     assert_eq!(definition.len(), 1);
-    assert_eq!(definition[0].span.start, inner_declaration);
+    assert_eq!(definition[0].span().start, inner_declaration);
     assert_eq!(references.len(), 1);
-    assert_eq!(references[0].span.start, inner_use);
+    assert_eq!(references[0].span().start, inner_use);
 }
 
 #[test]

@@ -48,11 +48,7 @@ impl LanguageNavigator<Parser> for Navigator {
 }
 
 fn location(source: &SourceFile, span: Span) -> SourceLocation {
-    SourceLocation {
-        source_name: source.name().to_owned(),
-        identity: source.identity(),
-        span,
-    }
+    SourceLocation::new(source, span)
 }
 
 #[test]
@@ -120,14 +116,12 @@ fn navigation_rejects_invalid_current_file_locations_but_keeps_other_files() {
             _analysis: Option<&AnalysisDocument<()>>,
             _offset: usize,
         ) -> Vec<SourceLocation> {
+            let other_source = SourceFile::new("other.test", "");
+
             vec![
                 location(source, Span::new(1, 1)),
                 location(source, Span::new(0, 9)),
-                SourceLocation {
-                    source_name: "other.test".into(),
-                    identity: None,
-                    span: Span::new(100, 120),
-                },
+                SourceLocation::new(&other_source, Span::new(100, 120)),
             ]
         }
 
@@ -149,5 +143,5 @@ fn navigation_rejects_invalid_current_file_locations_but_keeps_other_files() {
     let locations = definition_at(&source, &parsed, None, 2, &InvalidNavigator);
 
     assert_eq!(locations.len(), 1);
-    assert_eq!(locations[0].source_name, "other.test");
+    assert_eq!(locations[0].source_name(), "other.test");
 }

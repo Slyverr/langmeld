@@ -93,7 +93,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
         .expect("missing semicolon diagnostic");
     let next_construct = source.text().find("print").unwrap();
     assert_eq!(
-        missing_terminator.location.as_ref().unwrap().span,
+        missing_terminator.location.as_ref().unwrap().span(),
         Span::new(next_construct, next_construct + "print".len())
     );
     assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
@@ -222,7 +222,7 @@ fn unterminated_block_comments_report_a_source_located_lexical_error() {
         .find(|diagnostic| diagnostic.code == "LM-LEX-003")
         .expect("unterminated comment diagnostic");
     assert_eq!(
-        diagnostic.location.as_ref().unwrap().span,
+        diagnostic.location.as_ref().unwrap().span(),
         Span::new(6, source.text().len())
     );
 }
@@ -280,7 +280,12 @@ fn reports_unmatched_tokens_and_keeps_parsing_after_them() {
     assert_eq!(result.diagnostics.len(), 1);
     assert_eq!(result.diagnostics[0].severity, Severity::Error);
     assert_eq!(
-        result.diagnostics[0].location.as_ref().unwrap().span.start,
+        result.diagnostics[0]
+            .location
+            .as_ref()
+            .unwrap()
+            .span()
+            .start,
         0
     );
 }
@@ -474,7 +479,7 @@ fn recovers_at_a_later_root_through_unclosed_nested_blocks() {
     assert!(result.constructs[1].span.start >= scenario_start);
     assert_eq!(missing_closers.len(), 2, "{:?}", result.diagnostics);
     assert!(missing_closers.iter().all(|diagnostic| {
-        diagnostic.location.as_ref().unwrap().span == Span::new(scenario_start, scenario_start)
+        diagnostic.location.as_ref().unwrap().span() == Span::new(scenario_start, scenario_start)
     }));
     assert_eq!(result.diagnostics.len(), 2, "{:?}", result.diagnostics);
 }
@@ -655,7 +660,11 @@ fn parse_result_and_diagnostics_keep_source_revision() {
 
     assert_eq!(result.source, expected);
     assert_eq!(
-        result.diagnostics[0].location.as_ref().unwrap().identity,
+        result.diagnostics[0]
+            .location
+            .as_ref()
+            .unwrap()
+            .source_identity(),
         expected
     );
 }
@@ -749,7 +758,12 @@ fn reports_missing_block_closer_at_end_of_source() {
     assert_eq!(result.diagnostics.len(), 1);
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
     assert_eq!(
-        result.diagnostics[0].location.as_ref().unwrap().span.start,
+        result.diagnostics[0]
+            .location
+            .as_ref()
+            .unwrap()
+            .span()
+            .start,
         source.text().len()
     );
 }
@@ -806,7 +820,7 @@ fn rejects_oversized_source_before_calling_a_host_lexer() {
     assert!(result.constructs.is_empty());
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-007");
     assert_eq!(
-        result.diagnostics[0].location.as_ref().unwrap().span,
+        result.diagnostics[0].location.as_ref().unwrap().span(),
         Span::new(0, 0)
     );
 }

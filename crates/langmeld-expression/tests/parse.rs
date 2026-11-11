@@ -144,7 +144,7 @@ fn rejects_expression_ranges_over_the_configured_source_limit() {
     assert!(parsed.expression.is_none());
     assert_eq!(parsed.diagnostics[0].code, "LM-EXPR-012");
     assert_eq!(
-        parsed.diagnostics[0].location.as_ref().unwrap().span,
+        parsed.diagnostics[0].location.as_ref().unwrap().span(),
         Span::new(11, 11)
     );
 }

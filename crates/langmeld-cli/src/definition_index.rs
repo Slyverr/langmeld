@@ -145,11 +145,7 @@ impl DefinitionIndex {
             namespace,
             name,
             declaration,
-            location: SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span,
-            },
+            location: SourceLocation::new(source, span),
         });
     }
 }
@@ -207,10 +203,10 @@ fn string_field<'a>(
 }
 
 fn valid_location(source: &SourceFile, location: &SourceLocation) -> bool {
-    location.source_name != source.name()
-        || (location.identity == source.identity()
-            && location.span.start <= location.span.end
-            && location.span.end <= source.text().len()
-            && source.text().is_char_boundary(location.span.start)
-            && source.text().is_char_boundary(location.span.end))
+    location.source_name() != source.name()
+        || (location.source_identity() == source.identity()
+            && location.span().start <= location.span().end
+            && location.span().end <= source.text().len()
+            && source.text().is_char_boundary(location.span().start)
+            && source.text().is_char_boundary(location.span().end))
 }

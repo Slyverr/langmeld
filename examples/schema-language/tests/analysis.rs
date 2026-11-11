@@ -49,7 +49,7 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
         "Manager"
     );
     assert_eq!(
-        backend.definition(&source, &document, type_use + 1)[0].span,
+        backend.definition(&source, &document, type_use + 1)[0].span(),
         Span::new(declaration, declaration + "Manager".len())
     );
     assert_eq!(
@@ -85,9 +85,9 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     );
     let definition = backend.definition(&user, &documents[0], type_offset + 1);
     assert_eq!(definition.len(), 1);
-    assert_eq!(definition[0].source_name, manager.name());
+    assert_eq!(definition[0].source_name(), manager.name());
     assert_eq!(
-        definition[0].span,
+        definition[0].span(),
         Span::new(declaration_offset, declaration_offset + 7)
     );
 
@@ -96,12 +96,12 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     assert!(
         references
             .iter()
-            .any(|location| location.source_name == user.name())
+            .any(|location| location.source_name() == user.name())
     );
     assert!(
         references
             .iter()
-            .any(|location| location.source_name == manager.name())
+            .any(|location| location.source_name() == manager.name())
     );
 }
 
@@ -133,19 +133,19 @@ fn navigates_forward_and_recursive_type_references() {
 
     assert_eq!(definition.len(), 1);
     assert_eq!(
-        definition[0].span,
+        definition[0].span(),
         Span::new(user_declaration, user_declaration + 4)
     );
     assert_eq!(references.len(), 2);
     assert!(
         references
             .iter()
-            .any(|location| location.span.start == user_declaration)
+            .any(|location| location.span().start == user_declaration)
     );
     assert!(
         references
             .iter()
-            .any(|location| location.span.start == text.rfind("User").unwrap())
+            .any(|location| location.span().start == text.rfind("User").unwrap())
     );
 }
 

@@ -210,7 +210,7 @@ fn empty_choice_declarations_have_source_located_diagnostics() {
             && diagnostic
                 .location
                 .as_ref()
-                .is_some_and(|location| location.source_name == "language.langmeld")
+                .is_some_and(|location| location.source_name() == "language.langmeld")
     }));
 }
 
@@ -281,7 +281,7 @@ fn root_declarations_report_unknown_names_at_the_declaration() {
         .as_ref()
         .expect("root diagnostic is located");
     let root_start = source.text().find("root \"missing\"").unwrap();
-    assert_eq!(location.span.start, root_start);
+    assert_eq!(location.span().start, root_start);
     assert!(definition.language.is_none());
 }
 
@@ -348,7 +348,7 @@ fn duplicate_root_declarations_report_the_later_declaration() {
         .as_ref()
         .expect("root diagnostic is located");
     let duplicate_start = source.text().rfind("root \"program\"").unwrap();
-    assert_eq!(location.span.start, duplicate_start);
+    assert_eq!(location.span().start, duplicate_start);
 }
 
 #[test]
@@ -363,7 +363,7 @@ fn definition_errors_have_source_locations() {
     assert!(result.language.is_none());
     let diagnostic = result.diagnostics.last().unwrap();
     assert_eq!(diagnostic.code, "LM-DEF-004");
-    let span = diagnostic.location.as_ref().unwrap().span;
+    let span = diagnostic.location.as_ref().unwrap().span();
     assert!(span.end > span.start);
 }
 
@@ -791,7 +791,8 @@ fn reports_import_cycles_and_missing_imports_at_the_import_site() {
     assert!(cycle.diagnostics.iter().any(|d| {
         d.code == "LM-DEF-020"
             && d.location.as_ref().is_some_and(|location| {
-                location.span.end > location.span.start && location.source_name == "module.langmeld"
+                location.span().end > location.span().start
+                    && location.source_name() == "module.langmeld"
             })
     }));
 
@@ -849,7 +850,7 @@ fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
         duplicate
             .location
             .as_ref()
-            .map(|location| location.source_name.as_str()),
+            .map(|location| location.source_name()),
         Some("language/constructs.langmeld")
     );
 }
@@ -1044,7 +1045,7 @@ fn invalid_definition_comment_rules_report_at_the_lexical_block() {
         .iter()
         .find(|diagnostic| diagnostic.code == "LM-DEF-004")
         .unwrap();
-    let span = diagnostic.location.as_ref().unwrap().span;
+    let span = diagnostic.location.as_ref().unwrap().span();
     let text = &source.text()[span.start..span.end];
     assert!(text.contains("lexical"));
     assert!(text.contains("block_comment"));

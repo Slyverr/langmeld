@@ -143,11 +143,7 @@ fn analyze_sources(sources: &[(&SourceFile, &Schema)]) -> Vec<AnalysisDocument<A
 }
 
 fn source_location(source: &SourceFile, span: Span) -> SourceLocation {
-    SourceLocation {
-        source_name: source.name().to_owned(),
-        identity: source.identity(),
-        span,
-    }
+    SourceLocation::new(source, span)
 }
 
 /// Analyzer for schema record names and field types.

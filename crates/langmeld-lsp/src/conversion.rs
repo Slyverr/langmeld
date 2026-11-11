@@ -64,10 +64,10 @@ fn diagnostic_for(
     encoding: PositionEncoding,
 ) -> Option<Diagnostic> {
     let location = diagnostic.location.as_ref()?;
-    if location.source_name != source.name() || location.identity != source.identity() {
+    if location.source_name() != source.name() || location.source_identity() != source.identity() {
         return None;
     }
-    let range = to_lsp_range(source, location.span, encoding)?;
+    let range = to_lsp_range(source, location.span(), encoding)?;
     Some(Diagnostic {
         range,
         severity: Some(match diagnostic.severity {
@@ -149,9 +149,9 @@ pub(crate) fn lsp_location(
     source: &SourceFile,
     encoding: PositionEncoding,
 ) -> Option<lsp_types::Location> {
-    if location.source_name != source.name() || location.identity != source.identity() {
+    if location.source_name() != source.name() || location.source_identity() != source.identity() {
         return None;
     }
-    let range = to_lsp_range(source, location.span, encoding)?;
+    let range = to_lsp_range(source, location.span(), encoding)?;
     Some(lsp_types::Location { uri, range })
 }

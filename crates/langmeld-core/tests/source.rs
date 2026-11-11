@@ -135,7 +135,7 @@ fn diagnostic_locations_keep_source_names_for_detached_snapshots() {
     let diagnostic = Diagnostic::error("TEST-001", "invalid syntax", &source, Span::new(0, 9));
 
     let location = diagnostic.location.unwrap();
-    assert_eq!(location.source_name, "language/constructs.langmeld");
-    assert_eq!(location.identity, None);
-    assert_eq!(location.span, Span::new(0, 9));
+    assert_eq!(location.source_name(), "language/constructs.langmeld");
+    assert_eq!(location.source_identity(), None);
+    assert_eq!(location.span(), Span::new(0, 9));
 }

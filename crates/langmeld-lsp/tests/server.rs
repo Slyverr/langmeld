@@ -88,11 +88,7 @@ impl LanguageBackend for Backend {
         _document: &BackendDocument<String>,
         _offset: usize,
     ) -> Vec<SourceLocation> {
-        vec![SourceLocation {
-            source_name: source.name().to_owned(),
-            identity: source.identity(),
-            span: Span::new(0, "😀".len()),
-        }]
+        vec![SourceLocation::new(source, Span::new(0, "😀".len()))]
     }
 
     fn references(
@@ -103,24 +99,20 @@ impl LanguageBackend for Backend {
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
         include_declaration
-            .then(|| SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span: Span::new(0, "😀".len()),
-            })
+            .then(|| SourceLocation::new(source, Span::new(0, "😀".len())))
             .into_iter()
             .collect()
     }
 
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
-        if location.source_name != "file:///closed.test" {
+        if location.source_name() != "file:///closed.test" {
             return None;
         }
-        let source = self.0.lock().unwrap().get(&location.source_name)?.clone();
-        if source.identity() != location.identity {
+        let source = self.0.lock().unwrap().get(location.source_name())?.clone();
+        if source.identity() != location.source_identity() {
             return None;
         }
-        let uri = location.source_name.parse::<Uri>().ok()?;
+        let uri = location.source_name().parse::<Uri>().ok()?;
         Some(BackendSource::new(uri, Arc::new(source)))
     }
 
@@ -135,11 +127,7 @@ impl LanguageBackend for Backend {
         vec![WorkspaceSymbolInfo::new(
             "Record",
             DocumentSymbolKind::Struct,
-            SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span: Span::new(0, source.text().len()),
-            },
+            SourceLocation::new(source, Span::new(0, source.text().len())),
         )]
     }
 
@@ -206,11 +194,7 @@ impl LanguageBackend for Backend {
             return Some(
                 [(source, Span::new(4, 7)), (&other, Span::new(0, 5))]
                     .into_iter()
-                    .map(|(source, span)| SourceLocation {
-                        source_name: source.name().to_owned(),
-                        identity: source.identity(),
-                        span,
-                    })
+                    .map(|(source, span)| SourceLocation::new(source, span))
                     .collect(),
             );
         }
@@ -222,11 +206,7 @@ impl LanguageBackend for Backend {
                     (&other, Span::new(0, other.text().len())),
                 ]
                 .into_iter()
-                .map(|(source, span)| SourceLocation {
-                    source_name: source.name().to_owned(),
-                    identity: source.identity(),
-                    span,
-                })
+                .map(|(source, span)| SourceLocation::new(source, span))
                 .collect(),
             );
         }
@@ -237,18 +217,11 @@ impl LanguageBackend for Backend {
         };
         let mut locations = spans
             .into_iter()
-            .map(|span| SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span,
-            })
+            .map(|span| SourceLocation::new(source, span))
             .collect::<Vec<_>>();
         if new_name == "missing" {
-            locations.push(SourceLocation {
-                source_name: "file:///closed.test".into(),
-                identity: source.identity(),
-                span: Span::new(0, 4),
-            });
+            let missing_source = SourceFile::new("file:///closed.test", "");
+            locations.push(SourceLocation::new(&missing_source, Span::new(0, 4)));
         }
         Some(locations)
     }
@@ -1524,11 +1497,10 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
     ) -> Vec<SourceLocation> {
         assert!(parsed.tree);
         assert_eq!(analysis.unwrap().result, source.text().len());
-        vec![SourceLocation {
-            source_name: source.name().to_owned(),
-            identity: source.identity(),
-            span: Span::new(7, source.text().len()),
-        }]
+        vec![SourceLocation::new(
+            source,
+            Span::new(7, source.text().len()),
+        )]
     }
 
     fn references(
@@ -1542,11 +1514,7 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
         assert!(parsed.tree);
         assert_eq!(analysis.unwrap().result, source.text().len());
         include_declaration
-            .then(|| SourceLocation {
-                source_name: source.name().to_owned(),
-                identity: source.identity(),
-                span: Span::new(7, source.text().len()),
-            })
+            .then(|| SourceLocation::new(source, Span::new(7, source.text().len())))
             .into_iter()
             .collect()
     }
@@ -1705,11 +1673,7 @@ fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
             .expect("closed source should exist")
             .clone(),
     );
-    let target_location = SourceLocation {
-        source_name: target.name().to_owned(),
-        identity: target.identity(),
-        span: Span::new(0, target.text().len()),
-    };
+    let target_location = SourceLocation::new(&target, Span::new(0, target.text().len()));
     let uri: Uri = "file:///closed.host"
         .parse()
         .expect("test URI should be valid");

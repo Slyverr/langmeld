@@ -70,7 +70,7 @@ fn selected_symbol(analysis: &Analysis, source: &SourceFile, offset: usize) -> O
 }
 
 fn is_current_source(location: &SourceLocation, source: &SourceFile) -> bool {
-    location.identity == source.identity() && location.source_name == source.name()
+    location.source_identity() == source.identity() && location.source_name() == source.name()
 }
 
 fn contains(span: Span, offset: usize) -> bool {

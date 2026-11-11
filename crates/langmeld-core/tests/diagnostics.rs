@@ -24,8 +24,8 @@ fn constructs_source_and_project_diagnostics_at_every_severity() {
     {
         assert_eq!(diagnostic.severity, severity);
         let location = diagnostic.location.as_ref().expect("source location");
-        assert_eq!(location.source_name, source.name());
-        assert_eq!(location.span, span);
+        assert_eq!(location.source_name(), source.name());
+        assert_eq!(location.span(), span);
     }
 
     for (diagnostic, severity) in
