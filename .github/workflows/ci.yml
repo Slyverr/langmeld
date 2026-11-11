@@ -266,5 +266,46 @@ jobs:
             --offline \
             "${patch_args[@]}"
       - uses: dtolnay/rust-toolchain@1.88.0
-      - name: Check the minimum supported Rust version
-        run: cargo +1.88.0 check --workspace --locked
+      - name: Check the workspace and generated starters at the MSRV
+        shell: bash
+        run: |
+          cargo +1.88.0 check --workspace --locked
+
+          cargo +1.88.0 run -p langmeld-cli --locked -- init \
+            "$RUNNER_TEMP/langmeld-msrv-declarative" \
+            --name msrv-declarative \
+            --non-interactive
+          cargo +1.88.0 run -p langmeld-cli --locked -- init \
+            "$RUNNER_TEMP/langmeld-msrv-custom-parser" \
+            --template custom-parser \
+            --name msrv-custom-parser \
+            --non-interactive
+
+          check_starter() {
+            local project="$1"
+            shift
+
+            local crate
+            local patch_args=()
+            for crate in "$@"; do
+              patch_args+=(--config "patch.crates-io.${crate}.path=\"crates/${crate}\"")
+            done
+
+            cargo +1.88.0 test \
+              --manifest-path "$project/Cargo.toml" \
+              --target-dir target \
+              "${patch_args[@]}"
+            cargo +1.88.0 run \
+              --manifest-path "$project/Cargo.toml" \
+              --target-dir target \
+              --locked \
+              "${patch_args[@]}" \
+              -- --help
+          }
+
+          check_starter \
+            "$RUNNER_TEMP/langmeld-msrv-declarative" \
+            langmeld-core langmeld-language langmeld-project
+          check_starter \
+            "$RUNNER_TEMP/langmeld-msrv-custom-parser" \
+            langmeld-core langmeld-language langmeld-lsp
