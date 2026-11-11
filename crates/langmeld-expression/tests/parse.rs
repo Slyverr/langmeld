@@ -22,7 +22,12 @@ fn respects_precedence_and_left_associativity() {
         ExpressionParser::new(&arithmetic()).parse(&source, Span::new(0, source.text().len()));
 
     assert!(parsed.is_valid());
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let parsed = parsed.into_parts();
     let Some(ExpressionKind::Infix {
         operator,
         left,
@@ -42,7 +47,12 @@ fn applies_right_associativity_and_distinguishes_prefix_operators() {
     let source = SourceFile::new("expression", "-2 ^ 3 ^ 4");
     let parsed = ExpressionParser::new(&grammar).parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let parsed = parsed.into_parts();
     let Some(ExpressionKind::Prefix { operand, .. }) =
         parsed.expression.map(|expression| expression.kind)
     else {
@@ -64,12 +74,16 @@ fn parses_calls_members_and_indexes_with_source_spans() {
     let source = SourceFile::new("expression", "make(1, object.field[2])");
     let parsed = ExpressionParser::new(&grammar).parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    let Some(expression) = parsed.expression else {
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let Some(expression) = parsed.expression() else {
         panic!("expected a call expression");
     };
     assert_eq!(expression.span, Span::new(0, source.text().len()));
-    let ExpressionKind::Call { arguments, .. } = expression.kind else {
+    let ExpressionKind::Call { arguments, .. } = &expression.kind else {
         panic!("expected a call root");
     };
     assert_eq!(arguments.len(), 2);
@@ -90,8 +104,19 @@ fn parse_until_leaves_the_terminator_for_its_caller() {
         &[";"],
     );
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.consumed, Span::new(0, 5));
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.consumed(), Span::new(0, 5));
+
+    let parts = parsed.into_parts();
+    assert!(parts.diagnostics.is_empty());
+    assert!(parts.expression.is_some());
+    assert_eq!(parts.consumed, Span::new(0, 5));
+    assert_eq!(parts.source_identity, None);
+    assert!(!parts.resource_limited);
 }
 
 #[test]
@@ -101,14 +126,14 @@ fn reports_invalid_ranges_and_malformed_expressions() {
     let source = SourceFile::new("expression", "1 + )");
 
     let invalid_range = parser.parse(&source, Span::new(0, source.text().len() + 1));
-    assert_eq!(invalid_range.diagnostics[0].code, "LM-EXPR-001");
+    assert_eq!(invalid_range.diagnostics()[0].code, "LM-EXPR-001");
 
     let malformed = parser.parse(&source, Span::new(0, source.text().len()));
     assert!(!malformed.is_valid());
-    assert!(malformed.expression.is_none());
+    assert!(malformed.expression().is_none());
     assert!(
         malformed
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|d| d.code == "LM-EXPR-002")
     );
@@ -128,6 +153,13 @@ fn parse_result_retains_the_managed_source_identity() {
     assert_eq!(invalid_range.source_identity(), source.identity());
     assert!(!parsed.is_valid());
     assert_eq!(parsed.source_identity(), source.identity());
+
+    let invalid_parts = invalid_range.into_parts();
+    assert_eq!(invalid_parts.source_identity, source.identity());
+
+    let parsed_parts = parsed.into_parts();
+    assert_eq!(parsed_parts.source_identity, source.identity());
+    assert!(!parsed_parts.diagnostics.is_empty());
 }
 
 #[test]
@@ -137,8 +169,8 @@ fn caps_nested_expression_depth() {
     let source = SourceFile::new("nested", nested);
     let parsed = ExpressionParser::new(&grammar).parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.diagnostics.iter().any(|d| d.code == "LM-EXPR-004"));
-    assert!(parsed.resource_limited);
+    assert!(parsed.diagnostics().iter().any(|d| d.code == "LM-EXPR-004"));
+    assert!(parsed.resource_limited());
 }
 
 #[test]
@@ -156,11 +188,11 @@ fn rejects_expression_ranges_over_the_configured_source_limit() {
     let parsed = parser.parse(&source, Span::new(7, 12));
 
     assert!(!parsed.is_valid());
-    assert!(parsed.resource_limited);
-    assert!(parsed.expression.is_none());
-    assert_eq!(parsed.diagnostics[0].code, "LM-EXPR-012");
+    assert!(parsed.resource_limited());
+    assert!(parsed.expression().is_none());
+    assert_eq!(parsed.diagnostics()[0].code, "LM-EXPR-012");
     assert_eq!(
-        parsed.diagnostics[0].location.as_ref().unwrap().span(),
+        parsed.diagnostics()[0].location.as_ref().unwrap().span(),
         Span::new(11, 11)
     );
 }
@@ -179,11 +211,11 @@ fn token_limit_keeps_the_parsed_expression_prefix_and_marks_it_limited() {
 
     let parsed = parser.parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.resource_limited);
-    assert!(parsed.expression.is_some());
+    assert!(parsed.resource_limited());
+    assert!(parsed.expression().is_some());
     assert!(
         parsed
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-EXPR-013")
     );
@@ -203,11 +235,11 @@ fn limits_left_associative_and_postfix_tree_depth() {
 
     let parsed = parser.parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.resource_limited);
-    assert!(parsed.expression.is_none());
+    assert!(parsed.resource_limited());
+    assert!(parsed.expression().is_none());
     assert!(
         parsed
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-EXPR-004")
     );
@@ -228,10 +260,10 @@ fn configured_expression_depth_cannot_raise_the_hard_limit() {
 
     let parsed = parser.parse(&source, Span::new(0, source.text().len()));
 
-    assert!(parsed.resource_limited);
+    assert!(parsed.resource_limited());
     assert!(
         parsed
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-EXPR-004")
     );

@@ -118,14 +118,14 @@ fn lower_function(
             continue;
         };
         let parsed_expression = expression_parser.parse(source, field.span);
-        diagnostics.extend(parsed_expression.diagnostics.iter().cloned());
+        diagnostics.extend(parsed_expression.diagnostics().iter().cloned());
 
         if !parsed_expression.is_valid() {
             continue;
         }
 
-        if let Some(expression) = parsed_expression.expression {
-            collect_calls(&expression, &mut calls);
+        if let Some(expression) = parsed_expression.expression() {
+            collect_calls(expression, &mut calls);
         }
     }
 

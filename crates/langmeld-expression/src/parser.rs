@@ -102,6 +102,21 @@ pub struct ExpressionParseResult {
     /// Identity and revision of the parsed snapshot, if database-managed.
     source: Option<SourceIdentity>,
     /// Parsed expression when a valid root was recognized.
+    expression: Option<Expression>,
+    /// Range consumed by the root expression, empty when parsing failed.
+    consumed: Span,
+    /// Lexical and syntax diagnostics.
+    diagnostics: Vec<Diagnostic>,
+    /// Whether a parser resource limit stopped or truncated the result.
+    resource_limited: bool,
+}
+
+/// Owned components of a consumed expression parse result.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExpressionParseResultParts {
+    /// Identity and revision of the parsed snapshot, if database-managed.
+    pub source_identity: Option<SourceIdentity>,
+    /// Parsed expression when a valid root was recognized.
     pub expression: Option<Expression>,
     /// Range consumed by the root expression, empty when parsing failed.
     pub consumed: Span,
@@ -116,6 +131,42 @@ impl ExpressionParseResult {
     #[must_use]
     pub const fn source_identity(&self) -> Option<SourceIdentity> {
         self.source
+    }
+
+    /// Returns the parsed expression when a root expression was recognized.
+    #[must_use]
+    pub fn expression(&self) -> Option<&Expression> {
+        self.expression.as_ref()
+    }
+
+    /// Returns the source range consumed by the root expression.
+    #[must_use]
+    pub const fn consumed(&self) -> Span {
+        self.consumed
+    }
+
+    /// Returns lexical and syntax diagnostics.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
+    /// Returns whether a parser resource limit stopped or truncated the result.
+    #[must_use]
+    pub const fn resource_limited(&self) -> bool {
+        self.resource_limited
+    }
+
+    /// Consumes the result and returns its source identity and owned components.
+    #[must_use]
+    pub fn into_parts(self) -> ExpressionParseResultParts {
+        ExpressionParseResultParts {
+            source_identity: self.source,
+            expression: self.expression,
+            consumed: self.consumed,
+            diagnostics: self.diagnostics,
+            resource_limited: self.resource_limited,
+        }
     }
 
     /// Returns whether an expression was parsed without errors or resource limits.

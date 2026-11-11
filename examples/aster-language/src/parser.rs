@@ -249,6 +249,7 @@ impl Parser<'_> {
             .map_or(self.source.text().len(), |token| token.span.start);
         let (end, semicolon) = self.find_statement_end();
         let parsed = self.expressions.parse(self.source, Span::new(start, end));
+        let parsed = parsed.into_parts();
         self.diagnostics.extend(parsed.diagnostics);
         self.cursor =
             semicolon.unwrap_or_else(|| self.tokens.partition_point(|token| token.span.end <= end));

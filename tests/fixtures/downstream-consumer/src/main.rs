@@ -61,11 +61,11 @@ fn main() {
     );
 
     assert!(
-        expression.diagnostics.is_empty(),
+        expression.diagnostics().is_empty(),
         "{:?}",
-        expression.diagnostics
+        expression.diagnostics()
     );
-    assert!(expression.expression.is_some());
+    assert!(expression.expression().is_some());
 
     println!("standalone Langmeld consumer, project imports, and editor exports passed");
 }

@@ -17,6 +17,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   diagnostics associated through read-only accessors and `into_parts()`.
 - Generic parse results expose constructs, syntax trees, diagnostics, and
   resource-limit status through read-only accessors.
+- Expression parse results keep source identity, AST, consumed range, and
+  diagnostics associated through read-only accessors and `into_parts()`.
 - Source snapshots, identities, locations, parser and analysis results,
   definition sources, and LSP source mappings and host document bundles keep
   source associations immutable and expose them through read-only accessors.

@@ -23,6 +23,7 @@ impl ConstructHandler<RuntimeState> for ComputeHandler {
         ])
         .map_err(|error| context.error_at("TOY-003", error.to_string(), expression_field.span))?;
         let parsed = ExpressionParser::new(&grammar).parse(context.source(), expression_field.span);
+        let parsed = parsed.into_parts();
 
         if let Some(diagnostic) = parsed.diagnostics.into_iter().next() {
             return Err(diagnostic);

@@ -327,7 +327,7 @@ let parser = ExpressionParser::with_limits(
 let result = parser.parse(&source, range);
 ```
 
-`ExpressionParseResult::resource_limited` distinguishes a truncated token stream
+`ExpressionParseResult::resource_limited()` distinguishes a truncated token stream
 or depth-limited parse. The expression parser caps configured expression-tree
 depth at 128, including long member or operator chains; host parsers that do not
 use it own their resource policy.

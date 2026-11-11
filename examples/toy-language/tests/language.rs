@@ -70,13 +70,9 @@ fn imports_constructs_and_parses_the_example_program() {
     ])
     .unwrap();
     let parsed_expression = ExpressionParser::new(&grammar).parse(&source, expression.span);
-    assert!(
-        parsed_expression.diagnostics.is_empty(),
-        "{:?}",
-        parsed_expression.diagnostics
-    );
+    assert!(parsed_expression.diagnostics().is_empty());
     assert!(matches!(
-        parsed_expression.expression.map(|expression| expression.kind),
+        parsed_expression.expression().map(|expression| &expression.kind),
         Some(ExpressionKind::Infix { operator, .. }) if operator == "+"
     ));
 }
