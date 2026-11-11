@@ -35,6 +35,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Project-definition LSP mode supports go-to-definition and references for
+  construct and category names across imported `.langmeld` files.
 - Shared error-severity detection and explicit validity checks for generic,
   expression, and host parsing and analysis results.
 - Source-located and project-level constructors for every diagnostic severity.
