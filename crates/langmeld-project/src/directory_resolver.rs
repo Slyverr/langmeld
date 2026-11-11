@@ -180,15 +180,25 @@ impl DirectoryDefinitionResolver {
             .to_str()
             .ok_or_else(|| ProjectLoadError::InvalidPath(displayed_path.clone()))?
             .replace('\\', "/");
+        let mut sources = self
+            .sources
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let text = fs::read_to_string(&canonical).map_err(|source| ProjectLoadError::Read {
             path: canonical,
             source,
         })?;
+
+        if let Some(source) = sources
+            .get(&key)
+            .filter(|source| source.text() == text.as_str())
+        {
+            return Ok(DefinitionSource::new(key, source.clone()));
+        }
+
         let source = SourceFile::new(key.clone(), text);
-        self.sources
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(key.clone(), source.clone());
+        sources.insert(key.clone(), source.clone());
+
         Ok(DefinitionSource::new(key, source))
     }
 }

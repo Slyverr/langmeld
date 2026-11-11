@@ -65,6 +65,24 @@ fn resolves_nested_imports_and_retains_source_snapshots() {
 }
 
 #[test]
+fn reuses_identity_for_unchanged_files_and_replaces_changed_snapshots() {
+    let project = TestDirectory::new();
+    project.write("language/main.langmeld", "language \"Example\"");
+    let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
+
+    let first = resolver.load("language/main.langmeld").unwrap();
+    let unchanged = resolver.load("language/main.langmeld").unwrap();
+
+    assert_eq!(first.source().identity(), unchanged.source().identity());
+
+    project.write("language/main.langmeld", "language \"Updated\"");
+    let updated = resolver.load("language/main.langmeld").unwrap();
+
+    assert_ne!(first.source().identity(), updated.source().identity());
+    assert_eq!(updated.source().text(), "language \"Updated\"");
+}
+
+#[test]
 fn requires_an_existing_directory_as_project_root() {
     let project = TestDirectory::new();
     project.write("file.langmeld", "language \"Example\"");
