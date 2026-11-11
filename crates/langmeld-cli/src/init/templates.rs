@@ -1,13 +1,16 @@
+use std::{io, path::Path};
+
 use langmeld_language::quote_definition_string;
 
-use super::{AgentGuidance, Template};
+use super::{AgentGuidance, Template, local_crates};
 
 pub(super) fn project_files(
     package_name: &str,
     language_name: &str,
     template: Template,
     agent_guidance: AgentGuidance,
-) -> Vec<(String, String)> {
+    local_crate_root: Option<&Path>,
+) -> io::Result<Vec<(String, String)>> {
     let version = env!("CARGO_PKG_VERSION");
     let dependencies = match template {
         Template::Declarative => format!(
@@ -23,9 +26,14 @@ pub(super) fn project_files(
     let manifest = format!(
         "[package]\nname = {package_name:?}\ndefault-run = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n{library}\n[dependencies]\n{dependencies}\n[workspace]\n"
     );
+    let gitignore = if local_crate_root.is_some() {
+        "/target/\n/.cargo/config.toml\n"
+    } else {
+        "/target/\n"
+    };
     let mut files = vec![
         ("Cargo.toml".to_owned(), manifest),
-        (".gitignore".to_owned(), "/target/\n".to_owned()),
+        (".gitignore".to_owned(), gitignore.to_owned()),
         (
             "LICENSE-MIT".to_owned(),
             include_str!("../../templates/LICENSE-MIT").to_owned(),
@@ -35,6 +43,13 @@ pub(super) fn project_files(
             include_str!("../../templates/LICENSE-APACHE").to_owned(),
         ),
     ];
+
+    if let Some(root) = local_crate_root {
+        files.push((
+            ".cargo/config.toml".to_owned(),
+            local_crates::cargo_config(root, template)?,
+        ));
+    }
 
     match template {
         Template::Declarative => {
@@ -132,5 +147,5 @@ pub(super) fn project_files(
         ));
     }
 
-    files
+    Ok(files)
 }

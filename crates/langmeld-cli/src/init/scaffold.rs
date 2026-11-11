@@ -12,8 +12,15 @@ pub(super) fn create_project(
     language_name: &str,
     template: Template,
     agent_guidance: AgentGuidance,
+    local_crate_root: Option<&Path>,
 ) -> io::Result<()> {
-    let files = project_files(package_name, language_name, template, agent_guidance);
+    let files = project_files(
+        package_name,
+        language_name,
+        template,
+        agent_guidance,
+        local_crate_root,
+    )?;
     if path.exists() && !path.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

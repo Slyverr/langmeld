@@ -43,6 +43,7 @@ jobs:
           "$RUNNER_TEMP/langmeld-init-declarative"
           --name demo-language
           --language-name Demo
+          --local-crates
           --non-interactive
       - name: Generate a construct in the declarative project
         shell: bash
@@ -62,30 +63,22 @@ jobs:
           cargo test \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
+            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"'
+            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
+            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml" \
             -- --help
           printf '%s\n' 'program { let message = "Hello from a file"; print message; }' \
             > "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-project.path="crates/langmeld-project"' \
+            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml" \
             -- "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
       - name: Initialize and run custom-parser language project
         shell: bash
@@ -95,6 +88,7 @@ jobs:
             --template custom-parser \
             --name custom-language \
             --language-name CustomLanguage \
+            --local-crates \
             --non-interactive
           cargo fmt \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
@@ -102,30 +96,22 @@ jobs:
           cargo test \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
+            --config "$RUNNER_TEMP/langmeld-init-custom-parser/.cargo/config.toml"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"'
+            --config "$RUNNER_TEMP/langmeld-init-custom-parser/.cargo/config.toml"
           printf '%s\n' 'say Hello from a file!' \
             > "$RUNNER_TEMP/langmeld-init-custom-parser/sample.say"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
+            --config "$RUNNER_TEMP/langmeld-init-custom-parser/.cargo/config.toml" \
             -- "$RUNNER_TEMP/langmeld-init-custom-parser/sample.say"
           cargo run \
             --manifest-path "$RUNNER_TEMP/langmeld-init-custom-parser/Cargo.toml" \
             --target-dir target \
-            --config 'patch.crates-io.langmeld-core.path="crates/langmeld-core"' \
-            --config 'patch.crates-io.langmeld-language.path="crates/langmeld-language"' \
-            --config 'patch.crates-io.langmeld-lsp.path="crates/langmeld-lsp"' \
+            --config "$RUNNER_TEMP/langmeld-init-custom-parser/.cargo/config.toml" \
             -- --help
 
   quality:
@@ -274,38 +260,29 @@ jobs:
           cargo +1.88.0 run -p langmeld-cli --locked -- init \
             "$RUNNER_TEMP/langmeld-msrv-declarative" \
             --name msrv-declarative \
+            --local-crates \
             --non-interactive
           cargo +1.88.0 run -p langmeld-cli --locked -- init \
             "$RUNNER_TEMP/langmeld-msrv-custom-parser" \
             --template custom-parser \
             --name msrv-custom-parser \
+            --local-crates \
             --non-interactive
 
           check_starter() {
             local project="$1"
-            shift
-
-            local crate
-            local patch_args=()
-            for crate in "$@"; do
-              patch_args+=(--config "patch.crates-io.${crate}.path=\"crates/${crate}\"")
-            done
 
             cargo +1.88.0 test \
               --manifest-path "$project/Cargo.toml" \
               --target-dir target \
-              "${patch_args[@]}"
+              --config "$project/.cargo/config.toml"
             cargo +1.88.0 run \
               --manifest-path "$project/Cargo.toml" \
               --target-dir target \
               --locked \
-              "${patch_args[@]}" \
+              --config "$project/.cargo/config.toml" \
               -- --help
           }
 
-          check_starter \
-            "$RUNNER_TEMP/langmeld-msrv-declarative" \
-            langmeld-core langmeld-language langmeld-project
-          check_starter \
-            "$RUNNER_TEMP/langmeld-msrv-custom-parser" \
-            langmeld-core langmeld-language langmeld-lsp
+          check_starter "$RUNNER_TEMP/langmeld-msrv-declarative"
+          check_starter "$RUNNER_TEMP/langmeld-msrv-custom-parser"

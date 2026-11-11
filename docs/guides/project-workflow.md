@@ -12,12 +12,20 @@ In a terminal it prompts for a syntax approach, Cargo package name, and language
 display name. The directory name and package name provide defaults, and invalid
 directory-derived names are normalized to valid Cargo package names. Invalid
 prompt input is rejected in place so it can be corrected without restarting.
+When run from a Langmeld source checkout, it also asks whether to use that
+checkout's crates for local development and defaults to yes. This writes an
+ignored `.cargo/config.toml`; the generated `Cargo.toml` keeps versioned
+registry dependencies. Scripts can opt in with `--local-crates`. This option
+requires a matching Langmeld source checkout and is useful before its crates
+are published.
+
 To skip prompts for the declarative template:
 
 ```sh
 cargo run -p langmeld-cli -- init my-language \
   --name my-language \
   --language-name MyLanguage \
+  --local-crates \
   --non-interactive
 ```
 
@@ -27,6 +35,7 @@ behavior:
 ```sh
 cargo run -p langmeld-cli -- init my-language \
   --template custom-parser \
+  --local-crates \
   --non-interactive
 ```
 

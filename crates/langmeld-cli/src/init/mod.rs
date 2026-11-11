@@ -5,8 +5,9 @@ use std::{
 };
 
 use clap::{Args, ValueEnum};
-use dialoguer::{Input, MultiSelect, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, MultiSelect, Select, theme::ColorfulTheme};
 
+mod local_crates;
 mod scaffold;
 mod templates;
 
@@ -41,6 +42,9 @@ pub(crate) struct InitArgs {
     /// Include a Langmeld authoring skill under `.agents/skills/`.
     #[arg(long)]
     agent_skill: bool,
+    /// Use crates from the current Langmeld source checkout for local development.
+    #[arg(long)]
+    local_crates: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -101,6 +105,7 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     };
     validate_language_name(&language_name)?;
 
+    let local_crate_root = select_local_crates(args.local_crates, interactive)?;
     let agent_guidance = agent_guidance(args.agents_md, args.agent_skill, interactive)?;
     scaffold::create_project(
         &args.path,
@@ -108,6 +113,7 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         &language_name,
         template,
         agent_guidance,
+        local_crate_root.as_deref(),
     )?;
     let template_name = match template {
         Template::Declarative => "declarative grammar",
@@ -117,6 +123,14 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         "Created `{package_name}` at `{}` with a {template_name}.",
         args.path.display()
     );
+
+    if let Some(root) = &local_crate_root {
+        println!(
+            "Using local Langmeld crates from `{}`; the Cargo override is gitignored.",
+            root.display()
+        );
+    }
+
     println!("Next: run `cargo run` from the project directory.");
     if matches!(template, Template::CustomParser) {
         println!("LSP: run `cargo run --bin language-lsp` from the project directory.");
@@ -130,6 +144,42 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         println!("Langmeld authoring skill: created `.agents/skills/langmeld-language/SKILL.md`.");
     }
     Ok(())
+}
+
+fn select_local_crates(
+    requested: bool,
+    interactive: bool,
+) -> Result<Option<PathBuf>, Box<dyn Error>> {
+    let workspace_root = local_crates::workspace_root();
+    let Some(root) = workspace_root else {
+        if requested {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "`--local-crates` requires running Langmeld from its source checkout",
+            )
+            .into());
+        }
+
+        return Ok(None);
+    };
+
+    if requested {
+        return Ok(Some(root));
+    }
+
+    if interactive
+        && Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!(
+                "Use local Langmeld crates from `{}` for development?",
+                root.display()
+            ))
+            .default(true)
+            .interact()?
+    {
+        return Ok(Some(root));
+    }
+
+    Ok(None)
 }
 
 fn agent_guidance(

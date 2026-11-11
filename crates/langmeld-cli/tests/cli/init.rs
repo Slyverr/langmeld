@@ -34,6 +34,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         include_str!("../../templates/LICENSE-APACHE")
     );
     assert!(project.join("langmeld.toml").is_file());
+    assert!(!project.join(".cargo/config.toml").exists());
     assert!(project.join("src/lib.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("src/runtime.rs").is_file());
@@ -100,6 +101,93 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(test_source.contains("failure.diagnostics"));
     assert!(test_source.contains("failure.partial_output"));
     assert!(test_source.contains("unknown variable `missing`"));
+}
+
+#[test]
+fn init_uses_ignored_local_crate_overrides_for_both_templates() {
+    let parent = TestDirectory::new();
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|path| path.join("crates/langmeld-core/Cargo.toml").is_file())
+        .expect("CLI should be built from the Langmeld workspace")
+        .canonicalize()
+        .expect("workspace root should be canonicalized");
+    let templates = [
+        (
+            "declarative",
+            None,
+            ["langmeld-core", "langmeld-language", "langmeld-project"].as_slice(),
+        ),
+        (
+            "custom-parser",
+            Some("custom-parser"),
+            ["langmeld-core", "langmeld-language", "langmeld-lsp"].as_slice(),
+        ),
+    ];
+
+    for (project_name, template, crates) in templates {
+        let project = parent.path().join(project_name);
+        let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
+        command.args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--name",
+            project_name,
+            "--language-name",
+            "ExampleLanguage",
+            "--non-interactive",
+            "--local-crates",
+        ]);
+
+        if let Some(template) = template {
+            command.args(["--template", template]);
+        }
+
+        let output = command.output().expect("CLI should start");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let config_path = project.join(".cargo/config.toml");
+        let config_source = fs::read_to_string(&config_path).expect("local Cargo config exists");
+        assert!(config_source.starts_with("[patch.crates-io]\n"));
+
+        for crate_name in crates {
+            assert!(config_source.contains(&format!("{crate_name} = {{ path = \"")));
+            assert!(
+                workspace_root
+                    .join("crates")
+                    .join(crate_name)
+                    .join("Cargo.toml")
+                    .is_file()
+            );
+        }
+
+        let gitignore =
+            fs::read_to_string(project.join(".gitignore")).expect("generated ignore file exists");
+        assert!(gitignore.lines().any(|line| line == "/.cargo/config.toml"));
+
+        let manifest =
+            fs::read_to_string(project.join("Cargo.toml")).expect("generated manifest exists");
+        assert!(manifest.contains(&format!(
+            "langmeld-core = \"{}\"",
+            env!("CARGO_PKG_VERSION")
+        )));
+        assert!(!manifest.contains(workspace_root.to_str().unwrap()));
+
+        let metadata = Command::new("cargo")
+            .args(["metadata", "--format-version", "1", "--offline"])
+            .current_dir(&project)
+            .output()
+            .expect("Cargo should start");
+        assert!(
+            metadata.status.success(),
+            "{}",
+            String::from_utf8_lossy(&metadata.stderr)
+        );
+    }
 }
 
 #[test]
@@ -219,6 +307,7 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Create a starter language project"));
     assert!(help.contains("--non-interactive"));
+    assert!(help.contains("--local-crates"));
     assert!(help.contains("--agents-md"));
     assert!(help.contains("--agent-skill"));
 
