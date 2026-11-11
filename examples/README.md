@@ -1,27 +1,31 @@
 # Examples
 
-Each example focuses on a different way to use Langmeld. Start with
-[`toy-language`](toy-language) for the standard declarative workflow, then use
-the other examples to compare parser and semantic extension points.
+Start with [`toy-language`](toy-language) for the normal declarative workflow:
+modular `.langmeld` syntax, Rust construct handlers, and a runnable host.
 
-| Example | Use it to explore | Main Langmeld capabilities |
-| --- | --- | --- |
-| [`toy-language`](toy-language) | A working language with grammar and Rust behavior | Modular `.langmeld`, construct handlers, expression parsing, host-defined runtime |
-| [`brainfuck`](brainfuck) | A complete interpreter for an existing language | Custom lexer, custom AST/parser, bounded execution, source diagnostics |
-| [`declarative-functions`](declarative-functions) | Function declarations using the built-in parser | Parameter captures, typed AST lowering, ordered signature and call analysis |
-| [`custom-lexer`](custom-lexer) | Nonstandard tokens with the generic parser | Custom lexer, token-span validation, declarative grammar |
-| [`aster-language`](aster-language) | Rust-like functions with parameters, scopes, and semantic analysis | Custom parser, typed AST, ordered analysis passes, symbols, diagnostics, LSP navigation |
-| [`schema-language`](schema-language) | Semantics spanning multiple source files | Workspace analysis, cross-file types, semantic completion and navigation |
-| [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | Composing definitions supplied by a Rust crate | In-memory definition sources, overlay resolver, explicit imports |
+## Complete implementation of an existing language
 
-Each example covers a different authoring need: the toy language demonstrates
-the standard declarative runtime path; Brainfuck demonstrates a complete,
-bounded custom-language implementation; and Aster and Schema demonstrate
-language-owned semantic and editor features. `declarative-functions` and Aster
-express functions through different syntax ownership paths, showing where the
-generic parser is sufficient and where a custom parser is useful. The examples
-remain separate so each language's syntax, semantics, and runtime policy stay
-easy to follow.
+[`brainfuck`](brainfuck) implements the complete eight-command Brainfuck
+language as an interpreter. It demonstrates a custom lexer and parser,
+source-located diagnostics, execution limits, and runtime behavior owned by the
+language host.
 
-Run the examples from the workspace root. Their individual READMEs describe
-the sample language, commands, and limits in more detail.
+## Larger language consumers
+
+| Example | What it demonstrates |
+| --- | --- |
+| [`aster-language`](aster-language) | A custom parser and AST, ordered semantic passes, lexical scopes, and host-integrated LSP features |
+| [`schema-language`](schema-language) | Workspace-wide analysis, cross-file references, semantic completion, and LSP integration |
+
+## Focused capabilities
+
+| Example | What it demonstrates |
+| --- | --- |
+| [`declarative-functions`](declarative-functions) | Parameterized declarations with the generic parser and host-owned analysis |
+| [`custom-lexer`](custom-lexer) | A custom lexer while retaining the generic `.langmeld` parser |
+| [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | A consumer combining local definitions with definition sources supplied by another Rust crate |
+
+Each example focuses on a distinct authoring path or framework capability.
+Language-specific semantics and runtime policy remain in the host project; no
+single sample needs every Langmeld feature. Run commands and scope notes are in
+each example's README.
