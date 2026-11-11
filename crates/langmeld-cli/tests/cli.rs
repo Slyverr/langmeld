@@ -167,7 +167,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
             "--name",
             "widget-language",
             "--language-name",
-            "Widget Script",
+            r#"Widget "Script""#,
             "--non-interactive",
         ])
         .output()
@@ -238,7 +238,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     );
     let definition = fs::read_to_string(project.join("language/main.langmeld"))
         .expect("definition should be generated");
-    assert!(definition.starts_with("language \"Widget Script\""));
+    assert!(definition.starts_with(r#"language "Widget \"Script\"""#));
     assert!(definition.contains("import \"constructs/statements.langmeld\";"));
     assert!(definition.contains("root \"program\";"));
     let test_source = fs::read_to_string(project.join("tests/language.rs"))
