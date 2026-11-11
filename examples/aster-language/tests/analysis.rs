@@ -209,7 +209,7 @@ fn analysis_keeps_the_source_revision_it_describes() {
 
     let analysis = analyze(source, &parsed);
 
-    assert_eq!(analysis.source, parsed.source);
+    assert_eq!(analysis.source_identity(), parsed.source_identity());
 }
 
 #[test]

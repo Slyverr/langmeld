@@ -59,7 +59,7 @@ fn host_parser_keeps_its_own_ast_and_source_identity() {
     assert_eq!(parsed.tree.len(), 2);
     assert_eq!(parsed.tree[0].name, "width");
     assert_eq!(parsed.tree[1].value, 10);
-    assert_eq!(parsed.source, source.identity());
+    assert_eq!(parsed.source_identity(), source.identity());
 }
 
 #[test]

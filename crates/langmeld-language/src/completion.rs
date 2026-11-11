@@ -212,8 +212,8 @@ where
 {
     if offset > source.text().len()
         || !source.text().is_char_boundary(offset)
-        || parsed.source != source.identity()
-        || analysis.is_some_and(|analysis| analysis.source != source.identity())
+        || parsed.source_identity() != source.identity()
+        || analysis.is_some_and(|analysis| analysis.source_identity() != source.identity())
     {
         return Vec::new();
     }

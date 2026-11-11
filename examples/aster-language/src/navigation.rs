@@ -77,7 +77,9 @@ impl AsterNavigator {
         if !is_identifier(new_name) {
             return Vec::new();
         }
-        if parsed.source != source.identity() || analysis.source != source.identity() {
+        if parsed.source_identity() != source.identity()
+            || analysis.source_identity() != source.identity()
+        {
             return Vec::new();
         }
         let result = &analysis.result;

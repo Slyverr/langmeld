@@ -8,7 +8,7 @@ use crate::CompletionCandidate;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParsedDocument<T> {
     /// Identity and revision of the analyzed source, if database-managed.
-    pub source: Option<SourceIdentity>,
+    source: Option<SourceIdentity>,
     /// Parser-owned syntax tree or intermediate representation.
     pub tree: T,
     /// Lexical and syntactic findings associated with the parse.
@@ -26,6 +26,12 @@ impl<T> ParsedDocument<T> {
         }
     }
 
+    /// Returns the identity and revision of the source snapshot this parse belongs to.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.source
+    }
+
     /// Returns whether parsing produced no error diagnostics.
     #[must_use]
     pub fn is_valid(&self) -> bool {
@@ -37,7 +43,7 @@ impl<T> ParsedDocument<T> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnalysisDocument<T> {
     /// Identity and revision of the analyzed source, if database-managed.
-    pub source: Option<SourceIdentity>,
+    source: Option<SourceIdentity>,
     /// Language-specific semantic result, such as symbols or typed facts.
     pub result: T,
     /// Semantic findings associated with the source snapshot.
@@ -53,6 +59,12 @@ impl<T> AnalysisDocument<T> {
             result,
             diagnostics,
         }
+    }
+
+    /// Returns the identity and revision of the source snapshot this analysis belongs to.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.source
     }
 
     /// Returns whether analysis produced no error diagnostics.

@@ -29,8 +29,8 @@ impl<Tree, Analysis> HostDocument<Tree, Analysis> {
         let source_identity = source.identity();
 
         document_source == source_identity
-            && self.parsed.source == source_identity
-            && self.analysis.source == source_identity
+            && self.parsed.source_identity() == source_identity
+            && self.analysis.source_identity() == source_identity
     }
 }
 
@@ -130,14 +130,14 @@ where
             .chain(&analysis.diagnostics)
             .cloned()
             .collect::<Vec<_>>();
-        if parsed.source != source.identity() {
+        if parsed.source_identity() != source.identity() {
             diagnostics.push(source_identity_diagnostic(
                 source,
                 PARSER_SOURCE_MISMATCH_CODE,
                 "parser",
             ));
         }
-        if analysis.source != source.identity() {
+        if analysis.source_identity() != source.identity() {
             diagnostics.push(source_identity_diagnostic(
                 source,
                 ANALYZER_SOURCE_MISMATCH_CODE,
@@ -235,7 +235,7 @@ where
         if parsed
             .iter()
             .zip(sources)
-            .any(|(parsed, source)| parsed.source != source.identity())
+            .any(|(parsed, source)| parsed.source_identity() != source.identity())
         {
             return Some(
                 sources
@@ -251,7 +251,7 @@ where
             || analyses
                 .iter()
                 .zip(sources)
-                .any(|(analysis, source)| analysis.source != source.identity())
+                .any(|(analysis, source)| analysis.source_identity() != source.identity())
         {
             return Some(
                 sources

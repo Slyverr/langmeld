@@ -6,29 +6,21 @@ use langmeld_language::{
 use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
 
 struct TestParser {
-    reported_source: Option<SourceIdentity>,
-    use_input_identity: bool,
+    reported_source: Option<SourceFile>,
 }
 
 impl LanguageParser for TestParser {
     type Tree = ();
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
-        ParsedDocument {
-            source: if self.use_input_identity {
-                source.identity()
-            } else {
-                self.reported_source
-            },
-            tree: (),
-            diagnostics: Vec::new(),
-        }
+        let reported_source = self.reported_source.as_ref().unwrap_or(source);
+
+        ParsedDocument::new(reported_source, (), Vec::new())
     }
 }
 
 struct TestAnalyzer {
-    reported_source: Option<SourceIdentity>,
-    use_input_identity: bool,
+    reported_source: Option<SourceFile>,
 }
 
 impl LanguageAnalyzer<TestParser> for TestAnalyzer {
@@ -39,20 +31,14 @@ impl LanguageAnalyzer<TestParser> for TestAnalyzer {
         source: &SourceFile,
         _parsed: &ParsedDocument<()>,
     ) -> AnalysisDocument<Self::Analysis> {
-        AnalysisDocument {
-            source: if self.use_input_identity {
-                source.identity()
-            } else {
-                self.reported_source
-            },
-            result: (),
-            diagnostics: Vec::new(),
-        }
+        let reported_source = self.reported_source.as_ref().unwrap_or(source);
+
+        AnalysisDocument::new(reported_source, (), Vec::new())
     }
 }
 
 struct TestWorkspaceAnalyzer {
-    reported_source: Option<SourceIdentity>,
+    reported_source: Option<SourceFile>,
     output_count: Option<usize>,
 }
 
@@ -65,10 +51,12 @@ impl LanguageWorkspaceAnalyzer<TestParser, TestAnalyzer> for TestWorkspaceAnalyz
         documents
             .iter()
             .take(self.output_count.unwrap_or(documents.len()))
-            .map(|_| AnalysisDocument {
-                source: self.reported_source,
-                result: (),
-                diagnostics: Vec::new(),
+            .map(|(source, _)| {
+                AnalysisDocument::new(
+                    self.reported_source.as_ref().unwrap_or(source),
+                    (),
+                    Vec::new(),
+                )
             })
             .collect()
     }
@@ -143,16 +131,14 @@ fn managed_source_and_other_identity() -> (SourceFile, SourceIdentity, SourceFil
 }
 
 fn backend(
-    parser_identity: Option<SourceIdentity>,
-    analyzer_identity: Option<SourceIdentity>,
+    parser_source: Option<SourceFile>,
+    analyzer_source: Option<SourceFile>,
 ) -> HostLanguageBackend<TestParser, TestAnalyzer> {
     HostLanguageBackend::new(TestParser {
-        reported_source: parser_identity,
-        use_input_identity: false,
+        reported_source: parser_source,
     })
     .with_analyzer(TestAnalyzer {
-        reported_source: analyzer_identity,
-        use_input_identity: false,
+        reported_source: analyzer_source,
     })
     .with_completer(TestCompleter)
     .with_navigator(TestNavigator)
@@ -160,8 +146,8 @@ fn backend(
 
 #[test]
 fn parser_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
-    let (source, other_identity, _) = managed_source_and_other_identity();
-    let backend = backend(Some(other_identity), source.identity());
+    let (source, _, other_source) = managed_source_and_other_identity();
+    let backend = backend(Some(other_source), None);
 
     let document = backend.analyze(&source);
 
@@ -178,8 +164,8 @@ fn parser_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
 
 #[test]
 fn analysis_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
-    let (source, other_identity, _) = managed_source_and_other_identity();
-    let backend = backend(source.identity(), Some(other_identity));
+    let (source, _, other_source) = managed_source_and_other_identity();
+    let backend = backend(None, Some(other_source));
 
     let document = backend.analyze(&source);
 
@@ -197,7 +183,7 @@ fn analysis_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
 #[test]
 fn editor_queries_reject_a_source_different_from_the_analyzed_snapshot() {
     let (source, _, other_source) = managed_source_and_other_identity();
-    let backend = backend(source.identity(), source.identity());
+    let backend = backend(None, None);
 
     let document = backend.analyze(&source);
 
@@ -217,7 +203,7 @@ fn editor_queries_reject_a_source_different_from_the_analyzed_snapshot() {
 #[test]
 fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
     let (source, _, other_source) = managed_source_and_other_identity();
-    let backend = backend(source.identity(), source.identity());
+    let backend = backend(None, None);
 
     let document = backend.analyze(&source);
     let mismatched_document = BackendDocument::new(&other_source, document.state, Vec::new());
@@ -241,17 +227,15 @@ fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
 
 #[test]
 fn invalid_workspace_results_fall_back_to_per_source_analysis() {
-    let (source, other_identity, other_source) = managed_source_and_other_identity();
+    let (source, _, other_source) = managed_source_and_other_identity();
     let backend = HostLanguageBackend::new(TestParser {
-        reported_source: source.identity(),
-        use_input_identity: true,
+        reported_source: None,
     })
     .with_analyzer(TestAnalyzer {
-        reported_source: source.identity(),
-        use_input_identity: true,
+        reported_source: None,
     })
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
-        reported_source: Some(other_identity),
+        reported_source: Some(other_source.clone()),
         output_count: None,
     });
     let sources = [source.clone(), other_source];
@@ -263,8 +247,8 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source, source.identity());
-        assert_eq!(document.state.parsed.source, source.identity());
-        assert_eq!(document.state.analysis.source, source.identity());
+        assert_eq!(document.state.parsed.source_identity(), source.identity());
+        assert_eq!(document.state.analysis.source_identity(), source.identity());
     }
 }
 
@@ -272,15 +256,13 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
 fn incomplete_workspace_results_fall_back_to_every_source() {
     let (source, _, other_source) = managed_source_and_other_identity();
     let backend = HostLanguageBackend::new(TestParser {
-        reported_source: source.identity(),
-        use_input_identity: true,
+        reported_source: None,
     })
     .with_analyzer(TestAnalyzer {
-        reported_source: source.identity(),
-        use_input_identity: true,
+        reported_source: None,
     })
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
-        reported_source: source.identity(),
+        reported_source: None,
         output_count: Some(1),
     });
     let sources = [source.clone(), other_source];
@@ -292,8 +274,8 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source, source.identity());
-        assert_eq!(document.state.parsed.source, source.identity());
-        assert_eq!(document.state.analysis.source, source.identity());
+        assert_eq!(document.state.parsed.source_identity(), source.identity());
+        assert_eq!(document.state.analysis.source_identity(), source.identity());
     }
 }
 
@@ -301,15 +283,13 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
 fn mismatched_parser_results_keep_workspace_documents_in_sync() {
     let (source, other_identity, other_source) = managed_source_and_other_identity();
     let backend = HostLanguageBackend::new(TestParser {
-        reported_source: Some(other_identity),
-        use_input_identity: false,
+        reported_source: Some(other_source.clone()),
     })
     .with_analyzer(TestAnalyzer {
-        reported_source: source.identity(),
-        use_input_identity: true,
+        reported_source: None,
     })
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
-        reported_source: source.identity(),
+        reported_source: None,
         output_count: None,
     });
     let sources = [source.clone(), other_source];
@@ -320,7 +300,10 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
 
     assert_eq!(documents.len(), sources.len());
     assert_eq!(documents[0].source, source.identity());
-    assert_eq!(documents[0].state.parsed.source, Some(other_identity));
+    assert_eq!(
+        documents[0].state.parsed.source_identity(),
+        Some(other_identity)
+    );
     assert!(
         documents[0]
             .diagnostics
@@ -328,5 +311,8 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
             .any(|diagnostic| diagnostic.code == "LM-HOST-001")
     );
     assert_eq!(documents[1].source, Some(other_identity));
-    assert_eq!(documents[1].state.parsed.source, Some(other_identity));
+    assert_eq!(
+        documents[1].state.parsed.source_identity(),
+        Some(other_identity)
+    );
 }

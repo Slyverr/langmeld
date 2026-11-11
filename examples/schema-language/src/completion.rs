@@ -22,7 +22,9 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
         let Some(analysis) = analysis else {
             return Vec::new();
         };
-        if parsed.source != source.identity() || analysis.source != source.identity() {
+        if parsed.source_identity() != source.identity()
+            || analysis.source_identity() != source.identity()
+        {
             return Vec::new();
         }
 

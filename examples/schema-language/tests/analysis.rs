@@ -255,5 +255,8 @@ fn analysis_retains_source_identity() {
     let source = database.get(id).expect("stored source");
     let parsed = parse_schema(source);
 
-    assert_eq!(analyze(source, &parsed.tree).source, parsed.source);
+    assert_eq!(
+        analyze(source, &parsed.tree).source_identity(),
+        parsed.source_identity()
+    );
 }

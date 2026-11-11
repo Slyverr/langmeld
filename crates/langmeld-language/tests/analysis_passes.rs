@@ -46,7 +46,7 @@ fn runs_passes_in_host_selected_order_and_shares_state() {
 
     assert_eq!(analysis.result, ["declare", "resolve"]);
     assert!(analysis.diagnostics.is_empty());
-    assert_eq!(analysis.source, source.identity());
+    assert_eq!(analysis.source_identity(), source.identity());
 }
 
 #[test]

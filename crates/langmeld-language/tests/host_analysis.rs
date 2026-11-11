@@ -43,7 +43,7 @@ fn analyzer_can_return_a_host_defined_result_for_a_parsed_tree() {
     let analysis = Analyzer.analyze(&source, &parsed);
 
     assert_eq!(analysis.result, 1);
-    assert_eq!(analysis.source, parsed.source);
+    assert_eq!(analysis.source_identity(), parsed.source_identity());
     assert!(analysis.is_valid());
 }
 
