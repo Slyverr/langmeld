@@ -78,6 +78,9 @@ Add a construct and its handler with:
 langmeld generate construct repeat
 ```
 
+Omit the name in an interactive terminal to be prompted for it. Scripts should
+provide the name explicitly.
+
 This creates `language/constructs/repeat.langmeld`, imports it from
 `language/main.langmeld`, creates `src/constructs/repeat.rs`, and registers the
 handler in managed sections of `src/constructs/mod.rs`. The command infers the

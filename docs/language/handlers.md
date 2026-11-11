@@ -8,7 +8,8 @@ mean.
 ## Generate a construct and handler
 
 For the common workflow, add a new construct and handler from the initialized
-language project:
+language project. In an interactive terminal you can omit the name and answer
+the prompt; scripts should provide it explicitly:
 
 ```sh
 langmeld generate construct print

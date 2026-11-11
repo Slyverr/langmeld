@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Args;
-use dialoguer::{Select, theme::ColorfulTheme};
+use dialoguer::{Input, Select, theme::ColorfulTheme};
 use langmeld_core::SourceFile;
 use langmeld_language::{language_definition_grammar, parse};
 
@@ -20,8 +20,8 @@ use crate::{
 
 #[derive(Debug, Args)]
 pub(crate) struct ConstructArgs {
-    /// Name used by the syntax declaration and Rust handler.
-    name: String,
+    /// Identifier keyword used by the syntax declaration and Rust handler.
+    name: Option<String>,
     /// Category accepted by a block in the language definition.
     #[arg(long)]
     category: Option<String>,
@@ -31,19 +31,19 @@ pub(crate) struct ConstructArgs {
 }
 
 pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Error>> {
-    validate_keyword_name(&args.name)?;
-    let (module_name, handler_name) = rust_names(&args.name)?;
+    let name = construct_name(args.name)?;
+    let (module_name, handler_name) = rust_names(&name)?;
     let context = DefinitionProjectContext::new(&args.manifest_path)?;
     let project = load_definition_project(&args.manifest_path)?;
     if project
         .language
         .constructs()
         .iter()
-        .any(|construct| construct.name() == args.name)
+        .any(|construct| construct.name() == name.as_str())
     {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("construct `{}` is already declared", args.name),
+            format!("construct `{name}` is already declared"),
         )
         .into());
     }
@@ -53,7 +53,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         .parent()
         .ok_or("language definition path has no parent directory")?;
     let syntax_directory = source_directory.join("constructs");
-    let syntax_path = syntax_directory.join(format!("{}.langmeld", args.name));
+    let syntax_path = syntax_directory.join(format!("{name}.langmeld"));
     let handler_directory = context.root.join("src/constructs");
     validate_constructs_directory(&context.root.join("src"))?;
     validate_constructs_directory(&handler_directory)?;
@@ -78,10 +78,10 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
 
     let root_source = read_regular_file(&root_path)?;
-    let import_path = format!("constructs/{}.langmeld", args.name);
+    let import_path = format!("constructs/{name}.langmeld");
     let updated_root = add_root_import(&root_source, &import_path)?;
-    let syntax_source = syntax_template(&args.name, &category);
-    let handler_source = handler_template(&args.name, &handler_name);
+    let syntax_source = syntax_template(&name, &category);
+    let handler_source = handler_template(&name, &handler_name);
 
     let mut created_directory = false;
     match fs::symlink_metadata(&syntax_directory) {
@@ -133,6 +133,27 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     println!("Created handler `{}`.", handler_relative.display());
     println!("Edit the syntax declaration and implement the handler behavior.");
     Ok(())
+}
+
+fn construct_name(requested: Option<String>) -> Result<String, io::Error> {
+    let name = match requested {
+        Some(name) => name,
+        None if io::stdin().is_terminal() && io::stdout().is_terminal() => {
+            Input::<String>::with_theme(&ColorfulTheme::default())
+                .with_prompt("Construct keyword")
+                .validate_with(|name: &String| validate_keyword_name(name))
+                .interact_text()?
+        }
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "provide a construct name or run this command in an interactive terminal",
+            ));
+        }
+    };
+
+    validate_keyword_name(&name)?;
+    Ok(name)
 }
 
 fn choose_category(

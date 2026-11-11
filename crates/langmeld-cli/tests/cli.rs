@@ -1588,6 +1588,21 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
     );
 
     let manifest = project.join("langmeld.toml");
+    let missing_name = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(!missing_name.status.success());
+    assert!(
+        String::from_utf8_lossy(&missing_name.stderr)
+            .contains("provide a construct name or run this command in an interactive terminal")
+    );
+
     let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([
             "generate",
