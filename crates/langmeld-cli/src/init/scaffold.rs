@@ -4,15 +4,16 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use super::{Template, templates::project_files};
+use super::{AgentGuidance, Template, templates::project_files};
 
 pub(super) fn create_project(
     path: &Path,
     package_name: &str,
     language_name: &str,
     template: Template,
+    agent_guidance: AgentGuidance,
 ) -> io::Result<()> {
-    let files = project_files(package_name, language_name, template);
+    let files = project_files(package_name, language_name, template, agent_guidance);
     if path.exists() && !path.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

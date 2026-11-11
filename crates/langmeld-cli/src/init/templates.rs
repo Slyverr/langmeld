@@ -1,9 +1,10 @@
-use super::{Template, quote_lm};
+use super::{AgentGuidance, Template, quote_lm};
 
 pub(super) fn project_files(
     package_name: &str,
     language_name: &str,
     template: Template,
+    agent_guidance: AgentGuidance,
 ) -> Vec<(String, String)> {
     let version = env!("CARGO_PKG_VERSION");
     let dependencies = match template {
@@ -113,6 +114,20 @@ pub(super) fn project_files(
                 ),
             ]);
         }
+    }
+
+    if agent_guidance.agents_md {
+        files.push((
+            "AGENTS.md".to_owned(),
+            include_str!("../../templates/AGENTS.md").to_owned(),
+        ));
+    }
+
+    if agent_guidance.skill {
+        files.push((
+            ".agents/skills/langmeld-language/SKILL.md".to_owned(),
+            include_str!("../../templates/langmeld-language/SKILL.md").to_owned(),
+        ));
     }
 
     files

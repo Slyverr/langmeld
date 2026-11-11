@@ -30,6 +30,12 @@ cargo run -p langmeld-cli -- init my-language \
   --non-interactive
 ```
 
+Interactive setup also offers optional `AGENTS.md` project instructions and a
+Langmeld authoring skill at `.agents/skills/langmeld-language/SKILL.md`. To add
+either file in a script, pass `--agents-md` or `--agent-skill`; pass both to
+include both. Non-interactive initialization without these flags keeps the
+starter minimal.
+
 The declarative template creates this project layout:
 
 ```text

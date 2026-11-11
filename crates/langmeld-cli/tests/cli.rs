@@ -197,6 +197,8 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(project.join("src/constructs/print.rs").is_file());
     assert!(project.join("tests/language.rs").is_file());
     assert!(project.join("language/main.langmeld").is_file());
+    assert!(!project.join("AGENTS.md").exists());
+    assert!(!project.join(".agents").exists());
     assert!(!project.join("language/language.langmeld").exists());
     assert!(
         project
@@ -241,6 +243,39 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         .expect("behavior tests should be generated");
     assert!(test_source.contains("assert_eq!(output, \"Hello\\n\")"));
     assert!(test_source.contains("unknown variable `missing`"));
+}
+
+#[test]
+fn init_can_include_optional_agent_instructions_and_skill() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+            "--agents-md",
+            "--agent-skill",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(project.join("AGENTS.md")).unwrap(),
+        include_str!("../templates/AGENTS.md")
+    );
+    assert_eq!(
+        fs::read_to_string(project.join(".agents/skills/langmeld-language/SKILL.md")).unwrap(),
+        include_str!("../templates/langmeld-language/SKILL.md")
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("created `AGENTS.md`"));
+    assert!(stdout.contains("created `.agents/skills/langmeld-language/SKILL.md`"));
 }
 
 #[test]
@@ -551,6 +586,8 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Create a starter language project"));
     assert!(help.contains("--non-interactive"));
+    assert!(help.contains("--agents-md"));
+    assert!(help.contains("--agent-skill"));
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(["lsp", "--help"])

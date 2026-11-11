@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::{Args, ValueEnum};
-use dialoguer::{Input, Select, theme::ColorfulTheme};
+use dialoguer::{Input, MultiSelect, Select, theme::ColorfulTheme};
 
 mod scaffold;
 mod templates;
@@ -35,6 +35,18 @@ pub(crate) struct InitArgs {
     /// Skip prompts and use defaults for omitted names.
     #[arg(long)]
     non_interactive: bool,
+    /// Include a project-specific AGENTS.md file.
+    #[arg(long)]
+    agents_md: bool,
+    /// Include a Langmeld authoring skill under `.agents/skills/`.
+    #[arg(long)]
+    agent_skill: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct AgentGuidance {
+    pub(super) agents_md: bool,
+    pub(super) skill: bool,
 }
 
 pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
@@ -89,7 +101,14 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     };
     validate_language_name(&language_name)?;
 
-    scaffold::create_project(&args.path, &package_name, &language_name, template)?;
+    let agent_guidance = agent_guidance(args.agents_md, args.agent_skill, interactive)?;
+    scaffold::create_project(
+        &args.path,
+        &package_name,
+        &language_name,
+        template,
+        agent_guidance,
+    )?;
     let template_name = match template {
         Template::Declarative => "declarative grammar",
         Template::CustomParser => "custom Rust parser",
@@ -104,7 +123,37 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     } else {
         println!("Editor: run `langmeld lsp` from the project directory for syntax support.");
     }
+    if agent_guidance.agents_md {
+        println!("Agent instructions: created `AGENTS.md`.");
+    }
+    if agent_guidance.skill {
+        println!("Langmeld authoring skill: created `.agents/skills/langmeld-language/SKILL.md`.");
+    }
     Ok(())
+}
+
+fn agent_guidance(
+    agents_md: bool,
+    skill: bool,
+    interactive: bool,
+) -> Result<AgentGuidance, Box<dyn Error>> {
+    if agents_md || skill {
+        return Ok(AgentGuidance { agents_md, skill });
+    }
+
+    if !interactive {
+        return Ok(AgentGuidance::default());
+    }
+
+    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+        .with_prompt("Optional agent files (space to select, enter to continue)")
+        .items(["AGENTS.md project instructions", "Langmeld authoring skill"])
+        .interact()?;
+
+    Ok(AgentGuidance {
+        agents_md: selections.contains(&0),
+        skill: selections.contains(&1),
+    })
 }
 
 fn default_project_name(path: &Path) -> String {
