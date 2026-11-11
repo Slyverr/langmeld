@@ -1,4 +1,4 @@
-use langmeld_core::SourceFile;
+use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_language::LanguageAnalyzer;
 use langmeld_schema_language_example::{SchemaAnalyzer, parse_schema};
 
@@ -10,8 +10,13 @@ fn main() {
     let parsed = parse_schema(&source);
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
 
-    for diagnostic in parsed.diagnostics().iter().chain(analysis.diagnostics()) {
-        eprintln!("{}: {}", diagnostic.code, diagnostic.message);
+    for diagnostics in [parsed.diagnostics(), analysis.diagnostics()] {
+        if !diagnostics.is_empty() {
+            eprintln!(
+                "{}",
+                format_diagnostics(std::slice::from_ref(&source), diagnostics)
+            );
+        }
     }
 
     if parsed.is_valid() && analysis.is_valid() {
