@@ -14,6 +14,7 @@ fn completes_field_types_from_the_current_schema_symbols() {
     );
     let parsed = parse_schema(&source);
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
+
     let offset = source.text.find("Man").unwrap() + "Man".len();
 
     let candidates = complete_with(&source, &parsed, Some(&analysis), offset, &SchemaCompleter);
@@ -34,6 +35,7 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
         "record User { manager: Manager } record Manager {}",
     );
     let document = backend.analyze(&source);
+
     let type_use = source.text.find("Manager").unwrap();
     let completion_offset = type_use + "Man".len();
     let declaration = source.text.rfind("Manager").unwrap();
@@ -109,6 +111,7 @@ fn navigates_forward_and_recursive_type_references() {
     let source = SourceFile::new("schema.lang", text);
     let parsed = parse_schema(&source);
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
+
     let use_offset = text.rfind("User").unwrap() + 1;
     let user_declaration = text.find("User").unwrap();
 

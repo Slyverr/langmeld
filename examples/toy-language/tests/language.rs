@@ -12,6 +12,7 @@ fn load_language() -> langmeld_language::LanguageSpec {
     let resolver = DirectoryDefinitionResolver::new(project_root).unwrap();
     let root = resolver.load("language/toy.langmeld").unwrap();
     let definition = parse_language_definition_project(root, &resolver);
+
     assert!(
         definition.diagnostics.is_empty(),
         "{:#?}",

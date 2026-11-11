@@ -14,6 +14,7 @@ fn main() {
 fn run() -> Result<(), String> {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let language = load_language(project_root)?;
+
     let source_path = env::args_os().nth(1);
     let (source_name, source_text) = match source_path {
         Some(path) => {
@@ -26,6 +27,7 @@ fn run() -> Result<(), String> {
             "say r#\"comments // inside the string stay text\"#; // this is a comment\n".to_owned(),
         ),
     };
+
     let source = SourceFile::new(source_name, source_text);
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
@@ -43,6 +45,7 @@ fn run() -> Result<(), String> {
     else {
         return Err("the parser did not produce the expected `say` construct".to_owned());
     };
+
     match &field.value {
         CapturedValue::String(value) => println!("Captured raw string: {value}"),
         _ => return Err("the `text` field was not a string token".to_owned()),

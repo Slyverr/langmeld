@@ -10,6 +10,7 @@ fn main() {
                     langmeld_language::CapturedValue::Token { text, .. } => Some(text),
                     _ => None,
                 });
+
             match shape {
                 Some(shape) => println!("Geometry: draw({shape})"),
                 None => {

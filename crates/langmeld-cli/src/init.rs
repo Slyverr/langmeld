@@ -377,6 +377,7 @@ use langmeld_project::load_definition_project;
 
 pub fn load_language(project_root: &Path) -> Result<LanguageSpec, String> {
     let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
+
     if !project.is_valid() {
         return Err(format_diagnostics(
             &project.sources,
@@ -402,6 +403,7 @@ use language::load_language;
 fn parses_a_program_from_the_project_definition() {
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let language = load_language(project_root).expect("starter definition should load");
+
     let source = SourceFile::new(
         "valid.widget",
         "program { let message = \"Hello\"; print message; }",
@@ -466,6 +468,7 @@ fn run() -> Result<(), String> {
     let language = load_language(project_root)?;
     let source = SourceFile::new(source_name, source_text);
     let parsed = parse(&source, &language);
+
     if !parsed.diagnostics.is_empty() {
         return Err(format_diagnostics(&[source], &parsed.diagnostics));
     }
@@ -565,6 +568,7 @@ fn run() -> Result<(), String> {
 
     let source = SourceFile::new(source_name, source_text);
     let parsed = SayParser.parse(&source);
+
     if !parsed.is_valid() {
         let diagnostics = parsed
             .diagnostics

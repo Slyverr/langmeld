@@ -57,5 +57,6 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Command::Lsp(args) => lsp::run(args)?,
         Command::Generate(args) => generate::run(args)?,
     }
+
     Ok(())
 }

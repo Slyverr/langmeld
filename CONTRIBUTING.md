@@ -86,6 +86,14 @@ cargo package --workspace \
 The local patches make archive verification use this workspace's versions of
 Langmeld crates, independent of what is currently published to crates.io.
 
+## Code layout
+
+Group related declarations and statements into logical blocks, and separate
+distinct blocks with a blank line. Use the code's meaning to decide where a
+block starts and ends: keep tightly related steps together, but avoid long,
+dense runs of unrelated declarations or operations. Do not add blank lines
+mechanically between every statement.
+
 ## Design changes
 
 For substantial features or architecture changes, clarify the use case and

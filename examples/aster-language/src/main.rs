@@ -16,6 +16,7 @@ fn run() -> Result<(), String> {
     let text = fs::read_to_string(&path)
         .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
     let source = SourceFile::new("src/main.aster", text);
+
     let parsed = parse_program(&source);
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
     let diagnostics = parsed
@@ -23,6 +24,7 @@ fn run() -> Result<(), String> {
         .into_iter()
         .chain(analysis.diagnostics)
         .collect::<Vec<_>>();
+
     if !diagnostics.is_empty() {
         return Err(format_diagnostics(
             std::slice::from_ref(&source),

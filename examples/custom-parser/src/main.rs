@@ -39,6 +39,7 @@ impl LanguageParser for CalculatorParser {
             OperatorSpec::infix("*", 2, Associativity::Left),
         ])
         .expect("the example expression grammar is valid");
+
         let (tokens, mut diagnostics) = lex(source);
         let mut parser = Parser {
             source,
@@ -76,18 +77,22 @@ impl Parser<'_, '_> {
             self.error("CALC-PARSE-001", "expected `let`", keyword.span);
             return None;
         }
+
         let Some(name) = self.advance() else {
             self.error_here("CALC-PARSE-002", "expected a declaration name");
             return None;
         };
+
         if name.kind != TokenKind::Identifier || self.token_text(name) == "let" {
             self.error("CALC-PARSE-002", "expected a declaration name", name.span);
             return None;
         }
+
         if !self.consume("=") {
             self.error_here("CALC-PARSE-003", "expected `=`");
             return None;
         }
+
         let expression_start = self
             .current()
             .map_or(self.source.text.len(), |token| token.span.start);
@@ -103,6 +108,7 @@ impl Parser<'_, '_> {
         );
         self.diagnostics.extend(parsed.diagnostics);
         self.cursor = semicolon_index;
+
         let value = parsed.expression?;
         if !self.consume(";") {
             self.error_here("CALC-PARSE-004", "expected `;` after expression");
@@ -255,6 +261,7 @@ fn evaluate(expression: &Expression, variables: &BTreeMap<String, i64>) -> Resul
 fn main() {
     let source = SourceFile::new("main.calc", PROGRAM);
     let parsed = CalculatorParser.parse(&source);
+
     if !parsed.is_valid() {
         for diagnostic in parsed.diagnostics {
             let (line, column) = diagnostic
@@ -281,6 +288,7 @@ fn main() {
             }
         }
     }
+
     for (name, value) in variables {
         println!("{name} = {value}");
     }

@@ -29,6 +29,7 @@ pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
         tab_size: args.tab_width.unwrap_or(4),
         insert_spaces: !args.tabs,
     };
+
     let files = if let Some(file) = args.file {
         let text = fs::read_to_string(&file)?;
         let source = SourceFile::new(file.display().to_string(), text);
@@ -44,6 +45,7 @@ pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
             .map(|source| (project.root.join(&source.name), source))
             .collect()
     };
+
     let mut outputs = Vec::with_capacity(files.len());
     for (path, source) in files {
         let formatted = format_language_definition(&source, options).map_err(|diagnostics| {

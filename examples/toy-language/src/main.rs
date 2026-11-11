@@ -20,6 +20,7 @@ fn run() -> Result<(), String> {
         DirectoryDefinitionResolver::new(project_root).map_err(|error| error.to_string())?;
     let root = resolver.load(root_key).map_err(|error| error.to_string())?;
     let definition = parse_language_definition_project(root, &resolver);
+
     if !definition.is_valid() {
         return Err(format_diagnostics(
             &resolver.sources(),
@@ -32,6 +33,7 @@ fn run() -> Result<(), String> {
 
     let program_source = SourceFile::new("main.widget", PROGRAM);
     let parsed = parse(&program_source, &language);
+
     if !parsed.diagnostics.is_empty() {
         return Err(format_diagnostics(
             std::slice::from_ref(&program_source),
@@ -40,6 +42,7 @@ fn run() -> Result<(), String> {
     }
 
     println!("Language: {}", language.name());
+
     let root = parsed
         .constructs
         .first()
@@ -51,6 +54,7 @@ fn run() -> Result<(), String> {
     .map_err(|error| error.to_string())?;
     let expression_parser = ExpressionParser::new(&expression_grammar);
     let mut expression_diagnostics = Vec::new();
+
     for construct in &root.children {
         for field in &construct.fields {
             if field.value == CapturedValue::Expression {
@@ -62,6 +66,7 @@ fn run() -> Result<(), String> {
             }
         }
     }
+
     if !expression_diagnostics.is_empty() {
         return Err(format_diagnostics(
             std::slice::from_ref(&program_source),
@@ -70,6 +75,7 @@ fn run() -> Result<(), String> {
     }
 
     println!("Root construct: {}", root.name);
+
     for construct in &root.children {
         let fields = construct
             .fields

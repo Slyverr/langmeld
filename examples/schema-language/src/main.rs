@@ -13,6 +13,7 @@ fn main() {
     for diagnostic in parsed.diagnostics.iter().chain(&analysis.diagnostics) {
         eprintln!("{}: {}", diagnostic.code, diagnostic.message);
     }
+
     if parsed.is_valid() && analysis.is_valid() {
         println!("valid schema: {} record(s)", analysis.result.symbols.len());
     }

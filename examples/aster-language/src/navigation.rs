@@ -136,6 +136,7 @@ fn rename_preserves_resolution(
     let renamed_source = SourceFile::new(source.name.clone(), renamed_text);
     let renamed_parse = parse_program(&renamed_source);
     let renamed_analysis = crate::AsterAnalyzer.analyze(&renamed_source, &renamed_parse);
+
     let Some(new_declaration_start) = mapped_start(
         original.symbols[symbol_id].declaration.start,
         spans,

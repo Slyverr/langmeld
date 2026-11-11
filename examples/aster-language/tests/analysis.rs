@@ -10,6 +10,7 @@ fn navigation_follows_the_resolved_shadowed_local() {
     let source = SourceFile::new("main.aster", text);
     let parsed = parse_program(&source);
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
+
     let inner_declaration = text.find("let value = value").unwrap() + "let ".len();
     let inner_use = text.rfind("value").unwrap();
 
@@ -41,6 +42,7 @@ fn refuses_a_rename_that_would_capture_a_reference() {
     let source = SourceFile::new("main.aster", text);
     let parsed = parse_program(&source);
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
+
     let value_use = text.rfind("return value").unwrap() + "return ".len();
 
     let edits = AsterNavigator.rename(&source, &parsed, Some(&analysis), value_use + 1, "other");
@@ -54,6 +56,7 @@ fn refuses_aster_keywords_and_invalid_identifier_text_as_rename_names() {
     let source = SourceFile::new("main.aster", text);
     let parsed = parse_program(&source);
     let analysis = AsterAnalyzer.analyze(&source, &parsed);
+
     let value_use = text.rfind("return value").unwrap() + "return ".len();
 
     for new_name in ["return", "string", "not valid", ""] {

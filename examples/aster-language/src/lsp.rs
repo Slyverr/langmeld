@@ -27,6 +27,7 @@ impl LanguageBackend for AsterBackend {
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         let parsed = parse_program(source);
         let analysis = AsterAnalyzer.analyze(source, &parsed);
+
         let diagnostics = parsed
             .diagnostics
             .iter()

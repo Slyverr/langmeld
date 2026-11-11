@@ -28,6 +28,9 @@ Read [README.md](README.md) for the current project state and follow
 - Keep changes small, cohesive, and buildable. Establish and test the
   architecture before adding broad tooling or generated outputs.
 - Add dependencies and abstractions only for a concrete requirement.
+- Follow the code-layout guidance in [CONTRIBUTING.md](CONTRIBUTING.md): group
+  related declarations and statements into logical blocks and separate distinct
+  blocks with blank lines. Apply this by meaning, not mechanically.
 - Preserve existing user changes. Do not discard work or rewrite Git history
   without explicit authorization.
 
