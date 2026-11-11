@@ -20,6 +20,22 @@ The generated `language::load()` helper finds the project definition from this
 Cargo package. The CLI and Rust host share the same parser, handler registry,
 and diagnostics.
 
+## Add a construct
+
+From the project root, generate a syntax declaration and Rust handler:
+
+```sh
+langmeld generate construct repeat
+```
+
+This adds `language/constructs/repeat.langmeld`, imports it from
+`language/main.langmeld`, and creates and registers
+`src/constructs/repeat.rs`. Edit the declaration to describe the construct's
+syntax, then implement its language-specific behavior in the handler. The
+generated handler reports a diagnostic until that behavior is implemented.
+Run `langmeld check` to validate the language definition and `cargo test` to
+verify the Rust behavior.
+
 ## Editor support
 
 With the Langmeld CLI installed, run `langmeld lsp` from this project directory

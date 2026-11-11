@@ -221,6 +221,8 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(readme.contains("## License"));
     assert!(readme.contains("language/main.langmeld"));
     assert!(readme.contains("src/constructs/"));
+    assert!(readme.contains("langmeld generate construct repeat"));
+    assert!(readme.contains("generated handler reports a diagnostic"));
     let manifest = fs::read_to_string(project.join("langmeld.toml"))
         .expect("Langmeld manifest should be generated");
     assert_eq!(manifest, "format = 1\n");

@@ -7,6 +7,11 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The generated starter README now explains how to add a construct and where
+  to implement its Rust behavior.
+
 ### Added
 
 - A declarative function-language example showing parameter captures, typed
