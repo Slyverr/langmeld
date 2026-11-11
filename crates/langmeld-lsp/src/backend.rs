@@ -353,7 +353,9 @@ impl LanguageBackend for DeclarativeBackend {
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         let parsed = parse(source, &self.language);
-        BackendDocument::new(source, parsed.clone(), parsed.diagnostics().to_vec())
+        let diagnostics = parsed.diagnostics().to_vec();
+
+        BackendDocument::new(source, parsed, diagnostics)
     }
 
     fn capabilities(&self) -> BackendCapabilities {
@@ -382,7 +384,9 @@ impl LanguageBackend for LanguageDefinitionBackend {
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         let parsed = parse(source, language_definition_grammar());
-        BackendDocument::new(source, parsed.clone(), parsed.diagnostics().to_vec())
+        let diagnostics = parsed.diagnostics().to_vec();
+
+        BackendDocument::new(source, parsed, diagnostics)
     }
 
     fn capabilities(&self) -> BackendCapabilities {
