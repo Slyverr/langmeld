@@ -89,15 +89,19 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
 
     let source = SourceFile::new("main.toy", "program { let answer = 42; print answer; }");
     let parsed = parse(&source, &language);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].children.len(), 2);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].children.len(), 2);
     assert_eq!(
-        parsed.constructs[0].children[0].fields[1].value,
+        parsed.constructs()[0].children[0].fields[1].value,
         CapturedValue::Integer("42".into())
     );
 
     let top_level_statement = parse(&SourceFile::new("main.toy", "let answer = 42;"), &language);
-    assert!(top_level_statement.diagnostics.is_empty());
+    assert!(top_level_statement.diagnostics().is_empty());
 }
 
 #[test]
@@ -161,9 +165,13 @@ language "Movement" {
     let language = definition.language.unwrap();
 
     let parsed = parse(&SourceFile::new("main", "move right;"), &language);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::Token {
             text: "right".into(),
             kind: langmeld_language::TokenKind::Identifier,
@@ -173,7 +181,7 @@ language "Movement" {
     let rejected = parse(&SourceFile::new("main", "move forward;"), &language);
     assert!(
         rejected
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-PARSE-002")
     );
@@ -255,7 +263,7 @@ fn root_declarations_restrict_top_level_parsing_and_completion() {
     );
 
     let invalid_root = parse(&SourceFile::new("main", "statement"), &language);
-    assert!(!invalid_root.diagnostics.is_empty());
+    assert!(!invalid_root.diagnostics().is_empty());
 }
 
 #[test]
@@ -430,8 +438,12 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
         definition.language.as_ref().unwrap(),
     );
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].variant, 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].variant, 1);
 }
 
 #[test]
@@ -665,9 +677,13 @@ fn definition_frontend_lowers_generic_token_captures() {
         definition.language.as_ref().unwrap(),
     );
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::Token {
             text: "@".into(),
             kind: langmeld_language::TokenKind::Punctuation,
@@ -694,8 +710,12 @@ fn definition_frontend_lowers_expression_captures_with_consumed_terminators() {
     let program = SourceFile::new("main.expr", "print call(a + nested(b)) + 3;");
     let parsed = parse(&program, definition.language.as_ref().unwrap());
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    let field = &parsed.constructs[0].fields[0];
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let field = &parsed.constructs()[0].fields[0];
     assert_eq!(field.value, CapturedValue::Expression);
     assert_eq!(
         &program.text()[field.span.start..field.span.end],
@@ -752,8 +772,12 @@ fn composes_nested_imports_and_keeps_construct_source_locations() {
     let language = definition.language.unwrap();
     let source = SourceFile::new("main.widget", "program { print item; }");
     let parsed = parse(&source, &language);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].children[0].name, "print");
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].children[0].name, "print");
 }
 
 #[test]
@@ -906,8 +930,12 @@ fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
         definition.language.as_ref().unwrap(),
     );
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].fields.len(), 6);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].fields.len(), 6);
 }
 
 #[test]
@@ -960,8 +988,12 @@ fn imported_construct_categories_can_populate_root_block_children() {
         &SourceFile::new("main.toy", "program { let answer print answer }"),
         &language,
     );
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].children.len(), 2);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].children.len(), 2);
 }
 
 #[test]
@@ -1020,8 +1052,12 @@ fn definition_lexical_rules_configure_comments_for_parsing_and_allow_definition_
         &SourceFile::new("main.toy", "// before\nprint \"ok\"; /* after */"),
         &language,
     );
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs().len(), 1);
 }
 
 #[test]

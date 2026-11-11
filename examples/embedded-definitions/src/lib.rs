@@ -30,9 +30,9 @@ pub fn parse_example() -> Result<ParseResult, String> {
 
     let program_source = SourceFile::new("main.geometry", PROGRAM);
     let parsed = parse(&program_source, &language);
-    if !parsed.diagnostics.is_empty() {
+    if !parsed.diagnostics().is_empty() {
         let formatted =
-            format_diagnostics(std::slice::from_ref(&program_source), &parsed.diagnostics);
+            format_diagnostics(std::slice::from_ref(&program_source), parsed.diagnostics());
 
         if !parsed.is_valid() {
             return Err(format!("invalid example program:\n{formatted}"));

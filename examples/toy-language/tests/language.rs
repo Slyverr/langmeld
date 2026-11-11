@@ -18,9 +18,13 @@ fn imports_constructs_and_parses_the_example_program() {
     );
     let parsed = parse(&source, &language);
 
-    assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 1);
-    let root = &parsed.constructs[0];
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:#?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs().len(), 1);
+    let root = &parsed.constructs()[0];
     assert_eq!(root.name, "program");
     assert_eq!(
         root.children
@@ -83,7 +87,7 @@ fn reports_invalid_construct_syntax() {
     let source = SourceFile::new("invalid.widget", "program { draw triangle; }");
     let parsed = parse(&source, &language);
 
-    assert!(!parsed.diagnostics.is_empty());
+    assert!(!parsed.diagnostics().is_empty());
 }
 
 #[test]

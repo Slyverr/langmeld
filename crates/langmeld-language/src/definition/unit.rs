@@ -35,11 +35,11 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
         imports: Vec::new(),
         lexical_rules: LexicalRules::default(),
         lexical_span: None,
-        diagnostics: parsed.diagnostics,
+        diagnostics: parsed.diagnostics().to_vec(),
     };
     if is_root {
         let language_nodes: Vec<_> = parsed
-            .constructs
+            .constructs()
             .iter()
             .filter(|node| node.name == "language")
             .collect();
@@ -61,7 +61,7 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
             ));
         }
         for node in parsed
-            .constructs
+            .constructs()
             .iter()
             .filter(|node| node.name != "language")
         {
@@ -131,7 +131,7 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
         }
     } else {
         if let Some(node) = parsed
-            .constructs
+            .constructs()
             .iter()
             .find(|node| node.name == "language")
         {
@@ -142,7 +142,7 @@ pub(super) fn parse_definition_unit(source: &SourceFile, is_root: bool) -> Defin
                 node.span,
             ));
         }
-        for node in &parsed.constructs {
+        for node in parsed.constructs() {
             match node.name.as_str() {
                 "construct" => {
                     if let Some(construct) = lower_construct(node, source, &mut unit.diagnostics) {

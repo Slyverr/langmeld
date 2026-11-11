@@ -21,8 +21,12 @@ fn benchmark_declarative_parser(criterion: &mut Criterion) {
         let source = SourceFile::new("benchmark.widget", widgetscript_source(count));
         let parsed = parse(&source, &language);
 
-        assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
-        assert_eq!(parsed.constructs[0].children.len(), count);
+        assert!(
+            parsed.diagnostics().is_empty(),
+            "{:#?}",
+            parsed.diagnostics()
+        );
+        assert_eq!(parsed.constructs()[0].children.len(), count);
 
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(

@@ -15,10 +15,14 @@ fn combines_a_langmeld_grammar_with_a_host_lexer() {
 
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs().len(), 1);
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::String("r#\"comments // inside the string stay text\"#".to_owned())
     );
 }
@@ -32,7 +36,7 @@ fn reports_an_unterminated_raw_string_at_its_source_span() {
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
     let diagnostic = parsed
-        .diagnostics
+        .diagnostics()
         .iter()
         .find(|diagnostic| diagnostic.code == "RAW-LEX-001")
         .expect("the custom lexer should report the malformed raw string");

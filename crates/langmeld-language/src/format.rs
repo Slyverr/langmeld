@@ -37,8 +37,8 @@ pub fn format_language_definition(
 ) -> Result<String, Vec<Diagnostic>> {
     let grammar = language_definition_grammar();
     let parsed = parse(source, grammar);
-    if !parsed.diagnostics.is_empty() {
-        return Err(parsed.diagnostics);
+    if !parsed.diagnostics().is_empty() {
+        return Err(parsed.diagnostics().to_vec());
     }
 
     let tokens = DefaultLexer.lex(source).tokens;
@@ -48,7 +48,7 @@ pub fn format_language_definition(
         "\t".to_owned()
     };
     let mut output = String::new();
-    for (index, construct) in parsed.constructs.iter().enumerate() {
+    for (index, construct) in parsed.constructs().iter().enumerate() {
         if index > 0 {
             output.push('\n');
         }

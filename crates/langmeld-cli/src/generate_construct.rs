@@ -237,7 +237,7 @@ fn add_root_import(source: &str, import_path: &str) -> Result<String, io::Error>
     let parsed_source = SourceFile::new("language definition", source);
     let parsed = parse(&parsed_source, language_definition_grammar());
     let language = parsed
-        .constructs
+        .constructs()
         .iter()
         .find(|construct| construct.name == "language")
         .ok_or_else(|| {

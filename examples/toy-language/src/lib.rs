@@ -29,8 +29,8 @@ pub fn run(source: &SourceFile) -> Result<String, String> {
     let language = load()?;
     let parsed = parse(source, &language);
 
-    if !parsed.diagnostics.is_empty() {
-        let formatted = format_diagnostics(std::slice::from_ref(source), &parsed.diagnostics);
+    if !parsed.diagnostics().is_empty() {
+        let formatted = format_diagnostics(std::slice::from_ref(source), parsed.diagnostics());
 
         if !parsed.is_valid() {
             return Err(formatted);
@@ -40,7 +40,7 @@ pub fn run(source: &SourceFile) -> Result<String, String> {
     }
 
     let root = parsed
-        .constructs
+        .constructs()
         .first()
         .ok_or_else(|| "program did not produce a root construct".to_owned())?;
     let mut state = RuntimeState::default();

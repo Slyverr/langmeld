@@ -36,7 +36,7 @@ pub fn analyze(source: &SourceFile) -> Result<FunctionAnalysis, String> {
     let language = load()?;
     let generic = parse(source, &language);
     let (program, lowering_diagnostics) = ast::lower(source, &generic);
-    let mut parse_diagnostics = generic.diagnostics;
+    let mut parse_diagnostics = generic.diagnostics().to_vec();
     parse_diagnostics.extend(lowering_diagnostics);
     let parsed = ParsedDocument::new(source, program, parse_diagnostics);
     let semantic = analysis::analyze(source, &parsed);

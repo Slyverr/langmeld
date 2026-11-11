@@ -52,27 +52,31 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
 
     let parsed = parse(&source, &language());
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.syntax_tree.root.kind, SyntaxNodeKind::SourceFile);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.syntax_tree().root.kind, SyntaxNodeKind::SourceFile);
     assert_eq!(
-        parsed.syntax_tree.root.span,
+        parsed.syntax_tree().root.span,
         Span::new(0, source.text().len())
     );
 
     let mut indices = Vec::new();
-    token_indices(&parsed.syntax_tree.root, &mut indices);
-    assert_eq!(indices.len(), parsed.syntax_tree.tokens.len());
+    token_indices(&parsed.syntax_tree().root, &mut indices);
+    assert_eq!(indices.len(), parsed.syntax_tree().tokens.len());
     assert!(
         indices
             .iter()
             .copied()
-            .eq(0..parsed.syntax_tree.tokens.len())
+            .eq(0..parsed.syntax_tree().tokens.len())
     );
 
     let reconstructed = indices
         .iter()
         .map(|index| {
-            parsed.syntax_tree.tokens[*index]
+            parsed.syntax_tree().tokens[*index]
                 .text(&source)
                 .expect("syntax token spans should refer to the source")
         })
@@ -81,21 +85,21 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
 
     assert!(
         parsed
-            .syntax_tree
+            .syntax_tree()
             .tokens
             .iter()
             .any(|token| token.kind == SyntaxTokenKind::Comment)
     );
     assert!(
         parsed
-            .syntax_tree
+            .syntax_tree()
             .tokens
             .iter()
             .any(|token| token.kind == SyntaxTokenKind::Newline)
     );
     assert_eq!(
         parsed
-            .syntax_tree
+            .syntax_tree()
             .tokens
             .iter()
             .filter(|token| token.kind == SyntaxTokenKind::Newline)
@@ -104,7 +108,7 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
         [Some("\r\n"), Some("\r\n")]
     );
 
-    let program = parsed.syntax_tree.root.children.iter().find_map(|child| {
+    let program = parsed.syntax_tree().root.children.iter().find_map(|child| {
         let SyntaxElement::Node(node) = child else {
             return None;
         };
@@ -134,7 +138,7 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
     assert!(matches!(
         message.children.as_slice(),
         [SyntaxElement::Token(index)]
-            if parsed.syntax_tree.tokens[*index].text(&source) == Some("\"Hello\"")
+            if parsed.syntax_tree().tokens[*index].text(&source) == Some("\"Hello\"")
     ));
 }
 
@@ -144,17 +148,17 @@ fn parser_retains_unrecognized_grammar_tokens_in_the_lossless_tree() {
 
     let parsed = parse(&source, &language());
 
-    assert!(!parsed.diagnostics.is_empty());
-    assert!(parsed.syntax_tree.tokens.iter().any(
+    assert!(!parsed.diagnostics().is_empty());
+    assert!(parsed.syntax_tree().tokens.iter().any(
         |token| token.text(&source) == Some("@") && token.kind == SyntaxTokenKind::Punctuation
     ));
 
     let mut indices = Vec::new();
-    token_indices(&parsed.syntax_tree.root, &mut indices);
+    token_indices(&parsed.syntax_tree().root, &mut indices);
     let reconstructed = indices
         .iter()
         .map(|index| {
-            parsed.syntax_tree.tokens[*index]
+            parsed.syntax_tree().tokens[*index]
                 .text(&source)
                 .expect("syntax token spans should refer to the source")
         })
@@ -175,10 +179,10 @@ fn source_limit_returns_a_bounded_unparsed_tree() {
         },
     );
 
-    assert!(parsed.resource_limited);
-    assert_eq!(parsed.syntax_tree.tokens.len(), 1);
+    assert!(parsed.resource_limited());
+    assert_eq!(parsed.syntax_tree().tokens.len(), 1);
     assert_eq!(
-        parsed.syntax_tree.tokens[0].span,
+        parsed.syntax_tree().tokens[0].span,
         Span::new(0, source.text().len())
     );
 }
@@ -196,21 +200,21 @@ fn token_limit_preserves_the_unlexed_source_suffix() {
         },
     );
 
-    assert!(parsed.resource_limited);
+    assert!(parsed.resource_limited());
     assert!(
         parsed
-            .syntax_tree
+            .syntax_tree()
             .tokens
             .iter()
             .any(|token| token.kind == SyntaxTokenKind::Unknown)
     );
 
     let mut indices = Vec::new();
-    token_indices(&parsed.syntax_tree.root, &mut indices);
+    token_indices(&parsed.syntax_tree().root, &mut indices);
     let reconstructed = indices
         .iter()
         .map(|index| {
-            parsed.syntax_tree.tokens[*index]
+            parsed.syntax_tree().tokens[*index]
                 .text(&source)
                 .expect("syntax token spans should refer to the source")
         })

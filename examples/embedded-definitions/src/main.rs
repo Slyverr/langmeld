@@ -2,7 +2,7 @@ fn main() {
     match langmeld_embedded_definitions_example::parse_example() {
         Ok(parsed) => {
             let shape = parsed
-                .constructs
+                .constructs()
                 .first()
                 .and_then(|program| program.children.first())
                 .and_then(|draw| draw.fields.first())

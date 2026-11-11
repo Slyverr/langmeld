@@ -15,6 +15,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
   associated through read-only accessors and `into_parts()`.
 - Host parser and analysis documents keep their source identity, payload, and
   diagnostics associated through read-only accessors and `into_parts()`.
+- Generic parse results expose constructs, syntax trees, diagnostics, and
+  resource-limit status through read-only accessors.
 - Source snapshots, identities, locations, parser and analysis results,
   definition sources, and LSP source mappings and host document bundles keep
   source associations immutable and expose them through read-only accessors.

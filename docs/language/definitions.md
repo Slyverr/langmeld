@@ -66,13 +66,13 @@ spans refer to the original `SourceFile` and can be sliced with
 ```rust
 let parsed = langmeld_language::parse(&source, &language);
 let reconstructed = parsed
-    .syntax_tree
+    .syntax_tree()
     .tokens
     .iter()
     .map(|token| token.text(&source).expect("token span belongs to source"))
     .collect::<String>();
 
-assert_eq!(reconstructed, source.text);
+assert_eq!(reconstructed, source.text());
 ```
 
 The tree is useful for editor features and host transformations that need
@@ -283,7 +283,7 @@ do not add a placeholder keyword to the user's language.
 
 The generic parser defaults to a 4 MiB source limit, 250,000 lexer tokens,
 250,000 parsed constructs, 128 nested blocks, and 1,000,000 pattern-matching
-steps. `ParseResult::resource_limited` indicates that one of these bounds
+steps. `ParseResult::resource_limited()` indicates that one of these bounds
 limited the result; completed constructs are retained where possible.
 
 Raise or lower these limits per parse with `ParseLimits`:

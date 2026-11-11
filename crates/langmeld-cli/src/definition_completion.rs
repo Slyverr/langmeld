@@ -26,7 +26,7 @@ pub(crate) fn complete_definition_field(
     offset: usize,
     index: Option<&DefinitionIndex>,
 ) -> Option<Vec<CompletionCandidate>> {
-    let (field, kind) = find_definition_field(&parsed.constructs, offset)?;
+    let (field, kind) = find_definition_field(parsed.constructs(), offset)?;
     Some(match kind {
         FieldKind::ImportPath => complete_import_path(root, source, field.span, offset),
         FieldKind::Construct => {

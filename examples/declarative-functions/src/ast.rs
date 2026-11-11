@@ -43,7 +43,7 @@ pub fn lower(source: &SourceFile, parsed: &ParseResult) -> (Program, Vec<Diagnos
     let mut program = Program::default();
     let mut diagnostics = Vec::new();
 
-    for root in &parsed.constructs {
+    for root in parsed.constructs() {
         for construct in &root.children {
             if construct.name != "function" {
                 continue;

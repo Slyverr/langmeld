@@ -38,19 +38,19 @@ fn parses_multiple_declarations_and_captures_values_with_spans() {
     let result = parse(&source, &language());
 
     assert!(result.is_valid());
-    assert!(result.diagnostics.is_empty());
-    assert_eq!(result.constructs.len(), 2);
-    assert_eq!(result.constructs[0].name, "let");
+    assert!(result.diagnostics().is_empty());
+    assert_eq!(result.constructs().len(), 2);
+    assert_eq!(result.constructs()[0].name, "let");
     assert_eq!(
-        result.constructs[0].fields[0].value,
+        result.constructs()[0].fields[0].value,
         CapturedValue::Identifier("answer".into())
     );
     assert_eq!(
-        result.constructs[0].fields[1].value,
+        result.constructs()[0].fields[1].value,
         CapturedValue::Integer("42".into())
     );
     assert_eq!(
-        &source.text()[result.constructs[0].span.start..result.constructs[0].span.end],
+        &source.text()[result.constructs()[0].span.start..result.constructs()[0].span.end],
         "let answer = 42;"
     );
 }
@@ -79,7 +79,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
 
     assert!(!result.is_valid());
     assert_eq!(
-        result.constructs[0]
+        result.constructs()[0]
             .children
             .iter()
             .map(|construct| construct.name.as_str())
@@ -87,7 +87,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
         ["print", "let"]
     );
     let missing_terminator = result
-        .diagnostics
+        .diagnostics()
         .iter()
         .find(|diagnostic| diagnostic.code == "LM-PARSE-002")
         .expect("missing semicolon diagnostic");
@@ -96,7 +96,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
         missing_terminator.location.as_ref().unwrap().span(),
         Span::new(next_construct, next_construct + "print".len())
     );
-    assert_eq!(result.diagnostics.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(result.diagnostics().len(), 1, "{:?}", result.diagnostics());
 }
 
 #[test]
@@ -116,8 +116,12 @@ fn captures_expression_span_and_consumes_its_top_level_terminator() {
 
     let result = parse(&source, &grammar);
 
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
-    let construct = &result.constructs[0];
+    assert!(
+        result.diagnostics().is_empty(),
+        "{:?}",
+        result.diagnostics()
+    );
+    let construct = &result.constructs()[0];
     let field = &construct.fields[0];
     assert_eq!(field.value, CapturedValue::Expression);
     assert_eq!(
@@ -146,9 +150,9 @@ fn expression_capture_rejects_empty_or_unterminated_expressions() {
 
     for input in ["print ;", "print call(1)"] {
         let result = parse(&SourceFile::new("main", input), &grammar);
-        assert!(result.constructs.is_empty(), "accepted {input:?}");
+        assert!(result.constructs().is_empty(), "accepted {input:?}");
         assert!(
-            !result.diagnostics.is_empty(),
+            !result.diagnostics().is_empty(),
             "no diagnostic for {input:?}"
         );
     }
@@ -191,14 +195,18 @@ fn configured_line_and_block_comments_are_skipped_without_changing_string_tokens
 
     let parsed = parse(&source, &grammar);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 2);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs().len(), 2);
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::String("\"/* string */\"".into())
     );
     assert_eq!(
-        parsed.constructs[1].fields[0].value,
+        parsed.constructs()[1].fields[0].value,
         CapturedValue::String("\"// string\"".into())
     );
 }
@@ -217,7 +225,7 @@ fn unterminated_block_comments_report_a_source_located_lexical_error() {
     let parsed = parse(&source, &grammar);
 
     let diagnostic = parsed
-        .diagnostics
+        .diagnostics()
         .iter()
         .find(|diagnostic| diagnostic.code == "LM-LEX-003")
         .expect("unterminated comment diagnostic");
@@ -243,8 +251,12 @@ fn longest_comment_opener_wins_when_comment_markers_share_a_prefix() {
 
     let parsed = parse(&SourceFile::new("comments", "## ignored !! item"), &grammar);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs.len(), 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs().len(), 1);
 }
 
 #[test]
@@ -276,11 +288,11 @@ fn reports_unmatched_tokens_and_keeps_parsing_after_them() {
     let source = SourceFile::new("main", "? print value;");
     let result = parse(&source, &language());
 
-    assert_eq!(result.constructs.len(), 1);
-    assert_eq!(result.diagnostics.len(), 1);
-    assert_eq!(result.diagnostics[0].severity, Severity::Error);
+    assert_eq!(result.constructs().len(), 1);
+    assert_eq!(result.diagnostics().len(), 1);
+    assert_eq!(result.diagnostics()[0].severity, Severity::Error);
     assert_eq!(
-        result.diagnostics[0]
+        result.diagnostics()[0]
             .location
             .as_ref()
             .unwrap()
@@ -307,9 +319,9 @@ fn reports_unterminated_string_literals() {
     let source = SourceFile::new("main", "say \"unfinished");
     let result = parse(&source, &grammar);
 
-    assert_eq!(result.diagnostics.len(), 2);
-    assert_eq!(result.diagnostics[0].code, "LM-LEX-001");
-    assert_eq!(result.diagnostics[1].code, "LM-PARSE-002");
+    assert_eq!(result.diagnostics().len(), 2);
+    assert_eq!(result.diagnostics()[0].code, "LM-LEX-001");
+    assert_eq!(result.diagnostics()[1].code, "LM-PARSE-002");
 }
 
 #[test]
@@ -353,10 +365,10 @@ fn root_construct_allowlist_preserves_nested_constructs() {
 
     let result = parse(&source, &grammar);
 
-    assert_eq!(result.constructs.len(), 1);
-    assert_eq!(result.constructs[0].name, "program");
-    assert_eq!(result.constructs[0].children[0].name, "print");
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-001");
+    assert_eq!(result.constructs().len(), 1);
+    assert_eq!(result.constructs()[0].name, "program");
+    assert_eq!(result.constructs()[0].children[0].name, "print");
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-001");
 }
 
 #[test]
@@ -395,19 +407,23 @@ fn parses_multiple_explicit_roots_with_and_without_blocks() {
 
     let result = parse(&source, &grammar);
 
-    assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+    assert!(
+        result.diagnostics().is_empty(),
+        "{:?}",
+        result.diagnostics()
+    );
     assert_eq!(
         result
-            .constructs
+            .constructs()
             .iter()
             .map(|construct| construct.name.as_str())
             .collect::<Vec<_>>(),
         ["visual", "scenario"]
     );
-    assert_eq!(result.constructs[0].children[0].name, "node");
-    assert_eq!(result.constructs[1].children.len(), 0);
+    assert_eq!(result.constructs()[0].children[0].name, "node");
+    assert_eq!(result.constructs()[1].children.len(), 0);
     assert_eq!(
-        &source.text()[result.constructs[1].span.start..result.constructs[1].span.end],
+        &source.text()[result.constructs()[1].span.start..result.constructs()[1].span.end],
         "scenario startup"
     );
 }
@@ -461,27 +477,27 @@ fn recovers_at_a_later_root_through_unclosed_nested_blocks() {
 
     assert_eq!(
         result
-            .constructs
+            .constructs()
             .iter()
             .map(|construct| construct.name.as_str())
             .collect::<Vec<_>>(),
         ["visual", "scenario"]
     );
-    assert_eq!(result.constructs[0].children[0].name, "group");
-    assert_eq!(result.constructs[0].children[0].children[0].name, "node");
+    assert_eq!(result.constructs()[0].children[0].name, "group");
+    assert_eq!(result.constructs()[0].children[0].children[0].name, "node");
     let missing_closers = result
-        .diagnostics
+        .diagnostics()
         .iter()
         .filter(|diagnostic| diagnostic.code == "LM-PARSE-004")
         .collect::<Vec<_>>();
     let scenario_start = source.text().find("scenario").unwrap();
-    assert!(result.constructs[0].span.end <= scenario_start);
-    assert!(result.constructs[1].span.start >= scenario_start);
-    assert_eq!(missing_closers.len(), 2, "{:?}", result.diagnostics);
+    assert!(result.constructs()[0].span.end <= scenario_start);
+    assert!(result.constructs()[1].span.start >= scenario_start);
+    assert_eq!(missing_closers.len(), 2, "{:?}", result.diagnostics());
     assert!(missing_closers.iter().all(|diagnostic| {
         diagnostic.location.as_ref().unwrap().span() == Span::new(scenario_start, scenario_start)
     }));
-    assert_eq!(result.diagnostics.len(), 2, "{:?}", result.diagnostics);
+    assert_eq!(result.diagnostics().len(), 2, "{:?}", result.diagnostics());
 }
 
 #[test]
@@ -513,10 +529,10 @@ fn root_recovery_keeps_a_root_construct_allowed_as_a_block_child() {
 
     let result = parse(&source, &grammar);
 
-    assert_eq!(result.constructs.len(), 1);
-    assert_eq!(result.constructs[0].children.len(), 1);
-    assert_eq!(result.constructs[0].children[0].name, "scenario");
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
+    assert_eq!(result.constructs().len(), 1);
+    assert_eq!(result.constructs()[0].children.len(), 1);
+    assert_eq!(result.constructs()[0].children[0].name, "scenario");
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-004");
 }
 
 #[test]
@@ -558,16 +574,16 @@ fn resumes_at_a_root_after_a_malformed_block_child() {
 
     assert_eq!(
         result
-            .constructs
+            .constructs()
             .iter()
             .map(|construct| construct.name.as_str())
             .collect::<Vec<_>>(),
         ["visual", "scenario"]
     );
-    assert!(result.diagnostics.iter().any(|diagnostic| {
+    assert!(result.diagnostics().iter().any(|diagnostic| {
         diagnostic.code == "LM-PARSE-002" && diagnostic.message.contains("construct `node`")
     }));
-    assert!(result.diagnostics.iter().any(|diagnostic| {
+    assert!(result.diagnostics().iter().any(|diagnostic| {
         diagnostic.code == "LM-PARSE-004" && diagnostic.message.contains("closing token `}`")
     }));
 }
@@ -629,8 +645,8 @@ fn does_not_accept_invalid_tokens_as_literal_syntax() {
 
     let result = parse_with_lexer(&source, &grammar, &InvalidKeywordLexer);
 
-    assert!(result.constructs.is_empty());
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-001");
+    assert!(result.constructs().is_empty());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-001");
 }
 
 #[test]
@@ -660,7 +676,7 @@ fn parse_result_and_diagnostics_keep_source_revision() {
 
     assert_eq!(result.source_identity(), expected);
     assert_eq!(
-        result.diagnostics[0]
+        result.diagnostics()[0]
             .location
             .as_ref()
             .unwrap()
@@ -702,8 +718,8 @@ fn parses_nested_blocks_and_restricts_children_to_the_declared_scope() {
 
     let result = parse(&source, &grammar);
 
-    assert!(result.diagnostics.is_empty());
-    let root = &result.constructs[0];
+    assert!(result.diagnostics().is_empty());
+    let root = &result.constructs()[0];
     assert_eq!(root.name, "program");
     assert_eq!(root.children[0].name, "when");
     assert_eq!(root.children[0].children[0].name, "print");
@@ -739,9 +755,9 @@ fn reports_disallowed_child_constructs_but_recovers_within_the_block() {
 
     let result = parse(&source, &grammar);
 
-    assert!(!result.diagnostics.is_empty());
-    assert_eq!(result.constructs[0].children.len(), 1);
-    assert_eq!(result.constructs[0].children[0].name, "print");
+    assert!(!result.diagnostics().is_empty());
+    assert_eq!(result.constructs()[0].children.len(), 1);
+    assert_eq!(result.constructs()[0].children[0].name, "print");
 }
 
 #[test]
@@ -755,10 +771,10 @@ fn reports_missing_block_closer_at_end_of_source() {
 
     let result = parse(&source, &grammar);
 
-    assert_eq!(result.diagnostics.len(), 1);
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
+    assert_eq!(result.diagnostics().len(), 1);
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-004");
     assert_eq!(
-        result.diagnostics[0]
+        result.diagnostics()[0]
             .location
             .as_ref()
             .unwrap()
@@ -789,9 +805,14 @@ fn caps_recursive_block_depth_and_recovers_without_overflowing_the_stack() {
         },
     );
 
-    assert!(result.diagnostics.iter().any(|d| d.code == "LM-PARSE-003"));
-    assert!(result.resource_limited);
-    assert_eq!(result.constructs.len(), 1);
+    assert!(
+        result
+            .diagnostics()
+            .iter()
+            .any(|d| d.code == "LM-PARSE-003")
+    );
+    assert!(result.resource_limited());
+    assert_eq!(result.constructs().len(), 1);
 }
 
 #[test]
@@ -816,11 +837,11 @@ fn rejects_oversized_source_before_calling_a_host_lexer() {
     );
 
     assert!(!result.is_valid());
-    assert!(result.resource_limited);
-    assert!(result.constructs.is_empty());
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-007");
+    assert!(result.resource_limited());
+    assert!(result.constructs().is_empty());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-007");
     assert_eq!(
-        result.diagnostics[0].location.as_ref().unwrap().span(),
+        result.diagnostics()[0].location.as_ref().unwrap().span(),
         Span::new(0, 0)
     );
 }
@@ -837,12 +858,12 @@ fn token_limit_keeps_the_completed_default_lexer_prefix() {
         },
     );
 
-    assert!(result.resource_limited);
-    assert_eq!(result.constructs.len(), 1);
-    assert_eq!(result.constructs[0].name, "print");
+    assert!(result.resource_limited());
+    assert_eq!(result.constructs().len(), 1);
+    assert_eq!(result.constructs()[0].name, "print");
     assert!(
         result
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| { diagnostic.code == "LM-PARSE-008" })
     );
@@ -887,9 +908,9 @@ fn custom_lexer_token_overflow_is_rejected_before_parsing() {
         },
     );
 
-    assert!(result.resource_limited);
-    assert!(result.constructs.is_empty());
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-008");
+    assert!(result.resource_limited());
+    assert!(result.constructs().is_empty());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-008");
 }
 
 #[test]
@@ -904,10 +925,10 @@ fn construct_limit_keeps_completed_nodes_and_stops_at_the_next_match() {
         },
     );
 
-    assert!(result.resource_limited);
-    assert_eq!(result.constructs.len(), 1);
-    assert_eq!(result.constructs[0].name, "print");
-    assert_eq!(result.diagnostics.last().unwrap().code, "LM-PARSE-009");
+    assert!(result.resource_limited());
+    assert_eq!(result.constructs().len(), 1);
+    assert_eq!(result.constructs()[0].name, "print");
+    assert_eq!(result.diagnostics().last().unwrap().code, "LM-PARSE-009");
 }
 
 #[test]
@@ -922,9 +943,9 @@ fn pattern_step_limit_stops_candidate_matching_with_a_diagnostic() {
         },
     );
 
-    assert!(result.resource_limited);
-    assert!(result.constructs.is_empty());
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-010");
+    assert!(result.resource_limited());
+    assert!(result.constructs().is_empty());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-010");
 }
 
 #[test]
@@ -944,10 +965,10 @@ fn configurable_nesting_limit_is_capped_and_reported_as_resource_limited() {
         },
     );
 
-    assert!(result.resource_limited);
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-003");
-    assert_eq!(result.constructs[0].children.len(), 1);
-    assert!(result.constructs[0].children[0].children.is_empty());
+    assert!(result.resource_limited());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-003");
+    assert_eq!(result.constructs()[0].children.len(), 1);
+    assert!(result.constructs()[0].children[0].children.is_empty());
 }
 
 #[test]
@@ -989,9 +1010,13 @@ fn category_members_expand_into_block_children_in_construct_order() {
         &SourceFile::new("main", "program { standalone let print }"),
         &grammar,
     );
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0]
+        parsed.constructs()[0]
             .children
             .iter()
             .map(|child| child.name.as_str())
@@ -1042,9 +1067,9 @@ fn parses_function_signatures_with_optional_and_repeated_parameters() {
     let grammar = LanguageSpec::new("Functions", [function]).unwrap();
 
     let empty = parse(&SourceFile::new("empty", "fn empty()"), &grammar);
-    assert!(empty.diagnostics.is_empty());
-    assert_eq!(empty.constructs[0].fields.len(), 1);
-    assert_eq!(empty.constructs[0].fields[0].name, "name");
+    assert!(empty.diagnostics().is_empty());
+    assert_eq!(empty.constructs()[0].fields.len(), 1);
+    assert_eq!(empty.constructs()[0].fields[0].name, "name");
 
     let multiple = parse(
         &SourceFile::new(
@@ -1054,13 +1079,13 @@ fn parses_function_signatures_with_optional_and_repeated_parameters() {
         &grammar,
     );
     assert!(
-        multiple.diagnostics.is_empty(),
+        multiple.diagnostics().is_empty(),
         "{:?}",
-        multiple.diagnostics
+        multiple.diagnostics()
     );
-    assert_eq!(multiple.constructs[0].fields.len(), 6);
-    assert_eq!(multiple.constructs[0].fields[3].name, "parameter");
-    assert_eq!(multiple.constructs[0].fields[5].name, "return_type");
+    assert_eq!(multiple.constructs()[0].fields.len(), 6);
+    assert_eq!(multiple.constructs()[0].fields[3].name, "parameter");
+    assert_eq!(multiple.constructs()[0].fields[5].name, "return_type");
 }
 
 #[test]
@@ -1082,9 +1107,13 @@ fn parses_alternative_construct_syntax_and_reports_its_variant() {
 
     let parsed = parse(&SourceFile::new("source", "function render()"), &grammar);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
-    assert_eq!(parsed.constructs[0].name, "function");
-    assert_eq!(parsed.constructs[0].variant, 1);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].name, "function");
+    assert_eq!(parsed.constructs()[0].variant, 1);
 }
 
 #[test]
@@ -1141,9 +1170,13 @@ fn custom_lexer_can_supply_host_specific_string_tokens() {
 
     let parsed = parse_with_lexer(&source, &grammar, &RawStringLexer);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::String("r#\"hello\"#".into())
     );
 }
@@ -1193,9 +1226,13 @@ fn generic_token_capture_preserves_custom_lexer_text_and_kind() {
 
     let parsed = parse_with_lexer(&source, &grammar, &TaggedTokenLexer);
 
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::Token {
             text: "@tag".into(),
             kind: TokenKind::Punctuation,
@@ -1230,9 +1267,13 @@ fn finite_choice_fields_capture_only_declared_tokens() {
     .unwrap();
 
     let parsed = parse(&SourceFile::new("program", "move left;"), &grammar);
-    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
     assert_eq!(
-        parsed.constructs[0].fields[0].value,
+        parsed.constructs()[0].fields[0].value,
         CapturedValue::Token {
             text: "left".into(),
             kind: TokenKind::Identifier,
@@ -1241,7 +1282,7 @@ fn finite_choice_fields_capture_only_declared_tokens() {
 
     let rejected = parse(&SourceFile::new("program", "move up;"), &grammar);
     let diagnostic = rejected
-        .diagnostics
+        .diagnostics()
         .iter()
         .find(|diagnostic| diagnostic.code == "LM-PARSE-002")
         .expect("undeclared choice values are rejected");
@@ -1292,8 +1333,8 @@ fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
 
     let parsed = parse_with_lexer(&source, &grammar, &IncorrectLexer);
 
-    assert_eq!(parsed.diagnostics[0].code, "LM-LEX-002");
-    assert!(parsed.constructs.is_empty());
+    assert_eq!(parsed.diagnostics()[0].code, "LM-LEX-002");
+    assert!(parsed.constructs().is_empty());
 }
 
 #[test]
@@ -1325,8 +1366,8 @@ fn rejects_custom_token_ranges_inside_utf8_codepoints_without_panicking() {
 
     let parsed = parse_with_lexer(&source, &grammar, &InvalidBoundaryLexer);
 
-    assert_eq!(parsed.diagnostics[0].code, "LM-LEX-002");
-    assert!(parsed.constructs.is_empty());
+    assert_eq!(parsed.diagnostics()[0].code, "LM-LEX-002");
+    assert!(parsed.constructs().is_empty());
 }
 
 #[test]
@@ -1379,8 +1420,8 @@ fn reports_ambiguity_between_complete_patterns_at_parse_time() {
 
     let result = parse(&SourceFile::new("input", "item name"), &grammar);
 
-    assert!(result.constructs.is_empty());
-    assert_eq!(result.diagnostics[0].code, "LM-PARSE-006");
+    assert!(result.constructs().is_empty());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-006");
 }
 
 #[test]
@@ -1400,9 +1441,9 @@ fn one_or_more_requires_an_item_and_captures_each_match() {
     .unwrap();
 
     let valid = parse(&SourceFile::new("valid", "pair 1,2,3;"), &grammar);
-    assert!(valid.diagnostics.is_empty());
-    assert_eq!(valid.constructs[0].fields.len(), 3);
+    assert!(valid.diagnostics().is_empty());
+    assert_eq!(valid.constructs()[0].fields.len(), 3);
 
     let invalid = parse(&SourceFile::new("invalid", "pair 1;"), &grammar);
-    assert_eq!(invalid.diagnostics[0].code, "LM-PARSE-002");
+    assert_eq!(invalid.diagnostics()[0].code, "LM-PARSE-002");
 }

@@ -64,14 +64,14 @@ pub struct ParseResult {
     /// Identity and revision of the parsed snapshot, if database-managed.
     source: Option<SourceIdentity>,
     /// Successfully recognized constructs in source order.
-    pub constructs: Vec<ParsedConstruct>,
+    constructs: Vec<ParsedConstruct>,
     /// Lossless source structure for editor integrations and other tools.
-    pub syntax_tree: crate::SyntaxTree,
+    syntax_tree: crate::SyntaxTree,
     /// Lexical and syntax errors. Parsing continues after recoverable errors
     /// unless a resource limit stops it.
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
     /// Whether a configured parser resource limit truncated this result.
-    pub resource_limited: bool,
+    resource_limited: bool,
 }
 
 impl ParseResult {
@@ -79,6 +79,30 @@ impl ParseResult {
     #[must_use]
     pub const fn source_identity(&self) -> Option<SourceIdentity> {
         self.source
+    }
+
+    /// Returns the successfully recognized constructs in source order.
+    #[must_use]
+    pub fn constructs(&self) -> &[ParsedConstruct] {
+        &self.constructs
+    }
+
+    /// Returns the lossless syntax tree for editor integrations and other tools.
+    #[must_use]
+    pub const fn syntax_tree(&self) -> &crate::SyntaxTree {
+        &self.syntax_tree
+    }
+
+    /// Returns lexical and syntax errors, including recoverable findings.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
+    /// Returns whether a configured parser resource limit truncated this result.
+    #[must_use]
+    pub const fn resource_limited(&self) -> bool {
+        self.resource_limited
     }
 
     /// Returns whether parsing completed without errors or resource limits.

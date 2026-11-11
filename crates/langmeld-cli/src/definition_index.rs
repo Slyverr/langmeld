@@ -16,7 +16,7 @@ impl DefinitionIndex {
         let mut index = Self::default();
         for source in sources {
             let parsed = parse(source, language_definition_grammar());
-            index.add_constructs(source, &parsed.constructs);
+            index.add_constructs(source, parsed.constructs());
         }
         index
     }
@@ -35,7 +35,7 @@ impl DefinitionIndex {
         parsed: &ParseResult,
         offset: usize,
     ) -> Vec<SourceLocation> {
-        let Some((namespace, name)) = symbol_at(&parsed.constructs, offset) else {
+        let Some((namespace, name)) = symbol_at(parsed.constructs(), offset) else {
             return Vec::new();
         };
         self.occurrences
@@ -57,7 +57,7 @@ impl DefinitionIndex {
         offset: usize,
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
-        let Some((namespace, name)) = symbol_at(&parsed.constructs, offset) else {
+        let Some((namespace, name)) = symbol_at(parsed.constructs(), offset) else {
             return Vec::new();
         };
         self.occurrences

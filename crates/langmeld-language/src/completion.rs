@@ -309,7 +309,7 @@ pub fn complete_at_with_lexer(
     let is_choice_value_position = contexts.iter().any(|context| {
         context.span == Span::new(prefix_end, prefix_end) && !context.values.is_empty()
     });
-    if parsed.diagnostics.iter().any(|diagnostic| {
+    if parsed.diagnostics().iter().any(|diagnostic| {
         diagnostic
             .location
             .as_ref()

@@ -31,8 +31,8 @@ fn run() -> Result<(), String> {
     let source = SourceFile::new(source_name, source_text);
     let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
 
-    if !parsed.diagnostics.is_empty() {
-        let formatted = format_diagnostics(std::slice::from_ref(&source), &parsed.diagnostics);
+    if !parsed.diagnostics().is_empty() {
+        let formatted = format_diagnostics(std::slice::from_ref(&source), parsed.diagnostics());
 
         if !parsed.is_valid() {
             return Err(formatted);
@@ -42,7 +42,7 @@ fn run() -> Result<(), String> {
     }
 
     let Some(field) = parsed
-        .constructs
+        .constructs()
         .first()
         .and_then(|construct| construct.fields.first())
     else {
