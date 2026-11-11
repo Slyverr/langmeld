@@ -20,6 +20,7 @@ pub(super) fn parse(
         || !source.text().is_char_boundary(range.end)
     {
         return ExpressionParseResult {
+            source: source.identity(),
             expression: None,
             consumed: Span::new(range.start, range.start),
             diagnostics: vec![Diagnostic::spec_error(
@@ -33,6 +34,7 @@ pub(super) fn parse(
     if range.end - range.start > limits.max_source_bytes {
         let offset = source_limit_offset(source, range.start, limits.max_source_bytes, range.end);
         return ExpressionParseResult {
+            source: source.identity(),
             expression: None,
             consumed: Span::new(range.start, range.start),
             diagnostics: vec![Diagnostic::error(
@@ -85,6 +87,7 @@ pub(super) fn parse(
     let resource_limited = parser.resource_limited;
 
     ExpressionParseResult {
+        source: source.identity(),
         expression: parsed.map(|parsed| parsed.expression),
         consumed,
         diagnostics,

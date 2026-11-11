@@ -1,6 +1,6 @@
 //! Source-spanned Pratt parser for common expression forms.
 
-use langmeld_core::{Diagnostic, SourceFile, Span, has_errors};
+use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, Span, has_errors};
 
 use crate::ExpressionGrammar;
 
@@ -99,6 +99,8 @@ pub enum ExpressionKind {
 /// An expression parse result with its consumed range and diagnostics.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExpressionParseResult {
+    /// Identity and revision of the parsed snapshot, if database-managed.
+    source: Option<SourceIdentity>,
     /// Parsed expression when a valid root was recognized.
     pub expression: Option<Expression>,
     /// Range consumed by the root expression, empty when parsing failed.
@@ -110,6 +112,12 @@ pub struct ExpressionParseResult {
 }
 
 impl ExpressionParseResult {
+    /// Returns the identity and revision of the parsed source snapshot.
+    #[must_use]
+    pub const fn source_identity(&self) -> Option<SourceIdentity> {
+        self.source
+    }
+
     /// Returns whether an expression was parsed without errors or resource limits.
     #[must_use]
     pub fn is_valid(&self) -> bool {

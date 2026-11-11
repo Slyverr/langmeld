@@ -1,4 +1,4 @@
-use langmeld_core::{SourceFile, Span};
+use langmeld_core::{SourceDatabase, SourceFile, Span};
 use langmeld_expression::{
     Associativity, ExpressionGrammar, ExpressionKind, ExpressionLimits, ExpressionParser,
     OperatorSpec,
@@ -112,6 +112,22 @@ fn reports_invalid_ranges_and_malformed_expressions() {
             .iter()
             .any(|d| d.code == "LM-EXPR-002")
     );
+}
+
+#[test]
+fn parse_result_retains_the_managed_source_identity() {
+    let mut sources = SourceDatabase::default();
+    let source_id = sources.insert("expression", "1 + )").unwrap();
+    let source = sources.get(source_id).unwrap();
+    let grammar = arithmetic();
+    let parser = ExpressionParser::new(&grammar);
+    let invalid_range = parser.parse(source, Span::new(0, source.text().len() + 1));
+
+    let parsed = parser.parse(source, Span::new(0, source.text().len()));
+
+    assert_eq!(invalid_range.source_identity(), source.identity());
+    assert!(!parsed.is_valid());
+    assert_eq!(parsed.source_identity(), source.identity());
 }
 
 #[test]
