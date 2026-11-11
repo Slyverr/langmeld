@@ -13,6 +13,8 @@ framework users. The guides describe behavior available in the current codebase.
   phases over parsed documents with host-owned state.
 - [Language definitions](language/definitions.md): organize `.langmeld` files,
   describe token patterns, and decide when to use Rust code.
+- [Examples](../examples/README.md): choose an example by parser, analysis, or
+  extension workflow.
 
 ## Integrate with editors
 

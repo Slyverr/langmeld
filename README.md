@@ -31,12 +31,8 @@ definitions, editor integration, and the framework architecture.
 
 ## Examples
 
-- [Toy language](examples/toy-language): modular declarative syntax, Rust
-  construct handlers, expression parsing, and a small host-defined evaluator.
-- [Aster language](examples/aster-language): a Rust parser and host-owned
-  analysis.
-- [Schema language](examples/schema-language): cross-file types and an LSP
-  backend.
+See the [example guide](examples/README.md) to choose an example by the Langmeld
+workflow or extension point you want to explore.
 
 ## License
 
