@@ -16,8 +16,8 @@ mod memory_resolver;
 mod overlay_resolver;
 
 pub use definition_project::{
-    DefinitionProjectError, LoadedDefinitionProject, load_definition_project,
-    load_definition_project_from_manifest,
+    DefinitionProjectError, LanguageSpecLoadError, LoadedDefinitionProject,
+    load_definition_project, load_definition_project_from_manifest, load_language_spec,
 };
 pub use directory_resolver::DirectoryDefinitionResolver;
 pub use error::ProjectLoadError;

@@ -362,6 +362,13 @@ optional plain-text `format_diagnostics` helper. Borrow the loaded result with
 returned as errors. Use `load_definition_project_from_manifest` when the
 manifest is not at the project root.
 
+When a host only needs a valid grammar, `load_language_spec(".")` provides the
+short path. It returns the `LanguageSpec` directly and reports invalid
+definitions as `LanguageSpecLoadError`, retaining diagnostics and their source
+snapshots. Use `load_definition_project` when tooling needs to inspect all
+definition diagnostics, including non-fatal findings, without converting them
+into a load error.
+
 For custom source storage, embedded modules, or editor overlays, use
 `InMemoryDefinitionResolver` or implement `DefinitionResolver` directly. The
 in-memory resolver keeps project-relative keys and source snapshots without

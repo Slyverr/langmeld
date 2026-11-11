@@ -1,7 +1,7 @@
 use std::{error::Error, fmt, path::Path, path::PathBuf};
 
-use langmeld_core::SourceFile;
-use langmeld_language::{DefinitionResult, parse_language_definition_project};
+use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_language::{DefinitionResult, LanguageSpec, parse_language_definition_project};
 
 use crate::{
     DirectoryDefinitionResolver, ProjectLoadError, ProjectManifest, ProjectManifestError,
@@ -100,6 +100,64 @@ impl From<ProjectLoadError> for DefinitionProjectError {
     }
 }
 
+/// Error returned when loading a project as a validated language specification.
+#[derive(Debug)]
+pub enum LanguageSpecLoadError {
+    /// The project manifest or definition files could not be loaded.
+    Project(DefinitionProjectError),
+    /// The parsed definition did not produce a valid language specification.
+    InvalidDefinition {
+        /// Diagnostics tied to the loaded definition source snapshots.
+        diagnostics: Vec<Diagnostic>,
+        /// Source snapshots used to locate definition diagnostics.
+        sources: Vec<SourceFile>,
+    },
+}
+
+impl LanguageSpecLoadError {
+    /// Returns definition diagnostics, or an empty slice for project I/O errors.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        match self {
+            Self::Project(_) => &[],
+            Self::InvalidDefinition { diagnostics, .. } => diagnostics,
+        }
+    }
+
+    /// Returns source snapshots used to locate definition diagnostics.
+    #[must_use]
+    pub fn sources(&self) -> &[SourceFile] {
+        match self {
+            Self::Project(_) => &[],
+            Self::InvalidDefinition { sources, .. } => sources,
+        }
+    }
+}
+
+impl fmt::Display for LanguageSpecLoadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Project(error) => error.fmt(formatter),
+            Self::InvalidDefinition { .. } => formatter.write_str("language definition is invalid"),
+        }
+    }
+}
+
+impl Error for LanguageSpecLoadError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Project(error) => Some(error),
+            Self::InvalidDefinition { .. } => None,
+        }
+    }
+}
+
+impl From<DefinitionProjectError> for LanguageSpecLoadError {
+    fn from(error: DefinitionProjectError) -> Self {
+        Self::Project(error)
+    }
+}
+
 /// Loads the conventional `langmeld.toml` project and parses its imports.
 ///
 /// File-system and manifest failures are returned as [`DefinitionProjectError`].
@@ -112,6 +170,34 @@ pub fn load_definition_project(
     let project_root = project_root.as_ref();
     let manifest = read_project_manifest(project_root)?;
     load_with_manifest(project_root, manifest)
+}
+
+/// Loads a manifest-backed project and returns its validated language grammar.
+///
+/// Use [`load_definition_project`] when the caller needs to inspect an invalid
+/// definition without treating its diagnostics as a load failure. This helper
+/// retains source snapshots on validation errors for diagnostic rendering.
+pub fn load_language_spec(
+    project_root: impl AsRef<Path>,
+) -> Result<LanguageSpec, LanguageSpecLoadError> {
+    let project = load_definition_project(project_root)?;
+    let (_, _, definition, sources) = project.into_parts();
+
+    if !definition.is_valid() {
+        return Err(LanguageSpecLoadError::InvalidDefinition {
+            diagnostics: definition.diagnostics,
+            sources,
+        });
+    }
+
+    let Some(specification) = definition.language else {
+        return Err(LanguageSpecLoadError::InvalidDefinition {
+            diagnostics: definition.diagnostics,
+            sources,
+        });
+    };
+
+    Ok(specification)
 }
 
 /// Loads a definition project from a specified `langmeld.toml` path.

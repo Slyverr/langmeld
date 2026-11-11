@@ -13,6 +13,8 @@ API migration notes are in the
 
 - The declarative starter can load a definition project from an explicit root
   directory as well as from its Cargo project directory.
+- `langmeld-project` can load a validated `LanguageSpec` directly while keeping
+  invalid-definition diagnostics and their source snapshots in a typed error.
 
 ### Changed
 
@@ -21,6 +23,11 @@ API migration notes are in the
   output emitted before an execution failure.
 - Generated language projects return typed project-loading errors and retain
   source-backed definition diagnostics for host-controlled presentation.
+
+### Fixed
+
+- The generated declarative library no longer imports an unused diagnostic
+  formatter.
 
 ## [0.9.0] - 2026-11-11
 

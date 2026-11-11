@@ -4,7 +4,10 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use langmeld_project::{load_definition_project, load_definition_project_from_manifest};
+use langmeld_project::{
+    LanguageSpecLoadError, load_definition_project, load_definition_project_from_manifest,
+    load_language_spec,
+};
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
 
@@ -60,6 +63,56 @@ fn loads_and_parses_a_manifest_backed_definition_project() {
     );
     assert_eq!(loaded.sources().len(), 1);
     assert_eq!(loaded.manifest().definition, "language/main.langmeld");
+}
+
+#[test]
+fn loads_a_valid_language_specification() {
+    let project = TestDirectory::new();
+    project.write("langmeld.toml", "format = 1\n");
+    project.write(
+        "language/main.langmeld",
+        "language \"Example\" { construct \"item\" { syntax { literal \"item\"; } } }",
+    );
+
+    let specification = load_language_spec(project.path()).unwrap();
+
+    assert_eq!(specification.name(), "Example");
+}
+
+#[test]
+fn returns_definition_diagnostics_with_their_source_snapshots() {
+    let project = TestDirectory::new();
+    project.write("langmeld.toml", "format = 1\n");
+    project.write(
+        "language/main.langmeld",
+        "language \"Invalid\" { construct \"item\" {} }",
+    );
+
+    let error = load_language_spec(project.path()).unwrap_err();
+
+    assert!(matches!(
+        &error,
+        LanguageSpecLoadError::InvalidDefinition { .. }
+    ));
+    assert!(!error.diagnostics().is_empty());
+    assert_eq!(error.sources().len(), 1);
+    assert!(error.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .location
+            .as_ref()
+            .is_some_and(|location| location.source_name() == "language/main.langmeld")
+    }));
+}
+
+#[test]
+fn returns_project_errors_without_definition_diagnostics() {
+    let project = TestDirectory::new();
+
+    let error = load_language_spec(project.path()).unwrap_err();
+
+    assert!(matches!(&error, LanguageSpecLoadError::Project(_)));
+    assert!(error.diagnostics().is_empty());
+    assert!(error.sources().is_empty());
 }
 
 #[test]
