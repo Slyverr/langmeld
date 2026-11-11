@@ -47,7 +47,8 @@ jobs:
       - name: Generate a construct in the declarative project
         shell: bash
         run: >-
-          cargo run -p langmeld-cli --locked -- generate construct repeat
+          cargo run -p langmeld-cli --locked -- generate construct function-declaration
+          --literal fn
           --manifest-path
           "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
       - name: Check and run declarative language project
