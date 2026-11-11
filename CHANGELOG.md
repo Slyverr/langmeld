@@ -7,6 +7,11 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A declarative function-language example showing parameter captures, typed
+  AST lowering, forward declarations, and ordered semantic analysis in Rust.
+
 ## [0.7.0] - 2026-11-11
 
 ### Added

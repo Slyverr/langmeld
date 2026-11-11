@@ -1,0 +1,17 @@
+[package]
+name = "langmeld-declarative-functions-example"
+description = "A function-language example using Langmeld's declarative parser and Rust-owned analysis."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+langmeld-core.workspace = true
+langmeld-expression.workspace = true
+langmeld-language.workspace = true
+langmeld-project.workspace = true
+
+[lints]
+workspace = true

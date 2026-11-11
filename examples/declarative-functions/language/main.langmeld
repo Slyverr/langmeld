@@ -1,0 +1,15 @@
+language "FunctionFlow" {
+    import "constructs/functions.langmeld";
+
+    root "program";
+
+    construct "program" {
+        syntax {
+            literal "program";
+        }
+
+        block "{" "}" {
+            allow_category "declaration";
+        }
+    }
+}

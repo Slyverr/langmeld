@@ -376,6 +376,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-declarative-functions-example"
+version = "0.7.0"
+dependencies = [
+ "langmeld-core",
+ "langmeld-expression",
+ "langmeld-language",
+ "langmeld-project",
+]
+
+[[package]]
 name = "langmeld-embedded-definitions-example"
 version = "0.7.0"
 dependencies = [

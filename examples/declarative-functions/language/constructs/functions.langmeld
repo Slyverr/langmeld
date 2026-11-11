@@ -1,0 +1,33 @@
+construct "function" {
+    syntax {
+        literal "fn";
+        identifier "name";
+        literal "(";
+        zero_or_more {
+            identifier "parameter";
+            literal ":";
+            identifier "parameter_type";
+            optional {
+                literal ",";
+            }
+        }
+        literal ")";
+        literal "->";
+        identifier "return_type";
+    }
+
+    block "{" "}" {
+        allow_category "statement";
+    }
+
+    implements "declaration";
+}
+
+construct "invoke" {
+    syntax {
+        literal "invoke";
+        expression "call" until ";";
+    }
+
+    implements "statement";
+}
