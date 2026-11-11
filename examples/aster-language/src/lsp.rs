@@ -57,7 +57,7 @@ impl LanguageBackend for AsterBackend {
         _source: &SourceFile,
         document: &BackendDocument<Self::Document>,
     ) -> Vec<SemanticToken> {
-        let analysis = &document.state.analysis.result;
+        let analysis = &document.state().analysis.result;
         let mut tokens = analysis
             .symbols
             .iter()
@@ -85,8 +85,8 @@ impl LanguageBackend for AsterBackend {
     ) -> Vec<SourceLocation> {
         AsterNavigator.definition(
             source,
-            &document.state.parsed,
-            Some(&document.state.analysis),
+            &document.state().parsed,
+            Some(&document.state().analysis),
             offset,
         )
     }
@@ -100,8 +100,8 @@ impl LanguageBackend for AsterBackend {
     ) -> Vec<SourceLocation> {
         AsterNavigator.references(
             source,
-            &document.state.parsed,
-            Some(&document.state.analysis),
+            &document.state().parsed,
+            Some(&document.state().analysis),
             offset,
             include_declaration,
         )
@@ -116,8 +116,8 @@ impl LanguageBackend for AsterBackend {
     ) -> Option<Vec<SourceLocation>> {
         let locations = AsterNavigator.rename(
             source,
-            &document.state.parsed,
-            Some(&document.state.analysis),
+            &document.state().parsed,
+            Some(&document.state().analysis),
             offset,
             new_name,
         );
@@ -129,9 +129,9 @@ impl LanguageBackend for AsterBackend {
         _source: &SourceFile,
         document: &BackendDocument<Self::Document>,
     ) -> Vec<DocumentSymbolInfo> {
-        let analysis = &document.state.analysis.result;
+        let analysis = &document.state().analysis.result;
         document
-            .state
+            .state()
             .parsed
             .tree
             .functions

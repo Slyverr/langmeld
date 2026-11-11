@@ -69,7 +69,7 @@ impl LanguageBackend for Backend {
         document: &BackendDocument<String>,
         offset: usize,
     ) -> Vec<CompletionCandidate> {
-        assert_eq!(document.state, source.text());
+        assert_eq!(document.state(), source.text());
         assert_eq!(offset, "😀".len());
         vec![
             CompletionCandidate::new("good", Span::new("😀".len(), source.text().len()))
@@ -1551,7 +1551,7 @@ impl LanguageNavigator<DiagnosticParser> for ExternalLocationNavigator {
 fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     let parser_only = HostLanguageBackend::new(DiagnosticParser);
     let parsed = parser_only.analyze(&SourceFile::new("file:///parser.test", "syntax"));
-    assert_eq!(parsed.diagnostics[0].code, "HOST-PARSE");
+    assert_eq!(parsed.diagnostics()[0].code, "HOST-PARSE");
     assert_eq!(parser_only.capabilities(), BackendCapabilities::default());
 
     let (server_connection, client) = Connection::memory();
@@ -2007,7 +2007,7 @@ impl LanguageBackend for CloseBackend {
     }
 
     fn did_close(&self, source: &SourceFile, document: &BackendDocument<Self::Document>) {
-        *self.0.lock().unwrap() = Some((source.text().to_owned(), document.state.clone()));
+        *self.0.lock().unwrap() = Some((source.text().to_owned(), document.state().clone()));
     }
 }
 

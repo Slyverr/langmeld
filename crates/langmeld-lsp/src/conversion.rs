@@ -52,7 +52,7 @@ pub(crate) fn diagnostics_for<D>(
         return Vec::new();
     }
     document
-        .diagnostics
+        .diagnostics()
         .iter()
         .filter_map(|diagnostic| diagnostic_for(source, diagnostic, encoding))
         .collect()

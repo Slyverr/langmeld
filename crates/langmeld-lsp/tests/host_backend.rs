@@ -149,7 +149,7 @@ fn parser_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
 
     assert!(
         document
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-HOST-001")
     );
@@ -167,7 +167,7 @@ fn analysis_source_mismatch_is_diagnosed_and_suppresses_editor_queries() {
 
     assert!(
         document
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-HOST-002")
     );
@@ -202,7 +202,8 @@ fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
     let backend = backend(None, None);
 
     let document = backend.analyze(&source);
-    let mismatched_document = BackendDocument::new(&other_source, document.state, Vec::new());
+    let (_, state, _) = document.into_parts();
+    let mismatched_document = BackendDocument::new(&other_source, state, Vec::new());
 
     assert!(
         backend
@@ -243,9 +244,12 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
-        assert_eq!(document.state.parsed().source_identity(), source.identity());
         assert_eq!(
-            document.state.analysis().source_identity(),
+            document.state().parsed().source_identity(),
+            source.identity()
+        );
+        assert_eq!(
+            document.state().analysis().source_identity(),
             source.identity()
         );
     }
@@ -273,9 +277,12 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
-        assert_eq!(document.state.parsed().source_identity(), source.identity());
         assert_eq!(
-            document.state.analysis().source_identity(),
+            document.state().parsed().source_identity(),
+            source.identity()
+        );
+        assert_eq!(
+            document.state().analysis().source_identity(),
             source.identity()
         );
     }
@@ -303,18 +310,18 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
     assert_eq!(documents.len(), sources.len());
     assert_eq!(documents[0].source_identity(), source.identity());
     assert_eq!(
-        documents[0].state.parsed().source_identity(),
+        documents[0].state().parsed().source_identity(),
         Some(other_identity)
     );
     assert!(
         documents[0]
-            .diagnostics
+            .diagnostics()
             .iter()
             .any(|diagnostic| diagnostic.code == "LM-HOST-001")
     );
     assert_eq!(documents[1].source_identity(), Some(other_identity));
     assert_eq!(
-        documents[1].state.parsed().source_identity(),
+        documents[1].state().parsed().source_identity(),
         Some(other_identity)
     );
 }

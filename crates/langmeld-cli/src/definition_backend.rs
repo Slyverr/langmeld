@@ -101,6 +101,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
                 .zip(keys)
                 .map(|(source, key)| {
                     let syntax = self.syntax_backend.analyze(source);
+                    let (_, syntax_state, syntax_diagnostics) = syntax.into_parts();
                     let diagnostics = if key.as_ref().is_some_and(|key| loaded.contains(key)) {
                         result
                             .diagnostics
@@ -112,9 +113,10 @@ impl LanguageBackend for ProjectDefinitionBackend {
                             .cloned()
                             .collect()
                     } else {
-                        syntax.diagnostics
+                        syntax_diagnostics
                     };
-                    BackendDocument::new(source, syntax.state, diagnostics)
+
+                    BackendDocument::new(source, syntax_state, diagnostics)
                 })
                 .collect(),
         )
@@ -165,7 +167,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
         if let Some(completions) = complete_definition_field(
             &self.root,
             source,
-            &document.state,
+            document.state(),
             offset,
             definition_index.as_ref(),
         ) {
@@ -188,7 +190,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .map_or_else(Vec::new, |index| {
-                index.definitions_at(source, &document.state, offset)
+                index.definitions_at(source, document.state(), offset)
             })
     }
 
@@ -207,7 +209,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .map_or_else(Vec::new, |index| {
-                index.references_at(source, &document.state, offset, include_declaration)
+                index.references_at(source, document.state(), offset, include_declaration)
             })
     }
 

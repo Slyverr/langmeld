@@ -309,7 +309,7 @@ where
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
         if !document
-            .state
+            .state()
             .belongs_to(document.source_identity(), source)
         {
             return Vec::new();
@@ -318,8 +318,8 @@ where
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
             completer.complete(
                 source,
-                document.state.parsed(),
-                Some(document.state.analysis()),
+                document.state().parsed(),
+                Some(document.state().analysis()),
                 offset,
             )
         })
@@ -332,7 +332,7 @@ where
         offset: usize,
     ) -> Vec<SourceLocation> {
         if !document
-            .state
+            .state()
             .belongs_to(document.source_identity(), source)
         {
             return Vec::new();
@@ -341,8 +341,8 @@ where
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.definition(
                 source,
-                document.state.parsed(),
-                Some(document.state.analysis()),
+                document.state().parsed(),
+                Some(document.state().analysis()),
                 offset,
             )
         })
@@ -356,7 +356,7 @@ where
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
         if !document
-            .state
+            .state()
             .belongs_to(document.source_identity(), source)
         {
             return Vec::new();
@@ -365,8 +365,8 @@ where
         self.navigator.as_ref().map_or_else(Vec::new, |navigator| {
             navigator.references(
                 source,
-                document.state.parsed(),
-                Some(document.state.analysis()),
+                document.state().parsed(),
+                Some(document.state().analysis()),
                 offset,
                 include_declaration,
             )

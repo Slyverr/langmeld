@@ -23,9 +23,9 @@ pub struct BackendDocument<T> {
     /// Identity and revision analyzed by the backend, when database-managed.
     source: Option<SourceIdentity>,
     /// Host-owned parse tree, analysis state, or combined document data.
-    pub state: T,
+    state: T,
     /// Findings to publish for this document.
-    pub diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 /// A source snapshot for a location outside the editor's open documents.
@@ -75,6 +75,24 @@ impl<T> BackendDocument<T> {
     #[must_use]
     pub const fn source_identity(&self) -> Option<SourceIdentity> {
         self.source
+    }
+
+    /// Returns the host-owned document state associated with this source.
+    #[must_use]
+    pub const fn state(&self) -> &T {
+        &self.state
+    }
+
+    /// Returns the findings associated with this source.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+
+    /// Consumes the document and returns its source identity, state, and findings.
+    #[must_use]
+    pub fn into_parts(self) -> (Option<SourceIdentity>, T, Vec<Diagnostic>) {
+        (self.source, self.state, self.diagnostics)
     }
 }
 

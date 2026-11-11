@@ -43,7 +43,7 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
     assert!(backend.capabilities().completion);
     assert!(backend.capabilities().definition);
     assert!(backend.capabilities().references);
-    assert!(document.diagnostics.is_empty());
+    assert!(document.diagnostics().is_empty());
     assert_eq!(
         backend.complete(&source, &document, completion_offset)[0].text,
         "Manager"
@@ -76,8 +76,8 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     let declaration_offset = manager.text().find("Manager").expect("declaration");
     let completions = backend.complete(&user, &documents[0], type_offset + "Man".len());
 
-    assert!(documents[0].diagnostics.is_empty());
-    assert!(documents[1].diagnostics.is_empty());
+    assert!(documents[0].diagnostics().is_empty());
+    assert!(documents[1].diagnostics().is_empty());
     assert!(
         completions
             .iter()
