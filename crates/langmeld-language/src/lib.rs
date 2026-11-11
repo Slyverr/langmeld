@@ -4,6 +4,7 @@
 mod completion;
 mod definition;
 mod format;
+mod handler;
 mod host;
 mod navigation;
 mod parser;
@@ -17,6 +18,10 @@ pub use definition::{
     language_definition_grammar, parse_language_definition, parse_language_definition_project,
 };
 pub use format::{DefinitionFormatOptions, format_language_definition};
+pub use handler::{
+    ConstructContext, ConstructHandler, ConstructHandlerRegistry, HandlerControl,
+    HandlerRegistrationError,
+};
 pub use host::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument,
