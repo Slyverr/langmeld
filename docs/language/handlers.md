@@ -161,6 +161,16 @@ facts or distinct stages. The host chooses how parsing, analysis, and handler
 execution fit together; Langmeld does not impose an interpreter or compiler
 pipeline.
 
+A host may interpret its AST or IR using language-owned state and services, or
+compile it by translating it through a target-specific backend. Langmeld
+provides neither implementation nor a `langmeld build` command. The host
+chooses whether to use Langmeld's parsed constructs or its own typed AST/IR, and
+defines the semantics, code generation, and target. `cargo build` builds the
+Rust host executable, not programs written in the language that host
+implements. The [toy language example](../../examples/toy-language/README.md)
+and [Brainfuck example](../../examples/brainfuck/README.md) demonstrate
+interpreter paths.
+
 For a complete runnable starter, see the generated project and
 [project workflow](../guides/project-workflow.md). For syntax composition, see
 [language definitions](definitions.md).

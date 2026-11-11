@@ -20,6 +20,8 @@ API migration notes are in the
   sources from standalone snapshots.
 - Generated starter binaries use Clap for standard help, version, and argument
   handling.
+- Clarify how host projects provide interpretation or compilation after
+  parsing.
 
 ## [0.8.0] - 2026-11-11
 
