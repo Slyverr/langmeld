@@ -182,7 +182,14 @@ impl Language {
 
 /// Loads and validates the WidgetScript definition.
 pub fn load() -> Result<Language, LanguageLoadError> {
-    let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    load_from(Path::new(env!("CARGO_MANIFEST_DIR")))
+}
+
+/// Loads and validates a WidgetScript definition from a project root directory.
+///
+/// The directory must contain `langmeld.toml`; the manifest selects the root
+/// `.langmeld` definition.
+pub fn load_from(project_root: impl AsRef<Path>) -> Result<Language, LanguageLoadError> {
     let project = load_definition_project(project_root)?;
     let (_, _, definition, sources) = project.into_parts();
 

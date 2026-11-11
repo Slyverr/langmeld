@@ -60,6 +60,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(!library.ends_with("}\n\n"));
     assert!(library.contains("pub enum LanguageLoadError"));
     assert!(library.contains("pub fn diagnostics(&self) -> &[Diagnostic]"));
+    assert!(library.contains("pub fn load_from(project_root: impl AsRef<Path>)"));
     let manifest =
         fs::read_to_string(project.join("Cargo.toml")).expect("manifest should be generated");
     assert!(manifest.contains("[workspace]"));

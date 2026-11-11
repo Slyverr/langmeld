@@ -132,7 +132,10 @@ structured diagnostics alongside output, leaving their presentation to the
 host. A failed run also includes output emitted before execution stopped.
 `language::load()` returns project-loading errors as typed errors and invalid
 definition diagnostics with their source snapshots, leaving their formatting
-to the host.
+to the host. It loads the project beside the Cargo package; use
+`language::load_from(project_root)` when loading a definition project from a
+different directory. The argument is the project root containing
+`langmeld.toml`, not a path to the `.langmeld` file.
 
 Format `1` requires the `format` field and optionally accepts `definition`.
 The definition path must be a project-relative `.langmeld` path without

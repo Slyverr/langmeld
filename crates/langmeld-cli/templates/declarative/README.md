@@ -25,6 +25,8 @@ diagnostics; the CLI formats them for the terminal, while other hosts can
 present them in their own way. A failed run also retains output emitted before
 the failure. `language::load()` returns typed project errors or definition
 diagnostics with their source snapshots, so hosts can format or inspect them.
+It loads the project containing the generated Cargo package; use
+`language::load_from(project_root)` when the definition project is elsewhere.
 
 ## Add a construct
 

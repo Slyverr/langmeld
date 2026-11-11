@@ -21,6 +21,8 @@ runtime state and handler instances. `Language::run` returns structured
 diagnostics and preserves output emitted before an execution failure; the CLI
 chooses to format diagnostics for the terminal. `load()` returns typed project
 errors or source-backed definition diagnostics for host-controlled handling.
+It loads the example's project; `load_from(project_root)` accepts another
+manifest-backed project directory.
 
 Run it from the workspace root:
 

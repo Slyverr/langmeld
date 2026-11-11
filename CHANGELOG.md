@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- The declarative starter can load a definition project from an explicit root
+  directory as well as from its Cargo project directory.
+
 ### Changed
 
 - The declarative starter and toy language return structured diagnostics from

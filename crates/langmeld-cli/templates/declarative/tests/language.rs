@@ -1,5 +1,50 @@
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
 use langmeld_core::SourceFile;
-use language::load;
+use language::{LanguageLoadError, load, load_from};
+
+static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
+
+struct TestDirectory(PathBuf);
+
+impl TestDirectory {
+    fn new() -> Self {
+        loop {
+            let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "langmeld-starter-language-test-{}-{id}",
+                std::process::id()
+            ));
+
+            match fs::create_dir(&path) {
+                Ok(()) => return Self(path),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("test project directory should be created: {error}"),
+            }
+        }
+    }
+
+    fn write(&self, relative_path: &str, contents: &str) {
+        let path = self.0.join(relative_path);
+        fs::create_dir_all(path.parent().expect("test file should have a parent"))
+            .expect("test file parent should be created");
+        fs::write(path, contents).expect("test file should be written");
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 #[test]
 fn runs_a_program_from_the_project_definition() {
@@ -15,6 +60,60 @@ fn runs_a_program_from_the_project_definition() {
 
     assert_eq!(report.output, "Hello\n");
     assert!(report.diagnostics.is_empty());
+}
+
+#[test]
+fn loads_a_language_from_an_explicit_project_root() {
+    let project = TestDirectory::new();
+    project.write("langmeld.toml", "format = 1\n");
+    project.write(
+        "language/main.langmeld",
+        "language \"External\" { construct \"program\" { syntax { literal \"program\"; } } }",
+    );
+
+    let language = load_from(project.path()).expect("external project should load");
+
+    assert_eq!(language.specification().name(), "External");
+}
+
+#[test]
+fn returns_source_backed_diagnostics_for_an_invalid_external_definition() {
+    let project = TestDirectory::new();
+    project.write("langmeld.toml", "format = 1\n");
+    project.write(
+        "language/main.langmeld",
+        "language \"Invalid\" { construct \"program\" {} }",
+    );
+
+    let Err(error) = load_from(project.path()) else {
+        panic!("invalid definition should fail to load");
+    };
+
+    assert!(matches!(
+        &error,
+        LanguageLoadError::InvalidDefinition { .. }
+    ));
+    assert!(!error.diagnostics().is_empty());
+    assert_eq!(error.sources().len(), 1);
+    assert!(error.diagnostics().iter().any(|diagnostic| {
+        diagnostic
+            .location
+            .as_ref()
+            .is_some_and(|location| location.source_name() == "language/main.langmeld")
+    }));
+}
+
+#[test]
+fn returns_a_typed_project_error_when_the_manifest_is_missing() {
+    let project = TestDirectory::new();
+
+    let Err(error) = load_from(project.path()) else {
+        panic!("missing manifest should fail to load");
+    };
+
+    assert!(matches!(&error, LanguageLoadError::Project(_)));
+    assert!(error.diagnostics().is_empty());
+    assert!(error.sources().is_empty());
 }
 
 #[test]
