@@ -3,12 +3,15 @@ construct "function" {
         literal "fn";
         identifier "name";
         literal "(";
-        zero_or_more {
-            identifier "parameter";
+        optional {
+            identifier "first_parameter";
             literal ":";
-            identifier "parameter_type";
-            optional {
+            identifier "first_parameter_type";
+            zero_or_more {
                 literal ",";
+                identifier "parameter";
+                literal ":";
+                identifier "parameter_type";
             }
         }
         literal ")";

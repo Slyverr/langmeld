@@ -19,6 +19,11 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 - A complete Brainfuck interpreter demonstrating host-owned parsing,
   source-located diagnostics, and bounded execution.
 
+### Fixed
+
+- Require commas between function parameters in the declarative-functions
+  example and reject trailing commas.
+
 ## [0.7.0] - 2026-11-11
 
 ### Added

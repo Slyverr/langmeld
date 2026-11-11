@@ -20,6 +20,8 @@ cargo run -p langmeld-declarative-functions-example --locked -- program.function
 
 The core syntax includes parameter lists and return types:
 
+Parameters are comma-separated; missing and trailing commas are syntax errors.
+
 ```functionflow
 program {
     fn main() -> i32 {

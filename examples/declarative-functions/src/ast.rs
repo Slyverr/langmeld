@@ -71,20 +71,26 @@ fn lower_function(
     let parameter_names = construct
         .fields
         .iter()
-        .filter(|field| field.name == "parameter")
+        .filter(|field| matches!(field.name.as_str(), "first_parameter" | "parameter"))
         .collect::<Vec<_>>();
     let parameter_types = construct
         .fields
         .iter()
-        .filter(|field| field.name == "parameter_type")
+        .filter(|field| {
+            matches!(
+                field.name.as_str(),
+                "first_parameter_type" | "parameter_type"
+            )
+        })
         .collect::<Vec<_>>();
     let mut parameters = Vec::with_capacity(parameter_names.len());
 
     for (name_field, type_field) in parameter_names.into_iter().zip(parameter_types) {
-        let Some(parameter) = identifier_value(source, "parameter", name_field, diagnostics) else {
+        let Some(parameter) = identifier_value(source, &name_field.name, name_field, diagnostics)
+        else {
             continue;
         };
-        let Some(value_type) = identifier_value(source, "parameter_type", type_field, diagnostics)
+        let Some(value_type) = identifier_value(source, &type_field.name, type_field, diagnostics)
         else {
             continue;
         };

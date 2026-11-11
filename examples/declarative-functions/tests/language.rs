@@ -59,3 +59,25 @@ fn reports_call_arity_mismatches() {
             && diagnostic.message.contains("expects 2 argument(s), got 1")
     }));
 }
+
+#[test]
+fn requires_commas_between_function_parameters() {
+    let source = SourceFile::new(
+        "missing-comma.functionflow",
+        "program { fn add(left: i32 right: i32) -> i32 {} }",
+    );
+    let analysis = analyze(&source).expect("the checked-in grammar should load");
+
+    assert!(!analysis.parsed.is_valid());
+}
+
+#[test]
+fn rejects_trailing_commas_in_function_parameters() {
+    let source = SourceFile::new(
+        "trailing-comma.functionflow",
+        "program { fn add(left: i32,) -> i32 {} }",
+    );
+    let analysis = analyze(&source).expect("the checked-in grammar should load");
+
+    assert!(!analysis.parsed.is_valid());
+}
