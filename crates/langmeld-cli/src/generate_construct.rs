@@ -20,8 +20,11 @@ use crate::{
 
 #[derive(Debug, Args)]
 pub(crate) struct ConstructArgs {
-    /// Identifier keyword used by the syntax declaration and Rust handler.
+    /// Stable construct name used by the definition and Rust handler.
     name: Option<String>,
+    /// Syntax literal used by the generated declaration. Defaults to the name.
+    #[arg(long)]
+    literal: Option<String>,
     /// Category accepted by a block in the language definition.
     #[arg(long)]
     category: Option<String>,
@@ -33,6 +36,7 @@ pub(crate) struct ConstructArgs {
 pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Error>> {
     let name = construct_name(args.name)?;
     let (module_name, handler_name) = rust_names(&name)?;
+    let literal = syntax_literal(args.literal, &name)?;
     let context = DefinitionProjectContext::new(&args.manifest_path)?;
     let project = load_definition_project(&args.manifest_path)?;
     if project
@@ -80,7 +84,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     let root_source = read_regular_file(&root_path)?;
     let import_path = format!("constructs/{name}.langmeld");
     let updated_root = add_root_import(&root_source, &import_path)?;
-    let syntax_source = syntax_template(&name, &category);
+    let syntax_source = syntax_template(&name, &literal, &category);
     let handler_source = handler_template(&name, &handler_name);
 
     let mut created_directory = false;
@@ -140,8 +144,8 @@ fn construct_name(requested: Option<String>) -> Result<String, io::Error> {
         Some(name) => name,
         None if io::stdin().is_terminal() && io::stdout().is_terminal() => {
             Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Construct keyword")
-                .validate_with(|name: &String| validate_keyword_name(name))
+                .with_prompt("Stable construct name")
+                .validate_with(|name: &String| validate_construct_name(name))
                 .interact_text()?
         }
         None => {
@@ -152,8 +156,20 @@ fn construct_name(requested: Option<String>) -> Result<String, io::Error> {
         }
     };
 
-    validate_keyword_name(&name)?;
+    validate_construct_name(&name)?;
     Ok(name)
+}
+
+fn syntax_literal(requested: Option<String>, name: &str) -> Result<String, io::Error> {
+    let literal = requested.unwrap_or_else(|| name.to_owned());
+    if literal.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "syntax literal cannot be empty",
+        ));
+    }
+
+    Ok(literal)
 }
 
 fn choose_category(
@@ -240,28 +256,17 @@ fn add_root_import(source: &str, import_path: &str) -> Result<String, io::Error>
     Ok(updated)
 }
 
-fn syntax_template(name: &str, category: &str) -> String {
+fn syntax_template(name: &str, literal: &str, category: &str) -> String {
     format!(
-        "construct \"{name}\" {{\n    syntax {{\n        literal \"{name}\";\n    }}\n    implements {};\n}}\n",
+        "construct {} {{\n    syntax {{\n        literal {};\n    }}\n    implements {};\n}}\n",
+        quote_definition_string(name),
+        quote_definition_string(literal),
         quote_definition_string(category)
     )
 }
 
-fn validate_keyword_name(name: &str) -> Result<(), io::Error> {
-    let mut characters = name.chars();
-    let valid_start = characters
-        .next()
-        .is_some_and(|character| character.is_ascii_alphabetic() || character == '_');
-    if valid_start
-        && characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
-    {
-        return Ok(());
-    }
-
-    Err(io::Error::new(
-        io::ErrorKind::InvalidInput,
-        "new construct names must be identifier keywords (ASCII letters, digits, or underscores, starting with a letter or underscore)",
-    ))
+fn validate_construct_name(name: &str) -> Result<(), io::Error> {
+    rust_names(name).map(|_| ())
 }
 
 fn quote_definition_string(value: &str) -> String {

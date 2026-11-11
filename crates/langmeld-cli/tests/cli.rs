@@ -1687,20 +1687,64 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
     assert!(registry.contains("mod loop_handler;"));
     assert!(registry.contains("handlers.register(loop_handler::LoopHandler)?;"));
 
-    let invalid_keyword = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+    let generated_function = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([
             "generate",
             "construct",
-            "trace-item",
+            "function-declaration",
+            "--literal",
+            "fn",
             "--manifest-path",
             manifest.to_str().expect("temporary path is UTF-8"),
         ])
         .output()
         .expect("CLI should start");
-    assert!(!invalid_keyword.status.success());
+    assert!(
+        generated_function.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated_function.stderr)
+    );
+    let function_syntax =
+        fs::read_to_string(project.join("language/constructs/function-declaration.langmeld"))
+            .expect("semantic construct name should determine the definition filename");
+    assert!(function_syntax.contains("construct \"function-declaration\""));
+    assert!(function_syntax.contains("literal \"fn\";"));
+    assert!(
+        project
+            .join("src/constructs/function_declaration.rs")
+            .is_file()
+    );
+
+    let checked_function = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        checked_function.status.success(),
+        "{}",
+        String::from_utf8_lossy(&checked_function.stderr)
+    );
+
+    let empty_literal = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "empty-literal",
+            "--literal",
+            "",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(!empty_literal.status.success());
     assert!(
         !project
-            .join("language/constructs/trace_item.langmeld")
+            .join("language/constructs/empty-literal.langmeld")
             .exists()
     );
 }

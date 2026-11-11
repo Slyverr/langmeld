@@ -19,7 +19,17 @@ This creates `language/constructs/print.langmeld`, adds an explicit import to
 the configured root definition, and creates and registers
 `src/constructs/print.rs`. If the language has more than one block category,
 the command prompts in an interactive terminal; in scripts, choose one with
-`--category <name>`. Existing files are never overwritten.
+`--category <name>`. The construct name is its stable semantic identity; the
+starter syntax literal defaults to the same text. Use `--literal` when the
+spelling differs:
+
+```sh
+langmeld generate construct function --literal fn
+```
+
+This creates a `function` construct handled by Rust's `FunctionHandler`, with
+`fn` as its initial syntax literal. Edit the generated definition for compound
+or alternative syntax. Existing files are never overwritten.
 
 To generate behavior for syntax that already exists in the definition, run:
 
@@ -33,9 +43,10 @@ sections in `src/constructs/mod.rs`. It refuses to overwrite an existing
 handler. The generated implementation returns a source-located diagnostic
 until you add the language-specific behavior.
 
-The command maps construct names to Rust module names. Names containing only
+The command maps stable construct names to Rust module names. Names containing
 ASCII letters, digits, hyphens, and underscores are supported; Rust keywords
-receive a safe module-name suffix. Ambiguous or invalid names are rejected.
+receive a safe module-name suffix. Names that map to an existing Rust module
+are rejected.
 
 ## Implement behavior
 

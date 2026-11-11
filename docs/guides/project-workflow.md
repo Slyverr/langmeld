@@ -90,6 +90,10 @@ it prompts when several categories are available; in scripts, pass
 handler returns a clear diagnostic until you implement the construct's
 behavior. See [Construct handlers](../language/handlers.md).
 
+Construct names identify behavior independently of their source spelling. For
+example, `langmeld generate construct function --literal fn` creates a stable
+`function` construct with an initial `fn` syntax literal.
+
 To add behavior for syntax that is already declared, use
 `langmeld generate handler <name>`.
 
