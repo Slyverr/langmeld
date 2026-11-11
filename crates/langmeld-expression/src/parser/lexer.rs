@@ -29,7 +29,7 @@ pub(super) fn lex(
     let mut cursor = range.start;
 
     while cursor < range.end {
-        let character = source.text[cursor..range.end]
+        let character = source.text()[cursor..range.end]
             .chars()
             .next()
             .expect("cursor is within a validated source range");
@@ -55,7 +55,7 @@ pub(super) fn lex(
             let mut closed = false;
 
             while end < range.end {
-                let next = source.text[end..range.end]
+                let next = source.text()[end..range.end]
                     .chars()
                     .next()
                     .expect("end is within the validated source range");
@@ -92,7 +92,7 @@ pub(super) fn lex(
             let mut end = cursor + character.len_utf8();
 
             while end < range.end {
-                let next = source.text[end..range.end]
+                let next = source.text()[end..range.end]
                     .chars()
                     .next()
                     .expect("end is within the validated source range");
@@ -106,7 +106,7 @@ pub(super) fn lex(
             (TokenKind::Identifier, end)
         } else if character.is_ascii_digit() {
             let mut end = cursor + character.len_utf8();
-            while end < range.end && source.text.as_bytes()[end].is_ascii_digit() {
+            while end < range.end && source.text().as_bytes()[end].is_ascii_digit() {
                 end += 1;
             }
 
@@ -114,7 +114,7 @@ pub(super) fn lex(
         } else if let Some(operator) = grammar
             .operator_tokens
             .iter()
-            .find(|operator| source.text[start..range.end].starts_with(operator.as_str()))
+            .find(|operator| source.text()[start..range.end].starts_with(operator.as_str()))
         {
             (TokenKind::Operator, start + operator.len())
         } else if "()[],.;".contains(character) {

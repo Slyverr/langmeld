@@ -46,8 +46,8 @@ fn query_locations<P, A>(
     offset: usize,
     query: impl FnOnce(Option<&AnalysisDocument<A>>) -> Vec<SourceLocation>,
 ) -> Vec<SourceLocation> {
-    if offset > source.text.len()
-        || !source.text.is_char_boundary(offset)
+    if offset > source.text().len()
+        || !source.text().is_char_boundary(offset)
         || parsed.source != source.identity()
         || analysis.is_some_and(|analysis| analysis.source != source.identity())
     {
@@ -60,13 +60,13 @@ fn query_locations<P, A>(
             if location.span.start > location.span.end {
                 return false;
             }
-            if location.source_name != source.name {
+            if location.source_name != source.name() {
                 return true;
             }
             location.identity == source.identity()
-                && location.span.end <= source.text.len()
-                && source.text.is_char_boundary(location.span.start)
-                && source.text.is_char_boundary(location.span.end)
+                && location.span.end <= source.text().len()
+                && source.text().is_char_boundary(location.span.start)
+                && source.text().is_char_boundary(location.span.end)
         })
         .collect()
 }

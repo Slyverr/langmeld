@@ -35,8 +35,8 @@ impl LanguageBackend for Backend {
         self.0
             .lock()
             .unwrap()
-            .insert(source.name.clone(), source.clone());
-        let diagnostics = if source.text.contains("bad") {
+            .insert(source.name().to_owned(), source.clone());
+        let diagnostics = if source.text().contains("bad") {
             vec![Diagnostic::error(
                 "TEST-001",
                 "replace this token",
@@ -46,7 +46,7 @@ impl LanguageBackend for Backend {
         } else {
             Vec::new()
         };
-        BackendDocument::new(source, source.text.clone(), diagnostics)
+        BackendDocument::new(source, source.text().to_owned(), diagnostics)
     }
 
     fn capabilities(&self) -> BackendCapabilities {
@@ -69,13 +69,13 @@ impl LanguageBackend for Backend {
         document: &BackendDocument<String>,
         offset: usize,
     ) -> Vec<CompletionCandidate> {
-        assert_eq!(document.state, source.text);
+        assert_eq!(document.state, source.text());
         assert_eq!(offset, "😀".len());
         vec![
-            CompletionCandidate::new("good", Span::new("😀".len(), source.text.len()))
+            CompletionCandidate::new("good", Span::new("😀".len(), source.text().len()))
                 .with_label("Good value")
                 .with_detail("Suggested item"),
-            CompletionCandidate::new("great", Span::new("😀".len(), source.text.len()))
+            CompletionCandidate::new("great", Span::new("😀".len(), source.text().len()))
                 .with_label("Great value")
                 .with_kind(CompletionKind::Struct)
                 .with_filter_text("preferred"),
@@ -89,7 +89,7 @@ impl LanguageBackend for Backend {
         _offset: usize,
     ) -> Vec<SourceLocation> {
         vec![SourceLocation {
-            source_name: source.name.clone(),
+            source_name: source.name().to_owned(),
             identity: source.identity(),
             span: Span::new(0, "😀".len()),
         }]
@@ -104,7 +104,7 @@ impl LanguageBackend for Backend {
     ) -> Vec<SourceLocation> {
         include_declaration
             .then(|| SourceLocation {
-                source_name: source.name.clone(),
+                source_name: source.name().to_owned(),
                 identity: source.identity(),
                 span: Span::new(0, "😀".len()),
             })
@@ -136,9 +136,9 @@ impl LanguageBackend for Backend {
             "Record",
             DocumentSymbolKind::Struct,
             SourceLocation {
-                source_name: source.name.clone(),
+                source_name: source.name().to_owned(),
                 identity: source.identity(),
-                span: Span::new(0, source.text.len()),
+                span: Span::new(0, source.text().len()),
             },
         )]
     }
@@ -152,9 +152,9 @@ impl LanguageBackend for Backend {
         source: &SourceFile,
         _document: &BackendDocument<String>,
     ) -> Vec<SemanticToken> {
-        if source.text.contains('\n') {
+        if source.text().contains('\n') {
             return vec![SemanticToken::new(
-                Span::new(0, source.text.len()),
+                Span::new(0, source.text().len()),
                 "variable",
             )];
         }
@@ -177,7 +177,7 @@ impl LanguageBackend for Backend {
         } else {
             "\t".to_owned()
         };
-        Some(format!("{indentation}{}", source.text))
+        Some(format!("{indentation}{}", source.text()))
     }
 
     fn hover(
@@ -207,7 +207,7 @@ impl LanguageBackend for Backend {
                 [(source, Span::new(4, 7)), (&other, Span::new(0, 5))]
                     .into_iter()
                     .map(|(source, span)| SourceLocation {
-                        source_name: source.name.clone(),
+                        source_name: source.name().to_owned(),
                         identity: source.identity(),
                         span,
                     })
@@ -219,11 +219,11 @@ impl LanguageBackend for Backend {
             return Some(
                 [
                     (source, Span::new(4, 7)),
-                    (&other, Span::new(0, other.text.len())),
+                    (&other, Span::new(0, other.text().len())),
                 ]
                 .into_iter()
                 .map(|(source, span)| SourceLocation {
-                    source_name: source.name.clone(),
+                    source_name: source.name().to_owned(),
                     identity: source.identity(),
                     span,
                 })
@@ -238,7 +238,7 @@ impl LanguageBackend for Backend {
         let mut locations = spans
             .into_iter()
             .map(|span| SourceLocation {
-                source_name: source.name.clone(),
+                source_name: source.name().to_owned(),
                 identity: source.identity(),
                 span,
             })
@@ -258,7 +258,7 @@ impl LanguageBackend for Backend {
         source: &SourceFile,
         _document: &BackendDocument<String>,
     ) -> Vec<DocumentSymbolInfo> {
-        if source.name == "file:///invalid-symbol.test" {
+        if source.name() == "file:///invalid-symbol.test" {
             return vec![
                 DocumentSymbolInfo::new(
                     "invalid",
@@ -1205,7 +1205,10 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     let changed = receive_diagnostics(&client);
     assert!(changed["diagnostics"].as_array().unwrap().is_empty());
     assert_eq!(changed["version"], 2);
-    assert_eq!(observed.0.lock().unwrap().get(uri).unwrap().text, "😀good!");
+    assert_eq!(
+        observed.0.lock().unwrap().get(uri).unwrap().text(),
+        "😀good!"
+    );
 
     send_request(
         &client,
@@ -1308,7 +1311,7 @@ fn assert_incremental_edit_uses_position_encoding(
     );
     let changed = receive_diagnostics(&client);
     assert!(changed["diagnostics"].as_array().unwrap().is_empty());
-    assert_eq!(observed.0.lock().unwrap().get(&uri).unwrap().text, "😀ok");
+    assert_eq!(observed.0.lock().unwrap().get(&uri).unwrap().text(), "😀ok");
 
     send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
@@ -1450,7 +1453,7 @@ impl LanguageParser for DiagnosticParser {
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
         let diagnostics = source
-            .text
+            .text()
             .contains("syntax")
             .then(|| Diagnostic::error("HOST-PARSE", "parser diagnostic", source, Span::new(0, 6)))
             .into_iter()
@@ -1470,19 +1473,19 @@ impl LanguageAnalyzer<DiagnosticParser> for DiagnosticAnalyzer {
         _parsed: &ParsedDocument<bool>,
     ) -> AnalysisDocument<Self::Analysis> {
         let diagnostics = source
-            .text
+            .text()
             .contains("semantic")
             .then(|| {
                 Diagnostic::error(
                     "HOST-SEMANTIC",
                     "semantic diagnostic",
                     source,
-                    Span::new(7, source.text.len()),
+                    Span::new(7, source.text().len()),
                 )
             })
             .into_iter()
             .collect();
-        AnalysisDocument::new(source, source.text.len(), diagnostics)
+        AnalysisDocument::new(source, source.text().len(), diagnostics)
     }
 }
 
@@ -1499,10 +1502,10 @@ impl LanguageCompleter<DiagnosticParser> for DiagnosticCompleter {
         _offset: usize,
     ) -> Vec<CompletionCandidate> {
         assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text.len());
+        assert_eq!(analysis.unwrap().result, source.text().len());
         vec![CompletionCandidate::new(
             "suggestion",
-            Span::new(7, source.text.len()),
+            Span::new(7, source.text().len()),
         )]
     }
 }
@@ -1520,11 +1523,11 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
         _offset: usize,
     ) -> Vec<SourceLocation> {
         assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text.len());
+        assert_eq!(analysis.unwrap().result, source.text().len());
         vec![SourceLocation {
-            source_name: source.name.clone(),
+            source_name: source.name().to_owned(),
             identity: source.identity(),
-            span: Span::new(7, source.text.len()),
+            span: Span::new(7, source.text().len()),
         }]
     }
 
@@ -1537,12 +1540,12 @@ impl LanguageNavigator<DiagnosticParser> for DiagnosticNavigator {
         include_declaration: bool,
     ) -> Vec<SourceLocation> {
         assert!(parsed.tree);
-        assert_eq!(analysis.unwrap().result, source.text.len());
+        assert_eq!(analysis.unwrap().result, source.text().len());
         include_declaration
             .then(|| SourceLocation {
-                source_name: source.name.clone(),
+                source_name: source.name().to_owned(),
                 identity: source.identity(),
-                span: Span::new(7, source.text.len()),
+                span: Span::new(7, source.text().len()),
             })
             .into_iter()
             .collect()
@@ -1665,7 +1668,7 @@ fn language_definition_backend_exposes_declaration_outline_symbols() {
     assert_eq!(symbols[0].name, "Widget");
     assert_eq!(symbols[0].kind, DocumentSymbolKind::Module);
     assert_eq!(
-        &source.text[symbols[0].selection_range.start..symbols[0].selection_range.end],
+        &source.text()[symbols[0].selection_range.start..symbols[0].selection_range.end],
         "\"Widget\""
     );
     assert_eq!(symbols[0].children.len(), 2);
@@ -1674,7 +1677,7 @@ fn language_definition_backend_exposes_declaration_outline_symbols() {
     assert_eq!(symbols[0].children[1].name, "program");
     assert_eq!(symbols[0].children[1].kind, DocumentSymbolKind::Struct);
     assert_eq!(
-        &source.text[symbols[0].children[1].selection_range.start
+        &source.text()[symbols[0].children[1].selection_range.start
             ..symbols[0].children[1].selection_range.end],
         "\"program\""
     );
@@ -1703,9 +1706,9 @@ fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
             .clone(),
     );
     let target_location = SourceLocation {
-        source_name: target.name.clone(),
+        source_name: target.name().to_owned(),
         identity: target.identity(),
-        span: Span::new(0, target.text.len()),
+        span: Span::new(0, target.text().len()),
     };
     let uri: Uri = "file:///closed.host"
         .parse()
@@ -1736,7 +1739,7 @@ fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
         })
         .with_document_close_handler(move |source| {
             *closed_document_handler.lock().unwrap() =
-                Some((source.name.clone(), source.text.to_string()));
+                Some((source.name().to_owned(), source.text().to_string()));
         });
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
@@ -2032,7 +2035,7 @@ impl LanguageBackend for CloseBackend {
     type Document = String;
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
-        BackendDocument::new(source, source.text.clone(), Vec::new())
+        BackendDocument::new(source, source.text().to_owned(), Vec::new())
     }
 
     fn capabilities(&self) -> BackendCapabilities {
@@ -2040,7 +2043,7 @@ impl LanguageBackend for CloseBackend {
     }
 
     fn did_close(&self, source: &SourceFile, document: &BackendDocument<Self::Document>) {
-        *self.0.lock().unwrap() = Some((source.text.clone(), document.state.clone()));
+        *self.0.lock().unwrap() = Some((source.text().to_owned(), document.state.clone()));
     }
 }
 

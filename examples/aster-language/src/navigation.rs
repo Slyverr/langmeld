@@ -122,7 +122,7 @@ fn rename_preserves_resolution(
     spans: &[Span],
     new_name: &str,
 ) -> bool {
-    let mut renamed_text = source.text.clone();
+    let mut renamed_text = source.text().to_owned();
     for span in spans.iter().rev() {
         if span.end > renamed_text.len()
             || !renamed_text.is_char_boundary(span.start)
@@ -133,7 +133,7 @@ fn rename_preserves_resolution(
         renamed_text.replace_range(span.start..span.end, new_name);
     }
 
-    let renamed_source = SourceFile::new(source.name.clone(), renamed_text);
+    let renamed_source = SourceFile::new(source.name().to_owned(), renamed_text);
     let renamed_parse = parse_program(&renamed_source);
     let renamed_analysis = crate::AsterAnalyzer.analyze(&renamed_source, &renamed_parse);
 
@@ -224,7 +224,7 @@ fn selected_symbol(analysis: &Analysis, offset: usize) -> Option<usize> {
 
 fn location(source: &SourceFile, span: Span) -> SourceLocation {
     SourceLocation {
-        source_name: source.name.clone(),
+        source_name: source.name().to_owned(),
         identity: source.identity(),
         span,
     }

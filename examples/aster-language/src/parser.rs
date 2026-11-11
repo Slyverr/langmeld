@@ -246,7 +246,7 @@ impl Parser<'_> {
     fn parse_expression_statement(&mut self) -> Option<Expression> {
         let start = self
             .current()
-            .map_or(self.source.text.len(), |token| token.span.start);
+            .map_or(self.source.text().len(), |token| token.span.start);
         let (end, semicolon) = self.find_statement_end();
         let parsed = self.expressions.parse(self.source, Span::new(start, end));
         self.diagnostics.extend(parsed.diagnostics);
@@ -271,7 +271,7 @@ impl Parser<'_> {
                 _ => {}
             }
         }
-        (self.source.text.len(), None)
+        (self.source.text().len(), None)
     }
 
     fn recover_statement(&mut self) {
@@ -364,7 +364,7 @@ impl Parser<'_> {
     }
 
     fn text(&self, token: Token) -> &str {
-        &self.source.text[token.span.start..token.span.end]
+        &self.source.text()[token.span.start..token.span.end]
     }
 
     fn previous_end(&self, fallback: usize) -> usize {
@@ -377,7 +377,7 @@ impl Parser<'_> {
     fn error_here(&mut self, code: &str, message: &str) {
         let offset = self
             .current()
-            .map_or(self.source.text.len(), |token| token.span.start);
+            .map_or(self.source.text().len(), |token| token.span.start);
         self.error(code, message, Span::new(offset, offset));
     }
 
@@ -406,7 +406,7 @@ fn expression_grammar() -> &'static ExpressionGrammar {
 fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut chars = source.text.char_indices().peekable();
+    let mut chars = source.text().char_indices().peekable();
 
     while let Some((start, character)) = chars.next() {
         if character.is_whitespace() {

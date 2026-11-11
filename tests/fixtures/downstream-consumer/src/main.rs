@@ -53,7 +53,7 @@ fn main() {
     let expression_source = SourceFile::new("value.expr", "20 + 4 * 2");
     let expression = ExpressionParser::new(&operators).parse(
         &expression_source,
-        Span::new(0, expression_source.text.len()),
+        Span::new(0, expression_source.text().len()),
     );
 
     assert!(

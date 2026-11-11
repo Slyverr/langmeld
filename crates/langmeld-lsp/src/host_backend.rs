@@ -374,6 +374,6 @@ fn source_identity_diagnostic(source: &SourceFile, code: &str, component: &str) 
         code,
         format!("host {component} returned data for a different source snapshot"),
         source,
-        Span::new(0, source.text.len()),
+        Span::new(0, source.text().len()),
     )
 }

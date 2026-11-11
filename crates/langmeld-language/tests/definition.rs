@@ -179,7 +179,7 @@ language "Movement" {
     );
 
     let source = SourceFile::new("main", "move r");
-    let candidates = complete_at(&source, &language, source.text.len());
+    let candidates = complete_at(&source, &language, source.text().len());
     assert_eq!(
         candidates
             .iter()
@@ -280,7 +280,7 @@ fn root_declarations_report_unknown_names_at_the_declaration() {
         .location
         .as_ref()
         .expect("root diagnostic is located");
-    let root_start = source.text.find("root \"missing\"").unwrap();
+    let root_start = source.text().find("root \"missing\"").unwrap();
     assert_eq!(location.span.start, root_start);
     assert!(definition.language.is_none());
 }
@@ -347,7 +347,7 @@ fn duplicate_root_declarations_report_the_later_declaration() {
         .location
         .as_ref()
         .expect("root diagnostic is located");
-    let duplicate_start = source.text.rfind("root \"program\"").unwrap();
+    let duplicate_start = source.text().rfind("root \"program\"").unwrap();
     assert_eq!(location.span.start, duplicate_start);
 }
 
@@ -482,7 +482,7 @@ language "Movement" {
     let language = definition.language.unwrap();
     let source = SourceFile::new("main", "move r");
 
-    let candidates = complete_at(&source, &language, source.text.len());
+    let candidates = complete_at(&source, &language, source.text().len());
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].text, "right");
@@ -698,7 +698,7 @@ fn definition_frontend_lowers_expression_captures_with_consumed_terminators() {
     let field = &parsed.constructs[0].fields[0];
     assert_eq!(field.value, CapturedValue::Expression);
     assert_eq!(
-        &program.text[field.span.start..field.span.end],
+        &program.text()[field.span.start..field.span.end],
         "call(a + nested(b)) + 3"
     );
 }
@@ -1045,7 +1045,7 @@ fn invalid_definition_comment_rules_report_at_the_lexical_block() {
         .find(|diagnostic| diagnostic.code == "LM-DEF-004")
         .unwrap();
     let span = diagnostic.location.as_ref().unwrap().span;
-    let text = &source.text[span.start..span.end];
+    let text = &source.text()[span.start..span.end];
     assert!(text.contains("lexical"));
     assert!(text.contains("block_comment"));
 }

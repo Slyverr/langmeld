@@ -56,7 +56,7 @@ fn imports_constructs_and_parses_the_example_program() {
     assert_eq!(expression.name, "value");
     assert_eq!(expression.value, CapturedValue::Expression);
     assert_eq!(
-        &source.text[expression.span.start..expression.span.end],
+        &source.text()[expression.span.start..expression.span.end],
         "20 + 4 * (2 + 1)"
     );
 

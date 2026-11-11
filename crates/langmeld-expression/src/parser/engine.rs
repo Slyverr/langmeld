@@ -15,9 +15,9 @@ pub(super) fn parse(
     terminators: &[&str],
 ) -> ExpressionParseResult {
     if range.start > range.end
-        || range.end > source.text.len()
-        || !source.text.is_char_boundary(range.start)
-        || !source.text.is_char_boundary(range.end)
+        || range.end > source.text().len()
+        || !source.text().is_char_boundary(range.start)
+        || !source.text().is_char_boundary(range.end)
     {
         return ExpressionParseResult {
             expression: None,
@@ -381,7 +381,7 @@ impl Parser<'_> {
     }
 
     fn token_text(&self, token: Token) -> &str {
-        &self.source.text[token.span.start..token.span.end]
+        &self.source.text()[token.span.start..token.span.end]
     }
 
     fn error(&mut self, code: &str, message: &str, span: Span) {
@@ -396,7 +396,7 @@ impl Parser<'_> {
 
 fn source_limit_offset(source: &SourceFile, start: usize, limit: usize, end: usize) -> usize {
     let mut offset = start + limit.min(end - start);
-    while !source.text.is_char_boundary(offset) {
+    while !source.text().is_char_boundary(offset) {
         offset -= 1;
     }
     offset

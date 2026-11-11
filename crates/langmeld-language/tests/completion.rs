@@ -381,7 +381,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
 fn rejects_offsets_outside_the_source_or_inside_a_utf8_codepoint() {
     let source = SourceFile::new("main.langmeld", "é");
 
-    assert!(complete_at(&source, &language(), source.text.len() + 1).is_empty());
+    assert!(complete_at(&source, &language(), source.text().len() + 1).is_empty());
     assert!(complete_at(&source, &language(), 1).is_empty());
 }
 
@@ -424,7 +424,7 @@ fn custom_lexer_can_filter_partial_textual_tokens() {
     let candidates = complete_at_with_lexer(
         &source,
         &language(),
-        source.text.len(),
+        source.text().len(),
         &KeywordAsPunctuation,
     );
 

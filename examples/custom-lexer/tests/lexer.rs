@@ -38,6 +38,6 @@ fn reports_an_unterminated_raw_string_at_its_source_span() {
         .expect("the custom lexer should report the malformed raw string");
     assert_eq!(
         diagnostic.location.as_ref().unwrap().span,
-        Span::new(4, source.text.len())
+        Span::new(4, source.text().len())
     );
 }

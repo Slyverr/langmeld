@@ -98,7 +98,7 @@ fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error:
     let node = ParsedConstruct {
         name: "record".to_owned(),
         variant: 0,
-        span: Span::new(0, source.text.len()),
+        span: Span::new(0, source.text().len()),
         fields: vec![
             CapturedField {
                 name: "value".to_owned(),
@@ -113,7 +113,7 @@ fn exposes_repeated_captures_in_source_order() -> Result<(), Box<dyn std::error:
         ],
         children: Vec::new(),
     };
-    let block = construct("program", Span::new(0, source.text.len()), vec![node]);
+    let block = construct("program", Span::new(0, source.text().len()), vec![node]);
     let mut handlers = ConstructHandlerRegistry::new();
     handlers.register(RecordRepeatedFields)?;
     let mut state = Vec::new();

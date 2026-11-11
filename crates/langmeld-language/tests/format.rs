@@ -29,7 +29,7 @@ fn formats_nested_definition_blocks_and_is_idempotent() {
     assert_eq!(
         format_language_definition(&formatted_source, DefinitionFormatOptions::default())
             .expect("formatted definition should remain valid"),
-        formatted_source.text
+        formatted_source.text()
     );
 }
 

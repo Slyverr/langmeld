@@ -11,7 +11,7 @@ impl Lexer for RawStringLexer {
     fn lex(&self, source: &SourceFile) -> LexOutput {
         let mut tokens = Vec::new();
         let mut diagnostics = Vec::new();
-        let bytes = source.text.as_bytes();
+        let bytes = source.text().as_bytes();
         let mut cursor = 0;
 
         while cursor < bytes.len() {
@@ -54,7 +54,7 @@ impl Lexer for RawStringLexer {
                 }
                 TokenKind::Identifier
             } else {
-                let character = source.text[cursor..]
+                let character = source.text()[cursor..]
                     .chars()
                     .next()
                     .expect("cursor is before the end of the source");
@@ -63,7 +63,7 @@ impl Lexer for RawStringLexer {
             };
 
             tokens.push(LexedToken {
-                text: source.text[start..cursor].to_owned(),
+                text: source.text()[start..cursor].to_owned(),
                 kind,
                 span: Span::new(start, cursor),
             });

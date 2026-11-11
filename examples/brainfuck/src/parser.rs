@@ -14,7 +14,7 @@ impl LanguageParser for BrainfuckParser {
     type Tree = crate::Program;
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
-        if source.text.len() > MAX_SOURCE_BYTES {
+        if source.text().len() > MAX_SOURCE_BYTES {
             return ParsedDocument::new(
                 source,
                 crate::Program::default(),
@@ -22,7 +22,7 @@ impl LanguageParser for BrainfuckParser {
                     "BF-PARSE-001",
                     format!("source exceeds the {}-byte limit", MAX_SOURCE_BYTES),
                     source,
-                    Span::new(0, source.text.len()),
+                    Span::new(0, source.text().len()),
                 )],
             );
         }
@@ -38,7 +38,7 @@ impl LanguageParser for BrainfuckParser {
         let mut skipped_depth = 0usize;
 
         for token in tokens {
-            let text = &source.text[token.span.start..token.span.end];
+            let text = &source.text()[token.span.start..token.span.end];
             if skipped_depth > 0 {
                 match text {
                     "[" => skipped_depth += 1,
@@ -100,7 +100,7 @@ impl LanguageParser for BrainfuckParser {
                 "BF-PARSE-004",
                 "loop nesting could not be recovered after exceeding its limit",
                 source,
-                Span::new(source.text.len(), source.text.len()),
+                Span::new(source.text().len(), source.text().len()),
             ));
         }
 

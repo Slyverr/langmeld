@@ -28,7 +28,7 @@ impl LanguageAnalyzer<Parser> for Analyzer {
                 "TEST-SEM-001",
                 "the parsed program is disabled",
                 source,
-                Span::new(0, source.text.len()),
+                Span::new(0, source.text().len()),
             )]
         };
         AnalysisDocument::new(source, usize::from(parsed.tree), diagnostics)

@@ -10,7 +10,7 @@ impl LanguageParser for Parser {
     type Tree = String;
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
-        ParsedDocument::new(source, source.text.clone(), Vec::new())
+        ParsedDocument::new(source, source.text().to_owned(), Vec::new())
     }
 }
 
@@ -26,8 +26,8 @@ impl LanguageCompleter<Parser> for Completer {
         analysis: Option<&AnalysisDocument<usize>>,
         offset: usize,
     ) -> Vec<CompletionCandidate> {
-        assert_eq!(parsed.tree, source.text);
-        assert!(offset <= source.text.len());
+        assert_eq!(parsed.tree, source.text());
+        assert!(offset <= source.text().len());
         assert_eq!(analysis.map(|document| document.result), Some(3));
         vec![
             CompletionCandidate::new("suggestion", Span::new(0, 0)).with_detail("candidate detail"),
@@ -87,7 +87,7 @@ fn stale_parse_and_analysis_snapshots_are_rejected() {
             current_source,
             &current_parse,
             Some(&old_analysis),
-            current_source.text.len(),
+            current_source.text().len(),
             &Completer,
         )
         .is_empty()
@@ -99,7 +99,7 @@ fn stale_parse_and_analysis_snapshots_are_rejected() {
             current_source,
             &old_parse,
             None,
-            current_source.text.len(),
+            current_source.text().len(),
             &Completer,
         )
         .is_empty()
@@ -138,7 +138,7 @@ fn invalid_offsets_and_replacement_spans_are_rejected() {
         &source,
         &parsed,
         None,
-        source.text.len(),
+        source.text().len(),
         &InvalidSpanCompleter,
     );
 

@@ -63,6 +63,9 @@ fn line_index_handles_crlf_trailing_lines_and_clamped_positions() {
 #[test]
 fn source_locations_count_unicode_columns_and_lines() {
     let source = SourceFile::new("test", "aé\nb");
+
+    assert_eq!(source.name(), "test");
+    assert_eq!(source.text(), "aé\nb");
     assert_eq!(source.line_column(3), (1, 3));
     assert_eq!(source.line_column(4), (2, 1));
 }

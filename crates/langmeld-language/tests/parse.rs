@@ -50,7 +50,7 @@ fn parses_multiple_declarations_and_captures_values_with_spans() {
         CapturedValue::Integer("42".into())
     );
     assert_eq!(
-        &source.text[result.constructs[0].span.start..result.constructs[0].span.end],
+        &source.text()[result.constructs[0].span.start..result.constructs[0].span.end],
         "let answer = 42;"
     );
 }
@@ -91,7 +91,7 @@ fn resumes_after_a_missing_terminator_before_a_valid_construct() {
         .iter()
         .find(|diagnostic| diagnostic.code == "LM-PARSE-002")
         .expect("missing semicolon diagnostic");
-    let next_construct = source.text.find("print").unwrap();
+    let next_construct = source.text().find("print").unwrap();
     assert_eq!(
         missing_terminator.location.as_ref().unwrap().span,
         Span::new(next_construct, next_construct + "print".len())
@@ -121,11 +121,11 @@ fn captures_expression_span_and_consumes_its_top_level_terminator() {
     let field = &construct.fields[0];
     assert_eq!(field.value, CapturedValue::Expression);
     assert_eq!(
-        &source.text[field.span.start..field.span.end],
+        &source.text()[field.span.start..field.span.end],
         "call(a + nested(b)) + { let x = 3; x }"
     );
     assert_eq!(
-        &source.text[construct.span.start..construct.span.end],
+        &source.text()[construct.span.start..construct.span.end],
         "print call(a + nested(b)) + { let x = 3; x };"
     );
 }
@@ -223,7 +223,7 @@ fn unterminated_block_comments_report_a_source_located_lexical_error() {
         .expect("unterminated comment diagnostic");
     assert_eq!(
         diagnostic.location.as_ref().unwrap().span,
-        Span::new(6, source.text.len())
+        Span::new(6, source.text().len())
     );
 }
 
@@ -402,7 +402,7 @@ fn parses_multiple_explicit_roots_with_and_without_blocks() {
     assert_eq!(result.constructs[0].children[0].name, "node");
     assert_eq!(result.constructs[1].children.len(), 0);
     assert_eq!(
-        &source.text[result.constructs[1].span.start..result.constructs[1].span.end],
+        &source.text()[result.constructs[1].span.start..result.constructs[1].span.end],
         "scenario startup"
     );
 }
@@ -469,7 +469,7 @@ fn recovers_at_a_later_root_through_unclosed_nested_blocks() {
         .iter()
         .filter(|diagnostic| diagnostic.code == "LM-PARSE-004")
         .collect::<Vec<_>>();
-    let scenario_start = source.text.find("scenario").unwrap();
+    let scenario_start = source.text().find("scenario").unwrap();
     assert!(result.constructs[0].span.end <= scenario_start);
     assert!(result.constructs[1].span.start >= scenario_start);
     assert_eq!(missing_closers.len(), 2, "{:?}", result.diagnostics);
@@ -750,7 +750,7 @@ fn reports_missing_block_closer_at_end_of_source() {
     assert_eq!(result.diagnostics[0].code, "LM-PARSE-004");
     assert_eq!(
         result.diagnostics[0].location.as_ref().unwrap().span.start,
-        source.text.len()
+        source.text().len()
     );
 }
 
@@ -1096,7 +1096,7 @@ fn custom_lexer_can_supply_host_specific_string_tokens() {
 
     impl Lexer for RawStringLexer {
         fn lex(&self, source: &SourceFile) -> LexOutput {
-            let string_start = source.text.find("r#\"").unwrap();
+            let string_start = source.text().find("r#\"").unwrap();
             LexOutput {
                 tokens: vec![
                     LexedToken {
@@ -1105,9 +1105,9 @@ fn custom_lexer_can_supply_host_specific_string_tokens() {
                         span: Span::new(0, 4),
                     },
                     LexedToken {
-                        text: source.text[string_start..].into(),
+                        text: source.text()[string_start..].into(),
                         kind: TokenKind::String,
-                        span: Span::new(string_start, source.text.len()),
+                        span: Span::new(string_start, source.text().len()),
                     },
                 ],
                 diagnostics: Vec::new(),

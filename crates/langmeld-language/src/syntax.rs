@@ -91,7 +91,7 @@ impl SyntaxToken {
     /// span.
     #[must_use]
     pub fn text<'a>(&self, source: &'a SourceFile) -> Option<&'a str> {
-        source.text.get(self.span.start..self.span.end)
+        source.text().get(self.span.start..self.span.end)
     }
 }
 
@@ -120,7 +120,7 @@ pub(crate) fn build_syntax_tree(
 
     append_gap(
         source,
-        Span::new(cursor, source.text.len()),
+        Span::new(cursor, source.text().len()),
         lexical_rules,
         &mut syntax_tokens,
     );
@@ -135,15 +135,15 @@ pub(crate) fn build_syntax_tree(
             kind: SyntaxNodeKind::SourceFile,
             name: None,
             variant: None,
-            span: Span::new(0, source.text.len()),
-            children: with_tokens(children, Span::new(0, source.text.len()), &syntax_tokens),
+            span: Span::new(0, source.text().len()),
+            children: with_tokens(children, Span::new(0, source.text().len()), &syntax_tokens),
         },
         tokens: syntax_tokens,
     }
 }
 
 pub(crate) fn unparsed_syntax_tree(source: &SourceFile) -> SyntaxTree {
-    let span = Span::new(0, source.text.len());
+    let span = Span::new(0, source.text().len());
     let tokens = if span.is_empty() {
         Vec::new()
     } else {
@@ -263,7 +263,7 @@ fn append_gap(
     rules: &LexicalRules,
     output: &mut Vec<SyntaxToken>,
 ) {
-    let Some(gap) = source.text.get(span.start..span.end) else {
+    let Some(gap) = source.text().get(span.start..span.end) else {
         return;
     };
     let mut offset = 0;

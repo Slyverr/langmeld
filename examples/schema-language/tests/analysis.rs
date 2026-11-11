@@ -15,7 +15,7 @@ fn completes_field_types_from_the_current_schema_symbols() {
     let parsed = parse_schema(&source);
     let analysis = SchemaAnalyzer.analyze(&source, &parsed);
 
-    let offset = source.text.find("Man").unwrap() + "Man".len();
+    let offset = source.text().find("Man").unwrap() + "Man".len();
 
     let candidates = complete_with(&source, &parsed, Some(&analysis), offset, &SchemaCompleter);
 
@@ -36,9 +36,9 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
     );
     let document = backend.analyze(&source);
 
-    let type_use = source.text.find("Manager").unwrap();
+    let type_use = source.text().find("Manager").unwrap();
     let completion_offset = type_use + "Man".len();
-    let declaration = source.text.rfind("Manager").unwrap();
+    let declaration = source.text().rfind("Manager").unwrap();
 
     assert!(backend.capabilities().completion);
     assert!(backend.capabilities().definition);
@@ -72,8 +72,8 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     let documents = backend
         .analyze_workspace(&[user.clone(), manager.clone()])
         .expect("workspace analyzer is configured");
-    let type_offset = user.text.find("Manager").expect("type use");
-    let declaration_offset = manager.text.find("Manager").expect("declaration");
+    let type_offset = user.text().find("Manager").expect("type use");
+    let declaration_offset = manager.text().find("Manager").expect("declaration");
     let completions = backend.complete(&user, &documents[0], type_offset + "Man".len());
 
     assert!(documents[0].diagnostics.is_empty());
@@ -85,7 +85,7 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     );
     let definition = backend.definition(&user, &documents[0], type_offset + 1);
     assert_eq!(definition.len(), 1);
-    assert_eq!(definition[0].source_name, manager.name);
+    assert_eq!(definition[0].source_name, manager.name());
     assert_eq!(
         definition[0].span,
         Span::new(declaration_offset, declaration_offset + 7)
@@ -96,12 +96,12 @@ fn workspace_analysis_resolves_and_navigates_across_open_files() {
     assert!(
         references
             .iter()
-            .any(|location| location.source_name == user.name)
+            .any(|location| location.source_name == user.name())
     );
     assert!(
         references
             .iter()
-            .any(|location| location.source_name == manager.name)
+            .any(|location| location.source_name == manager.name())
     );
 }
 

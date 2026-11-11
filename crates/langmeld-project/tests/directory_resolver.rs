@@ -55,7 +55,7 @@ fn resolves_nested_imports_and_retains_source_snapshots() {
         resolver
             .sources()
             .iter()
-            .map(|source| source.name.as_str())
+            .map(|source| source.name())
             .collect::<Vec<_>>(),
         [
             "language/constructs/items.langmeld",

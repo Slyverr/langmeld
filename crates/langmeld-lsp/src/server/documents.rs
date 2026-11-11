@@ -46,9 +46,11 @@ impl<B: LanguageBackend> ServerState<B> {
         let Some(source) = self.sources.get(current.source_id) else {
             return Ok(());
         };
-        let Some(text) =
-            apply_content_changes(source.text.clone(), &params.content_changes, self.encoding)
-        else {
+        let Some(text) = apply_content_changes(
+            source.text().to_owned(),
+            &params.content_changes,
+            self.encoding,
+        ) else {
             return Ok(());
         };
         let source_id = self.sources.upsert(uri.as_str(), text)?;

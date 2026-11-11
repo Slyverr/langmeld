@@ -119,7 +119,7 @@ impl Diagnostic {
             severity,
             message: message.into(),
             location: Some(SourceLocation {
-                source_name: source.name.clone(),
+                source_name: source.name().to_owned(),
                 identity: source.identity(),
                 span,
             }),
@@ -153,7 +153,7 @@ pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) ->
             let source = location.and_then(|location| {
                 sources.iter().find(|source| match location.identity {
                     Some(identity) => source.identity() == Some(identity),
-                    None => source.name == location.source_name,
+                    None => source.name() == location.source_name,
                 })
             });
             let (line, column) = match (source, location) {

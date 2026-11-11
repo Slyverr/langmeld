@@ -102,7 +102,7 @@ fn benchmark_workspace_editor(criterion: &mut Criterion) {
         assert_eq!(analysis[0].result.references.len(), count);
 
         let type_reference_start = sources[0]
-            .text
+            .text()
             .find("next: Record")
             .expect("first schema type reference")
             + "next: ".len();

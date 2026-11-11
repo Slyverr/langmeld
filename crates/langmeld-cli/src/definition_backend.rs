@@ -106,7 +106,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
                             .diagnostics
                             .iter()
                             .filter(|diagnostic| match diagnostic.location.as_ref() {
-                                Some(location) => location.source_name == source.name,
+                                Some(location) => location.source_name == source.name(),
                                 None => key.as_deref() == Some(&self.root_definition),
                             })
                             .cloned()
@@ -214,7 +214,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
         let resolved = self.resolver.load(&location.source_name).ok()?;
         if resolved.source.identity() != location.identity
-            || resolved.source.name != location.source_name
+            || resolved.source.name() != location.source_name
         {
             return None;
         }
@@ -247,7 +247,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
 
 impl ProjectDefinitionBackend {
     fn source_key(&self, source: &SourceFile) -> Option<String> {
-        let path = Url::parse(&source.name).ok()?.to_file_path().ok()?;
+        let path = Url::parse(source.name()).ok()?.to_file_path().ok()?;
         let canonical = path.canonicalize().ok()?;
         let relative = canonical.strip_prefix(&self.root).ok()?;
         relative

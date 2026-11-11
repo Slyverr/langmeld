@@ -180,7 +180,7 @@ impl Parser<'_> {
     }
 
     fn text(&self, token: Token) -> &str {
-        &self.source.text[token.span.start..token.span.end]
+        &self.source.text()[token.span.start..token.span.end]
     }
 
     fn previous_end(&self) -> usize {
@@ -191,7 +191,7 @@ impl Parser<'_> {
 
     fn error_here(&mut self, code: &str, message: &str) {
         let span = self.current().map_or(
-            Span::new(self.source.text.len(), self.source.text.len()),
+            Span::new(self.source.text().len(), self.source.text().len()),
             |t| t.span,
         );
         self.error(code, message, span);
@@ -223,7 +223,7 @@ impl Parser<'_> {
 fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut chars = source.text.char_indices().peekable();
+    let mut chars = source.text().char_indices().peekable();
 
     while let Some((start, character)) = chars.next() {
         if character.is_whitespace() {

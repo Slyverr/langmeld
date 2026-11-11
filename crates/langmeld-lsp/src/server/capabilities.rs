@@ -108,9 +108,9 @@ pub(super) fn hover_for(
     };
     let range = info.range.and_then(|span| {
         (span.start <= span.end
-            && span.end <= source.text.len()
-            && source.text.is_char_boundary(span.start)
-            && source.text.is_char_boundary(span.end))
+            && span.end <= source.text().len()
+            && source.text().is_char_boundary(span.start)
+            && source.text().is_char_boundary(span.end))
         .then(|| to_lsp_range(source, span, encoding))
         .flatten()
     });

@@ -11,10 +11,10 @@ impl Lexer for BrainfuckLexer {
     }
 
     fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
-        let mut tokens = Vec::with_capacity(source.text.len().min(max_tokens).min(4096));
+        let mut tokens = Vec::with_capacity(source.text().len().min(max_tokens).min(4096));
         let mut diagnostics = Vec::new();
 
-        for (offset, byte) in source.text.as_bytes().iter().enumerate() {
+        for (offset, byte) in source.text().as_bytes().iter().enumerate() {
             if !COMMANDS.contains(byte) {
                 continue;
             }

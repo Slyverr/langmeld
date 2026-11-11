@@ -179,7 +179,7 @@ fn has_windows_drive_prefix(path: &str) -> bool {
 }
 
 fn document_directory(root: &Path, source: &SourceFile) -> Option<std::path::PathBuf> {
-    let uri = Url::parse(&source.name).ok()?;
+    let uri = Url::parse(source.name()).ok()?;
     let path = uri.to_file_path().ok()?;
     let directory = path.parent()?.canonicalize().ok()?;
     directory.starts_with(root).then_some(directory)
@@ -188,8 +188,8 @@ fn document_directory(root: &Path, source: &SourceFile) -> Option<std::path::Pat
 fn field_prefix(source: &SourceFile, span: Span, offset: usize) -> String {
     let start = span.start.saturating_add(1);
     let end = offset.min(span.end.saturating_sub(1));
-    if start > end || end > source.text.len() {
+    if start > end || end > source.text().len() {
         return String::new();
     }
-    source.text.get(start..end).unwrap_or_default().to_owned()
+    source.text().get(start..end).unwrap_or_default().to_owned()
 }

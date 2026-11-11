@@ -231,9 +231,9 @@ fn flatten(
 
 fn valid_span(source: &SourceFile, span: Span) -> bool {
     !span.is_empty()
-        && span.end <= source.text.len()
-        && source.text.is_char_boundary(span.start)
-        && source.text.is_char_boundary(span.end)
+        && span.end <= source.text().len()
+        && source.text().is_char_boundary(span.start)
+        && source.text().is_char_boundary(span.end)
 }
 
 fn contains(parent: Span, child: Span) -> bool {

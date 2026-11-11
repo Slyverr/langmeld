@@ -11,7 +11,7 @@ impl LanguageParser for SayParser {
         let mut diagnostics = Vec::new();
         let mut line_start = 0;
 
-        for line_with_ending in source.text.split_inclusive('\n') {
+        for line_with_ending in source.text().split_inclusive('\n') {
             let line = line_with_ending
                 .strip_suffix('\n')
                 .unwrap_or(line_with_ending);

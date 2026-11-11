@@ -40,7 +40,7 @@ fn run() -> Result<(), String> {
                 let location = diagnostic.location.as_ref();
                 let source_name = location
                     .map(|location| location.source_name.as_str())
-                    .unwrap_or(&source.name);
+                    .unwrap_or(source.name());
                 let (line, column) = location
                     .map(|location| source.line_column(location.span.start))
                     .unwrap_or((1, 1));

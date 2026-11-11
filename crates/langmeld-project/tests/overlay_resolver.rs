@@ -88,8 +88,8 @@ fn combines_local_and_embedded_construct_modules() {
     let sources = resolver.sources();
     assert_eq!(sources.len(), 3);
     assert!(sources.iter().any(|source| {
-        source.name == "language/extensions/geometry/drawing.langmeld"
-            && source.text.contains("construct \"draw\"")
+        source.name() == "language/extensions/geometry/drawing.langmeld"
+            && source.text().contains("construct \"draw\"")
     }));
 }
 

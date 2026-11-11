@@ -41,16 +41,16 @@ impl OverlayDefinitionResolver {
         let mut overlay_sources = self.overlay.sources();
         let overlay_names = overlay_sources
             .iter()
-            .map(|source| source.name.as_str())
+            .map(|source| source.name())
             .collect::<HashSet<_>>();
         let mut sources = self
             .directory
             .sources()
             .into_iter()
-            .filter(|source| !overlay_names.contains(source.name.as_str()))
+            .filter(|source| !overlay_names.contains(source.name()))
             .collect::<Vec<_>>();
         sources.append(&mut overlay_sources);
-        sources.sort_by(|left, right| left.name.cmp(&right.name));
+        sources.sort_by(|left, right| left.name().cmp(right.name()));
         sources
     }
 }

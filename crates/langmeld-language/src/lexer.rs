@@ -87,21 +87,21 @@ impl Lexer for ConfiguredLexer<'_> {
 fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> LexOutput {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut chars = source.text.char_indices().peekable();
+    let mut chars = source.text().char_indices().peekable();
     while let Some((start, character)) = chars.next() {
         if character.is_whitespace() {
             continue;
         }
-        if let Some((opening, closing)) = comment_start(&source.text[start..], rules) {
+        if let Some((opening, closing)) = comment_start(&source.text()[start..], rules) {
             let content_start = start + opening.len();
             if let Some(closing) = closing {
-                if let Some(relative_end) = source.text[content_start..].find(closing) {
+                if let Some(relative_end) = source.text()[content_start..].find(closing) {
                     let end = content_start + relative_end + closing.len();
                     while chars.peek().is_some_and(|(byte, _)| *byte < end) {
                         chars.next();
                     }
                 } else {
-                    let span = Span::new(start, source.text.len());
+                    let span = Span::new(start, source.text().len());
                     diagnostics.push(Diagnostic::error(
                         "LM-LEX-003",
                         format!("unterminated block comment starting with `{opening}`"),
@@ -131,7 +131,7 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
         }
         if character == '"' {
             let mut escaped = false;
-            let mut end = source.text.len();
+            let mut end = source.text().len();
             let mut closed = false;
             for (byte, next) in chars.by_ref() {
                 end = byte + next.len_utf8();
@@ -146,7 +146,7 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
             }
             let span = Span::new(start, end);
             tokens.push(LexedToken {
-                text: source.text[start..end].to_owned(),
+                text: source.text()[start..end].to_owned(),
                 kind: if closed {
                     TokenKind::String
                 } else {
@@ -175,7 +175,7 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
                 }
             }
             tokens.push(LexedToken {
-                text: source.text[start..end].to_owned(),
+                text: source.text()[start..end].to_owned(),
                 kind: TokenKind::Identifier,
                 span: Span::new(start, end),
             });
@@ -192,7 +192,7 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
                 }
             }
             tokens.push(LexedToken {
-                text: source.text[start..end].to_owned(),
+                text: source.text()[start..end].to_owned(),
                 kind: TokenKind::Integer,
                 span: Span::new(start, end),
             });
@@ -209,7 +209,7 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
                 }
             }
             tokens.push(LexedToken {
-                text: source.text[start..end].to_owned(),
+                text: source.text()[start..end].to_owned(),
                 kind: TokenKind::Punctuation,
                 span: Span::new(start, end),
             });
@@ -279,7 +279,7 @@ fn limit_lex_output(source: &SourceFile, mut output: LexOutput, max_tokens: usiz
                 "LM-PARSE-008",
                 format!("token count exceeds the configured limit of {max_tokens}"),
                 source,
-                Span::new(source.text.len(), source.text.len()),
+                Span::new(source.text().len(), source.text().len()),
             ));
         }
     }
@@ -304,9 +304,9 @@ pub(crate) fn validate_tokens(
     for token in tokens {
         let span = token.span;
         let valid_range = span.start < span.end
-            && span.end <= source.text.len()
-            && source.text.is_char_boundary(span.start)
-            && source.text.is_char_boundary(span.end);
+            && span.end <= source.text().len()
+            && source.text().is_char_boundary(span.start)
+            && source.text().is_char_boundary(span.end);
         if !valid_range {
             diagnostics.push(Diagnostic::spec_error(
                 "LM-LEX-002",
@@ -323,7 +323,7 @@ pub(crate) fn validate_tokens(
             ));
             continue;
         }
-        if source.text.get(span.start..span.end) != Some(token.text.as_str()) {
+        if source.text().get(span.start..span.end) != Some(token.text.as_str()) {
             diagnostics.push(Diagnostic::error(
                 "LM-LEX-002",
                 "lexer token text does not match its source range",

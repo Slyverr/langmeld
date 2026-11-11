@@ -381,7 +381,7 @@ impl LanguageBackend for LanguageDefinitionBackend {
             },
         )
         .ok()
-        .filter(|formatted| formatted != &source.text)
+        .filter(|formatted| formatted != source.text())
     }
 
     fn document_symbols(

@@ -9,6 +9,8 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Source snapshot names and text are now exposed through read-only accessors,
+  preserving the identity and revision associated with managed snapshots.
 - Plain-text diagnostics now include their error, warning, or info severity.
 - The declarative starter and examples use severity-aware validity checks and
   report non-error findings without treating them as failures.

@@ -261,7 +261,7 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Returns the exact source text covered by a captured field.
     pub fn captured_text(&self, field: &CapturedField) -> Result<&'source str, Diagnostic> {
         self.source
-            .text
+            .text()
             .get(field.span.start..field.span.end)
             .ok_or_else(|| {
                 Diagnostic::error(

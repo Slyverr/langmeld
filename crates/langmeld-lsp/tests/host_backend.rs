@@ -119,7 +119,7 @@ impl LanguageNavigator<TestParser> for TestNavigator {
 
 fn location(source: &SourceFile) -> SourceLocation {
     SourceLocation {
-        source_name: source.name.clone(),
+        source_name: source.name().to_owned(),
         identity: source.identity(),
         span: Span::new(0, 0),
     }

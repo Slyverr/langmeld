@@ -210,8 +210,8 @@ where
     P: LanguageParser,
     C: LanguageCompleter<P>,
 {
-    if offset > source.text.len()
-        || !source.text.is_char_boundary(offset)
+    if offset > source.text().len()
+        || !source.text().is_char_boundary(offset)
         || parsed.source != source.identity()
         || analysis.is_some_and(|analysis| analysis.source != source.identity())
     {
@@ -223,9 +223,9 @@ where
         .into_iter()
         .filter(|candidate| {
             candidate.replace.start <= candidate.replace.end
-                && candidate.replace.end <= source.text.len()
-                && source.text.is_char_boundary(candidate.replace.start)
-                && source.text.is_char_boundary(candidate.replace.end)
+                && candidate.replace.end <= source.text().len()
+                && source.text().is_char_boundary(candidate.replace.start)
+                && source.text().is_char_boundary(candidate.replace.end)
         })
         .collect()
 }
@@ -265,9 +265,9 @@ pub fn complete_at_with_lexer(
     lexer: &impl Lexer,
 ) -> Vec<CompletionCandidate> {
     let limits = ParseLimits::default();
-    if offset > source.text.len()
-        || !source.text.is_char_boundary(offset)
-        || source.text.len() > limits.max_source_bytes
+    if offset > source.text().len()
+        || !source.text().is_char_boundary(offset)
+        || source.text().len() > limits.max_source_bytes
     {
         return Vec::new();
     }
@@ -286,22 +286,25 @@ pub fn complete_at_with_lexer(
                         .last()
                         .is_some_and(|character| character == '_' || character.is_alphanumeric()))
                 && token.span.start < token.span.end
-                && token.span.end <= source.text.len()
-                && source.text.is_char_boundary(token.span.start)
-                && source.text.is_char_boundary(token.span.end)
-                && source.text.get(token.span.start..token.span.end) == Some(token.text.as_str())
+                && token.span.end <= source.text().len()
+                && source.text().is_char_boundary(token.span.start)
+                && source.text().is_char_boundary(token.span.end)
+                && source.text().get(token.span.start..token.span.end) == Some(token.text.as_str())
         });
     let (prefix_end, replacement, prefix) = if let Some(token) = prefix_token {
         (
             token.span.start,
             token.span,
-            source.text[token.span.start..offset].to_owned(),
+            source.text()[token.span.start..offset].to_owned(),
         )
     } else {
         (offset, Span::new(offset, offset), String::new())
     };
 
-    let prefix_source = SourceFile::new(source.name.clone(), source.text[..prefix_end].to_owned());
+    let prefix_source = SourceFile::new(
+        source.name().to_owned(),
+        source.text()[..prefix_end].to_owned(),
+    );
     let (parsed, contexts) = parse_with_contexts(&prefix_source, language, lexer);
     let is_choice_value_position = contexts.iter().any(|context| {
         context.span == Span::new(prefix_end, prefix_end) && !context.values.is_empty()

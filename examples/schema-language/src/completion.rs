@@ -33,7 +33,7 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
         }) else {
             return Vec::new();
         };
-        let Some(prefix) = source.text.get(reference.span.start..offset) else {
+        let Some(prefix) = source.text().get(reference.span.start..offset) else {
             return Vec::new();
         };
 
@@ -52,5 +52,5 @@ impl LanguageCompleter<SchemaParser> for SchemaCompleter {
 }
 
 fn is_current_source(location: &langmeld_core::SourceLocation, source: &SourceFile) -> bool {
-    location.identity == source.identity() && location.source_name == source.name
+    location.identity == source.identity() && location.source_name == source.name()
 }

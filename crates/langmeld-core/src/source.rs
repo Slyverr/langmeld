@@ -41,9 +41,9 @@ impl Span {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceFile {
     /// Display name used by diagnostics. It is not interpreted as a path.
-    pub name: String,
+    name: String,
     /// UTF-8 source text.
-    pub text: String,
+    text: String,
     identity: Option<SourceIdentity>,
 }
 
@@ -56,6 +56,18 @@ impl SourceFile {
             text: text.into(),
             identity: None,
         }
+    }
+
+    /// Returns the display name used by diagnostics.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the UTF-8 text in this immutable source snapshot.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
     }
 
     /// Returns this snapshot's stable database identity and revision, if it is

@@ -10,7 +10,7 @@ impl LanguageParser for Parser {
     type Tree = String;
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
-        ParsedDocument::new(source, source.text.clone(), Vec::new())
+        ParsedDocument::new(source, source.text().to_owned(), Vec::new())
     }
 }
 
@@ -27,7 +27,7 @@ impl LanguageNavigator<Parser> for Navigator {
         offset: usize,
     ) -> Vec<SourceLocation> {
         assert!(analysis.is_some());
-        assert_eq!(offset, source.text.len());
+        assert_eq!(offset, source.text().len());
         vec![location(source, Span::new(0, 1))]
     }
 
@@ -49,7 +49,7 @@ impl LanguageNavigator<Parser> for Navigator {
 
 fn location(source: &SourceFile, span: Span) -> SourceLocation {
     SourceLocation {
-        source_name: source.name.clone(),
+        source_name: source.name().to_owned(),
         identity: source.identity(),
         span,
     }
@@ -88,7 +88,7 @@ fn navigation_rejects_stale_database_managed_snapshots() {
             current_source,
             &current_parsed,
             Some(&old_analysis),
-            current_source.text.len(),
+            current_source.text().len(),
             &Navigator,
         )
         .is_empty()
@@ -98,7 +98,7 @@ fn navigation_rejects_stale_database_managed_snapshots() {
             current_source,
             &old_parsed,
             None,
-            current_source.text.len(),
+            current_source.text().len(),
             true,
             &Navigator,
         )

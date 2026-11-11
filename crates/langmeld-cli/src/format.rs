@@ -42,7 +42,7 @@ pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
         project
             .sources
             .into_iter()
-            .map(|source| (project.root.join(&source.name), source))
+            .map(|source| (project.root.join(source.name()), source))
             .collect()
     };
 
@@ -51,7 +51,7 @@ pub(crate) fn run(args: FormatArgs) -> Result<(), Box<dyn Error>> {
         let formatted = format_language_definition(&source, options).map_err(|diagnostics| {
             format_diagnostics(std::slice::from_ref(&source), &diagnostics)
         })?;
-        outputs.push((path, source.text, formatted));
+        outputs.push((path, source.text().to_owned(), formatted));
     }
 
     if args.check {

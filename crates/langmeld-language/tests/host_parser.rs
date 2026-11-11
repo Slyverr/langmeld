@@ -15,9 +15,9 @@ impl LanguageParser for AssignmentParser {
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
         let mut assignments = Vec::new();
         let mut diagnostics = Vec::new();
-        for (line_number, line) in source.text.lines().enumerate() {
+        for (line_number, line) in source.text().lines().enumerate() {
             let line_start = source
-                .text
+                .text()
                 .split_inclusive('\n')
                 .take(line_number)
                 .map(str::len)

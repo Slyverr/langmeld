@@ -99,12 +99,12 @@ fn replaces_updated_snapshots_and_keeps_sources_sorted_by_key() {
         .insert("z.langmeld", SourceFile::new("z.langmeld", "new"))
         .unwrap();
 
-    assert_eq!(replaced.unwrap().text, "old");
+    assert_eq!(replaced.unwrap().text(), "old");
     assert_eq!(
         resolver
             .sources()
             .iter()
-            .map(|source| source.text.as_str())
+            .map(|source| source.text())
             .collect::<Vec<_>>(),
         ["a", "new"]
     );

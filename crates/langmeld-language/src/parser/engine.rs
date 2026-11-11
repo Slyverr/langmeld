@@ -15,7 +15,7 @@ pub(super) fn parse_with_lexer_internal(
     limits: ParseLimits,
     capture_contexts: bool,
 ) -> (ParseResult, Vec<ParseContext>) {
-    if source.text.len() > limits.max_source_bytes {
+    if source.text().len() > limits.max_source_bytes {
         let span = source_limit_span(source, limits.max_source_bytes);
         return (
             ParseResult {
@@ -114,7 +114,7 @@ impl Parser<'_> {
         let start = self
             .tokens
             .get(self.cursor)
-            .map_or(self.source.text.len(), |token| token.span.start);
+            .map_or(self.source.text().len(), |token| token.span.start);
         let mut children = Vec::new();
         while !self.stopped {
             let Some(token) = self.tokens.get(self.cursor) else {
@@ -134,7 +134,7 @@ impl Parser<'_> {
             let end = self
                 .tokens
                 .get(self.cursor)
-                .map_or(self.source.text.len(), |token| token.span.start);
+                .map_or(self.source.text().len(), |token| token.span.start);
             self.completion_contexts.push(ParseContext {
                 span: Span::new(start, end),
                 constructs: allowed
@@ -237,7 +237,7 @@ impl Parser<'_> {
                     let offset = self
                         .tokens
                         .get(attempt.end)
-                        .map_or(self.source.text.len(), |token| token.span.start);
+                        .map_or(self.source.text().len(), |token| token.span.start);
                     self.completion_contexts.push(ParseContext {
                         span: Span::new(offset, offset),
                         constructs: Vec::new(),
@@ -248,7 +248,7 @@ impl Parser<'_> {
                     });
                 }
                 let span = self.tokens.get(attempt.end).map_or_else(
-                    || Span::new(self.source.text.len(), self.source.text.len()),
+                    || Span::new(self.source.text().len(), self.source.text().len()),
                     |token| token.span,
                 );
                 let expected = attempt
@@ -338,7 +338,7 @@ impl Parser<'_> {
                 end = self
                     .tokens
                     .get(self.cursor.saturating_sub(1))
-                    .map_or(self.source.text.len(), |token| token.span.end);
+                    .map_or(self.source.text().len(), |token| token.span.end);
             } else {
                 self.cursor += 1;
                 let allowed = block
@@ -367,7 +367,7 @@ impl Parser<'_> {
                     self.completion_blocked = false;
                 } else {
                     let boundary = self.tokens.get(self.cursor);
-                    end = boundary.map_or(self.source.text.len(), |_| {
+                    end = boundary.map_or(self.source.text().len(), |_| {
                         children.last().map_or(opening_end, |child| child.span.end)
                     });
                     let diagnostic_span = boundary.map_or_else(
@@ -439,7 +439,7 @@ impl Parser<'_> {
     fn missing_block_open(&mut self, spec: &crate::ConstructSpec, open: &str) {
         self.completion_blocked = true;
         let span = self.tokens.get(self.cursor).map_or_else(
-            || Span::new(self.source.text.len(), self.source.text.len()),
+            || Span::new(self.source.text().len(), self.source.text().len()),
             |token| token.span,
         );
         self.diagnostics.push(Diagnostic::error(
@@ -461,7 +461,7 @@ impl Parser<'_> {
         self.resource_limited = true;
         self.stopped = true;
         let span = self.tokens.get(position).map_or_else(
-            || Span::new(self.source.text.len(), self.source.text.len()),
+            || Span::new(self.source.text().len(), self.source.text().len()),
             |token| token.span,
         );
         self.diagnostics.push(Diagnostic::error(
@@ -494,8 +494,8 @@ impl Parser<'_> {
 }
 
 fn source_limit_span(source: &SourceFile, limit: usize) -> Span {
-    let mut offset = limit.min(source.text.len());
-    while !source.text.is_char_boundary(offset) {
+    let mut offset = limit.min(source.text().len());
+    while !source.text().is_char_boundary(offset) {
         offset -= 1;
     }
     Span::new(offset, offset)

@@ -56,7 +56,7 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
     assert_eq!(parsed.syntax_tree.root.kind, SyntaxNodeKind::SourceFile);
     assert_eq!(
         parsed.syntax_tree.root.span,
-        Span::new(0, source.text.len())
+        Span::new(0, source.text().len())
     );
 
     let mut indices = Vec::new();
@@ -77,7 +77,7 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
                 .expect("syntax token spans should refer to the source")
         })
         .collect::<String>();
-    assert_eq!(reconstructed, source.text);
+    assert_eq!(reconstructed, source.text());
 
     assert!(
         parsed
@@ -128,7 +128,7 @@ fn parse_result_tree_preserves_source_and_construct_fields() {
             .then_some(node)
     });
     let message = message.expect("captured field should appear in the syntax tree");
-    let message_start = source.text.find("\"Hello\"").unwrap();
+    let message_start = source.text().find("\"Hello\"").unwrap();
     let message_span = Span::new(message_start, message_start + "\"Hello\"".len());
     assert_eq!(message.span, message_span);
     assert!(matches!(
@@ -159,7 +159,7 @@ fn parser_retains_unrecognized_grammar_tokens_in_the_lossless_tree() {
                 .expect("syntax token spans should refer to the source")
         })
         .collect::<String>();
-    assert_eq!(reconstructed, source.text);
+    assert_eq!(reconstructed, source.text());
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn source_limit_returns_a_bounded_unparsed_tree() {
     assert_eq!(parsed.syntax_tree.tokens.len(), 1);
     assert_eq!(
         parsed.syntax_tree.tokens[0].span,
-        Span::new(0, source.text.len())
+        Span::new(0, source.text().len())
     );
 }
 
@@ -215,5 +215,5 @@ fn token_limit_preserves_the_unlexed_source_suffix() {
                 .expect("syntax token spans should refer to the source")
         })
         .collect::<String>();
-    assert_eq!(reconstructed, source.text);
+    assert_eq!(reconstructed, source.text());
 }

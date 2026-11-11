@@ -159,12 +159,12 @@ impl<B: LanguageBackend> ServerState<B> {
         else {
             return Some(Vec::new());
         };
-        if text == source.text {
+        if text == source.text() {
             return Some(Vec::new());
         }
         let range = to_lsp_range(
             source,
-            langmeld_core::Span::new(0, source.text.len()),
+            langmeld_core::Span::new(0, source.text().len()),
             self.encoding,
         )?;
         Some(vec![TextEdit {
@@ -209,9 +209,9 @@ impl<B: LanguageBackend> ServerState<B> {
             let target_source = target.source();
             let span = location.span;
             if span.is_empty()
-                || span.end > target_source.text.len()
-                || !target_source.text.is_char_boundary(span.start)
-                || !target_source.text.is_char_boundary(span.end)
+                || span.end > target_source.text().len()
+                || !target_source.text().is_char_boundary(span.start)
+                || !target_source.text().is_char_boundary(span.end)
             {
                 return None;
             }
@@ -306,14 +306,14 @@ impl<B: LanguageBackend> ServerState<B> {
     ) -> Option<ResolvedLocationSource<'a>> {
         if let Some((uri, source)) = self.documents.iter().find_map(|(uri, document)| {
             let source = self.sources.get(document.source_id)?;
-            (source.name == location.source_name && source.identity() == location.identity)
+            (source.name() == location.source_name && source.identity() == location.identity)
                 .then_some((uri, source))
         }) {
             return Some(ResolvedLocationSource::Open { uri, source });
         }
 
         let target = self.backend.source_for_location(location)?;
-        (target.source.name == location.source_name
+        (target.source.name() == location.source_name
             && target.source.identity() == location.identity)
             .then_some(ResolvedLocationSource::External(target))
     }

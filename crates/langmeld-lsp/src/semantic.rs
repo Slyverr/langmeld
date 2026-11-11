@@ -108,9 +108,9 @@ pub(crate) fn encode(
             continue;
         };
         if token.span.is_empty()
-            || token.span.end > source.text.len()
-            || !source.text.is_char_boundary(token.span.start)
-            || !source.text.is_char_boundary(token.span.end)
+            || token.span.end > source.text().len()
+            || !source.text().is_char_boundary(token.span.start)
+            || !source.text().is_char_boundary(token.span.end)
         {
             continue;
         }
@@ -126,7 +126,7 @@ pub(crate) fn encode(
         if !valid_modifiers {
             continue;
         }
-        for span in split_lines(&source.text, token.span) {
+        for span in split_lines(source.text(), token.span) {
             let Some(start) = line_index.position(span.start, encoding) else {
                 continue;
             };

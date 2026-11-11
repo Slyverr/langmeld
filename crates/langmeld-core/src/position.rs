@@ -40,12 +40,12 @@ impl<'a> LineIndex<'a> {
         let mut starts = vec![0];
         starts.extend(
             source
-                .text
+                .text()
                 .match_indices('\n')
                 .map(|(offset, _)| offset + 1),
         );
         Self {
-            text: &source.text,
+            text: source.text(),
             starts,
         }
     }
