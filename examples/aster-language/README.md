@@ -17,6 +17,19 @@ the proposed edit by reanalyzing the result, rejecting same-scope collisions
 and changes that would redirect a resolved reference. Aster has no runtime or
 compiler.
 
+Function declarations include ordinary parameter lists and return types:
+
+```aster
+fn add(left: i32, right: i32) -> i32 {
+    let total = left + right;
+    return total;
+}
+```
+
+This example uses a Rust-authored parser because its grammar and expression
+boundaries need parser-directed handling. For the declarative `.langmeld`
+route, start with [`toy-language`](../toy-language/README.md).
+
 The analyzer uses two ordered `LanguagePass` implementations: it collects
 function signatures first, then analyzes function bodies. This permits forward
 function references while keeping Aster's symbol and type policies in the
