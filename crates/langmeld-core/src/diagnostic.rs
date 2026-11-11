@@ -13,6 +13,16 @@ pub enum Severity {
     Info,
 }
 
+impl std::fmt::Display for Severity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Info => "info",
+        })
+    }
+}
+
 /// A machine-readable finding, optionally located in source text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -119,7 +129,7 @@ impl Diagnostic {
 }
 
 /// Formats diagnostics as plain text with source name, one-based line and
-/// column, code, and message.
+/// column, severity, code, and message.
 ///
 /// Locations are matched to `sources` by display name. If a source snapshot is
 /// unavailable, the location is shown at line 1, column 1. Diagnostics without
@@ -143,8 +153,8 @@ pub fn format_diagnostics(sources: &[SourceFile], diagnostics: &[Diagnostic]) ->
                 .map(|location| location.source_name.as_str())
                 .unwrap_or("<project>");
             format!(
-                "{source_name}:{line}:{column}: {}: {}",
-                diagnostic.code, diagnostic.message
+                "{source_name}:{line}:{column}: {}[{}]: {}",
+                diagnostic.severity, diagnostic.code, diagnostic.message
             )
         })
         .collect::<Vec<_>>()

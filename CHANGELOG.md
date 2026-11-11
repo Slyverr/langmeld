@@ -9,6 +9,7 @@ and this project uses [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Plain-text diagnostics now include their error, warning, or info severity.
 - The generated starter README now explains how to add a construct and where
   to implement its Rust behavior.
 

@@ -43,7 +43,7 @@ fn formats_source_locations_using_unicode_scalar_columns() {
 
     assert_eq!(
         format_diagnostics(&[source], &[diagnostic]),
-        "main.lang:2:2: TEST-001: invalid token"
+        "main.lang:2:2: error[TEST-001]: invalid token"
     );
 }
 
@@ -62,6 +62,20 @@ fn formats_missing_sources_and_project_level_diagnostics_with_safe_locations() {
 
     assert_eq!(
         format_diagnostics(&[], &diagnostics),
-        "missing.lang:1:1: TEST-001: source not available\n<project>:1:1: TEST-002: invalid project setting"
+        "missing.lang:1:1: error[TEST-001]: source not available\n<project>:1:1: error[TEST-002]: invalid project setting"
+    );
+}
+
+#[test]
+fn formats_warning_and_info_severities() {
+    let source = SourceFile::new("main.lang", "text");
+    let diagnostics = [
+        Diagnostic::warning("TEST-001", "warning", &source, Span::new(0, 1)),
+        Diagnostic::info("TEST-002", "information", &source, Span::new(1, 2)),
+    ];
+
+    assert_eq!(
+        format_diagnostics(&[source], &diagnostics),
+        "main.lang:1:1: warning[TEST-001]: warning\nmain.lang:1:2: info[TEST-002]: information"
     );
 }
