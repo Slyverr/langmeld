@@ -22,7 +22,7 @@ Add `langmeld-build` as a build dependency:
 
 ```toml
 [build-dependencies]
-langmeld-build = "0.9"
+langmeld-build = "0.10"
 ```
 
 Create `build.rs` at the Rust package root:
