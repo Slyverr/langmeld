@@ -228,12 +228,57 @@ fn add_root_import(source: &str, import_path: &str) -> Result<String, io::Error>
     } else {
         "\n"
     };
+    let declaration_line_start = source[..language.span.start]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let declaration_prefix = &source[declaration_line_start..language.span.start];
+    let declaration_indent = if is_indentation(declaration_prefix) {
+        declaration_prefix
+    } else {
+        ""
+    };
+    let indent_unit = language
+        .children
+        .iter()
+        .find_map(|child| {
+            let child_indent = indentation_at(source, child.span.start)?;
+            child_indent
+                .strip_prefix(declaration_indent)
+                .filter(|indent| !indent.is_empty())
+        })
+        .unwrap_or("    ");
+    let import_indent = format!("{declaration_indent}{indent_unit}");
+    let closing_line_start = source[..insertion].rfind('\n').map_or(0, |index| index + 1);
+    let closing_line_prefix = &source[closing_line_start..insertion];
+    let import = format!("{import_indent}import \"{import_path}\";{newline}");
     let mut updated = source.to_owned();
-    updated.insert_str(
-        insertion,
-        &format!("    import \"{import_path}\";{newline}"),
-    );
+    if is_indentation(closing_line_prefix) {
+        updated.insert_str(closing_line_start, &import);
+    } else {
+        let content_end = source[..insertion].trim_end_matches([' ', '\t']).len();
+        updated.replace_range(content_end..insertion, "");
+        updated.insert_str(
+            content_end,
+            &format!(
+                "{newline}{import_indent}import \"{import_path}\";{newline}{declaration_indent}"
+            ),
+        );
+    }
+
     Ok(updated)
+}
+
+fn is_indentation(value: &str) -> bool {
+    value
+        .chars()
+        .all(|character| matches!(character, ' ' | '\t'))
+}
+
+fn indentation_at(source: &str, offset: usize) -> Option<&str> {
+    let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let indentation = &source[line_start..offset];
+
+    is_indentation(indentation).then_some(indentation)
 }
 
 fn syntax_template(name: &str, literal: &str, category: &str) -> String {

@@ -193,6 +193,18 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
             .contains("provide a construct name or run this command in an interactive terminal")
     );
 
+    let root_path = project.join("language/main.langmeld");
+    let mut root = fs::read_to_string(&root_path).expect("root definition should be readable");
+    root = root.replace('\n', "\r\n");
+    root = root
+        .replace("\r\n        ", "\r\n\t\t")
+        .replace("\r\n    ", "\r\n\t");
+    let closing_brace = root
+        .rfind("}\r\n")
+        .expect("root should end with a closing brace");
+    root.insert(closing_brace, '\t');
+    fs::write(&root_path, root).expect("indented root should be written");
+
     let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([
             "generate",
@@ -209,9 +221,14 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
         String::from_utf8_lossy(&generated.stderr)
     );
 
-    let root = fs::read_to_string(project.join("language/main.langmeld"))
-        .expect("root definition should be readable");
+    let root = fs::read_to_string(&root_path).expect("root definition should be readable");
     assert!(root.contains("import \"constructs/trace.langmeld\";"));
+    assert!(
+        root.lines()
+            .any(|line| line == "\timport \"constructs/trace.langmeld\";")
+    );
+    assert!(!root.contains("\t\timport \"constructs/trace.langmeld\";"));
+    assert!(root.contains("\r\n\timport \"constructs/trace.langmeld\";\r\n\t}\r\n"));
     let syntax = fs::read_to_string(project.join("language/constructs/trace.langmeld"))
         .expect("construct syntax should be generated");
     assert!(syntax.contains("literal \"trace\";"));
@@ -335,6 +352,70 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
         !project
             .join("language/constructs/empty-literal.langmeld")
             .exists()
+    );
+}
+
+#[test]
+fn generate_construct_places_import_on_its_own_line_for_compact_root() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("compact-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let root_path = project.join("language/main.langmeld");
+    fs::write(
+        &root_path,
+        r#"language "Widget" { import "constructs/statements.langmeld"; root "program"; construct "program" { syntax { literal "program"; } block "{" "}" { allow_category "statement"; } } }"#,
+    )
+    .expect("compact root definition should be written");
+
+    let manifest = project.join("langmeld.toml");
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "trace",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+
+    let root = fs::read_to_string(&root_path).expect("updated root should be readable");
+    assert_eq!(
+        root.lines().nth(1),
+        Some("    import \"constructs/trace.langmeld\";")
+    );
+    assert_eq!(root.lines().last(), Some("}"));
+
+    let checked = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        checked.status.success(),
+        "{}",
+        String::from_utf8_lossy(&checked.stderr)
     );
 }
 
