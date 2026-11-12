@@ -16,7 +16,10 @@ mod syntax;
 mod typed;
 
 pub use analysis::{AnalysisContext, AnalysisInput, LanguagePass};
-pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer, complete_with};
+pub use completion::{
+    CompletionCandidate, CompletionInsertTextFormat, complete_at, complete_at_with_lexer,
+    complete_with,
+};
 pub use completion_kind::CompletionKind;
 pub use definition::{
     DefinitionResolver, DefinitionResult, DefinitionSource, MAX_DEFINITION_IMPORT_DEPTH,

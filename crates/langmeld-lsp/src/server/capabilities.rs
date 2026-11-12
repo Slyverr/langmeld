@@ -32,6 +32,17 @@ pub(super) fn negotiate_encoding(params: &InitializeParams) -> PositionEncoding 
         .unwrap_or(PositionEncoding::Utf16)
 }
 
+pub(super) fn supports_completion_snippets(params: &InitializeParams) -> bool {
+    params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|capabilities| capabilities.completion.as_ref())
+        .and_then(|capabilities| capabilities.completion_item.as_ref())
+        .and_then(|capabilities| capabilities.snippet_support)
+        .unwrap_or(false)
+}
+
 pub(super) fn server_capabilities(
     backend: BackendCapabilities,
     workspace_folders: bool,

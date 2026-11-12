@@ -510,9 +510,14 @@ spans outside the source or inside a UTF-8 character; it cannot infer
 contextual validity from a host-owned tree. Standalone `SourceFile`s also have
 unique snapshot identities, so their parse and analysis results are checked
 against the exact source. Use `type Analysis = ()` when completion does not need
-semantic analysis. The [Schema example](../../examples/schema-language/README.md)
-shows a completer that first identifies a type-reference position, then offers
-only names from semantic analysis.
+semantic analysis. `CompletionCandidate` inserts plain text by default. Use
+`with_insert_text_format(CompletionInsertTextFormat::Snippet)` for editor
+snippet syntax; the LSP adapter emits those items only when the client advertises
+snippet support. `CompletionKind::Snippet` controls the item's displayed
+category and is independent of its insertion format. The
+[Schema example](../../examples/schema-language/README.md) shows a completer
+that first identifies a type-reference position, then offers only names from
+semantic analysis.
 
 For definition and references queries, implement `LanguageNavigator<P>`. The
 host receives the same parsed and optional analyzed snapshot and returns

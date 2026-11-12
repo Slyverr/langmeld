@@ -23,7 +23,12 @@ impl<B: LanguageBackend> ServerState<B> {
         }
         let offset = byte_offset(source, position, self.encoding)?;
         let candidates = self.backend.complete(source, &document.analysis, offset);
-        Some(completion_items(source, candidates, self.encoding))
+        Some(completion_items(
+            source,
+            candidates,
+            self.encoding,
+            self.client_supports_snippets,
+        ))
     }
 
     pub(super) fn semantic_tokens(

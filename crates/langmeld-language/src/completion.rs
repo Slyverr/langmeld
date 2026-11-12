@@ -8,11 +8,23 @@ use crate::{
     ParsedDocument, PatternPart, RepeatMinimum,
 };
 
+/// How an editor should interpret a completion candidate's inserted text.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CompletionInsertTextFormat {
+    /// Insert the text literally. This is the default.
+    #[default]
+    PlainText,
+    /// Interpret the text using the editor's snippet syntax.
+    Snippet,
+}
+
 /// A completion suggestion and the source range it replaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionCandidate {
     /// Token text to insert.
     pub text: String,
+    /// How an editor should interpret [`Self::text`].
+    pub insert_text_format: CompletionInsertTextFormat,
     /// Optional display label; defaults to [`Self::text`].
     pub label: Option<String>,
     /// Optional matching text; defaults to [`Self::text`].
@@ -32,6 +44,7 @@ impl CompletionCandidate {
     pub fn new(text: impl Into<String>, replace: Span) -> Self {
         Self {
             text: text.into(),
+            insert_text_format: CompletionInsertTextFormat::PlainText,
             label: None,
             filter_text: None,
             kind: None,
@@ -44,6 +57,13 @@ impl CompletionCandidate {
     #[must_use]
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// Marks the inserted text as editor snippet syntax.
+    #[must_use]
+    pub fn with_insert_text_format(mut self, format: CompletionInsertTextFormat) -> Self {
+        self.insert_text_format = format;
         self
     }
 

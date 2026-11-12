@@ -11,9 +11,9 @@ use std::{
 
 use langmeld_core::{Diagnostic, SourceDatabase, SourceFile, SourceLocation, Span};
 use langmeld_language::{
-    AnalysisDocument, CompletionCandidate, CompletionKind, ConstructSpec, LanguageAnalyzer,
-    LanguageCompleter, LanguageNavigator, LanguageParser, LanguageSpec, LanguageWorkspaceAnalyzer,
-    ParsedDocument, PatternPart,
+    AnalysisDocument, CompletionCandidate, CompletionInsertTextFormat, CompletionKind,
+    ConstructSpec, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
+    LanguageSpec, LanguageWorkspaceAnalyzer, ParsedDocument, PatternPart,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
@@ -79,6 +79,13 @@ impl LanguageBackend for Backend {
                 .with_label("Great value")
                 .with_kind(CompletionKind::Struct)
                 .with_filter_text("preferred"),
+            CompletionCandidate::new(
+                "call(${1:argument})$0",
+                Span::new("😀".len(), source.text().len()),
+            )
+            .with_label("Function call")
+            .with_kind(CompletionKind::Function)
+            .with_insert_text_format(CompletionInsertTextFormat::Snippet),
         ]
     }
 

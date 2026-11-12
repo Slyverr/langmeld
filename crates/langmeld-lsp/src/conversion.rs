@@ -1,10 +1,10 @@
 use langmeld_core::{
     Diagnostic as LangmeldDiagnostic, PositionEncoding, Severity, SourceFile, SourceLocation, Span,
 };
-use langmeld_language::CompletionKind;
+use langmeld_language::{CompletionInsertTextFormat, CompletionKind};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionTextEdit, Diagnostic, DiagnosticSeverity,
-    NumberOrString, Position, Range, TextEdit, Uri,
+    InsertTextFormat, NumberOrString, Position, Range, TextEdit, Uri,
 };
 
 use crate::backend::BackendDocument;
@@ -86,14 +86,25 @@ pub(crate) fn completion_items(
     source: &SourceFile,
     candidates: impl IntoIterator<Item = langmeld_language::CompletionCandidate>,
     encoding: PositionEncoding,
+    supports_snippets: bool,
 ) -> Vec<CompletionItem> {
     candidates
         .into_iter()
         .filter_map(|candidate| {
+            if candidate.insert_text_format == CompletionInsertTextFormat::Snippet
+                && !supports_snippets
+            {
+                return None;
+            }
+
             let range = to_lsp_range(source, candidate.replace, encoding)?;
             if range.start.line != range.end.line {
                 return None;
             }
+            let insert_text_format = match candidate.insert_text_format {
+                CompletionInsertTextFormat::PlainText => InsertTextFormat::PLAIN_TEXT,
+                CompletionInsertTextFormat::Snippet => InsertTextFormat::SNIPPET,
+            };
             let label = candidate.label.unwrap_or_else(|| candidate.text.clone());
             let filter_text = candidate
                 .filter_text
@@ -103,6 +114,7 @@ pub(crate) fn completion_items(
                 kind: candidate.kind.map(to_lsp_completion_kind),
                 detail: candidate.detail,
                 filter_text: Some(filter_text),
+                insert_text_format: Some(insert_text_format),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit {
                     range,
                     new_text: candidate.text,

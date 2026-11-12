@@ -78,6 +78,7 @@ pub fn run_connection<B: LanguageBackend>(
     let (initialize_id, initialize_params) = connection.initialize_start()?;
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)?;
     let encoding = negotiate_encoding(&initialize_params);
+    let client_supports_snippets = supports_completion_snippets(&initialize_params);
     let client_supports_workspace_folders = initialize_params
         .capabilities
         .workspace
@@ -164,6 +165,7 @@ pub fn run_connection<B: LanguageBackend>(
         semantic_legend,
         supports_markdown_hover,
         supports_hierarchical_document_symbols,
+        client_supports_snippets,
         encoding,
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
@@ -269,6 +271,7 @@ struct ServerState<B: LanguageBackend> {
     semantic_legend: SemanticTokenLegend,
     supports_markdown_hover: bool,
     supports_hierarchical_document_symbols: bool,
+    client_supports_snippets: bool,
     encoding: PositionEncoding,
     sources: SourceDatabase,
     documents: HashMap<Uri, OpenDocument<B::Document>>,
@@ -279,5 +282,5 @@ mod documents;
 mod requests;
 mod workspace;
 
-use capabilities::{negotiate_encoding, server_capabilities};
+use capabilities::{negotiate_encoding, server_capabilities, supports_completion_snippets};
 use documents::parse_notification;

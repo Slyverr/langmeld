@@ -301,9 +301,18 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
         }),
     );
     let completion = receive_response(&client);
+    assert_eq!(completion.as_array().unwrap().len(), 2);
+    assert!(
+        completion
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["label"] != "Function call")
+    );
     assert_eq!(completion[0]["label"], "Good value");
     assert_eq!(completion[0]["detail"], "Suggested item");
     assert_eq!(completion[0]["textEdit"]["newText"], "good");
+    assert_eq!(completion[0]["insertTextFormat"], 1);
     assert_eq!(completion[0]["filterText"], "good");
     assert_eq!(completion[1]["label"], "Great value");
     assert_eq!(completion[1]["kind"], 22);
@@ -398,6 +407,79 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     assert!(closed["diagnostics"].as_array().unwrap().is_empty());
 
     send_request(&client, 15, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[test]
+fn returns_snippet_completions_when_the_client_supports_them() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, Backend::default());
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({
+            "capabilities": {
+                "textDocument": {
+                    "completion": {
+                        "completionItem": { "snippetSupport": true }
+                    }
+                }
+            }
+        }),
+    );
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+
+    let uri = "file:///snippets.test";
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": uri,
+                "languageId": "test",
+                "version": 1,
+                "text": "😀bad"
+            }
+        }),
+    );
+    receive_diagnostics(&client);
+
+    send_request(
+        &client,
+        2,
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 }
+        }),
+    );
+    let completion = receive_response(&client);
+    let snippet = completion
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["label"] == "Function call")
+        .expect("snippet completion should be included");
+    assert_eq!(snippet["kind"], 3);
+    assert_eq!(snippet["insertTextFormat"], 2);
+    assert_eq!(snippet["textEdit"]["newText"], "call(${1:argument})$0");
+
+    send_request(&client, 3, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

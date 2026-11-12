@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Add `CompletionInsertTextFormat` to completion candidates, with plain text as
+  the `CompletionCandidate::new` default. Struct-literal initializers must set
+  the new field. The LSP adapter sends snippets only to supporting clients.
+
 ### Fixed
 
 - Keep invalid custom-lexer token-span diagnostics attached to the source,
