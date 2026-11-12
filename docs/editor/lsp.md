@@ -80,21 +80,22 @@ stale diagnostics. It parses each open source again for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
 parser diagnostics. Select the analyzer at construction, then attach its
-workspace analyzer, completer, and navigator. Rename, formatting, and hover
-still require a custom `LanguageBackend`.
-Hosts can implement `format_document` to return formatted text for a complete
-document. Langmeld passes through the editor's formatting options and returns
-one whole-document edit using the negotiated position encoding. Formatting
-policy remains language-owned.
-Hosts can also implement `hover` to return plain-text or Markdown information,
-optionally associated with a source range. The adapter converts both the
-request position and returned range using the negotiated position encoding,
-and sends Markdown only when the client advertises support for it.
-For rename, hosts return every declaration and reference span for the symbol.
-The adapter groups edits by URI and rejects the whole edit if a location is
-missing, stale, ambiguous, malformed, or overlaps another edit. A custom
-`LanguageBackend` can implement `source_for_location` to resolve closed-file
-targets; `HostLanguageBackend` accepts the same resolver with
+workspace analyzer, completer, and navigator. `HostLanguageBackend` does not
+expose semantic tokens, document symbols, rename, formatting, or hover;
+implement those features with a custom `LanguageBackend`.
+A custom backend can implement `format_document` to return formatted text for a
+complete document. Langmeld passes through the editor's formatting options and
+returns one whole-document edit using the negotiated position encoding.
+Formatting policy remains language-owned.
+A custom backend can also implement `hover` to return plain-text or Markdown
+information, optionally associated with a source range. The adapter converts
+both the request position and returned range using the negotiated position
+encoding, and sends Markdown only when the client advertises support for it.
+For rename, a custom backend returns every declaration and reference span for
+the symbol. The adapter groups edits by URI and rejects the whole edit if a
+location is missing, stale, ambiguous, malformed, or overlaps another edit.
+A custom `LanguageBackend` can implement `source_for_location` to resolve
+closed-file targets; `HostLanguageBackend` accepts the same resolver with
 `with_source_resolver`:
 
 ```rust,ignore
