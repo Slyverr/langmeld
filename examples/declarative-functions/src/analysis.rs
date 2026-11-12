@@ -35,7 +35,7 @@ pub fn analyze(
 
 struct CollectSignatures;
 
-impl LanguagePass<Program, FunctionFacts> for CollectSignatures {
+impl LanguagePass<ParsedDocument<Program>, FunctionFacts> for CollectSignatures {
     fn run(
         &self,
         source: &SourceFile,
@@ -73,7 +73,7 @@ impl LanguagePass<Program, FunctionFacts> for CollectSignatures {
 
 struct ResolveCalls;
 
-impl LanguagePass<Program, FunctionFacts> for ResolveCalls {
+impl LanguagePass<ParsedDocument<Program>, FunctionFacts> for ResolveCalls {
     fn run(
         &self,
         source: &SourceFile,

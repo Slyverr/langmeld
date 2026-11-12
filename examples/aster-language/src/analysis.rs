@@ -524,7 +524,7 @@ impl<'a> Analyzer<'a> {
 
 struct DeclareFunctions;
 
-impl<'a> LanguagePass<Program, Analyzer<'a>> for DeclareFunctions {
+impl<'a> LanguagePass<ParsedDocument<Program>, Analyzer<'a>> for DeclareFunctions {
     fn run(
         &self,
         _source: &SourceFile,
@@ -539,7 +539,7 @@ impl<'a> LanguagePass<Program, Analyzer<'a>> for DeclareFunctions {
 
 struct AnalyzeFunctionBodies;
 
-impl<'a> LanguagePass<Program, Analyzer<'a>> for AnalyzeFunctionBodies {
+impl<'a> LanguagePass<ParsedDocument<Program>, Analyzer<'a>> for AnalyzeFunctionBodies {
     fn run(
         &self,
         _source: &SourceFile,

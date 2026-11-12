@@ -25,6 +25,10 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `LanguagePass` is now generic over the parser's complete
+  source-bound result. Update custom-parser implementations from
+  `LanguagePass<Tree, State>` to `LanguagePass<ParsedDocument<Tree>, State>`;
+  declarative parsers can use `LanguagePass<ParseResult, State>` directly.
 - **Breaking:** `DefinitionResolver` now has an associated `Error` type that
   preserves resolver failures for Rust callers; implementers must declare
   `type Error` and return `Result<DefinitionSource, Self::Error>`.

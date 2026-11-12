@@ -69,8 +69,10 @@ For a declarative project, the main flow is:
 When semantic analysis needs multiple phases, a host can run `LanguagePass`
 implementations through `AnalysisContext`. The host owns the pass order and
 typed state; the context associates the result and diagnostics with the parsed
-source snapshot. A single `LanguageAnalyzer` callback remains suitable for
-smaller languages.
+source snapshot. Passes receive the complete source-bound parser result, so
+the built-in parser's `ParseResult` and a custom parser's
+`ParsedDocument<Tree>` both use this lifecycle without conversion. A single
+`LanguageAnalyzer` callback remains suitable for smaller languages.
 
 Custom parser projects can implement `LanguageParser` and return a host-owned
 tree instead of using the generic construct parser. Hosts can implement

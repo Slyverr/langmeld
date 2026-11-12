@@ -14,7 +14,7 @@ mod parser;
 mod spec;
 mod syntax;
 
-pub use analysis::{AnalysisContext, LanguagePass};
+pub use analysis::{AnalysisContext, AnalysisInput, LanguagePass};
 pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer, complete_with};
 pub use completion_kind::CompletionKind;
 pub use definition::{

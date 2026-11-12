@@ -1,9 +1,12 @@
 use langmeld_core::{Diagnostic, SourceDatabase, SourceFile, Span};
-use langmeld_language::{AnalysisContext, LanguagePass, ParsedDocument};
+use langmeld_language::{
+    AnalysisContext, ConstructSpec, LanguagePass, LanguageSpec, ParseResult, ParsedDocument,
+    PatternPart, parse,
+};
 
 struct RecordPhase(&'static str);
 
-impl LanguagePass<Vec<String>, Vec<&'static str>> for RecordPhase {
+impl LanguagePass<ParsedDocument<Vec<String>>, Vec<&'static str>> for RecordPhase {
     fn run(
         &self,
         _source: &SourceFile,
@@ -17,7 +20,7 @@ impl LanguagePass<Vec<String>, Vec<&'static str>> for RecordPhase {
 
 struct ReportProblem;
 
-impl LanguagePass<Vec<String>, Vec<&'static str>> for ReportProblem {
+impl LanguagePass<ParsedDocument<Vec<String>>, Vec<&'static str>> for ReportProblem {
     fn run(
         &self,
         source: &SourceFile,
@@ -30,6 +33,21 @@ impl LanguagePass<Vec<String>, Vec<&'static str>> for ReportProblem {
             source,
             Span::new(0, 1),
         )]
+    }
+}
+
+struct CountConstructs;
+
+impl LanguagePass<ParseResult, usize> for CountConstructs {
+    fn run(
+        &self,
+        _source: &SourceFile,
+        parsed: &ParseResult,
+        count: &mut usize,
+    ) -> Vec<Diagnostic> {
+        *count = parsed.constructs().len();
+
+        Vec::new()
     }
 }
 
@@ -75,6 +93,47 @@ fn later_passes_run_and_diagnostics_keep_their_source_spans() {
             .span(),
         Span::new(0, 1)
     );
+}
+
+#[test]
+fn runs_ordered_passes_directly_on_the_declarative_parse_result() {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "item",
+            [PatternPart::literal("item"), PatternPart::literal(";")],
+        )],
+    )
+    .expect("the test language should be valid");
+    let source = SourceFile::new("main.lang", "item; item;");
+    let parsed = parse(&source, &language);
+    let mut context = AnalysisContext::new(&source, &parsed, 0_usize)
+        .expect("parse result belongs to the supplied source snapshot");
+
+    context.run_pass(&CountConstructs);
+
+    let analysis = context.finish();
+
+    assert_eq!(*analysis.result(), 2);
+    assert!(analysis.diagnostics().is_empty());
+}
+
+#[test]
+fn rejects_declarative_parse_results_from_another_source_snapshot() {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new("item", [PatternPart::literal("item")])],
+    )
+    .expect("the test language should be valid");
+    let parsed_source = SourceFile::new("main.lang", "item");
+    let other_source = SourceFile::new("main.lang", "item");
+    let parsed = parse(&parsed_source, &language);
+
+    let error = AnalysisContext::new(&other_source, &parsed, 0_usize)
+        .err()
+        .expect("declarative parse results must retain source identity");
+
+    assert_eq!(error.code, "LM-ANALYSIS-001");
 }
 
 #[test]

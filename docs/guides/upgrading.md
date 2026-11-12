@@ -177,6 +177,45 @@ let mut context = match AnalysisContext::new(source, parsed, Facts::default()) {
 };
 ```
 
+### Use the complete parse result in analysis passes
+
+`LanguagePass` now uses the parser's complete source-bound result as its first
+type parameter. For custom parsers, change `LanguagePass<Tree, State>` to
+`LanguagePass<ParsedDocument<Tree>, State>`:
+
+```rust,ignore
+impl LanguagePass<ParsedDocument<Program>, Facts> for CollectDeclarations {
+    fn run(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<Program>,
+        facts: &mut Facts,
+    ) -> Vec<Diagnostic> {
+        // Inspect parsed.tree() and update facts.
+        Vec::new()
+    }
+}
+```
+
+Passes for the built-in declarative parser can now use `ParseResult` directly:
+
+```rust,ignore
+impl LanguagePass<ParseResult, Facts> for CheckNames {
+    fn run(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        facts: &mut Facts,
+    ) -> Vec<Diagnostic> {
+        // Inspect parsed.constructs() and update facts.
+        Vec::new()
+    }
+}
+```
+
+Custom parser result types can participate by implementing `AnalysisInput` to
+expose their source identity and syntax diagnostics.
+
 ### Bind construct handlers to their context
 
 `ConstructHandler::handle` no longer receives a separate `ParsedConstruct`.

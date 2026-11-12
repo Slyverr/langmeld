@@ -7,10 +7,11 @@ lifecycle without imposing a type system, symbol table, or execution model.
 
 ## Run ordered passes
 
-Each pass receives the current source snapshot, parsed document, and
+Each pass receives the parser's own result, the current source snapshot, and
 language-owned state. It returns diagnostics for that stage. The context runs
 passes in the order selected by the host, retains all diagnostics, and returns
-an `AnalysisDocument` tied to the source snapshot:
+an `AnalysisDocument` tied to the source snapshot. This works with both the
+built-in parser's `ParseResult` and a custom parser's `ParsedDocument<Tree>`:
 
 ```rust,ignore
 let mut analysis = AnalysisContext::new(source, parsed, LanguageFacts::default())?;
@@ -24,14 +25,31 @@ let result = analysis.finish();
 
 `AnalysisContext::new` checks source identity and returns a diagnostic if
 `parsed` belongs to a different snapshot, including when both sources were
-created directly with `SourceFile::new`. The context still accepts partial
-parse trees from the matching snapshot; each pass can inspect
-`parsed.diagnostics()` and choose whether it can proceed.
+created directly with `SourceFile::new`. The context does not clone or convert
+the parse result. Each pass can inspect `parsed.diagnostics()` and choose
+whether it can proceed with a partial parse tree.
 
-Implement a pass for the language's parsed tree and state:
+For a language using the declarative parser, implement a pass over
+`langmeld_language::ParseResult`:
 
 ```rust,ignore
-impl LanguagePass<Program, LanguageFacts> for CollectDeclarations {
+impl LanguagePass<ParseResult, LanguageFacts> for CheckNames {
+    fn run(
+        &self,
+        source: &SourceFile,
+        parsed: &ParseResult,
+        facts: &mut LanguageFacts,
+    ) -> Vec<Diagnostic> {
+        // Inspect parsed.constructs() and return source-located findings.
+        Vec::new()
+    }
+}
+```
+
+For a custom parser, use its `ParsedDocument<Tree>` directly:
+
+```rust,ignore
+impl LanguagePass<ParsedDocument<Program>, LanguageFacts> for CollectDeclarations {
     fn run(
         &self,
         source: &SourceFile,
@@ -44,10 +62,11 @@ impl LanguagePass<Program, LanguageFacts> for CollectDeclarations {
 }
 ```
 
-`LanguagePass` is generic over the parser's tree and host state. A custom
-`LanguageParser` can use the same lifecycle as the built-in parser. Passes may
-share typed facts through the host-owned state, and each pass can inspect
-`parsed.diagnostics()` to decide how to handle a partial tree.
+`LanguagePass` is generic over the parser result and host state. Both built-in
+and custom parse results implement `AnalysisInput`; implement that trait for a
+different parser result type to use the same lifecycle. Passes may share typed
+facts through host-owned state, and each pass can inspect parse diagnostics to
+decide how to handle partial syntax.
 
 ## Diagnostics and ordering
 
