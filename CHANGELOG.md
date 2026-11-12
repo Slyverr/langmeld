@@ -13,6 +13,8 @@ API migration notes are in the
 
 - Generate starter diagnostic codes with a prefix derived from the new Cargo
   package name instead of the generic `EXAMPLE` prefix.
+- Use Clap for optional source-file arguments in the runnable language examples,
+  giving them consistent help and argument validation.
 
 ## [0.12.1] - 2026-11-12
 

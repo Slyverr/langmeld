@@ -1,9 +1,17 @@
-use std::{env, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
+use clap::Parser;
 use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_toy_language_example::{LanguageLoadError, load};
 
 const SAMPLE: &str = "program { let title = \"Hello, Langmeld!\"; say title; draw circle labeled \"main target\"; emit \"first\", \"second\"; compute 20 + 4 * (2 + 1); }";
+
+#[derive(Debug, Parser)]
+#[command(version, about = "Run the WidgetScript example language.")]
+struct Cli {
+    #[arg(value_name = "SOURCE")]
+    source: Option<PathBuf>,
+}
 
 fn main() {
     if let Err(error) = run_cli() {
@@ -13,14 +21,9 @@ fn main() {
 }
 
 fn run_cli() -> Result<(), String> {
-    let mut arguments = env::args_os().skip(1);
-    let (source_name, source_text) = match arguments.next() {
+    let cli = Cli::parse();
+    let (source_name, source_text) = match cli.source {
         Some(path) => {
-            if arguments.next().is_some() {
-                return Err("usage: langmeld-toy-language-example [SOURCE]".to_owned());
-            }
-
-            let path = PathBuf::from(path);
             let source_text = fs::read_to_string(&path)
                 .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
 

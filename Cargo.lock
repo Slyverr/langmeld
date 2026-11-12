@@ -379,6 +379,7 @@ dependencies = [
 name = "langmeld-brainfuck-example"
 version = "0.12.1"
 dependencies = [
+ "clap",
  "langmeld-core",
  "langmeld-language",
 ]
@@ -420,6 +421,7 @@ version = "0.12.1"
 name = "langmeld-custom-lexer-example"
 version = "0.12.1"
 dependencies = [
+ "clap",
  "langmeld-core",
  "langmeld-language",
  "langmeld-project",
@@ -429,6 +431,7 @@ dependencies = [
 name = "langmeld-declarative-functions-example"
 version = "0.12.1"
 dependencies = [
+ "clap",
  "langmeld-build",
  "langmeld-core",
  "langmeld-expression",
@@ -503,6 +506,7 @@ dependencies = [
 name = "langmeld-toy-language-example"
 version = "0.12.1"
 dependencies = [
+ "clap",
  "langmeld-core",
  "langmeld-expression",
  "langmeld-language",

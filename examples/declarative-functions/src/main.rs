@@ -1,9 +1,17 @@
-use std::{env, fs, path::PathBuf, process::ExitCode};
+use std::{fs, path::PathBuf, process::ExitCode};
 
+use clap::Parser;
 use langmeld_core::{SourceFile, format_diagnostics, has_errors};
 use langmeld_declarative_functions_example::{analyze, diagnostics};
 
 const SAMPLE: &str = include_str!("../program.functionflow");
+
+#[derive(Debug, Parser)]
+#[command(version, about = "Analyze a FunctionFlow program.")]
+struct Cli {
+    #[arg(value_name = "SOURCE")]
+    source: Option<PathBuf>,
+}
 
 fn main() -> ExitCode {
     match run() {
@@ -16,14 +24,9 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let mut arguments = env::args_os().skip(1);
-    let (name, text) = match arguments.next() {
+    let cli = Cli::parse();
+    let (name, text) = match cli.source {
         Some(path) => {
-            if arguments.next().is_some() {
-                return Err(format!("usage: {} [SOURCE]", env!("CARGO_PKG_NAME")));
-            }
-
-            let path = PathBuf::from(path);
             let text = fs::read_to_string(&path)
                 .map_err(|error| format!("cannot read `{}`: {error}", path.display()))?;
 

@@ -1,8 +1,16 @@
-use std::{env, fs, path::Path};
+use std::{fs, path::Path, path::PathBuf};
 
+use clap::Parser;
 use langmeld_core::{SourceFile, format_diagnostics};
 use langmeld_custom_lexer_example::{RawStringLexer, load_language};
 use langmeld_language::{CapturedValue, parse_with_lexer};
+
+#[derive(Debug, Parser)]
+#[command(version, about = "Inspect a raw-string example program.")]
+struct Cli {
+    #[arg(value_name = "SOURCE")]
+    source: Option<PathBuf>,
+}
 
 fn main() {
     if let Err(error) = run() {
@@ -12,15 +20,15 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    let cli = Cli::parse();
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let language = load_language(project_root)?;
 
-    let source_path = env::args_os().nth(1);
-    let (source_name, source_text) = match source_path {
+    let (source_name, source_text) = match cli.source {
         Some(path) => {
             let text = fs::read_to_string(&path)
-                .map_err(|error| format!("failed to read `{}`: {error}", path.to_string_lossy()))?;
-            (path.to_string_lossy().into_owned(), text)
+                .map_err(|error| format!("failed to read `{}`: {error}", path.display()))?;
+            (path.display().to_string(), text)
         }
         None => (
             "<sample>".to_owned(),
