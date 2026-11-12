@@ -51,9 +51,9 @@ impl LoadedDefinitionProject {
     /// Returns absolute paths that file watchers should monitor for changes
     /// to the loaded definitions.
     ///
-    /// The list includes requested and canonical source paths. Parent
-    /// directories are also included when a source path traverses a symlink,
-    /// so replacing or retargeting that link can invalidate cached results.
+    /// The list includes requested and canonical source paths. It also includes
+    /// scoped parent directories or symlink paths needed to notice an import
+    /// redirect without recursively watching the whole project root.
     #[must_use]
     pub fn watched_paths(&self) -> &[PathBuf] {
         &self.watched_paths

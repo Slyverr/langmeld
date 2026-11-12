@@ -45,8 +45,8 @@ fn main() {
 The generator reads `langmeld.toml` from `CARGO_MANIFEST_DIR`, loads the root
 definition and its imports, and writes `langmeld_bindings.rs` to Cargo's
 `OUT_DIR`. It emits Cargo rebuild instructions for the manifest, loaded
-definition files, and in-project symlink directories that can redirect an
-import.
+definition files, and narrowly scoped paths needed to detect in-project
+symlink imports. It avoids watching the project root recursively.
 
 Keep a stable module in the Rust source tree and include the build output:
 

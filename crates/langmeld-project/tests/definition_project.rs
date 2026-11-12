@@ -107,6 +107,41 @@ fn exposes_watch_paths_for_internal_symlink_imports() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn avoids_watching_the_project_root_for_top_level_symlink_imports() {
+    let project = TestDirectory::new();
+    project.write(
+        "langmeld.toml",
+        "format = 1\ndefinition = \"language/main.langmeld\"\n",
+    );
+    project.write(
+        "language/main.langmeld",
+        "language \"Example\" { import \"../definitions/main.langmeld\"; }",
+    );
+    project.write(
+        "definition-sources/main.langmeld",
+        "construct \"item\" { syntax { literal \"item\"; } }",
+    );
+    std::os::unix::fs::symlink("definition-sources", project.path().join("definitions"))
+        .expect("top-level definition symlink should be created");
+
+    let loaded = load_definition_project(project.path()).unwrap();
+
+    assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
+    assert!(
+        loaded
+            .watched_paths()
+            .contains(&loaded.root().join("definitions"))
+    );
+    assert!(
+        !loaded
+            .watched_paths()
+            .iter()
+            .any(|path| path == loaded.root())
+    );
+}
+
 #[test]
 fn loads_a_legacy_lm_root_and_reports_a_migration_warning() {
     let project = TestDirectory::new();

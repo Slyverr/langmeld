@@ -247,10 +247,37 @@ impl DirectoryDefinitionResolver {
                     path: current.clone(),
                     source,
                 })?;
-            if metadata.file_type().is_symlink()
-                && let Some(parent) = current.parent()
-            {
-                paths.insert(parent.to_path_buf());
+            if metadata.file_type().is_symlink() {
+                let scoped_parent = if let Some(parent) = current.parent() {
+                    let resolved_parent =
+                        parent
+                            .canonicalize()
+                            .map_err(|source| ProjectLoadError::Read {
+                                path: parent.to_path_buf(),
+                                source,
+                            })?;
+
+                    (resolved_parent.starts_with(&self.root) && resolved_parent != self.root)
+                        .then_some(parent)
+                } else {
+                    None
+                };
+
+                if let Some(parent) = scoped_parent {
+                    paths.insert(parent.to_path_buf());
+                } else {
+                    let target =
+                        current
+                            .canonicalize()
+                            .map_err(|source| ProjectLoadError::Read {
+                                path: current.clone(),
+                                source,
+                            })?;
+
+                    if target.starts_with(&self.root) && target != self.root {
+                        paths.insert(current.clone());
+                    }
+                }
             }
         }
 
