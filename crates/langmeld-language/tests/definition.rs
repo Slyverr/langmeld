@@ -56,6 +56,8 @@ mod choices;
 mod imports;
 #[path = "definition/lexing.rs"]
 mod lexing;
+#[path = "definition/parity.rs"]
+mod parity;
 #[path = "definition/roots.rs"]
 mod roots;
 #[path = "definition/strings.rs"]
