@@ -84,8 +84,9 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 /// differ from the input are diagnosed and discarded. Editor queries are
 /// suppressed unless both validated results and the enclosing backend document
 /// belong to the requested source snapshot.
-/// Workspace analysis, rename, formatting, hover, and other queries remain
-/// available through a custom [`LanguageBackend`] implementation.
+/// Workspace analysis is available through [`Self::with_workspace_analyzer`].
+/// Semantic tokens, document symbols, rename, formatting, and hover require a
+/// custom [`LanguageBackend`] implementation.
 pub struct HostLanguageBackend<P, A = NoAnalyzer>
 where
     P: LanguageParser,
