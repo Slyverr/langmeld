@@ -27,6 +27,30 @@ fn completes_field_types_from_the_current_schema_symbols() {
 }
 
 #[test]
+fn does_not_suggest_record_types_outside_type_references() {
+    let source = SourceFile::new(
+        "schema.lang",
+        "record user { manager: man } record manager {}",
+    );
+    let parsed = parse_schema(&source);
+    let analysis = SchemaAnalyzer.analyze(&source, &parsed);
+    let declaration_offset = source.text().find("record manager").unwrap() + "record man".len();
+    let field_offset = source.text().find("manager:").unwrap() + "man".len();
+
+    for (offset, context) in [
+        (declaration_offset, "record declaration"),
+        (field_offset, "field name"),
+    ] {
+        let candidates = complete_with(&source, &parsed, Some(&analysis), offset, &SchemaCompleter);
+
+        assert!(
+            candidates.is_empty(),
+            "unexpected candidates in {context}: {candidates:?}"
+        );
+    }
+}
+
+#[test]
 fn host_backend_connects_schema_analysis_completion_and_navigation() {
     let backend = HostLanguageBackend::new_with_analyzer(SchemaParser, SchemaAnalyzer)
         .with_completer(SchemaCompleter)
