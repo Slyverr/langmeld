@@ -141,6 +141,10 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         env!("CARGO_PKG_VERSION")
     )));
     assert!(project.join("build.rs").is_file());
+    assert_eq!(
+        fs::read_to_string(project.join("build.rs")).unwrap(),
+        include_str!("../../templates/declarative/build.rs")
+    );
 
     let library = fs::read_to_string(project.join("src/lib.rs"))
         .expect("language library should be generated");

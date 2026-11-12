@@ -1,5 +1,6 @@
 fn main() {
     if let Err(error) = langmeld_build::generate_project() {
-        panic!("{error}");
+        eprintln!("error: {error}");
+        std::process::exit(1);
     }
 }

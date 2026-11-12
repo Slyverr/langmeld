@@ -154,7 +154,7 @@ pub(super) fn project_files(
             if typed_bindings {
                 files.push((
                     "build.rs".to_owned(),
-                    "fn main() {\n    if let Err(error) = langmeld_build::generate_project() {\n        panic!(\"{error}\");\n    }\n}\n".to_owned(),
+                    include_str!("../../templates/declarative/build.rs").to_owned(),
                 ));
             }
         }

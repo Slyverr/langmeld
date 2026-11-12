@@ -80,6 +80,8 @@ API migration notes are in the
   formatter.
 - Typed binding generation no longer reserves `new` for internal view
   construction and reports top-level `from_construct` accessor conflicts.
+- The declarative example and typed starter report binding-generation failures
+  without panicking from their Cargo build scripts.
 
 ## [0.9.0] - 2026-11-11
 
