@@ -74,6 +74,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Construct generation now preserves CRLF line endings in managed Rust
+  registration sections.
 - Typed-binding errors now list every supported unnamed-group naming form and
   point to the dynamic API when generated views are not a fit.
 - The generated declarative library no longer imports an unused diagnostic

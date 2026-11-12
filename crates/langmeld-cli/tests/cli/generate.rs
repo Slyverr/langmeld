@@ -205,6 +205,11 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
     root.insert(closing_brace, '\t');
     fs::write(&root_path, root).expect("indented root should be written");
 
+    let registry_path = project.join("src/constructs/mod.rs");
+    let registry = fs::read_to_string(&registry_path).expect("registry should be generated");
+    fs::write(&registry_path, registry.replace('\n', "\r\n"))
+        .expect("registry should use CRLF line endings");
+
     let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([
             "generate",
@@ -236,10 +241,14 @@ fn generate_construct_adds_import_syntax_and_registered_handler() {
     let handler = fs::read_to_string(project.join("src/constructs/trace.rs"))
         .expect("construct handler should be generated");
     assert!(handler.contains("const CONSTRUCT: &'static str = \"trace\";"));
-    let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
-        .expect("handler registry should be readable");
+    let registry = fs::read_to_string(&registry_path).expect("handler registry should be readable");
     assert!(registry.contains("mod trace;"));
     assert!(registry.contains("handlers.register(trace::TraceHandler)?;"));
+    assert!(registry.contains("\r\nmod trace;\r\n"));
+    assert!(
+        !registry.replace("\r\n", "").contains('\n'),
+        "managed updates should not introduce LF-only lines into a CRLF registry"
+    );
 
     let checked = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([

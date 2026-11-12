@@ -205,7 +205,12 @@ pub(crate) fn update_managed_section(
     lines.push(format!("{indentation}{new_line}"));
     lines.sort_by(|left, right| left.trim().cmp(right.trim()));
 
-    let updated_region = format!("{}\n", lines.join("\n"));
+    let line_ending = if region.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let updated_region = format!("{}{line_ending}", lines.join(line_ending));
     let mut updated = source.to_owned();
     updated.replace_range(region_start..region_end, &updated_region);
 
