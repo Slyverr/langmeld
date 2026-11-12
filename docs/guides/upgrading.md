@@ -19,7 +19,10 @@ forwards warning diagnostics to Cargo. The built-in `.langmeld` parser
 currently emits no deprecation warnings, and the CLI does not provide an
 automatic migration command.
 
-## Unreleased API changes
+## Migrating from v0.9.0 to v0.10.0
+
+The changes below are included in v0.10.0. See the [changelog](../../CHANGELOG.md)
+for the complete release notes.
 
 ### Configure generated Rust capture access
 

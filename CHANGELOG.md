@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-12
+
 ### Added
 
 - `langmeld-build` generates typed Rust views of declarative constructs,
