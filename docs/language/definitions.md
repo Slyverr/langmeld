@@ -499,14 +499,17 @@ languages that do not need semantic analysis can use the parser alone.
 For host-owned trees, implement `LanguageCompleter<P>` to provide
 language-specific completion candidates. Its callback receives the current
 source, the existing parsed document, an optional analysis document, and a byte
-offset. `complete_with` rejects parse or analysis documents from another
-source revision and filters candidates whose replacement spans are outside the
-source or split a UTF-8 character. Standalone `SourceFile`s also have unique
-snapshot identities, so their parse and analysis results are checked against
-the exact source. Use `type Analysis = ()` when
-completion does not need semantic analysis. This keeps completion behavior
-with the host language while allowing an editor integration to reuse its
-current parse and analysis results.
+offset. The host filters candidates to those valid at that position: inspect
+the parse tree for syntax context and semantic analysis for rules such as
+visible names, expected types, and member access. `complete_with` checks that
+the parse and analysis belong to the source revision and filters replacement
+spans outside the source or inside a UTF-8 character; it cannot infer
+contextual validity from a host-owned tree. Standalone `SourceFile`s also have
+unique snapshot identities, so their parse and analysis results are checked
+against the exact source. Use `type Analysis = ()` when completion does not need
+semantic analysis. The [Schema example](../../examples/schema-language/README.md)
+shows a completer that first identifies a type-reference position, then offers
+only names from semantic analysis.
 
 For definition and references queries, implement `LanguageNavigator<P>`. The
 host receives the same parsed and optional analyzed snapshot and returns

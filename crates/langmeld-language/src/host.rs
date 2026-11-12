@@ -166,7 +166,11 @@ pub trait LanguageWorkspaceAnalyzer<P: LanguageParser, A: LanguageAnalyzer<P>> {
 ///
 /// The provider receives the existing parse and optional semantic result so
 /// editor integrations can avoid parsing or analyzing the same snapshot again.
-/// Use `()` as `Analysis` when completion does not depend on semantic analysis.
+/// The host decides which candidates are valid at the current syntax and
+/// semantic position, including scope and visibility rules. Langmeld validates
+/// the source snapshot and replacement spans; it does not infer candidate
+/// validity from a host-owned tree. Use `()` as `Analysis` when completion does
+/// not depend on semantic analysis.
 pub trait LanguageCompleter<P: LanguageParser> {
     /// Language-specific semantic result used by this provider.
     type Analysis;

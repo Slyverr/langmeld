@@ -74,7 +74,8 @@ impl CompletionCandidate {
 /// Parse or analysis results from a different source revision are rejected for
 /// database-managed and standalone snapshots alike. Candidates with
 /// replacement spans outside the source or inside a UTF-8 code point are
-/// discarded.
+/// discarded. Candidate selection and contextual filtering remain the
+/// [`LanguageCompleter`] implementation's responsibility.
 #[must_use]
 pub fn complete_with<P, C>(
     source: &SourceFile,
