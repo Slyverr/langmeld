@@ -441,9 +441,12 @@ The parser remains independent of filesystem access. Hosts can implement
 for de-duplication and cycle detection. Import cycles are errors, repeated
 imports of an already loaded key are ignored, and import nesting is bounded at
 64 sources. Diagnostics retain the source name and span that produced each
-error. The built-in resolvers accept project-relative imports and reject
-absolute paths, backslash separators, and paths that escape the project root.
-Directory-backed imports also reject symlink escapes.
+error. The built-in resolvers use `/`-separated project-relative imports and
+reject absolute paths, paths that escape the project root, and components that
+are invalid on Windows: reserved characters or device names, control
+characters, and names ending in a dot or space. This policy applies on every
+host so a project can move between operating systems. Directory-backed imports
+also reject symlink escapes.
 
 ## Mixing `.langmeld` and Rust-authored constructs
 

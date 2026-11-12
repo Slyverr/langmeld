@@ -152,7 +152,10 @@ different directory. The argument is the project root containing
 Format `1` requires the `format` field and optionally accepts `definition`.
 The definition path must be project-relative and cannot contain
 parent-directory segments. New projects should use `.langmeld`; legacy `.lm`
-paths remain loadable with a migration warning.
+paths remain loadable with a migration warning. Definition paths use portable
+path components: Langmeld rejects Windows-invalid characters, reserved device
+names, control characters, and components ending in a dot or space on every
+host.
 
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. Its
