@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::{atomic_file::replace_existing, generate_handler::write_new_file};
+use crate::{atomic_file::replace_existing, handler_generation::write_new_file};
 
 pub(super) struct ConstructFiles<'a> {
     pub(super) root_path: &'a Path,

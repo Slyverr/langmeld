@@ -7,6 +7,7 @@ mod format;
 mod generate;
 mod generate_construct;
 mod generate_handler;
+mod handler_generation;
 mod init;
 mod lsp;
 mod project;

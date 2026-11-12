@@ -9,7 +9,7 @@ use langmeld_language::{
 use langmeld_project::RustBindings;
 
 use crate::{
-    generate_handler::{
+    handler_generation::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
         rust_names, update_managed_section, validate_constructs_directory,
     },
