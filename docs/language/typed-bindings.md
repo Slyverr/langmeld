@@ -22,8 +22,15 @@ Add `langmeld-build` as a build dependency:
 
 ```toml
 [build-dependencies]
-langmeld-build = "0.10"
+langmeld-build = "0.12"
 ```
+
+Keep this on the same Langmeld release line as `langmeld-core`,
+`langmeld-language`, and `langmeld-project`. The current `0.12.1` versions are
+not available from crates.io yet. When initializing from a Langmeld source
+checkout, accept the local-crates prompt or pass `--local-crates` with
+`--typed-bindings`; this configures all Langmeld dependencies to use that same
+checkout. See the [project workflow](../guides/project-workflow.md#create-a-project).
 
 Create `build.rs` at the Rust package root:
 

@@ -16,6 +16,11 @@ API migration notes are in the
 - Use Clap for optional source-file arguments in the runnable language examples,
   giving them consistent help and argument validation.
 
+### Fixed
+
+- Correct the typed-bindings dependency example and document local crate
+  resolution before the current release line is published.
+
 ## [0.12.1] - 2026-11-12
 
 ### Fixed
