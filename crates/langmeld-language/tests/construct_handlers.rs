@@ -20,6 +20,24 @@ impl ConstructHandler<Vec<String>> for RecordIdentifier {
     }
 }
 
+struct RecordIdentifierLocation;
+
+impl ConstructHandler<Vec<(String, Span)>> for RecordIdentifierLocation {
+    const CONSTRUCT: &'static str = "record";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<(String, Span)>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        let identifier = context.field_identifier_capture("value")?;
+        context
+            .state_mut()
+            .push((identifier.text.to_owned(), identifier.span));
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
 struct RecordRepeatedFields;
 
 impl ConstructHandler<Vec<String>> for RecordRepeatedFields {
@@ -154,6 +172,57 @@ fn dispatches_top_level_constructs_from_parse_result() -> Result<(), Box<dyn std
 
     assert_eq!(control, HandlerControl::Continue);
     assert_eq!(state, ["first", "second"]);
+
+    Ok(())
+}
+
+#[test]
+fn captures_identifier_text_and_span_together() -> Result<(), Box<dyn std::error::Error>> {
+    let source = SourceFile::new("main.sample", "record first;");
+    let parsed = parse(&source, &record_language());
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifierLocation)?;
+    let mut state = Vec::new();
+
+    handlers
+        .dispatch_parse_result(&source, &parsed, &mut state)
+        .expect("the parsed identifier should dispatch successfully");
+
+    assert_eq!(state, [("first".to_owned(), Span::new(7, 12))]);
+
+    Ok(())
+}
+
+#[test]
+fn reports_wrong_capture_kind_for_identifier_capture() -> Result<(), Box<dyn std::error::Error>> {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "record",
+            [
+                PatternPart::literal("record"),
+                PatternPart::token("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )?;
+    let source = SourceFile::new("main.sample", "record 42;");
+    let parsed = parse(&source, &language);
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordIdentifierLocation)?;
+
+    let error = handlers
+        .dispatch_parse_result(&source, &parsed, &mut Vec::new())
+        .expect_err("integer captures are not identifier captures");
+
+    assert_eq!(error.code, "LM-HANDLER-004");
+    assert_eq!(
+        error
+            .location
+            .expect("wrong-kind errors should be located")
+            .span(),
+        Span::new(7, 9)
+    );
 
     Ok(())
 }

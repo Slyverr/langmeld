@@ -76,18 +76,17 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
         &self,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, Diagnostic> {
-        let field = context.field("name")?;
-        let name = context.field_identifier("name")?.to_owned();
+        let name = context.field_identifier_capture("name")?;
         let value = context
             .state()
             .variables
-            .get(&name)
+            .get(name.text)
             .cloned()
             .ok_or_else(|| {
                 context.error_at(
                     "EXAMPLE-001",
-                    format!("unknown variable `{name}`"),
-                    field.span,
+                    format!("unknown variable `{}`", name.text),
+                    name.span,
                 )
             })?;
 
@@ -100,9 +99,11 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
 ```
 
 The `State` type is supplied by the host; Langmeld does not require a symbol
-table, value type, output stream, or runtime context. Field helpers report
-missing fields, wrong capture kinds, and invalid spans as source-located
-diagnostics instead of requiring unchecked indexing.
+table, value type, output stream, or runtime context. The identifier helper
+returns captured text and its source span together, but resolution remains the
+language host's responsibility. Field helpers report missing fields, wrong
+capture kinds, and invalid spans as source-located diagnostics instead of
+requiring unchecked indexing.
 
 When a grammar can capture the same field more than once, `field` and
 `field_text` return the first capture. Use `fields` to process all captures in

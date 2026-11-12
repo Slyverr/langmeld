@@ -324,6 +324,18 @@ pub struct ConstructContext<'a, State, Signal = ()> {
     handlers: &'a ConstructHandlerRegistry<State, Signal>,
 }
 
+/// An identifier captured from source, paired with its exact byte range.
+///
+/// This is lexical information only. It does not indicate whether the
+/// identifier declares or references a language-level symbol.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapturedIdentifier<'source> {
+    /// The identifier's spelling in the source.
+    pub text: &'source str,
+    /// The identifier's byte range in the source snapshot.
+    pub span: Span,
+}
+
 impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Returns the construct currently being handled.
     #[must_use]
@@ -415,10 +427,25 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Returns the current construct's identifier capture or a source-located
     /// kind diagnostic.
     pub fn field_identifier(&self, name: &str) -> Result<&'source str, Diagnostic> {
+        Ok(self.field_identifier_capture(name)?.text)
+    }
+
+    /// Returns an identifier capture together with its source span.
+    ///
+    /// Use this when language behavior needs both the identifier spelling and
+    /// a precise location for name-resolution diagnostics. This does not
+    /// resolve the identifier to a declaration.
+    pub fn field_identifier_capture(
+        &self,
+        name: &str,
+    ) -> Result<CapturedIdentifier<'source>, Diagnostic> {
         let field = self.field(name)?;
 
         match &field.value {
-            CapturedValue::Identifier(value) => Ok(value),
+            CapturedValue::Identifier(text) => Ok(CapturedIdentifier {
+                text,
+                span: field.span,
+            }),
             _ => Err(Diagnostic::error(
                 "LM-HANDLER-004",
                 format!("captured field `{name}` is not an identifier"),

@@ -11,18 +11,17 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
         &self,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let name = context.field_identifier("name")?.to_owned();
-        let value_field = context.field("name")?;
+        let name = context.field_identifier_capture("name")?;
         let value = context
             .state()
             .variables
-            .get(&name)
+            .get(name.text)
             .cloned()
             .ok_or_else(|| {
                 context.error_at(
                     "EXAMPLE-002",
-                    format!("unknown variable `{name}`"),
-                    value_field.span,
+                    format!("unknown variable `{}`", name.text),
+                    name.span,
                 )
             })?;
 
