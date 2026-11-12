@@ -107,6 +107,103 @@ fn parses_function_signatures_with_optional_and_repeated_parameters() {
 }
 
 #[test]
+fn capture_groups_preserve_optional_and_repeated_field_boundaries() {
+    use PatternPart as P;
+
+    let grammar = LanguageSpec::new(
+        "Functions",
+        [ConstructSpec::new(
+            "function",
+            [
+                P::literal("fn"),
+                P::identifier("name"),
+                P::literal("("),
+                P::optional([
+                    P::identifier("first_name"),
+                    P::literal(":"),
+                    P::identifier("first_type"),
+                    P::zero_or_more([
+                        P::literal(","),
+                        P::identifier("additional_name"),
+                        P::literal(":"),
+                        P::identifier("additional_type"),
+                    ]),
+                ]),
+                P::literal(")"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new(
+        "function",
+        "fn combine(left: Number, right: Text, final: Bool)",
+    );
+    let parsed = parse(&source, &grammar);
+    let construct = &parsed.constructs()[0];
+
+    assert!(parsed.diagnostics().is_empty());
+    assert_eq!(construct.capture_groups.len(), 1);
+
+    let parameters = &construct.capture_groups[0];
+    assert_eq!(parameters.kind, CaptureGroupKind::Optional);
+    assert_eq!(parameters.occurrences.len(), 1);
+
+    let parameter_list = &parameters.occurrences[0];
+    assert_eq!(
+        parameter_list
+            .captures(construct)
+            .unwrap()
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "first_name",
+            "first_type",
+            "additional_name",
+            "additional_type",
+            "additional_name",
+            "additional_type",
+        ]
+    );
+    assert_eq!(parameter_list.groups.len(), 1);
+    assert_eq!(
+        parameter_list.span.start,
+        source.text().find("left").unwrap()
+    );
+    assert_eq!(parameter_list.span.end, source.text().len() - 1);
+
+    let additional_parameters = &parameter_list.groups[0];
+    assert_eq!(additional_parameters.kind, CaptureGroupKind::Repeat);
+    assert_eq!(additional_parameters.occurrences.len(), 2);
+    assert_eq!(
+        additional_parameters.occurrences[0]
+            .captures(construct)
+            .unwrap()
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["additional_name", "additional_type"]
+    );
+    assert_eq!(
+        additional_parameters.occurrences[1]
+            .captures(construct)
+            .unwrap()
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["additional_name", "additional_type"]
+    );
+
+    let empty = parse(&SourceFile::new("empty", "fn empty()"), &grammar);
+    assert_eq!(empty.constructs()[0].capture_groups.len(), 1);
+    assert!(
+        empty.constructs()[0].capture_groups[0]
+            .occurrences
+            .is_empty()
+    );
+}
+
+#[test]
 fn parses_alternative_construct_syntax_and_reports_its_variant() {
     let grammar = LanguageSpec::new(
         "Functions",

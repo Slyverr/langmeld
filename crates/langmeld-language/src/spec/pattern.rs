@@ -47,10 +47,13 @@ pub enum PatternPart {
         terminator: String,
     },
     /// A sequence that is included when it matches, and otherwise omitted.
+    /// Its match and nested captures are recorded in
+    /// [`ParsedConstruct::capture_groups`](crate::ParsedConstruct::capture_groups).
     Optional(Vec<PatternPart>),
     /// A sequence matched repeatedly as one unit. Captured fields are appended
-    /// in source order for every match, so a field inside this group can occur
-    /// multiple times in a construct's capture list.
+    /// in source order for every match. The corresponding occurrences and their
+    /// field ranges are also recorded in
+    /// [`ParsedConstruct::capture_groups`](crate::ParsedConstruct::capture_groups).
     Repeat {
         /// Sequence consumed by each repetition.
         parts: Vec<PatternPart>,

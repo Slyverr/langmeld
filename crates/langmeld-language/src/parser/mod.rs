@@ -9,7 +9,10 @@ mod engine;
 pub(crate) mod model;
 mod pattern;
 use model::ParseContext;
-pub use model::{CapturedField, CapturedValue, ParsedConstruct};
+pub use model::{
+    CaptureGroup, CaptureGroupKind, CaptureGroupOccurrence, CapturedField, CapturedValue,
+    ParsedConstruct,
+};
 
 /// Parsed constructs and recoverable source diagnostics.
 #[derive(Clone, Debug, PartialEq, Eq)]

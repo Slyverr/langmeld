@@ -29,6 +29,14 @@ fn accepts_parameterized_functions_and_forward_calls() {
         analysis.parsed.tree().functions[1].parameters[1].name,
         "right"
     );
+    assert_eq!(
+        analysis.parsed.tree().functions[1].parameters[0].value_type,
+        "i32"
+    );
+    assert_eq!(
+        analysis.parsed.tree().functions[1].parameters[1].value_type,
+        "i32"
+    );
 }
 
 #[test]

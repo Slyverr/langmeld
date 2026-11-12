@@ -2,7 +2,7 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_expression::{
     Associativity, Expression, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
 };
-use langmeld_language::{CapturedValue, ParseResult, ParsedConstruct};
+use langmeld_language::{CaptureGroupKind, CapturedValue, ParseResult, ParsedConstruct};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Program {
@@ -68,39 +68,7 @@ fn lower_function(
 ) -> Option<Function> {
     let name = identifier_field(source, construct, "name", diagnostics)?;
     let return_type = identifier_field(source, construct, "return_type", diagnostics)?;
-    let parameter_names = construct
-        .fields
-        .iter()
-        .filter(|field| matches!(field.name.as_str(), "first_parameter" | "parameter"))
-        .collect::<Vec<_>>();
-    let parameter_types = construct
-        .fields
-        .iter()
-        .filter(|field| {
-            matches!(
-                field.name.as_str(),
-                "first_parameter_type" | "parameter_type"
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut parameters = Vec::with_capacity(parameter_names.len());
-
-    for (name_field, type_field) in parameter_names.into_iter().zip(parameter_types) {
-        let Some(parameter) = identifier_value(source, &name_field.name, name_field, diagnostics)
-        else {
-            continue;
-        };
-        let Some(value_type) = identifier_value(source, &type_field.name, type_field, diagnostics)
-        else {
-            continue;
-        };
-
-        parameters.push(Parameter {
-            name: parameter,
-            name_span: name_field.span,
-            value_type,
-        });
-    }
+    let parameters = lower_parameters(source, construct, diagnostics);
 
     let mut calls = Vec::new();
     for child in &construct.children {
@@ -137,6 +105,88 @@ fn lower_function(
         calls,
         span: construct.span,
     })
+}
+
+fn lower_parameters(
+    source: &SourceFile,
+    construct: &ParsedConstruct,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<Parameter> {
+    let Some(optional_group) = construct
+        .capture_groups
+        .iter()
+        .find(|group| group.kind == CaptureGroupKind::Optional)
+    else {
+        return Vec::new();
+    };
+    let Some(parameter_list) = optional_group.occurrences.first() else {
+        return Vec::new();
+    };
+    let Some(fields) = parameter_list.captures(construct) else {
+        report_invalid_parameter_group(source, parameter_list.span, diagnostics);
+        return Vec::new();
+    };
+
+    let mut parameters = Vec::new();
+    if let Some(parameter) =
+        lower_parameter_pair(source, fields.get(..2), parameter_list.span, diagnostics)
+    {
+        parameters.push(parameter);
+    }
+
+    for repeated_group in parameter_list
+        .groups
+        .iter()
+        .filter(|group| group.kind == CaptureGroupKind::Repeat)
+    {
+        for occurrence in &repeated_group.occurrences {
+            let Some(fields) = occurrence.captures(construct) else {
+                report_invalid_parameter_group(source, occurrence.span, diagnostics);
+                continue;
+            };
+
+            if let Some(parameter) =
+                lower_parameter_pair(source, Some(fields), occurrence.span, diagnostics)
+            {
+                parameters.push(parameter);
+            }
+        }
+    }
+
+    parameters
+}
+
+fn lower_parameter_pair(
+    source: &SourceFile,
+    fields: Option<&[langmeld_language::CapturedField]>,
+    group_span: Span,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<Parameter> {
+    let Some([name_field, type_field]) = fields else {
+        report_invalid_parameter_group(source, group_span, diagnostics);
+        return None;
+    };
+    let name = identifier_value(source, &name_field.name, name_field, diagnostics)?;
+    let value_type = identifier_value(source, &type_field.name, type_field, diagnostics)?;
+
+    Some(Parameter {
+        name,
+        name_span: name_field.span,
+        value_type,
+    })
+}
+
+fn report_invalid_parameter_group(
+    source: &SourceFile,
+    span: Span,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(Diagnostic::error(
+        "FUNCTION-007",
+        "function parameter capture group does not contain a name and type",
+        source,
+        span,
+    ));
 }
 
 fn identifier_field(

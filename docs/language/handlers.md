@@ -122,6 +122,11 @@ for field in context.fields("message") {
 }
 ```
 
+When one repeated item contains multiple fields that belong together, inspect
+`context.construct().capture_groups`. Each `CaptureGroupOccurrence` returns the
+flat fields captured by that one match, so handlers can process a parameter's
+name and type together instead of independently zipping two field lists.
+
 The `emit` handler in the
 [`toy-language` example](../../examples/toy-language/README.md) shows repeated
 captures parsed from a real `.langmeld` definition and used by Rust behavior.

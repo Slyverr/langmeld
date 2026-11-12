@@ -1,8 +1,8 @@
 use langmeld_core::{Severity, SourceDatabase, SourceFile, Span};
 use langmeld_language::{
-    CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer, LexicalRules,
-    ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
-    parse_with_limits,
+    CaptureGroupKind, CapturedValue, ConstructSpec, LanguageSpec, LexOutput, LexedToken, Lexer,
+    LexicalRules, ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer,
+    parse_with_lexer_and_limits, parse_with_limits,
 };
 
 fn language() -> LanguageSpec {

@@ -11,6 +11,9 @@ API migration notes are in the
 
 ### Added
 
+- `ParsedConstruct::capture_groups` preserves occurrence boundaries and nested
+  structure for optional and repeated syntax groups while retaining the flat
+  captured-field list.
 - `ConstructContext::field_identifier_capture` returns an identifier's borrowed
   spelling and source span together for host-owned name resolution.
 - `ConstructContext::field_text_capture` returns a capture's exact source
@@ -27,6 +30,8 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `ParsedConstruct` includes `capture_groups`; update any direct
+  struct initializers. Parser-produced constructs populate the field.
 - **Breaking:** `LanguagePass` is now generic over the parser's complete
   source-bound result. Update custom-parser implementations from
   `LanguagePass<Tree, State>` to `LanguagePass<ParsedDocument<Tree>, State>`;

@@ -313,6 +313,7 @@ impl Parser<'_> {
                     variant,
                     span: Span::new(start, end),
                     fields: attempt.fields,
+                    capture_groups: attempt.groups,
                     children,
                 });
             };
@@ -323,6 +324,7 @@ impl Parser<'_> {
                     variant,
                     span: Span::new(start, end),
                     fields: attempt.fields,
+                    capture_groups: attempt.groups,
                     children,
                 });
             }
@@ -391,6 +393,7 @@ impl Parser<'_> {
             variant,
             span: Span::new(start, end),
             fields: attempt.fields,
+            capture_groups: attempt.groups,
             children,
         })
     }

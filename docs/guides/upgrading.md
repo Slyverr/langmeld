@@ -16,6 +16,30 @@ currently provide an automatic migration command.
 
 ## Unreleased API changes
 
+### Preserve optional and repeated capture groups
+
+`ParsedConstruct` now includes `capture_groups`. Parser-produced constructs
+populate it with optional and repeated match occurrences; each occurrence can
+return the fields from that one match with `captures(construct)`. The existing
+`fields` collection remains flat and source-ordered. If your code constructs a
+`ParsedConstruct` directly, initialize `capture_groups`, usually with an empty
+vector when the value has no structural groups:
+
+```rust,ignore
+let construct = ParsedConstruct {
+    name: "literal".to_owned(),
+    variant: 0,
+    span,
+    fields,
+    capture_groups: Vec::new(),
+    children: Vec::new(),
+};
+```
+
+Use the group occurrence API when captures in one repeated item are related,
+such as a parameter name and its type. Use `fields` or `ConstructContext`
+helpers for straightforward named-field lookup.
+
 ### Preserve typed definition resolver errors
 
 `DefinitionResolver` now declares an associated `Error` type implementing

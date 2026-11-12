@@ -3,10 +3,13 @@ use langmeld_core::Span;
 use crate::lexer::{LexedToken, TokenKind};
 use crate::{FieldKind, PatternPart, RepeatMinimum};
 
-use super::model::{CapturedField, CapturedValue};
+use super::model::{
+    CaptureGroup, CaptureGroupKind, CaptureGroupOccurrence, CapturedField, CapturedValue,
+};
 
 pub(super) struct MatchAttempt<'a> {
     pub(super) fields: Vec<CapturedField>,
+    pub(super) groups: Vec<CaptureGroup>,
     pub(super) end: usize,
     pub(super) complete: bool,
     pub(super) expected: Option<&'a PatternPart>,
@@ -72,6 +75,7 @@ pub(super) fn match_sequence<'a>(
     remaining_steps: &mut usize,
 ) -> Result<MatchAttempt<'a>, ()> {
     let mut fields = Vec::new();
+    let mut groups = Vec::new();
     let mut cursor = start;
     for part in pattern {
         if *remaining_steps == 0 {
@@ -88,6 +92,7 @@ pub(super) fn match_sequence<'a>(
                 } else {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
@@ -101,6 +106,7 @@ pub(super) fn match_sequence<'a>(
                 else {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
@@ -128,6 +134,7 @@ pub(super) fn match_sequence<'a>(
                 }) else {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
@@ -147,6 +154,7 @@ pub(super) fn match_sequence<'a>(
                 let Some(end) = expression_end(tokens, cursor, terminator, remaining_steps)? else {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: tokens.len(),
                         complete: false,
                         expected: Some(part),
@@ -155,6 +163,7 @@ pub(super) fn match_sequence<'a>(
                 if end == cursor {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: cursor,
                         complete: false,
                         expected: Some(part),
@@ -170,28 +179,57 @@ pub(super) fn match_sequence<'a>(
             PatternPart::Optional(parts) => {
                 let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                 if attempt.complete {
+                    let field_start = fields.len();
+                    let field_end = field_start + attempt.fields.len();
+                    let mut nested_groups = attempt.groups;
+                    shift_group_ranges(&mut nested_groups, field_start);
                     fields.extend(attempt.fields);
+                    groups.push(CaptureGroup {
+                        kind: CaptureGroupKind::Optional,
+                        occurrences: vec![CaptureGroupOccurrence {
+                            span: matched_span(tokens, cursor, attempt.end),
+                            field_range: field_start..field_end,
+                            groups: nested_groups,
+                        }],
+                    });
                     cursor = attempt.end;
                 } else if attempt.end > cursor {
                     return Ok(MatchAttempt {
                         fields,
+                        groups,
                         end: attempt.end,
                         complete: false,
                         expected: attempt.expected,
+                    });
+                } else {
+                    groups.push(CaptureGroup {
+                        kind: CaptureGroupKind::Optional,
+                        occurrences: Vec::new(),
                     });
                 }
             }
             PatternPart::Repeat { parts, minimum } => {
                 let mut repetitions = 0;
+                let mut occurrences = Vec::new();
                 loop {
                     let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                     if attempt.complete && attempt.end > cursor {
+                        let field_start = fields.len();
+                        let field_end = field_start + attempt.fields.len();
+                        let mut nested_groups = attempt.groups;
+                        shift_group_ranges(&mut nested_groups, field_start);
                         fields.extend(attempt.fields);
+                        occurrences.push(CaptureGroupOccurrence {
+                            span: matched_span(tokens, cursor, attempt.end),
+                            field_range: field_start..field_end,
+                            groups: nested_groups,
+                        });
                         cursor = attempt.end;
                         repetitions += 1;
                     } else if attempt.end > cursor {
                         return Ok(MatchAttempt {
                             fields,
+                            groups,
                             end: attempt.end,
                             complete: false,
                             expected: attempt.expected,
@@ -200,6 +238,7 @@ pub(super) fn match_sequence<'a>(
                         if *minimum == RepeatMinimum::One && repetitions == 0 {
                             return Ok(MatchAttempt {
                                 fields,
+                                groups,
                                 end: cursor,
                                 complete: false,
                                 expected: parts.first(),
@@ -208,15 +247,39 @@ pub(super) fn match_sequence<'a>(
                         break;
                     }
                 }
+                groups.push(CaptureGroup {
+                    kind: CaptureGroupKind::Repeat,
+                    occurrences,
+                });
             }
         }
     }
     Ok(MatchAttempt {
         fields,
+        groups,
         end: cursor,
         complete: true,
         expected: None,
     })
+}
+
+fn shift_group_ranges(groups: &mut [CaptureGroup], offset: usize) {
+    for group in groups {
+        for occurrence in &mut group.occurrences {
+            occurrence.field_range.start += offset;
+            occurrence.field_range.end += offset;
+            shift_group_ranges(&mut occurrence.groups, offset);
+        }
+    }
+}
+
+fn matched_span(tokens: &[LexedToken], start: usize, end: usize) -> Span {
+    tokens
+        .get(start)
+        .zip(end.checked_sub(1).and_then(|index| tokens.get(index)))
+        .map_or(Span::default(), |(first, last)| {
+            Span::new(first.span.start, last.span.end)
+        })
 }
 
 pub(super) fn describe_pattern(part: &PatternPart) -> String {
