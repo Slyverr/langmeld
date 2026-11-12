@@ -167,7 +167,9 @@ return its matching field slice with `captures(construct)`. This lets a host
 keep related captures together, such as a parameter name and type, without
 reconstructing their pairing from separate field-name lists. It preserves
 grammar grouping and optional group names only; language-specific meaning
-remains host-owned. These names do not yet generate typed Rust field accessors.
+remains host-owned. The optional `langmeld-build` crate uses named fields,
+groups, and variants to generate typed Rust accessors. See
+[typed Rust bindings](typed-bindings.md).
 
 If a partially matched construct fails where a complete construct allowed in
 the current scope begins, the parser reports the missing syntax and resumes at
