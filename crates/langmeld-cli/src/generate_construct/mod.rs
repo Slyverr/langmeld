@@ -3,14 +3,17 @@ use std::{error::Error, io, io::IsTerminal, path::PathBuf};
 use clap::Args;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 use langmeld_core::SourceFile;
-use langmeld_language::{language_definition_grammar, parse, quote_definition_string};
+use langmeld_language::{
+    ConstructSpec, PatternPart, language_definition_grammar, parse, quote_definition_string,
+};
+use langmeld_project::RustBindings;
 
 use crate::{
     generate_handler::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
         rust_names, update_managed_section, validate_constructs_directory,
     },
-    project::{DefinitionProjectContext, load_definition_project},
+    project::load_definition_project,
 };
 
 mod transaction;
@@ -35,7 +38,6 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     let name = construct_name(args.name)?;
     let (module_name, handler_name) = rust_names(&name)?;
     let literal = syntax_literal(args.literal, &name)?;
-    let context = DefinitionProjectContext::new(&args.manifest_path)?;
     let project = load_definition_project(&args.manifest_path)?;
     if project
         .language
@@ -50,14 +52,31 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         .into());
     }
     let category = choose_category(args.category, &project.language)?;
-    let root_path = context.root.join(&context.manifest.definition);
+    let typed_name = match project.manifest.rust_bindings {
+        RustBindings::Dynamic => None,
+        RustBindings::Typed => {
+            let typed_language = project
+                .language
+                .clone()
+                .into_builder()
+                .construct(
+                    ConstructSpec::new(name.clone(), [PatternPart::literal(literal.clone())])
+                        .implements(&[category.as_str()]),
+                )
+                .build()?;
+            langmeld_build::generate_bindings(&typed_language)?;
+
+            Some(langmeld_build::construct_type_name(&name)?)
+        }
+    };
+    let root_path = project.root.join(&project.manifest.definition);
     let source_directory = root_path
         .parent()
         .ok_or("language definition path has no parent directory")?;
     let syntax_directory = source_directory.join("constructs");
     let syntax_path = syntax_directory.join(format!("{name}.langmeld"));
-    let handler_directory = context.root.join("src/constructs");
-    validate_constructs_directory(&context.root.join("src"))?;
+    let handler_directory = project.root.join("src/constructs");
+    validate_constructs_directory(&project.root.join("src"))?;
     validate_constructs_directory(&handler_directory)?;
     let handler_path = handler_directory.join(format!("{module_name}.rs"));
 
@@ -81,7 +100,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     let import_path = format!("constructs/{name}.langmeld");
     let updated_root = add_root_import(&root_source, &import_path)?;
     let syntax_source = syntax_template(&name, &literal, &category);
-    let handler_source = handler_template(&name, &handler_name);
+    let handler_source = handler_template(&name, &handler_name, typed_name.as_deref());
 
     transaction::apply(transaction::ConstructFiles {
         root_path: &root_path,
@@ -98,10 +117,10 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     })?;
 
     let syntax_relative = syntax_path
-        .strip_prefix(&context.root)
+        .strip_prefix(&project.root)
         .unwrap_or(&syntax_path);
     let handler_relative = handler_path
-        .strip_prefix(&context.root)
+        .strip_prefix(&project.root)
         .unwrap_or(&handler_path);
     println!("Created syntax `{}`.", syntax_relative.display());
     println!("Created handler `{}`.", handler_relative.display());

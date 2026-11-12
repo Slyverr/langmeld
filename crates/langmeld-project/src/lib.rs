@@ -23,7 +23,7 @@ pub use directory_resolver::DirectoryDefinitionResolver;
 pub use error::ProjectLoadError;
 pub use manifest::{
     DEFAULT_DEFINITION_PATH, PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError,
-    read_project_manifest, read_project_manifest_file,
+    RustBindings, read_project_manifest, read_project_manifest_file,
 };
 pub use memory_resolver::InMemoryDefinitionResolver;
 pub use overlay_resolver::OverlayDefinitionResolver;

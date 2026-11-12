@@ -6,6 +6,7 @@ use std::{
 };
 
 use clap::Args;
+use langmeld_project::RustBindings;
 
 use crate::atomic_file::replace_existing;
 use crate::project::load_definition_project;
@@ -90,7 +91,11 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
                 )
             })
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
-    let handler_source = handler_template(&args.construct, &handler_name);
+    let typed_name = match project.manifest.rust_bindings {
+        RustBindings::Dynamic => None,
+        RustBindings::Typed => Some(langmeld_build::construct_type_name(&args.construct)?),
+    };
+    let handler_source = handler_template(&args.construct, &handler_name, typed_name.as_deref());
 
     write_new_file(&handler_path, &handler_source)?;
     if let Err(error) = replace_existing(&registry_path, &updated_registry) {
@@ -315,8 +320,18 @@ fn is_rust_keyword(identifier: &str) -> bool {
     )
 }
 
-pub(crate) fn handler_template(construct: &str, handler_name: &str) -> String {
+pub(crate) fn handler_template(
+    construct: &str,
+    handler_name: &str,
+    typed_name: Option<&str>,
+) -> String {
+    let typed_access = typed_name.map_or_else(String::new, |type_name| {
+        format!(
+            "        let _syntax = context.typed::<crate::generated::constructs::{type_name}>()?;\n\n"
+        )
+    });
+
     format!(
-        "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            context.construct().span,\n        ))\n    }}\n}}\n"
+        "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n{typed_access}        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            context.construct().span,\n        ))\n    }}\n}}\n"
     )
 }

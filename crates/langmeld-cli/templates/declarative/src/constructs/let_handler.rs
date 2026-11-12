@@ -11,8 +11,7 @@ impl ConstructHandler<RuntimeState> for LetHandler {
         &self,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let name = context.field_identifier("name")?.to_owned();
-        let value = context.field_text_capture("value")?;
+        {{CAPTURE_ACCESS}}
         let value = decode_string(value.text)
             .map_err(|message| context.error_at("EXAMPLE-001", message, value.span))?;
 

@@ -44,6 +44,7 @@ jobs:
           --name demo-language
           --language-name Demo
           --local-crates
+          --typed-bindings
           --non-interactive
       - name: Generate a construct in the declarative project
         shell: bash

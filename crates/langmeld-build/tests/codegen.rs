@@ -1,5 +1,13 @@
-use langmeld_build::generate_bindings;
+use langmeld_build::{construct_type_name, generate_bindings};
 use langmeld_language::{ConstructSpec, LanguageSpec, PatternPart};
+
+#[test]
+fn construct_type_name_matches_the_generated_view_name() {
+    assert_eq!(
+        construct_type_name("readHTTP-response").expect("the construct name maps to a Rust type"),
+        "ReadHttpResponse"
+    );
+}
 
 #[test]
 fn generates_typed_fields_and_named_capture_groups() {

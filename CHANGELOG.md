@@ -31,6 +31,8 @@ API migration notes are in the
   grammars and extending a loaded declarative grammar with Rust constructs.
 - The declarative starter can load a definition project from an explicit root
   directory as well as from its Cargo project directory.
+- `langmeld init --typed-bindings` can scaffold a declarative project with
+  generated typed capture views, build integration, and typed starter handlers.
 - `langmeld init --local-crates` can generate an ignored Cargo patch config for
   using crates from a matching Langmeld source checkout without changing the
   generated registry-based manifest.
@@ -39,6 +41,9 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `ProjectManifest` now includes the `rust_bindings` field. Code
+  constructing the struct directly must provide `RustBindings`; parsed
+  manifests without the setting default to dynamic access.
 - `langmeld check` now displays non-error definition diagnostics, and
   `langmeld-build` forwards definition warnings to Cargo.
 - **Breaking:** Replace `HostLanguageBackend::new(parser).with_analyzer(analyzer)`

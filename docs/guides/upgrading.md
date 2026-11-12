@@ -19,6 +19,14 @@ deprecated. The CLI does not provide an automatic migration command.
 
 ## Unreleased API changes
 
+### Configure generated Rust capture access
+
+`ProjectManifest` now includes a `rust_bindings` field. Code that constructs the
+public struct directly must provide `RustBindings::Dynamic` or
+`RustBindings::Typed`. Parsed manifests keep dynamic access by default when the
+field is omitted. `langmeld init --typed-bindings` configures the typed mode and
+scaffolds its Cargo build integration.
+
 ### Host language backend construction
 
 Replace `HostLanguageBackend::new(parser).with_analyzer(analyzer)` with

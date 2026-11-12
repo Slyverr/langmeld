@@ -7,6 +7,17 @@ project's validated `.langmeld` files.
 
 ## Set up generation
 
+Choose typed bindings when initializing a declarative project:
+
+```sh
+langmeld init my-language --typed-bindings
+```
+
+The initializer adds `langmeld-build` as a build dependency, creates `build.rs`,
+includes the generated module from Cargo's `OUT_DIR`, and sets
+`rust_bindings = "typed"` in `langmeld.toml`. The regular declarative starter
+uses dynamic field lookup by default and does not need a build script.
+
 Add `langmeld-build` as a build dependency:
 
 ```toml

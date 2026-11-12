@@ -33,6 +33,9 @@ pub(crate) struct InitArgs {
     /// Syntax implementation to scaffold. Defaults to `declarative`.
     #[arg(long, value_enum)]
     template: Option<Template>,
+    /// Generate compile-time checked Rust accessors for `.langmeld` captures.
+    #[arg(long)]
+    typed_bindings: bool,
     /// Skip prompts and use defaults for omitted names.
     #[arg(long)]
     non_interactive: bool,
@@ -77,6 +80,7 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         }
         None => Template::default(),
     };
+    let typed_bindings = select_typed_bindings(args.typed_bindings, template, interactive)?;
 
     let package_name = match args.name {
         Some(name) => name,
@@ -112,6 +116,7 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         &package_name,
         &language_name,
         template,
+        typed_bindings,
         agent_guidance,
         local_crate_root.as_deref(),
     )?;
@@ -137,6 +142,9 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
     } else {
         println!("Editor: run `langmeld lsp` from the project directory for syntax support.");
     }
+    if typed_bindings {
+        println!("Typed captures: access declared fields through `context.typed::<...>()`.");
+    }
     if agent_guidance.agents_md {
         println!("Agent instructions: created `AGENTS.md`.");
     }
@@ -144,6 +152,31 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         println!("Langmeld authoring skill: created `.agents/skills/langmeld-language/SKILL.md`.");
     }
     Ok(())
+}
+
+fn select_typed_bindings(
+    requested: bool,
+    template: Template,
+    interactive: bool,
+) -> Result<bool, Box<dyn Error>> {
+    if requested && matches!(template, Template::CustomParser) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "`--typed-bindings` requires the declarative `.langmeld` template",
+        )
+        .into());
+    }
+
+    if requested || !interactive || matches!(template, Template::CustomParser) {
+        return Ok(requested);
+    }
+
+    Ok(Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(
+            "Generate compile-time checked Rust accessors for `.langmeld` captures?\nThis adds a build dependency; capture and group names must map unambiguously to Rust identifiers.",
+        )
+        .default(false)
+        .interact()?)
 }
 
 fn select_local_crates(

@@ -1,7 +1,7 @@
 # {{LANGUAGE_NAME}}
 
 A small Rust-hosted language project built with Langmeld.
-
+{{TYPED_BINDINGS_GUIDANCE}}
 ## Run
 
 ```sh

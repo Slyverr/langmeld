@@ -3,7 +3,8 @@ use std::{error::Error, path::Path};
 use langmeld_core::{Diagnostic, SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::{
-    ProjectManifest, load_definition_project_from_manifest, read_project_manifest_file,
+    ProjectManifest, RustBindings, load_definition_project_from_manifest,
+    read_project_manifest_file,
 };
 
 pub(crate) struct DefinitionProjectContext {
@@ -26,6 +27,7 @@ impl DefinitionProjectContext {
 
 pub(crate) struct LoadedDefinitionProject {
     pub(crate) root: std::path::PathBuf,
+    pub(crate) manifest: ProjectManifest,
     pub(crate) language: LanguageSpec,
     pub(crate) sources: Vec<SourceFile>,
     pub(crate) diagnostics: Vec<Diagnostic>,
@@ -41,7 +43,7 @@ pub(crate) fn load_definition_project(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, Box<dyn Error>> {
     let project = load_definition_project_from_manifest(manifest_path)?;
-    let (root, _, definition, sources) = project.into_parts();
+    let (root, manifest, definition, sources) = project.into_parts();
 
     if !definition.is_valid() {
         return Err(format_diagnostics(&sources, &definition.diagnostics).into());
@@ -51,8 +53,13 @@ pub(crate) fn load_definition_project(
         .language
         .ok_or("validated definition did not produce a language")?;
 
+    if manifest.rust_bindings == RustBindings::Typed {
+        langmeld_build::generate_bindings(&language)?;
+    }
+
     Ok(LoadedDefinitionProject {
         root,
+        manifest,
         language,
         sources,
         diagnostics,

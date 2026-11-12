@@ -7,8 +7,15 @@ const WORKSPACE_CRATES: &[&str] = &[
     "langmeld-language",
     "langmeld-project",
     "langmeld-lsp",
+    "langmeld-build",
 ];
 const DECLARATIVE_CRATES: &[&str] = &["langmeld-core", "langmeld-language", "langmeld-project"];
+const TYPED_DECLARATIVE_CRATES: &[&str] = &[
+    "langmeld-core",
+    "langmeld-language",
+    "langmeld-project",
+    "langmeld-build",
+];
 const CUSTOM_PARSER_CRATES: &[&str] = &["langmeld-core", "langmeld-language", "langmeld-lsp"];
 
 pub(super) fn workspace_root() -> Option<PathBuf> {
@@ -18,9 +25,14 @@ pub(super) fn workspace_root() -> Option<PathBuf> {
         .and_then(|path| path.canonicalize().ok())
 }
 
-pub(super) fn cargo_config(workspace_root: &Path, template: Template) -> io::Result<String> {
+pub(super) fn cargo_config(
+    workspace_root: &Path,
+    template: Template,
+    typed_bindings: bool,
+) -> io::Result<String> {
     let workspace_root = workspace_root.canonicalize()?;
     let crate_names = match template {
+        Template::Declarative if typed_bindings => TYPED_DECLARATIVE_CRATES,
         Template::Declarative => DECLARATIVE_CRATES,
         Template::CustomParser => CUSTOM_PARSER_CRATES,
     };

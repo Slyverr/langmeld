@@ -27,6 +27,19 @@ pub fn generate_bindings(specification: &LanguageSpec) -> Result<String, BuildEr
     emit::bindings(&constructs)
 }
 
+/// Returns the Rust type name used for a declared construct's generated view.
+///
+/// This uses the same conversion rules as [`generate_bindings`], so tools that
+/// generate typed handler code can refer to the exact emitted type.
+///
+/// # Errors
+///
+/// Returns an error if the construct name cannot be represented as a portable
+/// Rust type name.
+pub fn construct_type_name(name: &str) -> Result<String, BuildError> {
+    rust_type_name(name)
+}
+
 struct GeneratedConstruct {
     name: String,
     type_name: String,

@@ -11,6 +11,7 @@ pub(super) fn create_project(
     package_name: &str,
     language_name: &str,
     template: Template,
+    typed_bindings: bool,
     agent_guidance: AgentGuidance,
     local_crate_root: Option<&Path>,
 ) -> io::Result<()> {
@@ -18,6 +19,7 @@ pub(super) fn create_project(
         package_name,
         language_name,
         template,
+        typed_bindings,
         agent_guidance,
         local_crate_root,
     )?;

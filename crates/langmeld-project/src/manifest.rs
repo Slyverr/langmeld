@@ -15,11 +15,23 @@ pub const PROJECT_MANIFEST_FORMAT: i64 = 1;
 /// Default project-relative root definition when `definition` is omitted.
 pub const DEFAULT_DEFINITION_PATH: &str = "language/main.langmeld";
 
+/// Rust capture access used by generated handlers and project tooling.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RustBindings {
+    /// Use runtime field lookup and avoid build-time binding generation.
+    #[default]
+    Dynamic,
+    /// Generate compile-time checked views for `.langmeld` captures.
+    Typed,
+}
+
 /// Parsed project settings needed to locate the language definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectManifest {
     /// Project-relative path to the root `.langmeld` definition.
     pub definition: String,
+    /// Rust access strategy for generated project tooling.
+    pub rust_bindings: RustBindings,
 }
 
 impl ProjectManifest {
@@ -27,8 +39,9 @@ impl ProjectManifest {
     ///
     /// The manifest requires `format = 1`. The optional `definition` field
     /// selects a project-relative root `.langmeld` file and defaults to
-    /// [`DEFAULT_DEFINITION_PATH`]. Unknown fields are rejected so misspellings
-    /// do not silently change project behavior.
+    /// [`DEFAULT_DEFINITION_PATH`]. The optional `rust_bindings` field accepts
+    /// `dynamic` or `typed` and defaults to `dynamic`. Unknown fields are
+    /// rejected so misspellings do not silently change project behavior.
     pub fn parse(source: &str) -> Result<Self, ProjectManifestError> {
         let document =
             toml::from_str::<toml::Value>(source).map_err(ProjectManifestError::Parse)?;
@@ -37,7 +50,7 @@ impl ProjectManifest {
             .ok_or(ProjectManifestError::ExpectedTable)?;
 
         for key in table.keys() {
-            if !matches!(key.as_str(), "format" | "definition") {
+            if !matches!(key.as_str(), "format" | "definition" | "rust_bindings") {
                 return Err(ProjectManifestError::UnknownField(key.clone()));
             }
         }
@@ -61,7 +74,17 @@ impl ProjectManifest {
             return Err(ProjectManifestError::InvalidDefinitionPath(definition));
         }
 
-        Ok(Self { definition })
+        let rust_bindings = match table.get("rust_bindings") {
+            None => RustBindings::Dynamic,
+            Some(toml::Value::String(value)) if value == "dynamic" => RustBindings::Dynamic,
+            Some(toml::Value::String(value)) if value == "typed" => RustBindings::Typed,
+            Some(_) => return Err(ProjectManifestError::InvalidRustBindings),
+        };
+
+        Ok(Self {
+            definition,
+            rust_bindings,
+        })
     }
 }
 
@@ -97,6 +120,8 @@ pub enum ProjectManifestError {
     UnsupportedFormat(i64),
     /// A field not defined by this manifest format was found.
     UnknownField(String),
+    /// The `rust_bindings` field is not `dynamic` or `typed`.
+    InvalidRustBindings,
     /// The root definition path is absolute, non-portable, or not an `.langmeld` file.
     InvalidDefinitionPath(String),
     /// The manifest file could not be read.
@@ -136,6 +161,10 @@ impl fmt::Display for ProjectManifestError {
                 formatter,
                 "`definition` must be a project-relative `.langmeld` path without parent segments, got `{path}`"
             ),
+            Self::InvalidRustBindings => write!(
+                formatter,
+                "`rust_bindings` must be either `dynamic` or `typed`"
+            ),
             Self::Read { path, source } => write!(
                 formatter,
                 "cannot read project manifest `{}`: {source}",
@@ -154,6 +183,7 @@ impl Error for ProjectManifestError {
             | Self::MissingOrInvalidField(_)
             | Self::UnsupportedFormat(_)
             | Self::UnknownField(_)
+            | Self::InvalidRustBindings
             | Self::InvalidDefinitionPath(_) => None,
         }
     }

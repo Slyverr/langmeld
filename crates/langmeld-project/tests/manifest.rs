@@ -6,7 +6,7 @@ use std::{
 
 use langmeld_project::{
     DEFAULT_DEFINITION_PATH, PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError,
-    read_project_manifest,
+    RustBindings, read_project_manifest,
 };
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
@@ -45,6 +45,20 @@ fn defaults_to_the_conventional_main_definition() {
     let manifest = ProjectManifest::parse("format = 1\n").unwrap();
 
     assert_eq!(manifest.definition, DEFAULT_DEFINITION_PATH);
+    assert_eq!(manifest.rust_bindings, RustBindings::Dynamic);
+}
+
+#[test]
+fn parses_typed_rust_bindings_and_rejects_unknown_modes() {
+    let manifest = ProjectManifest::parse("format = 1\nrust_bindings = \"typed\"\n").unwrap();
+
+    assert_eq!(manifest.rust_bindings, RustBindings::Typed);
+
+    let invalid = ProjectManifest::parse("format = 1\nrust_bindings = \"generated\"\n");
+    assert!(matches!(
+        invalid,
+        Err(ProjectManifestError::InvalidRustBindings)
+    ));
 }
 
 #[test]

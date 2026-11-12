@@ -80,6 +80,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(readme.contains("src/constructs/"));
     assert!(readme.contains("langmeld generate construct repeat"));
     assert!(readme.contains("generated handler reports a diagnostic"));
+    assert!(!readme.contains("{{TYPED_BINDINGS_GUIDANCE}}"));
     let manifest = fs::read_to_string(project.join("langmeld.toml"))
         .expect("Langmeld manifest should be generated");
     assert_eq!(manifest, "format = 1\n");
@@ -107,6 +108,155 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
 }
 
 #[test]
+fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("typed-language");
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--name",
+            "typed-language",
+            "--language-name",
+            "TypedLanguage",
+            "--non-interactive",
+            "--typed-bindings",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let manifest = fs::read_to_string(project.join("langmeld.toml"))
+        .expect("Langmeld manifest should be generated");
+    assert_eq!(manifest, "format = 1\nrust_bindings = \"typed\"\n");
+
+    let cargo_manifest =
+        fs::read_to_string(project.join("Cargo.toml")).expect("Cargo manifest should be generated");
+    assert!(cargo_manifest.contains(&format!(
+        "[build-dependencies]\nlangmeld-build = \"{}\"",
+        env!("CARGO_PKG_VERSION")
+    )));
+    assert!(project.join("build.rs").is_file());
+
+    let library = fs::read_to_string(project.join("src/lib.rs"))
+        .expect("language library should be generated");
+    assert!(library.contains("pub mod generated"));
+    assert!(library.contains("/langmeld_bindings.rs"));
+
+    let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
+        .expect("typed let handler should be generated");
+    assert!(let_handler.contains("context.typed::<crate::generated::constructs::Let>()?"));
+    assert!(let_handler.contains("syntax.name()?"));
+    assert!(let_handler.contains("syntax.value()?"));
+    assert!(!let_handler.contains("field_text_capture"));
+
+    let print_handler = fs::read_to_string(project.join("src/constructs/print.rs"))
+        .expect("typed print handler should be generated");
+    assert!(print_handler.contains("context.typed::<crate::generated::constructs::Print>()?"));
+    assert!(print_handler.contains("syntax.name()?"));
+    assert!(!print_handler.contains("field_identifier_capture"));
+
+    let statements = project.join("language/constructs/statements.langmeld");
+    let mut source = fs::read_to_string(&statements).expect("construct definitions should exist");
+    source.push_str(
+        "\nconstruct \"parent\" { syntax { literal \"parent\"; zero_or_more \"children\" { literal \"child\"; } } implements \"statement\"; }\n",
+    );
+    fs::write(&statements, source).expect("named group should be added");
+
+    let collision = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .current_dir(&project)
+        .args([
+            "generate",
+            "construct",
+            "parent-children",
+            "--literal",
+            "parent_children",
+            "--category",
+            "statement",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(!collision.status.success());
+    assert!(
+        String::from_utf8_lossy(&collision.stderr).contains(
+            "multiple language constructs or groups map to the Rust type `ParentChildren`"
+        ),
+        "{}",
+        String::from_utf8_lossy(&collision.stderr)
+    );
+    assert!(
+        !statements
+            .parent()
+            .unwrap()
+            .join("constructs/parent-children.langmeld")
+            .exists()
+    );
+    assert!(!project.join("src/constructs/parent_children.rs").exists());
+
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .current_dir(&project)
+        .args([
+            "generate",
+            "construct",
+            "repeat",
+            "--literal",
+            "repeat",
+            "--category",
+            "statement",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let repeat_handler = fs::read_to_string(project.join("src/constructs/repeat.rs"))
+        .expect("typed construct handler should be generated");
+    assert!(repeat_handler.contains("context.typed::<crate::generated::constructs::Repeat>()?"));
+
+    let readme = fs::read_to_string(project.join("README.md")).expect("README should exist");
+    assert!(readme.contains("Typed capture accessors are generated"));
+    assert!(!readme.contains("{{TYPED_BINDINGS_GUIDANCE}}"));
+
+    let check = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .current_dir(&project)
+        .arg("check")
+        .output()
+        .expect("CLI should start");
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+#[test]
+fn init_rejects_typed_bindings_for_custom_parser_projects() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("custom-language");
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--template",
+            "custom-parser",
+            "--typed-bindings",
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("requires the declarative"));
+    assert!(!project.exists());
+}
+
+#[test]
 fn init_uses_ignored_local_crate_overrides_for_both_templates() {
     let parent = TestDirectory::new();
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -120,15 +270,29 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             "declarative",
             None,
             ["langmeld-core", "langmeld-language", "langmeld-project"].as_slice(),
+            false,
+        ),
+        (
+            "typed-declarative",
+            None,
+            [
+                "langmeld-core",
+                "langmeld-language",
+                "langmeld-project",
+                "langmeld-build",
+            ]
+            .as_slice(),
+            true,
         ),
         (
             "custom-parser",
             Some("custom-parser"),
             ["langmeld-core", "langmeld-language", "langmeld-lsp"].as_slice(),
+            false,
         ),
     ];
 
-    for (project_name, template, crates) in templates {
+    for (project_name, template, crates, typed_bindings) in templates {
         let project = parent.path().join(project_name);
         let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
         command.args([
@@ -144,6 +308,9 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
 
         if let Some(template) = template {
             command.args(["--template", template]);
+        }
+        if typed_bindings {
+            command.arg("--typed-bindings");
         }
 
         let output = command.output().expect("CLI should start");
@@ -310,6 +477,7 @@ fn help_lists_init_and_the_non_interactive_mode() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("Create a starter language project"));
     assert!(help.contains("--non-interactive"));
+    assert!(help.contains("--typed-bindings"));
     assert!(help.contains("--local-crates"));
     assert!(help.contains("--agents-md"));
     assert!(help.contains("--agent-skill"));

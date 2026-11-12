@@ -11,7 +11,7 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
         &self,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let name = context.field_identifier_capture("name")?;
+        {{CAPTURE_ACCESS}}
         let value = context
             .state()
             .variables
