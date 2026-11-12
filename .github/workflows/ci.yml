@@ -59,34 +59,49 @@ jobs:
           cargo run -p langmeld-cli --locked -- generate handler program
           --manifest-path
           "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
+      - name: Implement a user-authored typed construct
+        shell: bash
+        run: |
+          project="$RUNNER_TEMP/langmeld-init-declarative"
+          cargo run -p langmeld-cli --locked -- generate construct upper \
+            --literal upper \
+            --category statement \
+            --manifest-path "$project/langmeld.toml"
+          cp tests/fixtures/author-journey/upper.langmeld \
+            "$project/language/constructs/upper.langmeld"
+          cp tests/fixtures/author-journey/upper.rs \
+            "$project/src/constructs/upper.rs"
       - name: Check and run declarative language project
         shell: bash
         run: |
+          project="$RUNNER_TEMP/langmeld-init-declarative"
           cargo run -p langmeld-cli --locked -- check \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
+            --manifest-path "$project/langmeld.toml"
           cargo fmt \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --manifest-path "$project/Cargo.toml" \
             -- --check
           cargo test \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --manifest-path "$project/Cargo.toml" \
             --target-dir target \
-            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml"
+            --config "$project/.cargo/config.toml"
           cargo run \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --manifest-path "$project/Cargo.toml" \
             --target-dir target \
-            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml"
+            --config "$project/.cargo/config.toml"
           cargo run \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --manifest-path "$project/Cargo.toml" \
             --target-dir target \
-            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml" \
+            --config "$project/.cargo/config.toml" \
             -- --help
-          printf '%s\n' 'program { let message = "Hello from a file"; print message; }' \
-            > "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
           cargo run \
-            --manifest-path "$RUNNER_TEMP/langmeld-init-declarative/Cargo.toml" \
+            --manifest-path "$project/Cargo.toml" \
             --target-dir target \
-            --config "$RUNNER_TEMP/langmeld-init-declarative/.cargo/config.toml" \
-            -- "$RUNNER_TEMP/langmeld-init-declarative/sample.widget"
+            --config "$project/.cargo/config.toml" \
+            -- "$GITHUB_WORKSPACE/tests/fixtures/author-journey/sample.widget" \
+            > "$RUNNER_TEMP/langmeld-author-journey-output.txt"
+          diff -u \
+            "$GITHUB_WORKSPACE/tests/fixtures/author-journey/expected-output.txt" \
+            "$RUNNER_TEMP/langmeld-author-journey-output.txt"
       - name: Initialize and run custom-parser language project
         shell: bash
         run: |

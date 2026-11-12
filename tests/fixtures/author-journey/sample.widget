@@ -1,0 +1,5 @@
+program {
+    let message = "Hello from a file";
+    upper message;
+    print message;
+}

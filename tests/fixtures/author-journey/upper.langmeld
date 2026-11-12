@@ -1,0 +1,8 @@
+construct "upper" {
+    syntax {
+        literal "upper";
+        identifier "name";
+        literal ";";
+    }
+    implements "statement";
+}
