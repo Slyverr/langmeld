@@ -85,6 +85,78 @@ fn check_reports_definition_diagnostics_with_source_locations() {
 }
 
 #[test]
+fn check_warns_for_legacy_lm_imports_and_keeps_the_project_valid() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    fs::create_dir_all(project.join("language/constructs"))
+        .expect("construct directory should be created");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/main.langmeld\"\n",
+    )
+    .expect("manifest should be written");
+    fs::write(
+        project.join("language/main.langmeld"),
+        r#"language "Legacy" {
+    import "constructs/item.lm";
+    construct "program" { syntax { literal "program"; } }
+}"#,
+    )
+    .expect("root definition should be written");
+    fs::write(
+        project.join("language/constructs/item.lm"),
+        r#"construct "item" { syntax { literal "item"; } }"#,
+    )
+    .expect("legacy definition should be written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "check",
+            "--manifest-path",
+            project
+                .join("langmeld.toml")
+                .to_str()
+                .expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let warning = String::from_utf8_lossy(&output.stderr);
+    assert!(warning.contains("language/main.langmeld:2:"));
+    assert!(warning.contains("warning[LM-DEF-W001]"));
+    assert!(warning.contains("rename the file to `.langmeld`"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Language `Legacy` is valid."));
+}
+
+#[test]
+fn check_explains_how_to_migrate_a_legacy_lm_root_path() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    fs::create_dir_all(project.join("language")).expect("language directory should be created");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/main.lm\"\n",
+    )
+    .expect("manifest should be written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["check", "--manifest-path", "langmeld.toml"])
+        .current_dir(project)
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("Langmeld 0.5.0 changed language definitions to `.langmeld`"));
+    assert!(error.contains("update imports and `definition`"));
+}
+
+#[test]
 fn check_explains_typed_binding_requirements_for_unnamed_repeated_groups() {
     let parent = TestDirectory::new();
     let project = parent.path();

@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- Warn on definition imports using the legacy `.lm` extension and explain how
+  to update an old `.lm` root path in `langmeld.toml`.
+
 ## [0.10.0] - 2026-11-12
 
 ### Added

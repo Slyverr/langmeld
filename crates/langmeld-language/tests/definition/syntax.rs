@@ -33,12 +33,7 @@ fn parses_definition_with_the_generic_parser_and_builds_a_usable_language() {
 fn definition_validity_ignores_warnings_but_rejects_errors() {
     let source = SourceFile::new("language.langmeld", DEFINITION);
     let language = parse_language_definition(&source).language.unwrap();
-    let warning = Diagnostic::warning(
-        "LM-DEF-W001",
-        "style recommendation",
-        &source,
-        Span::new(0, 1),
-    );
+    let warning = Diagnostic::warning("TEST-W001", "example warning", &source, Span::new(0, 1));
     let info = Diagnostic::info(
         "LM-DEF-I001",
         "additional context",

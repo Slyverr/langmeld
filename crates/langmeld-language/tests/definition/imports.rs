@@ -99,6 +99,49 @@ fn composes_nested_imports_and_keeps_construct_source_locations() {
 }
 
 #[test]
+fn warns_at_legacy_lm_imports_while_loading_the_definition() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.langmeld",
+            r#"language "Legacy" {
+                import "constructs/item.lm";
+                construct "program" { syntax { literal "program"; } }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    resolver.0.insert(
+        "constructs/item.lm".into(),
+        DefinitionSource::new(
+            "legacy-item",
+            SourceFile::new(
+                "language/constructs/item.lm",
+                r#"construct "item" { syntax { literal "item"; } }"#,
+            ),
+        ),
+    );
+
+    let result = parse_language_definition_project(root, &resolver);
+
+    assert!(result.is_valid(), "{:?}", result.diagnostics);
+    let warning = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-W001")
+        .expect("legacy import should produce a warning");
+    assert_eq!(warning.severity, Severity::Warning);
+    assert!(warning.message.contains("rename the file to `.langmeld`"));
+    assert_eq!(
+        warning
+            .location
+            .as_ref()
+            .map(|location| location.source_name()),
+        Some("language/main.langmeld")
+    );
+}
+
+#[test]
 fn reports_import_cycles_and_missing_imports_at_the_import_site() {
     let root = DefinitionSource::new(
         "root",

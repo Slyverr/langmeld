@@ -78,12 +78,7 @@ mod tests {
     fn formats_only_warning_diagnostics_as_cargo_findings() {
         let source = SourceFile::new("language/main.langmeld", "language \"Example\" {}");
         let diagnostics = [
-            Diagnostic::warning(
-                "LM-DEF-W001",
-                "deprecated definition form",
-                &source,
-                Span::new(0, 8),
-            ),
+            Diagnostic::warning("TEST-W001", "example warning", &source, Span::new(0, 8)),
             Diagnostic::info(
                 "LM-DEF-I001",
                 "additional context",
@@ -94,7 +89,7 @@ mod tests {
 
         assert_eq!(
             cargo_warnings(&[source], &diagnostics),
-            ["language/main.langmeld:1:1: warning[LM-DEF-W001]: deprecated definition form"]
+            ["language/main.langmeld:1:1: warning[TEST-W001]: example warning"]
         );
     }
 }

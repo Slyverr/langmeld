@@ -42,12 +42,7 @@ mod tests {
     fn formats_non_error_definition_diagnostics_with_source_locations() {
         let source = SourceFile::new("language/main.langmeld", "language \"Example\" {}");
         let diagnostics = [
-            Diagnostic::warning(
-                "LM-DEF-W001",
-                "deprecated definition form",
-                &source,
-                Span::new(0, 8),
-            ),
+            Diagnostic::warning("TEST-W001", "example warning", &source, Span::new(0, 8)),
             Diagnostic::info(
                 "LM-DEF-I001",
                 "additional definition guidance",
@@ -64,7 +59,7 @@ mod tests {
 
         assert_eq!(
             format_non_error_diagnostics(&[source], &diagnostics),
-            "language/main.langmeld:1:1: warning[LM-DEF-W001]: deprecated definition form\nlanguage/main.langmeld:1:1: info[LM-DEF-I001]: additional definition guidance"
+            "language/main.langmeld:1:1: warning[TEST-W001]: example warning\nlanguage/main.langmeld:1:1: info[LM-DEF-I001]: additional definition guidance"
         );
     }
 }

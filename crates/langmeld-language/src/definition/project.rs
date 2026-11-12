@@ -74,6 +74,15 @@ fn load_imports(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for import in imports {
+        if import.path.ends_with(".lm") {
+            diagnostics.push(Diagnostic::warning(
+                "LM-DEF-W001",
+                "legacy `.lm` import; rename the file to `.langmeld` and update this import",
+                &importer.source,
+                import.span,
+            ));
+        }
+
         if loading.len() >= MAX_DEFINITION_IMPORT_DEPTH {
             diagnostics.push(Diagnostic::error(
                 "LM-DEF-021",

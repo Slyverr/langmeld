@@ -1,4 +1,4 @@
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, Severity, SourceFile, Span};
 use langmeld_language::{
     CapturedValue, CompletionKind, DefinitionResolver, DefinitionResult, DefinitionSource,
     complete_at, decode_definition_string, parse, parse_language_definition,

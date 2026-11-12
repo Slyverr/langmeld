@@ -157,6 +157,10 @@ impl fmt::Display for ProjectManifestError {
                     "unknown `{field}` field in {PROJECT_MANIFEST_FILE}"
                 )
             }
+            Self::InvalidDefinitionPath(path) if path.ends_with(".lm") => write!(
+                formatter,
+                "`definition` points to legacy `.lm` path `{path}`; Langmeld 0.5.0 changed language definitions to `.langmeld`. Rename the file, update imports and `definition`, and ensure the path is project-relative without parent segments"
+            ),
             Self::InvalidDefinitionPath(path) => write!(
                 formatter,
                 "`definition` must be a project-relative `.langmeld` path without parent segments, got `{path}`"

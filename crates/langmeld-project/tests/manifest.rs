@@ -116,3 +116,20 @@ fn reads_the_conventional_manifest_from_a_project_root() {
 
     assert_eq!(manifest.definition, DEFAULT_DEFINITION_PATH);
 }
+
+#[test]
+fn explains_how_to_update_legacy_lm_definition_paths() {
+    let error = ProjectManifest::parse("format = 1\ndefinition = \"language/main.lm\"\n")
+        .expect_err("legacy `.lm` root paths should be rejected");
+
+    assert!(
+        error
+            .to_string()
+            .contains("Langmeld 0.5.0 changed language definitions")
+    );
+    assert!(
+        error
+            .to_string()
+            .contains("update imports and `definition`")
+    );
+}

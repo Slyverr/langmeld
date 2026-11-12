@@ -12,12 +12,12 @@ The `format` field in `langmeld.toml` versions the project-manifest schema,
 independently of the Langmeld crate version. Format `1` is currently supported;
 other values are rejected. `.langmeld` files do not have a separate format
 field, so their compatibility follows the Langmeld release. A definition that
-is still valid under the current grammar is not flagged as old. The diagnostic
-plumbing can carry and display warnings: `langmeld check` prints non-error
-diagnostics, the LSP preserves diagnostic severity, and `langmeld-build`
-forwards warning diagnostics to Cargo. The built-in `.langmeld` parser
-currently emits no deprecation warnings, and the CLI does not provide an
-automatic migration command.
+is still valid under the current grammar is not generally flagged as old. The
+loader warns on legacy `.lm` import paths, and a manifest that points to an old
+`.lm` root gives migration guidance. The diagnostic plumbing can carry and
+display warnings: `langmeld check` prints non-error diagnostics, the LSP
+preserves diagnostic severity, and `langmeld-build` forwards warning
+diagnostics to Cargo. There is no automatic migration command.
 
 ## Migrating from v0.9.0 to v0.10.0
 
@@ -321,6 +321,10 @@ automatically. For each definition project:
 2. Update each `import` path to use the renamed file.
 3. Update `definition` in `langmeld.toml` to point to the renamed root file.
 4. Update any project scripts or editor configuration that name those files.
+
+The current loader reports a warning for every import path that ends in `.lm`,
+and `langmeld check` reports an actionable manifest error when the root path
+still ends in `.lm`.
 
 Then validate the imported definition graph:
 
