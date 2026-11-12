@@ -159,6 +159,13 @@ Record notable user-facing changes in `CHANGELOG.md` under `Unreleased`,
 grouped as `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`
 as needed. Curate entries for users; do not copy the commit log.
 
+A compatible fix does not by itself trigger a patch release. Keep fixes under
+`Unreleased` and batch them when appropriate. When cutting a patch release,
+include its version, changelog, and lockfile updates in the final compatible fix
+commit; do not create a separate `chore(release)` commit. For a minor release,
+prepare one `chore(release): prepare vX.Y.Z` commit after its milestone gate
+passes.
+
 Keep workspace crate versions aligned during development. Do not make a separate
 commit that bumps to the next version after a release; update release metadata
 only when that release's gate passes.
@@ -166,13 +173,12 @@ only when that release's gate passes.
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
-checks above and the archive verification command. Use
-`chore(release): prepare vX.Y.Z` for the release-preparation commit. After that
-commit passes CI, create and push an annotated `vX.Y.Z` tag with the message
-`Langmeld vX.Y.Z`:
+checks above and the archive verification command. Push the release commit to
+`develop` and wait for CI before tagging it. Create and push a signed annotated
+`vX.Y.Z` tag with the message `Langmeld vX.Y.Z`:
 
 ```sh
-git tag -a vX.Y.Z -m "Langmeld vX.Y.Z"
+git tag -s vX.Y.Z -m "Langmeld vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
