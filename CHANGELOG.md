@@ -13,9 +13,12 @@ API migration notes are in the
 
 - Expose a `NAME` constant on generated typed construct views for concise,
   compile-time references from Rust handlers.
+- Expose `construct_handler_names` so handler generators can share Langmeld's
+  Rust module and handler-struct naming rules.
 
 ### Changed
 
+- Match generated handler struct casing to generated typed construct views.
 - Generate starter diagnostic codes with a prefix derived from the new Cargo
   package name instead of the generic `EXAMPLE` prefix.
 - Use Clap for optional source-file arguments in the runnable language examples,
@@ -23,6 +26,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Escape all reserved Rust keywords when deriving handler module names from
+  construct names, including `become`, `box`, and `union`.
 - Correct the typed-bindings dependency example and document local crate
   resolution before the current release line is published.
 - Fully qualify generated typed-binding support types so language constructs

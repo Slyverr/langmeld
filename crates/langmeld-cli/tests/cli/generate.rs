@@ -160,6 +160,70 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
 }
 
 #[test]
+fn generate_handler_escapes_additional_reserved_module_keywords() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("keyword-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let statements = project.join("language/constructs/statements.langmeld");
+    let mut source = fs::read_to_string(&statements).expect("constructs should be generated");
+    for construct in ["become", "box", "union"] {
+        source.push_str(&format!(
+            "\nconstruct \"{construct}\" {{ syntax {{ literal \"{construct}\"; literal \";\"; }} implements \"statement\"; }}\n"
+        ));
+    }
+    fs::write(&statements, source).expect("keyword constructs should be written");
+
+    let manifest = project.join("langmeld.toml");
+    let registry_path = project.join("src/constructs/mod.rs");
+    for (construct, handler) in [
+        ("become", "BecomeHandler"),
+        ("box", "BoxHandler"),
+        ("union", "UnionHandler"),
+    ] {
+        let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+            .args([
+                "generate",
+                "handler",
+                construct,
+                "--manifest-path",
+                manifest.to_str().expect("path is UTF-8"),
+            ])
+            .output()
+            .expect("CLI should start");
+        assert!(
+            generated.status.success(),
+            "{}",
+            String::from_utf8_lossy(&generated.stderr)
+        );
+
+        assert!(
+            project
+                .join(format!("src/constructs/{construct}_handler.rs"))
+                .is_file()
+        );
+
+        let registry = fs::read_to_string(&registry_path).expect("registry should be readable");
+        assert!(registry.contains(&format!("mod {construct}_handler;")));
+        assert!(registry.contains(&format!(
+            "handlers.register({construct}_handler::{handler})?;"
+        )));
+    }
+}
+
+#[test]
 fn generate_handler_removes_new_file_when_registry_update_fails() {
     let parent = TestDirectory::new();
     let project = parent.path().join("widget-language");

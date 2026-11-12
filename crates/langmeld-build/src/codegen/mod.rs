@@ -41,6 +41,72 @@ pub fn construct_type_name(name: &str) -> Result<String, BuildError> {
     rust_type_name(name)
 }
 
+/// Rust names used for a construct's generated handler source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConstructHandlerNames {
+    /// Rust module identifier and source filename stem.
+    pub module_name: String,
+    /// Rust handler struct identifier.
+    pub handler_name: String,
+}
+
+/// Returns the module and handler identifiers used by generated construct
+/// handlers.
+///
+/// Construct names may contain ASCII letters, digits, hyphens, and underscores.
+/// Reserved Rust module keywords receive a `_handler` suffix, and leading
+/// digits receive a `construct_` prefix for module names.
+///
+/// # Errors
+///
+/// Returns an error if the construct name cannot map to a Rust module name.
+pub fn construct_handler_names(name: &str) -> Result<ConstructHandlerNames, BuildError> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+
+    for character in name.chars() {
+        if character.is_ascii_alphanumeric() {
+            word.push(character.to_ascii_lowercase());
+        } else if matches!(character, '-' | '_') {
+            if !word.is_empty() {
+                words.push(std::mem::take(&mut word));
+            }
+        } else {
+            return Err(unsupported(format!(
+                "construct `{name}` cannot map to a Rust module name; use ASCII letters, digits, `-`, or `_`"
+            )));
+        }
+    }
+    if !word.is_empty() {
+        words.push(word);
+    }
+    if words.is_empty() {
+        return Err(unsupported(
+            "construct name must contain an ASCII letter or digit".to_owned(),
+        ));
+    }
+
+    let mut module_name = words.join("_");
+    if module_name.starts_with(|character: char| character.is_ascii_digit()) {
+        module_name.insert_str(0, "construct_");
+    }
+    if is_keyword(&module_name) {
+        module_name.push_str("_handler");
+    }
+
+    let handler_type_name = match rust_type_name(name) {
+        Ok(type_name) => type_name,
+        Err(BuildError::UnsupportedGrammar(_)) => module_name.to_upper_camel_case(),
+        Err(error) => return Err(error),
+    };
+    let handler_name = format!("{handler_type_name}Handler");
+
+    Ok(ConstructHandlerNames {
+        module_name,
+        handler_name,
+    })
+}
+
 struct GeneratedConstruct {
     name: String,
     type_name: String,

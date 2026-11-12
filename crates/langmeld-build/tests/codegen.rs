@@ -1,4 +1,4 @@
-use langmeld_build::{construct_type_name, generate_bindings};
+use langmeld_build::{construct_handler_names, construct_type_name, generate_bindings};
 use langmeld_language::{ConstructSpec, LanguageSpec, PatternPart};
 
 #[test]
@@ -7,6 +7,33 @@ fn construct_type_name_matches_the_generated_view_name() {
         construct_type_name("readHTTP-response").expect("the construct name maps to a Rust type"),
         "ReadHttpResponse"
     );
+
+    assert_eq!(
+        construct_handler_names("readHTTP-response")
+            .expect("the construct name maps to Rust handler names")
+            .handler_name,
+        "ReadHttpResponseHandler"
+    );
+}
+
+#[test]
+fn construct_handler_names_escape_reserved_keywords_and_numeric_prefixes() {
+    for (name, module_name, handler_name) in [
+        ("become", "become_handler", "BecomeHandler"),
+        ("box", "box_handler", "BoxHandler"),
+        ("union", "union_handler", "UnionHandler"),
+        (
+            "123-widget",
+            "construct_123_widget",
+            "Construct123WidgetHandler",
+        ),
+    ] {
+        let generated = construct_handler_names(name)
+            .expect("the construct name can map to Rust handler names");
+
+        assert_eq!(generated.module_name, module_name);
+        assert_eq!(generated.handler_name, handler_name);
+    }
 }
 
 #[test]
