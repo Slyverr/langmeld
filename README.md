@@ -8,6 +8,9 @@ semantics, execution, and code generation stay in the host project.
 The framework provides source spans and diagnostics, parsing and analysis
 interfaces, a project CLI, and editor integrations. TextMate and Tree-sitter
 grammars can be generated for compatible declarative definitions.
+Declarative projects can opt into compile-time checked Rust views for named
+captures and groups with `langmeld init --typed-bindings`; see [typed Rust
+bindings](docs/language/typed-bindings.md).
 
 ## Try it
 
