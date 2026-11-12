@@ -159,7 +159,7 @@ impl fmt::Display for ProjectManifestError {
             }
             Self::InvalidDefinitionPath(path) => write!(
                 formatter,
-                "`definition` must be a project-relative `.langmeld` path without parent segments, got `{path}`"
+                "`definition` must be a project-relative `.langmeld` path (legacy `.lm` paths are accepted during migration) using `/` separators, without parent segments or Windows-invalid filename components; got `{path}`"
             ),
             Self::InvalidRustBindings => write!(
                 formatter,

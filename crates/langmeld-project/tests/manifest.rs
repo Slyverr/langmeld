@@ -114,6 +114,13 @@ fn rejects_invalid_or_non_portable_definition_paths() {
             "accepted invalid definition path {path:?}"
         );
     }
+
+    let error = ProjectManifest::parse("format = 1\ndefinition = \"language/CON.langmeld\"\n")
+        .expect_err("reserved Windows device names are not portable");
+    let message = error.to_string();
+
+    assert!(message.contains("legacy `.lm` paths are accepted"));
+    assert!(message.contains("Windows-invalid filename components"));
 }
 
 #[test]

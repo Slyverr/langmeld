@@ -236,6 +236,16 @@ fn rejects_absolute_and_non_portable_import_paths() {
             "import should be rejected as non-portable: {import:?}"
         );
     }
+
+    let error = resolver
+        .resolve(root.key(), "folder/item?.langmeld")
+        .expect_err("Windows-invalid characters are not portable");
+    assert!(
+        error
+            .to_string()
+            .contains("Windows-compatible filename components")
+    );
+
     assert!(
         resolver
             .resolve(root.key(), "folder\\items.langmeld")

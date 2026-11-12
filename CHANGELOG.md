@@ -15,6 +15,8 @@ API migration notes are in the
   extension; both remain loadable while users migrate to `.langmeld`.
 - Keep project LSP file watching active for legacy `.lm` definitions during
   migration.
+- Explain portable filename requirements when a manifest or import path is
+  rejected.
 
 ### Fixed
 

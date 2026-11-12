@@ -54,7 +54,10 @@ impl fmt::Display for ProjectLoadError {
                 )
             }
             Self::InvalidPath(path) => {
-                write!(formatter, "invalid relative definition path `{path}`")
+                write!(
+                    formatter,
+                    "invalid or non-portable definition path `{path}`; use `/` separators and Windows-compatible filename components"
+                )
             }
             Self::OutsideRoot(path) => write!(
                 formatter,
