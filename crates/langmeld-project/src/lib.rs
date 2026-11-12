@@ -15,6 +15,7 @@ mod manifest;
 mod memory_resolver;
 mod overlay_resolver;
 
+pub use definition_paths::resolve_import_key;
 pub use definition_project::{
     DefinitionProjectError, LanguageSpecLoadError, LoadedDefinitionProject,
     LoadedDefinitionProjectParts, load_definition_project, load_definition_project_from_manifest,

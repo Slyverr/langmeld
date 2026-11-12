@@ -191,12 +191,14 @@ impl LanguageBackend for ProjectDefinitionBackend {
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
         let definition_index = self.current_definition_index();
+        let source_key = self.source_key(source);
         if let Some(completions) = complete_definition_field(
             &self.root,
             source,
             document.state(),
             offset,
             definition_index.as_deref(),
+            source_key.as_deref(),
         ) {
             return completions;
         }

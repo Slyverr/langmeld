@@ -1,6 +1,22 @@
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, parse_language_definition_project};
-use langmeld_project::{InMemoryDefinitionResolver, ProjectLoadError};
+use langmeld_project::{InMemoryDefinitionResolver, ProjectLoadError, resolve_import_key};
+
+#[test]
+fn resolves_import_keys_with_the_same_portability_rules_as_project_loading() {
+    assert_eq!(
+        resolve_import_key("language/constructs/main.langmeld", "../types.langmeld").unwrap(),
+        "language/types.langmeld"
+    );
+    assert!(matches!(
+        resolve_import_key("language/main.langmeld", "constructs/con.langmeld"),
+        Err(ProjectLoadError::InvalidPath(_))
+    ));
+    assert!(matches!(
+        resolve_import_key("language/main.langmeld", "../../outside.langmeld"),
+        Err(ProjectLoadError::OutsideRoot(_))
+    ));
+}
 
 #[test]
 fn resolves_nested_imports_and_composes_a_language_from_memory() {

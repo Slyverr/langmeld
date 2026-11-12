@@ -8,11 +8,7 @@ use std::{
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
 
-use crate::{
-    ProjectLoadError,
-    definition_paths::{normalize_source_key, resolve_import_key},
-    error::path_error,
-};
+use crate::{ProjectLoadError, definition_paths::normalize_source_key, resolve_import_key};
 
 /// Resolves `.langmeld` imports from files under a project directory.
 ///
@@ -294,8 +290,7 @@ impl DefinitionResolver for DirectoryDefinitionResolver {
     type Error = ProjectLoadError;
 
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
-        let key =
-            resolve_import_key(from_key, import).map_err(|error| path_error(import, error))?;
+        let key = resolve_import_key(from_key, import)?;
         let requested = self.root.join(key);
         self.load_path(requested, import.to_owned())
     }

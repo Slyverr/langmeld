@@ -19,6 +19,8 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
     fs::write(&root, root_source).unwrap();
     fs::write(&module, module_source).unwrap();
     fs::write(&second_module, second_module_source).unwrap();
+    #[cfg(unix)]
+    fs::create_dir_all(project.join("language/constructs/con")).unwrap();
     let root_uri = url::Url::from_file_path(fs::canonicalize(&root).unwrap())
         .unwrap()
         .to_string();
@@ -108,6 +110,24 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
         assert_eq!(
             completion["result"][0]["textEdit"]["newText"],
             format!("\"{label}\"")
+        );
+    }
+
+    #[cfg(unix)]
+    {
+        let invalid_folder_offset = root_source.find("constructs/").unwrap() + "constructs/".len();
+        send_lsp_message(
+            &mut stdin,
+            json!({"jsonrpc":"2.0","id":9,"method":"textDocument/completion","params":{"textDocument":{"uri":root_uri},"position":{"line":0,"character":invalid_folder_offset}}}),
+        );
+        let invalid_folder_completion = receive_lsp_message(&receiver);
+        assert!(
+            invalid_folder_completion["result"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["label"] != "constructs/con/"),
+            "completion must not suggest paths rejected by the project resolver"
         );
     }
 

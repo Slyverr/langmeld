@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Expose `langmeld_project::resolve_import_key` so editor integrations can
+  validate import paths with the project's resolver rules.
 - Expose a `NAME` constant on generated typed construct views for concise,
   compile-time references from Rust handlers.
 - Expose `construct_handler_names` so handler generators can share Langmeld's
@@ -30,6 +32,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Filter import-path completions using the same portability and project-root
+  checks as definition loading.
 - Keep formatted diagnostic columns consistent with editor positions for CRLF
   line endings.
 - Escape all reserved Rust keywords when deriving handler module names from

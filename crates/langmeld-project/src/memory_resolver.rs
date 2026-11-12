@@ -3,11 +3,7 @@ use std::collections::BTreeMap;
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
 
-use crate::{
-    ProjectLoadError,
-    definition_paths::{normalize_source_key, resolve_import_key},
-    error::path_error,
-};
+use crate::{ProjectLoadError, definition_paths::normalize_source_key, resolve_import_key};
 
 /// Resolves imports from an in-memory collection of `.langmeld` sources.
 ///
@@ -73,8 +69,7 @@ impl DefinitionResolver for InMemoryDefinitionResolver {
     type Error = ProjectLoadError;
 
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
-        let key =
-            resolve_import_key(from_key, import).map_err(|error| path_error(import, error))?;
+        let key = resolve_import_key(from_key, import)?;
         self.find_by_key(&key)?
             .ok_or(ProjectLoadError::MissingDefinition(key))
     }

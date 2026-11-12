@@ -4,8 +4,7 @@ use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, DefinitionSource};
 
 use crate::{
-    DirectoryDefinitionResolver, InMemoryDefinitionResolver, ProjectLoadError,
-    definition_paths::resolve_import_key, error::path_error,
+    DirectoryDefinitionResolver, InMemoryDefinitionResolver, ProjectLoadError, resolve_import_key,
 };
 
 /// Resolves a language project from disk with an in-memory source overlay.
@@ -77,8 +76,7 @@ impl DefinitionResolver for OverlayDefinitionResolver {
     type Error = ProjectLoadError;
 
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
-        let key =
-            resolve_import_key(from_key, import).map_err(|error| path_error(import, error))?;
+        let key = resolve_import_key(from_key, import)?;
         if let Some(source) = self.overlay.find_by_key(&key)? {
             return Ok(source);
         }

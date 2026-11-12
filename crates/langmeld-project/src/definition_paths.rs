@@ -1,5 +1,7 @@
 use std::path::{Component, Path};
 
+use crate::{ProjectLoadError, error::path_error};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum DefinitionPathError {
     Invalid,
@@ -30,10 +32,16 @@ pub(super) fn normalize_source_key(path: &str) -> Result<String, DefinitionPathE
     Ok(components.join("/"))
 }
 
-pub(super) fn resolve_import_key(
-    from_key: &str,
-    import: &str,
-) -> Result<String, DefinitionPathError> {
+/// Resolves an import path against its importing definition's project key.
+///
+/// This performs the same portable-path and project-root checks used by the
+/// project resolvers without loading a file. It is useful to validate import
+/// paths before presenting them in editor tooling.
+pub fn resolve_import_key(from_key: &str, import: &str) -> Result<String, ProjectLoadError> {
+    resolve_import_key_inner(from_key, import).map_err(|error| path_error(import, error))
+}
+
+fn resolve_import_key_inner(from_key: &str, import: &str) -> Result<String, DefinitionPathError> {
     let from_key = normalize_source_key(from_key)?;
     if !is_portable_relative_path(import)
         || Path::new(import).components().any(|component| {

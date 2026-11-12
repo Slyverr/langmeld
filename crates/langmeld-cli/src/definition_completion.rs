@@ -8,6 +8,7 @@ use langmeld_language::{
 use url::Url;
 
 use crate::definition_index::DefinitionIndex;
+use langmeld_project::resolve_import_key;
 
 const MAX_DIRECTORY_SUGGESTIONS: usize = 200;
 const IGNORED_DIRECTORIES: &[&str] = &[".git", "node_modules", "target"];
@@ -25,10 +26,13 @@ pub(crate) fn complete_definition_field(
     parsed: &ParseResult,
     offset: usize,
     index: Option<&DefinitionIndex>,
+    source_key: Option<&str>,
 ) -> Option<Vec<CompletionCandidate>> {
     let (field, kind) = find_definition_field(parsed.constructs(), offset)?;
     Some(match kind {
-        FieldKind::ImportPath => complete_import_path(root, source, field.span, offset),
+        FieldKind::ImportPath => {
+            complete_import_path(root, source, source_key?, field.span, offset)
+        }
         FieldKind::Construct => {
             complete_values(index?.constructs(), field.span, source, offset, "Construct")
         }
@@ -87,6 +91,7 @@ fn complete_values(
 fn complete_import_path(
     root: &Path,
     source: &SourceFile,
+    source_key: &str,
     replace: Span,
     offset: usize,
 ) -> Vec<CompletionCandidate> {
@@ -148,6 +153,9 @@ fn complete_import_path(
         }
 
         let label = format!("{path_prefix}{name}{}", if is_directory { "/" } else { "" });
+        if resolve_import_key(source_key, &label).is_err() {
+            continue;
+        }
         let kind = if is_directory {
             CompletionKind::Folder
         } else {
