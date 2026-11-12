@@ -23,6 +23,42 @@ jobs:
           persist-credentials: false
           ref: ${{ github.ref }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: Verify signed annotated release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH[-PRERELEASE]."
+            exit 1
+          fi
+
+          tag_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          tag_object_type="$(jq -r '.object.type' <<< "$tag_ref")"
+          if [[ "$tag_object_type" != "tag" ]]; then
+            echo "::error::Release tag $RELEASE_TAG must be annotated and signed."
+            exit 1
+          fi
+
+          tag_object_sha="$(jq -r '.object.sha' <<< "$tag_ref")"
+          tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha")"
+          if ! jq -e \
+            --arg tag "$RELEASE_TAG" \
+            --arg commit "$RELEASE_COMMIT" \
+            --arg message "Langmeld $RELEASE_TAG" \
+            '.tag == $tag
+              and .object.type == "commit"
+              and .object.sha == $commit
+              and (.message | split("\n")[0]) == $message
+              and .verification.verified == true' \
+            <<< "$tag_object" >/dev/null; then
+            echo "::error::Release tag must have a valid signature, the standard message, and point to $RELEASE_COMMIT."
+            exit 1
+          fi
+
+          echo "Verified signed annotated tag $RELEASE_TAG for $RELEASE_COMMIT."
       - run: bash scripts/publish-workspace.sh --check-only
       - name: Require successful CI for the release commit
         env:
@@ -43,7 +79,7 @@ jobs:
             <<< "$runs")"
 
           if [[ -z "$successful_run" ]]; then
-            echo "::error::No successful CI run for $GITHUB_SHA on develop. Push the release commit to develop and wait for CI before tagging it."
+            echo "::error::No successful CI run for $GITHUB_SHA on develop. Push the patch fix or minor release-preparation commit to develop and wait for CI before tagging it."
             exit 1
           fi
 

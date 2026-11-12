@@ -184,6 +184,10 @@ git tag -s vX.Y.Z -m "Langmeld vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
+The release workflow rejects lightweight or unverified tags, mismatched tag
+messages or targets, and release commits without a successful CI run on
+`develop`.
+
 The release workflow verifies that CI succeeded for the exact release commit
 on `develop`, then publishes the nine crates in dependency order through
 crates.io Trusted Publishing when publishing is enabled. It does not rerun the
