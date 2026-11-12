@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-12
+
 ### Added
 
 - Add `CompletionInsertTextFormat` to completion candidates, with plain text as
