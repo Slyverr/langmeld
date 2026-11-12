@@ -1,10 +1,8 @@
 //! The stable project-level entry point for Langmeld CLI and host tooling.
 
-use std::{
-    error::Error,
-    fmt, fs, io,
-    path::{Component, Path},
-};
+use std::{error::Error, fmt, fs, io, path::Path};
+
+use crate::definition_paths::normalize_source_key;
 
 /// Conventional manifest filename used by Langmeld projects.
 pub const PROJECT_MANIFEST_FILE: &str = "langmeld.toml";
@@ -192,16 +190,5 @@ impl Error for ProjectManifestError {
 }
 
 fn is_definition_path(path: &str) -> bool {
-    !path.contains('\\')
-        && !has_windows_drive_prefix(path)
-        && (path.ends_with(".langmeld") || path.ends_with(".lm"))
-        && !path.is_empty()
-        && Path::new(path)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
-}
-
-fn has_windows_drive_prefix(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+    (path.ends_with(".langmeld") || path.ends_with(".lm")) && normalize_source_key(path).is_ok()
 }

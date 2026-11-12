@@ -70,11 +70,7 @@ pub(super) fn resolve_import_key(
     Ok(components.join("/"))
 }
 
+/// Rejects Windows drive/stream syntax and native separators from portable paths.
 fn is_portable_relative_path(path: &str) -> bool {
-    !path.is_empty() && !path.contains('\\') && !path.starts_with('/') && !has_drive_prefix(path)
-}
-
-fn has_drive_prefix(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+    !path.is_empty() && !path.contains('\\') && !path.contains(':') && !path.starts_with('/')
 }

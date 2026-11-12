@@ -85,6 +85,30 @@ fn rejects_keys_and_imports_that_escape_the_virtual_project() {
 }
 
 #[test]
+fn rejects_colons_in_virtual_keys_and_import_paths() {
+    let mut resolver = InMemoryDefinitionResolver::new();
+    assert!(matches!(
+        resolver.insert(
+            "language/secret:stream.langmeld",
+            SourceFile::new("language/secret:stream.langmeld", "")
+        ),
+        Err(ProjectLoadError::InvalidPath(_))
+    ));
+    resolver
+        .insert(
+            "language/main.langmeld",
+            SourceFile::new("language/main.langmeld", ""),
+        )
+        .unwrap();
+    let root = resolver.load("language/main.langmeld").unwrap();
+
+    assert!(matches!(
+        resolver.resolve(root.key(), "secret:stream.langmeld"),
+        Err(ProjectLoadError::InvalidPath(_))
+    ));
+}
+
+#[test]
 fn replaces_updated_snapshots_and_keeps_sources_sorted_by_key() {
     let mut resolver = InMemoryDefinitionResolver::new();
     resolver

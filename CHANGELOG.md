@@ -20,6 +20,8 @@ API migration notes are in the
 
 - Reject Unix filenames containing backslashes when mapping filesystem paths
   to portable project keys, preventing collisions with nested definition paths.
+- Reject colon-containing definition paths, which are reserved on Windows and
+  can select alternate data streams.
 
 ## [0.10.0] - 2026-11-12
 
