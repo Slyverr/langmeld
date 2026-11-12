@@ -1,6 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-use langmeld_core::format_diagnostics;
+use langmeld_core::{Diagnostic, Severity, SourceFile, format_diagnostics};
 use langmeld_project::load_definition_project;
 
 use crate::{BuildError, generate_bindings};
@@ -32,6 +32,10 @@ pub fn generate_project() -> Result<(), BuildError> {
         )));
     }
 
+    for warning in cargo_warnings(project.sources(), &project.definition().diagnostics) {
+        println!("cargo:warning={warning}");
+    }
+
     let language = project
         .definition()
         .language
@@ -55,4 +59,42 @@ pub fn generate_project() -> Result<(), BuildError> {
         path: output_path,
         source,
     })
+}
+
+fn cargo_warnings(sources: &[SourceFile], diagnostics: &[Diagnostic]) -> Vec<String> {
+    diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == Severity::Warning)
+        .map(|diagnostic| format_diagnostics(sources, std::slice::from_ref(diagnostic)))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use langmeld_core::Span;
+
+    #[test]
+    fn formats_only_warning_diagnostics_as_cargo_findings() {
+        let source = SourceFile::new("language/main.langmeld", "language \"Example\" {}");
+        let diagnostics = [
+            Diagnostic::warning(
+                "LM-DEF-W001",
+                "deprecated definition form",
+                &source,
+                Span::new(0, 8),
+            ),
+            Diagnostic::info(
+                "LM-DEF-I001",
+                "additional context",
+                &source,
+                Span::new(0, 8),
+            ),
+        ];
+
+        assert_eq!(
+            cargo_warnings(&[source], &diagnostics),
+            ["language/main.langmeld:1:1: warning[LM-DEF-W001]: deprecated definition form"]
+        );
+    }
 }

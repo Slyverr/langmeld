@@ -39,6 +39,8 @@ API migration notes are in the
 
 ### Changed
 
+- `langmeld check` now displays non-error definition diagnostics, and
+  `langmeld-build` forwards definition warnings to Cargo.
 - **Breaking:** `PatternPart::Optional` now stores an optional group name and
   its parts, and `PatternPart::Repeat` stores an optional name. Existing
   constructors remain available; direct enum construction must add `name: None`

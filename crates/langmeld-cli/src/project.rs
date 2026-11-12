@@ -1,6 +1,6 @@
 use std::{error::Error, path::Path};
 
-use langmeld_core::{SourceFile, format_diagnostics};
+use langmeld_core::{Diagnostic, SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::{
     ProjectManifest, load_definition_project_from_manifest, read_project_manifest_file,
@@ -28,6 +28,7 @@ pub(crate) struct LoadedDefinitionProject {
     pub(crate) root: std::path::PathBuf,
     pub(crate) language: LanguageSpec,
     pub(crate) sources: Vec<SourceFile>,
+    pub(crate) diagnostics: Vec<Diagnostic>,
 }
 
 pub(crate) fn load_language_definition(
@@ -45,6 +46,7 @@ pub(crate) fn load_definition_project(
     if !definition.is_valid() {
         return Err(format_diagnostics(&sources, &definition.diagnostics).into());
     }
+    let diagnostics = definition.diagnostics;
     let language = definition
         .language
         .ok_or("validated definition did not produce a language")?;
@@ -53,5 +55,6 @@ pub(crate) fn load_definition_project(
         root,
         language,
         sources,
+        diagnostics,
     })
 }

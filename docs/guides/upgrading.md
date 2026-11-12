@@ -12,8 +12,10 @@ The `format` field in `langmeld.toml` versions the project-manifest schema,
 independently of the Langmeld crate version. Format `1` is currently supported;
 other values are rejected. `.langmeld` files do not have a separate format
 field, so their compatibility follows the Langmeld release. A definition that
-is still valid under the current grammar is not flagged as old. The CLI does
-not currently provide a deprecation-warning or automatic migration command.
+is still valid under the current grammar is not flagged as old. The CLI's
+`langmeld check`, the LSP, and build scripts using `langmeld-build` surface
+definition warnings, but no built-in rule currently marks old syntax as
+deprecated. The CLI does not provide an automatic migration command.
 
 ## Unreleased API changes
 
