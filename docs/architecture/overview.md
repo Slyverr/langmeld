@@ -1,9 +1,10 @@
 # Architecture overview
 
-Langmeld separates reusable language-development infrastructure from
-language-specific policy. The framework can parse and expose declared syntax,
-but the language project owns semantics, execution, and any custom syntax or
-behavior it needs.
+Langmeld is a Rust-first language-development framework. Its Rust APIs provide
+the language model and extension points; `.langmeld` is an optional declarative
+frontend implemented in Rust that lowers supported definitions into the same
+`LanguageSpec` used by Rust-authored grammars. A language project owns its
+semantics, execution, and any custom syntax or behavior it needs.
 
 ## Crate responsibilities
 
@@ -22,6 +23,29 @@ The crates are independently usable where their APIs permit. For example,
 applications can use an in-memory definition resolver without the CLI's
 filesystem workflow, and a host can embed the LSP adapter without running the
 Langmeld executable.
+
+## Language authoring paths
+
+Language authors can define the supported declarative grammar directly with
+`LanguageSpec`, `ConstructSpec`, and `PatternPart`, or describe it in
+`.langmeld` files. The built-in `.langmeld` grammar is itself declared in Rust
+with those APIs, and the definition frontend lowers user files into the same
+validated specification. Definition files are a convenience, not a requirement
+for using Langmeld.
+
+Use `LanguageParser` when the language's syntax needs a different parsing
+strategy or a language-specific syntax tree. The generic `LanguageSpec` parser
+and grammar exporters cover the declarative subset; Rust-hosted parsers and
+backends use their documented host contracts instead. A complete grammar can
+be authored in Rust today, but there is not yet a first-class builder for
+combining a loaded `.langmeld` project with additional Rust-authored constructs.
+
+In a declarative pattern, `identifier "name"` captures a lexically valid
+identifier in the field named `name`. It does not say whether that field
+declares a symbol or refers to one. `ConstructContext` exposes the captured
+text; a Rust analyzer currently owns symbol tables, scope rules, name
+resolution, and unresolved-name diagnostics. The framework does not yet
+provide a reusable symbol-binding layer for declarative constructs.
 
 ## Definition-to-tooling flow
 
