@@ -47,11 +47,8 @@ pub fn generate_project() -> Result<(), BuildError> {
         "cargo:rerun-if-changed={}",
         project_root.join("langmeld.toml").display()
     );
-    for source in project.sources() {
-        println!(
-            "cargo:rerun-if-changed={}",
-            project_root.join(source.name()).display()
-        );
+    for path in project.watched_paths() {
+        println!("cargo:rerun-if-changed={}", path.display());
     }
 
     let output_path = output_dir.join("langmeld_bindings.rs");

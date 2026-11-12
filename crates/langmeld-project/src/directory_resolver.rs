@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Component, Path, PathBuf},
     sync::Mutex,
@@ -23,6 +23,7 @@ use crate::{
 pub struct DirectoryDefinitionResolver {
     root: PathBuf,
     sources: Mutex<BTreeMap<String, SourceFile>>,
+    watched_paths: Mutex<BTreeSet<PathBuf>>,
 }
 
 impl DirectoryDefinitionResolver {
@@ -42,6 +43,7 @@ impl DirectoryDefinitionResolver {
         Ok(Self {
             root,
             sources: Mutex::new(BTreeMap::new()),
+            watched_paths: Mutex::new(BTreeSet::new()),
         })
     }
 
@@ -154,6 +156,15 @@ impl DirectoryDefinitionResolver {
         self.sources_by_key().into_values().collect()
     }
 
+    pub(crate) fn watched_paths(&self) -> Vec<PathBuf> {
+        self.watched_paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .cloned()
+            .collect()
+    }
+
     pub(super) fn sources_by_key(&self) -> BTreeMap<String, SourceFile> {
         self.sources
             .lock()
@@ -169,7 +180,7 @@ impl DirectoryDefinitionResolver {
         let canonical = requested
             .canonicalize()
             .map_err(|source| ProjectLoadError::Read {
-                path: requested,
+                path: requested.clone(),
                 source,
             })?;
         if !canonical.starts_with(&self.root) {
@@ -192,9 +203,10 @@ impl DirectoryDefinitionResolver {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let text = fs::read_to_string(&canonical).map_err(|source| ProjectLoadError::Read {
-            path: canonical,
+            path: canonical.clone(),
             source,
         })?;
+        self.record_watched_paths(&requested, &canonical)?;
 
         if let Some(source) = sources
             .get(&key)
@@ -207,6 +219,47 @@ impl DirectoryDefinitionResolver {
         sources.insert(key.clone(), source.clone());
 
         Ok(DefinitionSource::new(key, source))
+    }
+
+    fn record_watched_paths(
+        &self,
+        requested: &Path,
+        canonical: &Path,
+    ) -> Result<(), ProjectLoadError> {
+        let relative = requested
+            .strip_prefix(&self.root)
+            .map_err(|_| ProjectLoadError::OutsideRoot(requested.display().to_string()))?;
+        let mut paths = [requested.to_path_buf(), canonical.to_path_buf()]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let mut current = self.root.clone();
+
+        for component in relative.components() {
+            let Component::Normal(name) = component else {
+                return Err(ProjectLoadError::InvalidPath(
+                    requested.display().to_string(),
+                ));
+            };
+            current.push(name);
+
+            let metadata =
+                fs::symlink_metadata(&current).map_err(|source| ProjectLoadError::Read {
+                    path: current.clone(),
+                    source,
+                })?;
+            if metadata.file_type().is_symlink()
+                && let Some(parent) = current.parent()
+            {
+                paths.insert(parent.to_path_buf());
+            }
+        }
+
+        self.watched_paths
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend(paths);
+
+        Ok(())
     }
 }
 

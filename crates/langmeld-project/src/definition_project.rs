@@ -18,6 +18,9 @@ pub struct LoadedDefinitionProject {
     definition: DefinitionResult,
     /// Root and imported definition snapshots in stable path order.
     sources: Vec<SourceFile>,
+    /// Filesystem paths that affect the loaded definitions, including symlink
+    /// parents whose entries can redirect an imported source.
+    watched_paths: Vec<PathBuf>,
 }
 
 impl LoadedDefinitionProject {
@@ -43,6 +46,17 @@ impl LoadedDefinitionProject {
     #[must_use]
     pub fn sources(&self) -> &[SourceFile] {
         &self.sources
+    }
+
+    /// Returns absolute paths that file watchers should monitor for changes
+    /// to the loaded definitions.
+    ///
+    /// The list includes requested and canonical source paths. Parent
+    /// directories are also included when a source path traverses a symlink,
+    /// so replacing or retargeting that link can invalidate cached results.
+    #[must_use]
+    pub fn watched_paths(&self) -> &[PathBuf] {
+        &self.watched_paths
     }
 
     /// Consumes the loaded project and returns its root, manifest, parsed
@@ -221,11 +235,13 @@ fn load_with_manifest(
     let root = resolver.load(&manifest.definition)?;
     let definition = parse_language_definition_project(root, &resolver);
     let sources = resolver.sources();
+    let watched_paths = resolver.watched_paths();
 
     Ok(LoadedDefinitionProject {
         root: resolver.root().to_path_buf(),
         manifest,
         definition,
         sources,
+        watched_paths,
     })
 }

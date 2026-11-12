@@ -22,6 +22,8 @@ API migration notes are in the
   resolution before the current release line is published.
 - Fully qualify generated typed-binding support types so language constructs
   can use names such as `Option`, `Result`, or `Diagnostic` without collisions.
+- Track requested and canonical definition paths, including symlink parents, so
+  Cargo regenerates typed bindings when an in-project import symlink changes.
 
 ## [0.12.1] - 2026-11-12
 

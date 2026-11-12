@@ -65,6 +65,48 @@ fn loads_and_parses_a_manifest_backed_definition_project() {
     assert_eq!(loaded.manifest().definition, "language/main.langmeld");
 }
 
+#[cfg(unix)]
+#[test]
+fn exposes_watch_paths_for_internal_symlink_imports() {
+    let project = TestDirectory::new();
+    project.write(
+        "langmeld.toml",
+        "format = 1\ndefinition = \"language/main.langmeld\"\n",
+    );
+    project.write(
+        "language/main.langmeld",
+        "language \"Example\" { import \"../definitions/alias.langmeld\"; }",
+    );
+    project.write(
+        "definitions/actual.langmeld",
+        "construct \"item\" { syntax { literal \"item\"; } }",
+    );
+    std::os::unix::fs::symlink(
+        "actual.langmeld",
+        project.path().join("definitions/alias.langmeld"),
+    )
+    .expect("internal definition symlink should be created");
+
+    let loaded = load_definition_project(project.path()).unwrap();
+
+    assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
+    assert!(
+        loaded
+            .watched_paths()
+            .contains(&loaded.root().join("definitions/alias.langmeld"))
+    );
+    assert!(
+        loaded
+            .watched_paths()
+            .contains(&loaded.root().join("definitions/actual.langmeld"))
+    );
+    assert!(
+        loaded
+            .watched_paths()
+            .contains(&loaded.root().join("definitions"))
+    );
+}
+
 #[test]
 fn loads_a_legacy_lm_root_and_reports_a_migration_warning() {
     let project = TestDirectory::new();
