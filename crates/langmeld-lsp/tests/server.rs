@@ -79,6 +79,9 @@ impl LanguageBackend for Backend {
                 .with_label("Great value")
                 .with_kind(CompletionKind::Struct)
                 .with_filter_text("preferred"),
+            CompletionCandidate::new("template", Span::new("😀".len(), source.text().len()))
+                .with_label("Snippet category")
+                .with_kind(CompletionKind::Snippet),
             CompletionCandidate::new(
                 "call(${1:argument})$0",
                 Span::new("😀".len(), source.text().len()),
