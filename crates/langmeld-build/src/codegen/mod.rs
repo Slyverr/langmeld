@@ -6,6 +6,7 @@ use langmeld_language::LanguageSpec;
 use crate::BuildError;
 
 mod emit;
+mod helpers;
 mod model;
 
 /// Generates typed Rust construct views for a validated language grammar.
