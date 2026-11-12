@@ -363,7 +363,13 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
         assert!(!manifest.contains(workspace_root.to_str().unwrap()));
 
         let metadata = Command::new("cargo")
-            .args(["metadata", "--format-version", "1", "--offline"])
+            .args([
+                "metadata",
+                "--format-version",
+                "1",
+                "--no-deps",
+                "--offline",
+            ])
             .current_dir(&project)
             .output()
             .expect("Cargo should start");
