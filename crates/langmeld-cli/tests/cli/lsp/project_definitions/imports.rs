@@ -143,6 +143,62 @@ fn project_definitions_lsp_publishes_a_legacy_lm_import_warning() {
 }
 
 #[test]
+fn project_definitions_lsp_publishes_a_legacy_lm_root_warning() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("legacy-root-project");
+    write_widget_project(&project);
+
+    let root = project.join("language/language.langmeld");
+    let legacy_root = project.join("language/language.lm");
+    fs::rename(&root, &legacy_root).expect("root should be renamed to its legacy extension");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\ndefinition = \"language/language.lm\"\n",
+    )
+    .expect("manifest should point to the legacy root");
+
+    let root_uri = url::Url::from_file_path(&legacy_root).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":root_uri,"languageId":"langmeld","version":1,"text":fs::read_to_string(&legacy_root).unwrap()}}}),
+    );
+
+    let published = receive_lsp_message(&receiver);
+    assert_eq!(published["method"], "textDocument/publishDiagnostics");
+    let warning = published["params"]["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|diagnostic| diagnostic["code"] == "LM-DEF-W001")
+        .expect("legacy root warning should be published");
+    assert_eq!(warning["severity"], 2);
+    assert!(warning["message"].as_str().unwrap().contains("`.langmeld`"));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":2,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 2);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}
+
+#[test]
 fn project_definitions_lsp_resolves_a_new_unsaved_imported_buffer() {
     let parent = TestDirectory::new();
     let project = parent.path().join("project");

@@ -18,13 +18,24 @@ pub fn parse_language_definition_project(
     resolver: &impl DefinitionResolver,
 ) -> DefinitionResult {
     let mut unit = parse_definition_unit(&root.source, true);
+    let mut diagnostics = std::mem::take(&mut unit.diagnostics);
+
+    if root.key.ends_with(".lm") {
+        diagnostics.push(Diagnostic::warning(
+            "LM-DEF-W001",
+            "legacy `.lm` root definition; rename the file to `.langmeld` and update `definition` in the project manifest",
+            &root.source,
+            Span::new(0, 0),
+        ));
+    }
+
     let Some(language_name) = unit.language_name.take() else {
         return DefinitionResult {
             language: None,
-            diagnostics: unit.diagnostics,
+            diagnostics,
         };
     };
-    let mut diagnostics = std::mem::take(&mut unit.diagnostics);
+
     if root.key.trim().is_empty() {
         diagnostics.push(Diagnostic::error(
             "LM-DEF-019",

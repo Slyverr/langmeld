@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, path::Path, path::PathBuf};
 
-use langmeld_core::{Diagnostic, SourceFile, Span};
+use langmeld_core::{Diagnostic, SourceFile};
 use langmeld_language::{DefinitionResult, LanguageSpec, parse_language_definition_project};
 
 use crate::{
@@ -219,20 +219,7 @@ fn load_with_manifest(
 ) -> Result<LoadedDefinitionProject, DefinitionProjectError> {
     let resolver = DirectoryDefinitionResolver::new(project_root)?;
     let root = resolver.load(&manifest.definition)?;
-    let legacy_root_warning = manifest.definition.ends_with(".lm").then(|| {
-        Diagnostic::warning(
-            "LM-DEF-W001",
-            "legacy `.lm` root definition; rename the file to `.langmeld` and update `definition` in `langmeld.toml`",
-            root.source(),
-            Span::new(0, 0),
-        )
-    });
-    let mut definition = parse_language_definition_project(root, &resolver);
-
-    if let Some(warning) = legacy_root_warning {
-        definition.diagnostics.push(warning);
-    }
-
+    let definition = parse_language_definition_project(root, &resolver);
     let sources = resolver.sources();
 
     Ok(LoadedDefinitionProject {
