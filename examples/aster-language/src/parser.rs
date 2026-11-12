@@ -1,29 +1,16 @@
-use std::sync::OnceLock;
-
 use langmeld_core::{Diagnostic, SourceFile, Span};
-use langmeld_expression::{
-    Associativity, Expression, ExpressionGrammar, ExpressionParser, OperatorSpec,
-};
+use langmeld_expression::{Expression, ExpressionParser};
 use langmeld_language::{LanguageParser, ParsedDocument};
 
 use crate::{Function, Parameter, Program, Statement, ValueType};
 
+mod grammar;
+mod lexer;
+
+use grammar::expression_grammar;
+use lexer::{Token, TokenKind, lex};
+
 const MAX_BLOCK_NESTING_DEPTH: usize = 128;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum TokenKind {
-    Identifier,
-    Integer,
-    String,
-    Punctuation,
-    Invalid,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct Token {
-    kind: TokenKind,
-    span: Span,
-}
 
 /// Host parser for Aster declarations, statements, and expression boundaries.
 #[derive(Clone, Copy, Debug, Default)]
@@ -386,140 +373,4 @@ impl Parser<'_> {
         self.diagnostics
             .push(Diagnostic::error(code, message, self.source, span));
     }
-}
-
-fn expression_grammar() -> &'static ExpressionGrammar {
-    static GRAMMAR: OnceLock<ExpressionGrammar> = OnceLock::new();
-    GRAMMAR.get_or_init(|| {
-        ExpressionGrammar::new([
-            OperatorSpec::infix("==", 1, Associativity::Left),
-            OperatorSpec::infix("<", 1, Associativity::Left),
-            OperatorSpec::infix("+", 2, Associativity::Left),
-            OperatorSpec::infix("-", 2, Associativity::Left),
-            OperatorSpec::infix("*", 3, Associativity::Left),
-            OperatorSpec::infix("/", 3, Associativity::Left),
-            OperatorSpec::prefix("-", 4),
-        ])
-        .expect("Aster's built-in expression grammar must remain valid")
-    })
-}
-
-fn lex(source: &SourceFile) -> (Vec<Token>, Vec<Diagnostic>) {
-    let mut tokens = Vec::new();
-    let mut diagnostics = Vec::new();
-    let mut chars = source.text().char_indices().peekable();
-
-    while let Some((start, character)) = chars.next() {
-        if character.is_whitespace() {
-            continue;
-        }
-        if character == '/' && chars.peek().is_some_and(|(_, next)| *next == '/') {
-            chars.next();
-            while chars.next().is_some_and(|(_, next)| next != '\n') {}
-            continue;
-        }
-        if character == '"' {
-            let mut escaped = false;
-            let mut end = start + character.len_utf8();
-            let mut closed = false;
-            for (byte, next) in chars.by_ref() {
-                end = byte + next.len_utf8();
-                if escaped {
-                    escaped = false;
-                } else if next == '\\' {
-                    escaped = true;
-                } else if next == '"' {
-                    closed = true;
-                    break;
-                }
-            }
-            let span = Span::new(start, end);
-            tokens.push(Token {
-                kind: if closed {
-                    TokenKind::String
-                } else {
-                    TokenKind::Invalid
-                },
-                span,
-            });
-            if !closed {
-                diagnostics.push(Diagnostic::error(
-                    "ASTER-LEX-001",
-                    "unterminated string literal",
-                    source,
-                    span,
-                ));
-            }
-            continue;
-        }
-        if character.is_alphabetic() || character == '_' {
-            let mut end = start + character.len_utf8();
-            while let Some(&(byte, next)) = chars.peek() {
-                if next.is_alphanumeric() || next == '_' {
-                    chars.next();
-                    end = byte + next.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            tokens.push(Token {
-                kind: TokenKind::Identifier,
-                span: Span::new(start, end),
-            });
-            continue;
-        }
-        if character.is_ascii_digit() {
-            let mut end = start + character.len_utf8();
-            while let Some(&(byte, next)) = chars.peek() {
-                if next.is_ascii_digit() {
-                    chars.next();
-                    end = byte + next.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            tokens.push(Token {
-                kind: TokenKind::Integer,
-                span: Span::new(start, end),
-            });
-            continue;
-        }
-        if "+-*/=!<>".contains(character) {
-            let mut end = start + character.len_utf8();
-            while let Some(&(byte, next)) = chars.peek() {
-                if "+-*/=!<>".contains(next) {
-                    chars.next();
-                    end = byte + next.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            tokens.push(Token {
-                kind: TokenKind::Punctuation,
-                span: Span::new(start, end),
-            });
-            continue;
-        }
-        if "(){}:;,".contains(character) {
-            tokens.push(Token {
-                kind: TokenKind::Punctuation,
-                span: Span::new(start, start + character.len_utf8()),
-            });
-            continue;
-        }
-
-        let span = Span::new(start, start + character.len_utf8());
-        tokens.push(Token {
-            kind: TokenKind::Invalid,
-            span,
-        });
-        diagnostics.push(Diagnostic::error(
-            "ASTER-LEX-002",
-            format!("unexpected character `{character}`"),
-            source,
-            span,
-        ));
-    }
-
-    (tokens, diagnostics)
 }
