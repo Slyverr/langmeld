@@ -93,6 +93,16 @@ fn rejects_invalid_or_non_portable_definition_paths() {
         "../language.langmeld",
         "C:/language.langmeld",
         "language/stream:root.langmeld",
+        "language/root<.langmeld",
+        "language/root>.langmeld",
+        "language/root\".langmeld",
+        "language/root|.langmeld",
+        "language/root?.langmeld",
+        "language/root*.langmeld",
+        "language/CON.langmeld",
+        "language/COM¹.langmeld",
+        "language/root.langmeld.",
+        "language/root.langmeld ",
         "language\\root.langmeld",
     ] {
         let manifest = format!("format = 1\ndefinition = {path:?}\n");

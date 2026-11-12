@@ -214,10 +214,28 @@ fn rejects_absolute_and_non_portable_import_paths() {
 
     assert!(resolver.resolve(root.key(), "/etc/passwd").is_err());
     assert!(resolver.resolve(root.key(), "C:/outside.langmeld").is_err());
-    assert!(matches!(
-        resolver.resolve(root.key(), "folder/item:stream.langmeld"),
-        Err(ProjectLoadError::InvalidPath(_))
-    ));
+    for import in [
+        "folder/item:stream.langmeld",
+        "folder/item<.langmeld",
+        "folder/item>.langmeld",
+        "folder/item\".langmeld",
+        "folder/item|.langmeld",
+        "folder/item?.langmeld",
+        "folder/item*.langmeld",
+        "folder/CON.langmeld",
+        "folder/COM¹.langmeld",
+        "folder/trailing.langmeld.",
+        "folder/trailing.langmeld ",
+        "folder/item\u{1}.langmeld",
+    ] {
+        assert!(
+            matches!(
+                resolver.resolve(root.key(), import),
+                Err(ProjectLoadError::InvalidPath(_))
+            ),
+            "import should be rejected as non-portable: {import:?}"
+        );
+    }
     assert!(
         resolver
             .resolve(root.key(), "folder\\items.langmeld")

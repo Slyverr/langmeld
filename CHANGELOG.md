@@ -22,6 +22,8 @@ API migration notes are in the
   to portable project keys, preventing collisions with nested definition paths.
 - Reject colon-containing definition paths, which are reserved on Windows and
   can select alternate data streams.
+- Reject Windows-invalid definition path characters, trailing dots or spaces,
+  and reserved device names so project paths remain portable across hosts.
 
 ## [0.10.0] - 2026-11-12
 

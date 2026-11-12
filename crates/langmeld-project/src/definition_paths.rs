@@ -70,7 +70,49 @@ pub(super) fn resolve_import_key(
     Ok(components.join("/"))
 }
 
-/// Rejects Windows drive/stream syntax and native separators from portable paths.
+/// Rejects paths that cannot be represented consistently on Windows.
 fn is_portable_relative_path(path: &str) -> bool {
-    !path.is_empty() && !path.contains('\\') && !path.contains(':') && !path.starts_with('/')
+    !path.is_empty() && !path.starts_with('/') && path.split('/').all(is_portable_component)
+}
+
+fn is_portable_component(component: &str) -> bool {
+    if component.is_empty() || matches!(component, "." | "..") {
+        return true;
+    }
+
+    if component.ends_with([' ', '.'])
+        || component.chars().any(|character| {
+            character <= '\u{1f}'
+                || matches!(character, '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*')
+        })
+    {
+        return false;
+    }
+
+    !is_reserved_windows_device_name(component)
+}
+
+fn is_reserved_windows_device_name(component: &str) -> bool {
+    // Windows reserves these device-name stems even when followed by an extension.
+    let name = component
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(' ');
+
+    if ["CON", "PRN", "AUX", "NUL"]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
+    {
+        return true;
+    }
+
+    ["COM", "LPT"].iter().any(|prefix| {
+        name.get(..3)
+            .is_some_and(|name_prefix| name_prefix.eq_ignore_ascii_case(prefix))
+            && matches!(
+                name.get(3..),
+                Some("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³")
+            )
+    })
 }

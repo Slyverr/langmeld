@@ -85,15 +85,31 @@ fn rejects_keys_and_imports_that_escape_the_virtual_project() {
 }
 
 #[test]
-fn rejects_colons_in_virtual_keys_and_import_paths() {
+fn rejects_nonportable_windows_components_in_virtual_keys_and_import_paths() {
     let mut resolver = InMemoryDefinitionResolver::new();
-    assert!(matches!(
-        resolver.insert(
-            "language/secret:stream.langmeld",
-            SourceFile::new("language/secret:stream.langmeld", "")
-        ),
-        Err(ProjectLoadError::InvalidPath(_))
-    ));
+    let invalid_paths = [
+        "language/secret:stream.langmeld",
+        "language/secret<.langmeld",
+        "language/secret>.langmeld",
+        "language/secret\".langmeld",
+        "language/secret|.langmeld",
+        "language/secret?.langmeld",
+        "language/secret*.langmeld",
+        "language/CON.langmeld",
+        "language/COM¹.langmeld",
+        "language/trailing.langmeld.",
+        "language/trailing.langmeld ",
+    ];
+    for path in invalid_paths {
+        assert!(
+            matches!(
+                resolver.insert(path, SourceFile::new(path, "")),
+                Err(ProjectLoadError::InvalidPath(_))
+            ),
+            "key should be rejected as non-portable: {path:?}"
+        );
+    }
+
     resolver
         .insert(
             "language/main.langmeld",
@@ -102,10 +118,27 @@ fn rejects_colons_in_virtual_keys_and_import_paths() {
         .unwrap();
     let root = resolver.load("language/main.langmeld").unwrap();
 
-    assert!(matches!(
-        resolver.resolve(root.key(), "secret:stream.langmeld"),
-        Err(ProjectLoadError::InvalidPath(_))
-    ));
+    for import in [
+        "secret:stream.langmeld",
+        "secret<.langmeld",
+        "secret>.langmeld",
+        "secret\".langmeld",
+        "secret|.langmeld",
+        "secret?.langmeld",
+        "secret*.langmeld",
+        "CON.langmeld",
+        "COM¹.langmeld",
+        "trailing.langmeld.",
+        "trailing.langmeld ",
+    ] {
+        assert!(
+            matches!(
+                resolver.resolve(root.key(), import),
+                Err(ProjectLoadError::InvalidPath(_))
+            ),
+            "import should be rejected as non-portable: {import:?}"
+        );
+    }
 }
 
 #[test]
