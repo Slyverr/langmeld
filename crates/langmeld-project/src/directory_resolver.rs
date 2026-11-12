@@ -93,11 +93,18 @@ impl DirectoryDefinitionResolver {
                     }
 
                     let key = relative
-                        .to_str()
-                        .ok_or_else(|| {
-                            ProjectLoadError::InvalidPath(requested.display().to_string())
-                        })?
-                        .replace('\\', "/");
+                        .components()
+                        .map(|component| match component {
+                            Component::Normal(name) => name.to_str().ok_or_else(|| {
+                                ProjectLoadError::InvalidPath(requested.display().to_string())
+                            }),
+                            _ => Err(ProjectLoadError::InvalidPath(
+                                requested.display().to_string(),
+                            )),
+                        })
+                        .collect::<Result<Vec<_>, _>>()?
+                        .join("/");
+
                     return normalize_source_key(&key)
                         .map_err(|_| ProjectLoadError::InvalidPath(key));
                 }

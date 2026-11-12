@@ -117,6 +117,26 @@ fn maps_existing_and_not_yet_created_paths_to_project_keys() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn rejects_backslashes_in_native_filename_components() {
+    let project = TestDirectory::new();
+    project.write("nested/file.langmeld", "construct \"nested\"");
+    project.write("nested\\file.langmeld", "construct \"literal backslash\"");
+    let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
+
+    assert_eq!(
+        resolver
+            .key_for_path(project.path().join("nested/file.langmeld"))
+            .unwrap(),
+        "nested/file.langmeld"
+    );
+    assert!(matches!(
+        resolver.key_for_path(project.path().join("nested\\file.langmeld")),
+        Err(ProjectLoadError::InvalidPath(_))
+    ));
+}
+
 #[test]
 fn rejects_nonexistent_paths_outside_the_project_root() {
     let project = TestDirectory::new();

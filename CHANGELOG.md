@@ -16,6 +16,11 @@ API migration notes are in the
 - Keep project LSP file watching active for legacy `.lm` definitions during
   migration.
 
+### Fixed
+
+- Reject Unix filenames containing backslashes when mapping filesystem paths
+  to portable project keys, preventing collisions with nested definition paths.
+
 ## [0.10.0] - 2026-11-12
 
 ### Added
