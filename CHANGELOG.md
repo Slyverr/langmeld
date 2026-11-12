@@ -67,6 +67,8 @@ API migration notes are in the
 
 - The generated declarative library no longer imports an unused diagnostic
   formatter.
+- Typed binding generation no longer reserves `new` for internal view
+  construction and reports top-level `from_construct` accessor conflicts.
 
 ## [0.9.0] - 2026-11-11
 

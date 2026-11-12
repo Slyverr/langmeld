@@ -27,8 +27,13 @@ construct "function" {
 }
 
 construct "invoke" {
-    syntax "expression_call" {
+    syntax "keyword_call" {
         literal "invoke";
+        expression "call" until ";";
+    }
+
+    syntax "call_statement" {
+        literal "call";
         expression "call" until ";";
     }
 

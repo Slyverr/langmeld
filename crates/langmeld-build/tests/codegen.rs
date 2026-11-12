@@ -80,6 +80,73 @@ fn reports_construct_names_that_collide_after_rust_conversion() {
 }
 
 #[test]
+fn generates_accessors_named_new_without_colliding_with_view_construction() {
+    let construct = ConstructSpec::new(
+        "greet",
+        [
+            PatternPart::literal("hello"),
+            PatternPart::identifier("new"),
+        ],
+    );
+    let specification = LanguageSpec::new("Example", [construct])
+        .expect("the example language specification is valid");
+
+    let generated = generate_bindings(&specification)
+        .expect("capture names may use ordinary Rust method names");
+
+    assert!(
+        generated.contains("pub fn new(&self) -> Result<CapturedIdentifier<'source>, Diagnostic>")
+    );
+    assert!(!generated.contains("fn new(source:"));
+    assert!(generated.contains("Ok(Self {"));
+}
+
+#[test]
+fn reports_accessors_that_conflict_with_typed_view_construction() {
+    let construct = ConstructSpec::new(
+        "greet",
+        [
+            PatternPart::literal("hello"),
+            PatternPart::identifier("from_construct"),
+        ],
+    );
+    let specification = LanguageSpec::new("Example", [construct])
+        .expect("the example language specification is valid");
+
+    let error = generate_bindings(&specification)
+        .expect_err("the accessor would shadow the typed-view constructor");
+
+    assert!(
+        error
+            .to_string()
+            .contains("capture or group named `from_construct`")
+    );
+    assert!(error.to_string().contains("use the dynamic API"));
+}
+
+#[test]
+fn reports_group_names_that_conflict_with_typed_view_construction() {
+    let construct = ConstructSpec::new(
+        "greet",
+        [
+            PatternPart::literal("hello"),
+            PatternPart::optional_named("from_construct", [PatternPart::literal("!")]),
+        ],
+    );
+    let specification = LanguageSpec::new("Example", [construct])
+        .expect("the example language specification is valid");
+
+    let error = generate_bindings(&specification)
+        .expect_err("the group accessor would shadow the typed-view constructor");
+
+    assert!(
+        error
+            .to_string()
+            .contains("top-level capture or group named")
+    );
+}
+
+#[test]
 fn generates_variant_specific_views_for_named_syntax_alternatives() {
     let value = ConstructSpec::new(
         "value",

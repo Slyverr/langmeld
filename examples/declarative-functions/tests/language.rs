@@ -7,7 +7,7 @@ use langmeld_project::load_language_spec;
 fn accepts_parameterized_functions_and_forward_calls() {
     let source = SourceFile::new(
         "forward.functionflow",
-        "program { fn main() -> i32 { invoke add(20, 22); } fn add(left: i32, right: i32) -> i32 {} }",
+        "program { fn main() -> i32 { invoke add(20, 22); call add(20, 22); } fn add(left: i32, right: i32) -> i32 {} }",
     );
     let analysis = analyze(&source).expect("the checked-in grammar should load");
 
@@ -22,6 +22,9 @@ fn accepts_parameterized_functions_and_forward_calls() {
         analysis.semantic.diagnostics()
     );
     assert_eq!(analysis.parsed.tree().functions.len(), 2);
+    assert_eq!(analysis.parsed.tree().functions[0].calls.len(), 2);
+    assert_eq!(analysis.parsed.tree().functions[0].calls[0].name, "add");
+    assert_eq!(analysis.parsed.tree().functions[0].calls[1].name, "add");
     assert_eq!(analysis.parsed.tree().functions[1].parameters.len(), 2);
     assert_eq!(
         analysis.parsed.tree().functions[1].parameters[0].name,

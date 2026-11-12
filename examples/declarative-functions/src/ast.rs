@@ -97,7 +97,11 @@ fn lower_function(
                 continue;
             }
         };
-        let call = match syntax.call() {
+        let call = match syntax {
+            InvokeSyntax::KeywordCall(syntax) => syntax.call(),
+            InvokeSyntax::CallStatement(syntax) => syntax.call(),
+        };
+        let call = match call {
             Ok(call) => call,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);

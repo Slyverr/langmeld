@@ -15,6 +15,8 @@ use crate::BuildError;
 ///
 /// Returns an error if names cannot map unambiguously to Rust identifiers or
 /// the grammar contains unnamed groups or syntax variants.
+/// A single-variant construct also cannot have a top-level capture or group
+/// that maps to `from_construct`, which is the generated view constructor.
 pub fn generate_bindings(specification: &LanguageSpec) -> Result<String, BuildError> {
     let mut type_names = HashSet::new();
     let mut constructs = Vec::new();
@@ -24,6 +26,22 @@ pub fn generate_bindings(specification: &LanguageSpec) -> Result<String, BuildEr
         register_type(&mut type_names, &construct_name)?;
 
         if construct.variants().len() == 1 {
+            let shape = scope_shape(construct.pattern(), construct.name())?;
+            if shape
+                .fields
+                .iter()
+                .any(|field| field.rust_name == "from_construct")
+                || shape
+                    .groups
+                    .iter()
+                    .any(|group| group.rust_name == "from_construct")
+            {
+                return Err(unsupported(format!(
+                    "construct `{}` has a top-level capture or group named `from_construct`, which conflicts with the generated typed-view constructor; rename it or use the dynamic API",
+                    construct.name()
+                )));
+            }
+
             constructs.push(GeneratedConstruct {
                 name: construct.name().to_owned(),
                 type_name: construct_name.clone(),
@@ -31,7 +49,7 @@ pub fn generate_bindings(specification: &LanguageSpec) -> Result<String, BuildEr
                     index: 0,
                     enum_variant: None,
                     view_type: construct_name,
-                    shape: scope_shape(construct.pattern(), construct.name())?,
+                    shape,
                 }],
             });
             continue;
@@ -298,9 +316,11 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
             .as_deref()
             .ok_or_else(|| unsupported("internal variant name is missing".to_owned()))?;
         output.push_str(&format!(
-            "                    {} => Ok(Self::{enum_variant}({}::new(source, construct))),\n",
+            "                    {} => Ok(Self::{enum_variant}({} {{\n",
             variant.index, variant.view_type
         ));
+        emit_construct_view_fields(output, "                        ");
+        output.push_str("                    })),\n");
     }
     output.push_str(
         "                _ => Err(__error(source, construct.name.as_str(), \"syntax variant is not present in generated bindings\", construct.span)),\n            }\n        }\n    }\n\n",
@@ -323,17 +343,29 @@ fn emit_single_variant_impl(
                 return Err(__error(source, construct.name.as_str(), "syntax variant is not present in generated bindings", construct.span));
             }}
 
-            Ok(Self::new(source, construct))
-        }}
-    }}
-
+            Ok(Self {{
 "#,
         construct.type_name, construct.name, variant.index
     ));
+    emit_construct_view_fields(output, "                ");
+    output.push_str("            })\n        }\n    }\n\n");
+}
+
+fn emit_construct_view_fields(output: &mut String, indentation: &str) {
+    for field in [
+        "source,\n",
+        "construct,\n",
+        "fields: &construct.fields,\n",
+        "groups: &construct.capture_groups,\n",
+        "span: construct.span,\n",
+    ] {
+        output.push_str(indentation);
+        output.push_str(field);
+    }
 }
 
 fn emit_view(output: &mut String, type_name: &str, shape: &ScopeShape) -> Result<(), BuildError> {
-    emit_scope_view(output, type_name, shape, true)
+    emit_scope_view(output, type_name, shape)
 }
 
 fn emit_group_view(
@@ -341,14 +373,13 @@ fn emit_group_view(
     shape: &ScopeShape,
     type_name: &str,
 ) -> Result<(), BuildError> {
-    emit_scope_view(output, type_name, shape, false)
+    emit_scope_view(output, type_name, shape)
 }
 
 fn emit_scope_view(
     output: &mut String,
     type_name: &str,
     shape: &ScopeShape,
-    is_construct: bool,
 ) -> Result<(), BuildError> {
     output.push_str(&format!(
         r#"    #[derive(Clone, Copy, Debug)]
@@ -363,12 +394,6 @@ fn emit_scope_view(
     impl<'source> {type_name}<'source> {{
 "#
     ));
-
-    if is_construct {
-        output.push_str(
-            "        fn new(source: &'source SourceFile, construct: &'source ParsedConstruct) -> Self {\n            Self {\n                source,\n                construct,\n                fields: &construct.fields,\n                groups: &construct.capture_groups,\n                span: construct.span,\n            }\n        }\n\n",
-        );
-    }
 
     for field in &shape.fields {
         emit_field_method(output, field);

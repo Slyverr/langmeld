@@ -26,6 +26,8 @@ cargo run -p langmeld-declarative-functions-example --locked -- program.function
 The core syntax includes parameter lists and return types:
 
 Parameters are comma-separated; missing and trailing commas are syntax errors.
+The `invoke` construct accepts both `invoke add(...)` and `call add(...)`;
+the example lowers both named syntax variants to the same call representation.
 
 ```functionflow
 program {

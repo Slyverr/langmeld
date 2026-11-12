@@ -108,7 +108,9 @@ names to `UpperCamelCase` types. If conversion would create invalid or
 colliding Rust names, generation fails with an actionable error. Use the
 dynamic `ConstructContext` helpers when a grammar intentionally uses names that
 cannot be represented as Rust identifiers, or when generated views are not
-needed.
+needed. For single-variant constructs, a top-level capture or group that maps
+to `from_construct` conflicts with the typed-view constructor and is rejected;
+rename that capture or use the dynamic API.
 
 See the [`declarative-functions` example](../../examples/declarative-functions/README.md)
 for a complete build script and generated views used by a language-specific
