@@ -2,10 +2,10 @@ use langmeld_core::{SourceFile, Span};
 
 use crate::completion_kind::CompletionKind;
 use crate::lexer::{ConfiguredLexer, Lexer, lex_bounded};
-use crate::parser::parse_with_contexts;
+use crate::parser::{model::ParseContext, parse_with_contexts};
 use crate::{
-    AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParseLimits, ParsedDocument,
-    PatternPart, RepeatMinimum,
+    AnalysisDocument, LanguageCompleter, LanguageParser, LanguageSpec, ParseLimits, ParseResult,
+    ParsedDocument, PatternPart, RepeatMinimum,
 };
 
 /// A completion suggestion and the source range it replaces.
@@ -107,9 +107,11 @@ where
         .collect()
 }
 
-/// Suggests construct-start tokens accepted at the source offset.
+/// Suggests grammar tokens accepted at the source offset.
 ///
-/// This uses Langmeld's default lexer. Use [`complete_at_with_lexer`] when the
+/// Suggestions include construct starts, finite literal or choice values, and
+/// block closing tokens. Identifier and expression values remain host-defined.
+/// This uses Langmeld's default lexer; use [`complete_at_with_lexer`] when the
 /// language uses host-defined tokenization.
 #[must_use]
 pub fn complete_at(
@@ -123,7 +125,10 @@ pub fn complete_at(
     complete_at_with_lexer(source, language, offset, &lexer)
 }
 
-/// Suggests construct-start tokens accepted at the source offset using a host lexer.
+/// Suggests grammar tokens accepted at the source offset using a host lexer.
+///
+/// Provides the same construct-start, finite-value, and block-close
+/// suggestions as [`complete_at`], but tokenizes with `lexer`.
 #[must_use]
 pub fn complete_at_with_lexer(
     source: &SourceFile,
@@ -158,7 +163,10 @@ pub fn complete_at_with_lexer(
                 && source.text().is_char_boundary(token.span.end)
                 && source.text().get(token.span.start..token.span.end) == Some(token.text.as_str())
         });
-    let (prefix_end, replacement, prefix) = if let Some(token) = prefix_token {
+    let token_is_complete = prefix_token
+        .as_ref()
+        .is_some_and(|token| offset == token.span.end);
+    let (prefix_end, replacement, prefix) = if let Some(token) = prefix_token.as_ref() {
         (
             token.span.start,
             token.span,
@@ -173,40 +181,82 @@ pub fn complete_at_with_lexer(
         source.text()[..prefix_end].to_owned(),
     );
     let (parsed, contexts) = parse_with_contexts(&prefix_source, language, lexer);
-    let is_choice_value_position = contexts.iter().any(|context| {
-        context.span == Span::new(prefix_end, prefix_end) && !context.values.is_empty()
-    });
-    if parsed.diagnostics().iter().any(|diagnostic| {
+    if has_blocking_completion_diagnostics(&parsed, &contexts, prefix_end, token_is_complete) {
+        return Vec::new();
+    }
+
+    let Some(context) = context_at(&contexts, prefix_end) else {
+        return Vec::new();
+    };
+    let mut candidates = Vec::new();
+    if !context.blocked {
+        push_context_candidates(&mut candidates, context, language, &prefix, replacement);
+    }
+
+    if token_is_complete {
+        let completed_source =
+            SourceFile::new(source.name().to_owned(), source.text()[..offset].to_owned());
+        let (completed_parse, completed_contexts) =
+            parse_with_contexts(&completed_source, language, lexer);
+
+        if !has_blocking_completion_diagnostics(
+            &completed_parse,
+            &completed_contexts,
+            offset,
+            false,
+        ) && let Some(next_context) = context_at(&completed_contexts, offset)
+            && !next_context.blocked
+        {
+            push_context_candidates(
+                &mut candidates,
+                next_context,
+                language,
+                "",
+                Span::new(offset, offset),
+            );
+        }
+    }
+
+    candidates
+}
+
+fn has_blocking_completion_diagnostics(
+    parsed: &ParseResult,
+    contexts: &[ParseContext],
+    offset: usize,
+    allow_cursor_field_completion: bool,
+) -> bool {
+    let has_finite_values = contexts
+        .iter()
+        .any(|context| context.span == Span::new(offset, offset) && !context.values.is_empty());
+
+    parsed.diagnostics().iter().any(|diagnostic| {
         diagnostic
             .location
             .as_ref()
-            .is_some_and(|location| location.span().end >= prefix_end)
+            .is_some_and(|location| location.span().end >= offset)
             && diagnostic.code != "LM-PARSE-004"
-            && !(is_choice_value_position && diagnostic.code == "LM-PARSE-002")
-    }) {
-        return Vec::new();
-    }
+            && !(has_finite_values && diagnostic.code == "LM-PARSE-002")
+            && !(allow_cursor_field_completion && diagnostic.code == "LM-PARSE-002")
+    })
+}
 
-    let Some(context) = contexts
+fn context_at(contexts: &[ParseContext], offset: usize) -> Option<&ParseContext> {
+    contexts
         .iter()
-        .filter(|context| context.span.start <= prefix_end && prefix_end <= context.span.end)
+        .filter(|context| context.span.start <= offset && offset <= context.span.end)
         .min_by_key(|context| context.span.len())
-    else {
-        return Vec::new();
-    };
-    if context.blocked {
-        return Vec::new();
-    }
+}
 
-    let mut candidates = Vec::new();
+fn push_context_candidates(
+    candidates: &mut Vec<CompletionCandidate>,
+    context: &ParseContext,
+    language: &LanguageSpec,
+    prefix: &str,
+    replacement: Span,
+) {
     for text in &context.values {
-        push_candidate(
-            &mut candidates,
-            text,
-            &prefix,
-            replacement,
-            Some(context.value_kind),
-        );
+        push_candidate(candidates, text, prefix, replacement, context.value_kind);
     }
     for name in &context.constructs {
         let Some(construct) = language
@@ -221,9 +271,9 @@ pub fn complete_at_with_lexer(
             collect_first_literals(pattern, &mut literals);
             for text in literals {
                 push_candidate(
-                    &mut candidates,
+                    candidates,
                     &text,
-                    &prefix,
+                    prefix,
                     replacement,
                     construct.completion_kind(),
                 );
@@ -231,13 +281,11 @@ pub fn complete_at_with_lexer(
         }
     }
     if let Some(close) = &context.close
-        && close.starts_with(&prefix)
-        && close != &prefix
-        && !candidates.iter().any(|candidate| candidate.text == *close)
+        && close.starts_with(prefix)
+        && close != prefix
     {
-        candidates.push(CompletionCandidate::new(close.clone(), replacement));
+        push_candidate(candidates, close, prefix, replacement, None);
     }
-    candidates
 }
 
 fn collect_first_literals(parts: &[PatternPart], output: &mut Vec<String>) {

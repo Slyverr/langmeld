@@ -10,8 +10,10 @@ by the backend.
 ## Declarative languages
 
 `DeclarativeBackend` accepts a validated `LanguageSpec`. It parses open source
-files and publishes parser diagnostics, and uses declared grammar scopes for
-completion. It does not infer symbol resolution, semantic diagnostics,
+files and publishes parser diagnostics. Its grammar-derived completion includes
+allowed construct starts, expected literal and finite-choice values, and block
+closing tokens. Identifier and expression values need a host completion
+provider. The backend does not infer symbol resolution, semantic diagnostics,
 hover, rename, document symbols, formatting, or semantic highlighting.
 
 ## Langmeld definitions

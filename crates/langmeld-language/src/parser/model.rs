@@ -111,6 +111,6 @@ pub(crate) struct ParseContext {
     pub(crate) constructs: Vec<String>,
     pub(crate) close: Option<String>,
     pub(crate) values: Vec<String>,
-    pub(crate) value_kind: CompletionKind,
+    pub(crate) value_kind: Option<CompletionKind>,
     pub(crate) blocked: bool,
 }

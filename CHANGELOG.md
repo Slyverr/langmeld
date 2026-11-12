@@ -41,6 +41,9 @@ API migration notes are in the
 
 ### Changed
 
+- Declarative completion now suggests expected literal tokens after completed
+  keywords, identifier fields, and finite choice values, while keeping invalid
+  or incomplete input scoped to its valid grammar context.
 - TextMate comment patterns now follow the built-in lexer's longest-opening
   rule, so overlapping line and block comment markers tokenize consistently.
 - TextMate string highlighting now scopes a trailing backslash as an escape,

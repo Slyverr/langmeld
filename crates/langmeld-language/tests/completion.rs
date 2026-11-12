@@ -178,6 +178,61 @@ fn filters_by_partial_token_and_replaces_the_whole_token() {
 }
 
 #[test]
+fn suggests_the_next_token_after_a_complete_keyword_at_the_cursor() {
+    let language = LanguageSpec::new(
+        "Call",
+        [ConstructSpec::new(
+            "function",
+            [
+                PatternPart::literal("fn"),
+                PatternPart::literal("("),
+                PatternPart::identifier("name"),
+                PatternPart::literal(")"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("main", "fn");
+
+    let candidates = complete_at(&source, &language, source.text().len());
+
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["("]
+    );
+}
+
+#[test]
+fn suggests_the_next_literal_after_a_complete_identifier_field() {
+    let language = LanguageSpec::new(
+        "Assignment",
+        [ConstructSpec::new(
+            "assignment",
+            [
+                PatternPart::literal("let"),
+                PatternPart::identifier("name"),
+                PatternPart::literal("="),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("main", "let count");
+
+    let candidates = complete_at(&source, &language, source.text().len());
+
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        ["="]
+    );
+}
+
+#[test]
 fn finite_choice_completion_suggests_only_allowed_values_in_field_context() {
     let language = LanguageSpec::new(
         "Movement",
@@ -199,6 +254,33 @@ fn finite_choice_completion_suggests_only_allowed_values_in_field_context() {
     assert_eq!(candidates[0].text, "right");
     assert_eq!(candidates[0].kind, Some(CompletionKind::EnumMember));
     assert_eq!(candidates[0].replace, Span::new(5, 6));
+}
+
+#[test]
+fn suggests_the_following_literal_after_a_complete_choice_value() {
+    let language = LanguageSpec::new(
+        "Movement",
+        [ConstructSpec::new(
+            "move",
+            [
+                PatternPart::literal("move"),
+                PatternPart::choice("direction", ["left", "right"]),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("main", "move left");
+
+    let candidates = complete_at(&source, &language, source.text().len());
+
+    assert_eq!(
+        candidates
+            .iter()
+            .map(|candidate| candidate.text.as_str())
+            .collect::<Vec<_>>(),
+        [";"]
+    );
 }
 
 #[test]
@@ -231,6 +313,13 @@ fn finite_choice_completion_kind_can_be_overridden() {
 #[test]
 fn does_not_offer_sibling_constructs_inside_an_incomplete_construct() {
     let source = "program { repeat ";
+
+    assert!(suggestions(source, source.len()).is_empty());
+}
+
+#[test]
+fn does_not_offer_siblings_after_a_completed_token_fails_a_field() {
+    let source = "program { repeat 1";
 
     assert!(suggestions(source, source.len()).is_empty());
 }

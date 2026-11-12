@@ -1,6 +1,5 @@
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::completion_kind::CompletionKind;
 use crate::lexer::{LexOutput, LexedToken, Lexer, lex_bounded, validate_tokens};
 use crate::syntax::{build_syntax_tree, unparsed_syntax_tree};
 use crate::{LanguageSpec, PatternPart};
@@ -146,7 +145,7 @@ impl Parser<'_> {
                     .collect(),
                 close: close.map(str::to_owned),
                 values: Vec::new(),
-                value_kind: CompletionKind::EnumMember,
+                value_kind: None,
                 blocked: self.completion_blocked,
             });
         }
@@ -230,25 +229,33 @@ impl Parser<'_> {
                     false
                 };
                 self.completion_blocked = true;
-                if self.capture_contexts
-                    && let Some(PatternPart::Choice {
-                        values,
-                        completion_kind,
-                        ..
-                    }) = attempt.expected
-                {
-                    let offset = self
-                        .tokens
-                        .get(attempt.end)
-                        .map_or(self.source.text().len(), |token| token.span.start);
-                    self.completion_contexts.push(ParseContext {
-                        span: Span::new(offset, offset),
-                        constructs: Vec::new(),
-                        close: None,
-                        values: values.clone(),
-                        value_kind: *completion_kind,
-                        blocked: false,
+                if self.capture_contexts {
+                    let expected_values = attempt.expected.and_then(|expected| match expected {
+                        PatternPart::Literal(value) => Some((vec![value.clone()], None)),
+                        PatternPart::Choice {
+                            values,
+                            completion_kind,
+                            ..
+                        } => Some((values.clone(), Some(*completion_kind))),
+                        PatternPart::Field { .. }
+                        | PatternPart::Expression { .. }
+                        | PatternPart::Optional { .. }
+                        | PatternPart::Repeat { .. } => None,
                     });
+                    if let Some((values, value_kind)) = expected_values {
+                        let offset = self
+                            .tokens
+                            .get(attempt.end)
+                            .map_or(self.source.text().len(), |token| token.span.start);
+                        self.completion_contexts.push(ParseContext {
+                            span: Span::new(offset, offset),
+                            constructs: Vec::new(),
+                            close: None,
+                            values,
+                            value_kind,
+                            blocked: false,
+                        });
+                    }
                 }
                 let span = self.tokens.get(attempt.end).map_or_else(
                     || Span::new(self.source.text().len(), self.source.text().len()),

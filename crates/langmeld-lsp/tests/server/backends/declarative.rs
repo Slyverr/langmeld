@@ -114,7 +114,43 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     );
     assert_eq!(completions[0]["textEdit"]["range"]["end"]["character"], 17);
 
-    send_request(&client, 4, "shutdown", Value::Null);
+    let complete_keyword_source = "program { print";
+    send_notification(
+        &client,
+        "textDocument/didChange",
+        json!({
+            "textDocument": { "uri": uri, "version": 3 },
+            "contentChanges": [{ "text": complete_keyword_source }]
+        }),
+    );
+    receive_diagnostics(&client);
+    send_request(
+        &client,
+        4,
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": complete_keyword_source.len() }
+        }),
+    );
+    let completions = receive_response(&client);
+    let labels = completions
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["label"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, ["fast", "slow"]);
+    assert_eq!(
+        completions[0]["textEdit"]["range"]["start"]["character"],
+        complete_keyword_source.len()
+    );
+    assert_eq!(
+        completions[0]["textEdit"]["range"]["end"]["character"],
+        complete_keyword_source.len()
+    );
+
+    send_request(&client, 5, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
