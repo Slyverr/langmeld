@@ -256,3 +256,101 @@ fn project_definitions_lsp_reanalyzes_all_open_buffers_and_reverts_closed_overla
     drop(stdin);
     assert!(child.0.wait().unwrap().success());
 }
+
+#[test]
+fn project_definitions_lsp_drops_the_index_when_the_root_definition_disappears() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("project");
+    write_widget_project(&project);
+
+    let root = project.join("language/language.langmeld");
+    let module = project.join("language/constructs/statements.langmeld");
+    let root_source = fs::read_to_string(&root).unwrap();
+    let module_source = concat!(
+        "construct \"print\" { syntax { literal \"print\"; } implements \"statement\"; }\n",
+        "\n",
+        "construct \"alias\" { syntax { literal \"alias\"; } implements \"statement\"; }",
+    );
+    fs::write(&module, module_source).unwrap();
+
+    let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
+    let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 1);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+    );
+
+    for (uri, text, count) in [
+        (&root_uri, root_source.as_str(), 1),
+        (&module_uri, module_source, 2),
+    ] {
+        send_lsp_message(
+            &mut stdin,
+            json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"langmeld","version":1,"text":text}}}),
+        );
+        for _ in 0..count {
+            assert_eq!(
+                receive_lsp_message(&receiver)["method"],
+                "textDocument/publishDiagnostics"
+            );
+        }
+    }
+
+    let category_offset =
+        module_source.find("implements \"statement").unwrap() + "implements \"statement".len();
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":module_uri},"position":{"line":0,"character":category_offset}}}),
+    );
+    let categories = receive_lsp_message(&receiver)["result"].clone();
+    assert!(
+        categories
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| { item["label"] == "statement" })
+    );
+
+    fs::remove_file(&root).unwrap();
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":root_uri}}}),
+    );
+    assert_eq!(
+        receive_lsp_message(&receiver)["method"],
+        "textDocument/publishDiagnostics"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":3,"method":"textDocument/completion","params":{"textDocument":{"uri":module_uri},"position":{"line":0,"character":category_offset}}}),
+    );
+    let categories = receive_lsp_message(&receiver)["result"].clone();
+    assert!(
+        !categories
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["label"] == "statement"),
+        "completion must not use declarations from a project whose root cannot be loaded"
+    );
+
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","id":4,"method":"shutdown","params":null}),
+    );
+    assert_eq!(receive_lsp_message(&receiver)["id"], 4);
+    send_lsp_message(
+        &mut stdin,
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    assert!(child.0.wait().unwrap().success());
+}

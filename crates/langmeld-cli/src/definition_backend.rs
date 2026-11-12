@@ -53,6 +53,13 @@ impl ProjectDefinitionBackend {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
+
+    fn clear_definition_index(&self) {
+        *self
+            .definition_index
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
 }
 
 impl LanguageBackend for ProjectDefinitionBackend {
@@ -80,10 +87,16 @@ impl LanguageBackend for ProjectDefinitionBackend {
 
         let mut overlay = InMemoryDefinitionResolver::new();
         for (key, source) in &open_sources {
-            overlay.insert(key, source.clone()).ok()?;
+            if overlay.insert(key, source.clone()).is_err() {
+                self.clear_definition_index();
+                return None;
+            }
         }
         let resolver = self.resolver.with_overlay(overlay);
-        let root = resolver.load(&self.root_definition).ok()?;
+        let Ok(root) = resolver.load(&self.root_definition) else {
+            self.clear_definition_index();
+            return None;
+        };
         let root_source = root.source().clone();
         let resolver = OpenFileOverlayResolver {
             resolver: &resolver,

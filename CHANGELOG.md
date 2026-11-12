@@ -74,6 +74,8 @@ API migration notes are in the
 
 ### Fixed
 
+- The project-definition LSP now drops its shared symbol and completion index
+  when the configured root definition cannot be loaded, avoiding stale results.
 - Construct generation now preserves CRLF line endings in managed Rust
   registration sections.
 - Typed-binding errors now list every supported unnamed-group naming form and
