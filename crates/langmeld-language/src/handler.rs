@@ -336,6 +336,18 @@ pub struct CapturedIdentifier<'source> {
     pub span: Span,
 }
 
+/// Exact source text captured by a construct, paired with its byte range.
+///
+/// This preserves the source spelling. For example, a captured string literal
+/// still includes its quotes and escape sequences.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CapturedText<'source> {
+    /// Exact source text covered by the capture.
+    pub text: &'source str,
+    /// The capture's byte range in the source snapshot.
+    pub span: Span,
+}
+
 impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Returns the construct currently being handled.
     #[must_use]
@@ -404,9 +416,20 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     ///
     /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
     pub fn field_text(&self, name: &str) -> Result<&'source str, Diagnostic> {
+        Ok(self.field_text_capture(name)?.text)
+    }
+
+    /// Returns the exact source text and source range of the first capture
+    /// with this name.
+    ///
+    /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
+    pub fn field_text_capture(&self, name: &str) -> Result<CapturedText<'source>, Diagnostic> {
         let field = self.field(name)?;
 
-        self.captured_text(field)
+        Ok(CapturedText {
+            text: self.captured_text(field)?,
+            span: field.span,
+        })
     }
 
     /// Returns the exact source text covered by a captured field.

@@ -24,7 +24,7 @@ pub use definition::{
 };
 pub use format::{DefinitionFormatOptions, format_language_definition};
 pub use handler::{
-    CapturedIdentifier, ConstructContext, ConstructHandler, ConstructHandlerRegistry,
+    CapturedIdentifier, CapturedText, ConstructContext, ConstructHandler, ConstructHandlerRegistry,
     HandlerControl, HandlerRegistrationError,
 };
 pub use host::{

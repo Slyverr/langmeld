@@ -41,6 +41,9 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(project.join("src/constructs/mod.rs").is_file());
     assert!(project.join("src/constructs/let_handler.rs").is_file());
     assert!(project.join("src/constructs/print.rs").is_file());
+    let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
+        .expect("declarative let handler should be generated");
+    assert!(let_handler.contains("context.field_text_capture(\"value\")?"));
     assert!(project.join("tests/language.rs").is_file());
     assert!(project.join("language/main.langmeld").is_file());
     assert!(!project.join("AGENTS.md").exists());

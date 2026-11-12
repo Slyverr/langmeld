@@ -38,6 +38,24 @@ impl ConstructHandler<Vec<(String, Span)>> for RecordIdentifierLocation {
     }
 }
 
+struct RecordSourceTextLocation;
+
+impl ConstructHandler<Vec<(String, Span)>> for RecordSourceTextLocation {
+    const CONSTRUCT: &'static str = "record";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<(String, Span)>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        let captured = context.field_text_capture("value")?;
+        context
+            .state_mut()
+            .push((captured.text.to_owned(), captured.span));
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
 struct RecordRepeatedFields;
 
 impl ConstructHandler<Vec<String>> for RecordRepeatedFields {
@@ -189,6 +207,34 @@ fn captures_identifier_text_and_span_together() -> Result<(), Box<dyn std::error
         .expect("the parsed identifier should dispatch successfully");
 
     assert_eq!(state, [("first".to_owned(), Span::new(7, 12))]);
+
+    Ok(())
+}
+
+#[test]
+fn captures_exact_source_text_and_span_together() -> Result<(), Box<dyn std::error::Error>> {
+    let language = LanguageSpec::new(
+        "Example",
+        [ConstructSpec::new(
+            "record",
+            [
+                PatternPart::literal("record"),
+                PatternPart::string("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )?;
+    let source = SourceFile::new("main.sample", "record \"hello\\nworld\";");
+    let parsed = parse(&source, &language);
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers.register(RecordSourceTextLocation)?;
+
+    let mut state = Vec::new();
+    handlers
+        .dispatch_parse_result(&source, &parsed, &mut state)
+        .expect("the string capture should dispatch successfully");
+
+    assert_eq!(state, [("\"hello\\nworld\"".to_owned(), Span::new(7, 21))]);
 
     Ok(())
 }

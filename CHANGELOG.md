@@ -13,6 +13,8 @@ API migration notes are in the
 
 - `ConstructContext::field_identifier_capture` returns an identifier's borrowed
   spelling and source span together for host-owned name resolution.
+- `ConstructContext::field_text_capture` returns a capture's exact source
+  spelling and span together for host-side decoding and diagnostics.
 - `LanguageSpec::builder` and `LanguageSpec::into_builder` support Rust-authored
   grammars and extending a loaded declarative grammar with Rust constructs.
 - The declarative starter can load a definition project from an explicit root
