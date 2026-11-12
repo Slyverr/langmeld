@@ -3,8 +3,8 @@ use std::{error::Error, path::Path};
 use langmeld_core::{Diagnostic, SourceFile, format_diagnostics};
 use langmeld_language::LanguageSpec;
 use langmeld_project::{
-    ProjectManifest, RustBindings, load_definition_project_from_manifest,
-    read_project_manifest_file,
+    LoadedDefinitionProjectParts, ProjectManifest, RustBindings,
+    load_definition_project_from_manifest, read_project_manifest_file,
 };
 
 pub(crate) struct DefinitionProjectContext {
@@ -43,7 +43,13 @@ pub(crate) fn load_definition_project(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, Box<dyn Error>> {
     let project = load_definition_project_from_manifest(manifest_path)?;
-    let (root, manifest, definition, sources) = project.into_parts();
+    let LoadedDefinitionProjectParts {
+        root,
+        manifest,
+        definition,
+        sources,
+        ..
+    } = project.into_parts();
 
     if !definition.is_valid() {
         return Err(format_diagnostics(&sources, &definition.diagnostics).into());

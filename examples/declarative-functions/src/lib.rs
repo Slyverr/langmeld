@@ -22,7 +22,11 @@ pub struct FunctionAnalysis {
 pub fn load() -> Result<LanguageSpec, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let project = load_definition_project(root).map_err(|error| error.to_string())?;
-    let (_, _, definition, sources) = project.into_parts();
+    let langmeld_project::LoadedDefinitionProjectParts {
+        definition,
+        sources,
+        ..
+    } = project.into_parts();
 
     if !definition.is_valid() {
         return Err(langmeld_core::format_diagnostics(

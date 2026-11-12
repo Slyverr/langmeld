@@ -363,10 +363,12 @@ definition together with all source snapshots:
 
 ```rust,ignore
 use langmeld_core::format_diagnostics;
-use langmeld_project::load_definition_project;
+use langmeld_project::{LoadedDefinitionProjectParts, load_definition_project};
 
 let project = load_definition_project(".")?;
-let (_, _, definition, sources) = project.into_parts();
+let LoadedDefinitionProjectParts {
+    definition, sources, ..
+} = project.into_parts();
 if !definition.is_valid() {
     eprintln!("{}", format_diagnostics(&sources, &definition.diagnostics));
 }

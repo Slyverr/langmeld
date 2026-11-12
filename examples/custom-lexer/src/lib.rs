@@ -79,7 +79,11 @@ impl Lexer for RawStringLexer {
 /// Loads and validates the language declared in this example project.
 pub fn load_language(project_root: impl AsRef<Path>) -> Result<LanguageSpec, String> {
     let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
-    let (_, _, definition, sources) = project.into_parts();
+    let langmeld_project::LoadedDefinitionProjectParts {
+        definition,
+        sources,
+        ..
+    } = project.into_parts();
 
     if !definition.is_valid() {
         return Err(format_diagnostics(&sources, &definition.diagnostics));

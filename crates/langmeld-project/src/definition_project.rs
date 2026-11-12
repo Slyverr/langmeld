@@ -59,11 +59,16 @@ impl LoadedDefinitionProject {
         &self.watched_paths
     }
 
-    /// Consumes the loaded project and returns its root, manifest, parsed
-    /// definition, and source snapshots in that order.
+    /// Consumes the loaded project and returns its owned project data.
     #[must_use]
-    pub fn into_parts(self) -> (PathBuf, ProjectManifest, DefinitionResult, Vec<SourceFile>) {
-        (self.root, self.manifest, self.definition, self.sources)
+    pub fn into_parts(self) -> LoadedDefinitionProjectParts {
+        LoadedDefinitionProjectParts {
+            root: self.root,
+            manifest: self.manifest,
+            definition: self.definition,
+            sources: self.sources,
+            watched_paths: self.watched_paths,
+        }
     }
 
     /// Returns whether the definition produced a language without errors.
@@ -73,6 +78,21 @@ impl LoadedDefinitionProject {
     pub fn is_valid(&self) -> bool {
         self.definition.is_valid()
     }
+}
+
+/// Owned components of a consumed [`LoadedDefinitionProject`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoadedDefinitionProjectParts {
+    /// Canonical directory containing the project manifest.
+    pub root: PathBuf,
+    /// Validated project settings used to locate the root definition.
+    pub manifest: ProjectManifest,
+    /// Parsed language definition and its source-located diagnostics.
+    pub definition: DefinitionResult,
+    /// Root and imported definition snapshots in stable path order.
+    pub sources: Vec<SourceFile>,
+    /// Paths that file watchers should monitor for changes to the definitions.
+    pub watched_paths: Vec<PathBuf>,
 }
 
 /// Filesystem or manifest error encountered while opening a definition project.
@@ -195,7 +215,11 @@ pub fn load_language_spec(
     project_root: impl AsRef<Path>,
 ) -> Result<LanguageSpec, LanguageSpecLoadError> {
     let project = load_definition_project(project_root)?;
-    let (_, _, definition, sources) = project.into_parts();
+    let LoadedDefinitionProjectParts {
+        definition,
+        sources,
+        ..
+    } = project.into_parts();
 
     if !definition.is_valid() {
         return Err(LanguageSpecLoadError::InvalidDefinition {

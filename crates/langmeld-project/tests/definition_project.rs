@@ -268,11 +268,13 @@ fn loads_a_project_from_a_non_default_manifest_path() {
 
     assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
     let expected_root = project.path().join("config").canonicalize().unwrap();
+    let expected_watched_paths = loaded.watched_paths().to_vec();
     assert_eq!(loaded.root(), expected_root);
 
-    let (root, manifest, definition, sources) = loaded.into_parts();
-    assert_eq!(root, expected_root);
-    assert_eq!(manifest.definition, "language/main.langmeld");
-    assert!(definition.is_valid());
-    assert_eq!(sources.len(), 1);
+    let parts = loaded.into_parts();
+    assert_eq!(parts.root, expected_root);
+    assert_eq!(parts.manifest.definition, "language/main.langmeld");
+    assert!(parts.definition.is_valid());
+    assert_eq!(parts.sources.len(), 1);
+    assert_eq!(parts.watched_paths, expected_watched_paths);
 }

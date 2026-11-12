@@ -21,6 +21,22 @@ no automatic migration command.
 
 ## Unreleased API changes
 
+### Preserve loaded project watcher paths
+
+`LoadedDefinitionProject::into_parts()` now returns a named
+`LoadedDefinitionProjectParts` value, including `watched_paths`. Replace
+positional tuple destructuring with named fields:
+
+```rust,ignore
+let LoadedDefinitionProjectParts {
+    root,
+    manifest,
+    definition,
+    sources,
+    watched_paths,
+} = project.into_parts();
+```
+
 ### Completion candidate insertion format
 
 `CompletionCandidate` now includes `insert_text_format`. Values created with

@@ -18,6 +18,8 @@ API migration notes are in the
 
 ### Changed
 
+- Return a named `LoadedDefinitionProjectParts` from `into_parts()`, including
+  watched paths alongside the other owned project data.
 - Match generated handler struct casing to generated typed construct views.
 - Generate starter diagnostic codes with a prefix derived from the new Cargo
   package name instead of the generic `EXAMPLE` prefix.
