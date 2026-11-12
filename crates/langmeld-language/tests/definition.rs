@@ -10,7 +10,9 @@ use std::collections::HashMap;
 struct Resolver(HashMap<String, DefinitionSource>);
 
 impl DefinitionResolver for Resolver {
-    fn resolve(&self, _from_key: &str, import: &str) -> Result<DefinitionSource, String> {
+    type Error = String;
+
+    fn resolve(&self, _from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
         self.0
             .get(import)
             .cloned()

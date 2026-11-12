@@ -21,6 +21,9 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `DefinitionResolver` now has an associated `Error` type that
+  preserves resolver failures for Rust callers; implementers must declare
+  `type Error` and return `Result<DefinitionSource, Self::Error>`.
 - **Breaking:** `ConstructHandlerRegistry::dispatch_construct` and
   `dispatch_block` now require the originating `ParseResult` and reject a
   selected node from another parse result.

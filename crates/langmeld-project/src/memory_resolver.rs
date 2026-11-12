@@ -70,11 +70,12 @@ impl InMemoryDefinitionResolver {
 }
 
 impl DefinitionResolver for InMemoryDefinitionResolver {
-    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
-        let key = resolve_import_key(from_key, import)
-            .map_err(|error| path_error(import, error).to_string())?;
-        self.find_by_key(&key)
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| ProjectLoadError::MissingDefinition(key).to_string())
+    type Error = ProjectLoadError;
+
+    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
+        let key =
+            resolve_import_key(from_key, import).map_err(|error| path_error(import, error))?;
+        self.find_by_key(&key)?
+            .ok_or(ProjectLoadError::MissingDefinition(key))
     }
 }

@@ -1,6 +1,6 @@
 use langmeld_core::SourceFile;
 use langmeld_language::{DefinitionResolver, parse_language_definition_project};
-use langmeld_project::InMemoryDefinitionResolver;
+use langmeld_project::{InMemoryDefinitionResolver, ProjectLoadError};
 
 #[test]
 fn resolves_nested_imports_and_composes_a_language_from_memory() {
@@ -78,12 +78,10 @@ fn rejects_keys_and_imports_that_escape_the_virtual_project() {
             .resolve(root.key(), "folder\\outside.langmeld")
             .is_err()
     );
-    assert!(
-        resolver
-            .resolve(root.key(), "missing.langmeld")
-            .unwrap_err()
-            .contains("not in the source collection")
-    );
+    assert!(matches!(
+        resolver.resolve(root.key(), "missing.langmeld"),
+        Err(ProjectLoadError::MissingDefinition(_))
+    ));
 }
 
 #[test]

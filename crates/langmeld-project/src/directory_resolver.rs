@@ -204,11 +204,12 @@ impl DirectoryDefinitionResolver {
 }
 
 impl DefinitionResolver for DirectoryDefinitionResolver {
-    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
-        let key = resolve_import_key(from_key, import)
-            .map_err(|error| path_error(import, error).to_string())?;
+    type Error = ProjectLoadError;
+
+    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
+        let key =
+            resolve_import_key(from_key, import).map_err(|error| path_error(import, error))?;
         let requested = self.root.join(key);
         self.load_path(requested, import.to_owned())
-            .map_err(|error| error.to_string())
     }
 }

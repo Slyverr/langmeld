@@ -5,7 +5,7 @@ use std::{
 };
 
 use langmeld_language::{DefinitionResolver, parse_language_definition_project};
-use langmeld_project::DirectoryDefinitionResolver;
+use langmeld_project::{DirectoryDefinitionResolver, ProjectLoadError};
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
 
@@ -182,7 +182,7 @@ fn rejects_imports_that_escape_the_project_root() {
 
     let result = resolver.resolve(root.key(), &relative);
 
-    assert!(result.unwrap_err().contains("outside the project root"));
+    assert!(matches!(result, Err(ProjectLoadError::OutsideRoot(_))));
 }
 
 #[test]
@@ -219,7 +219,7 @@ fn rejects_symlinks_that_escape_the_project_root() {
 
     let result = resolver.resolve(root.key(), "../secret.langmeld");
 
-    assert!(result.unwrap_err().contains("outside the project root"));
+    assert!(matches!(result, Err(ProjectLoadError::OutsideRoot(_))));
 }
 
 #[cfg(unix)]

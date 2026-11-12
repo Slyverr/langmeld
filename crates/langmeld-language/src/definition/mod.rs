@@ -6,6 +6,8 @@ mod project;
 mod strings;
 mod unit;
 
+use std::fmt;
+
 use langmeld_core::{Diagnostic, SourceFile, has_errors};
 
 use crate::LanguageSpec;
@@ -72,11 +74,14 @@ impl DefinitionSource {
 
 /// Host-controlled loading of explicitly imported `.langmeld` files.
 pub trait DefinitionResolver {
+    /// Error returned when the host cannot resolve an import.
+    type Error: fmt::Display;
+
     /// Resolves `import` relative to `from_key` and returns a stable source key.
     ///
     /// Implementations own filesystem access, path normalization, and any
     /// project-root restrictions.
-    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String>;
+    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error>;
 }
 
 /// Parses a single language-definition file and validates its declared grammar.

@@ -6,7 +6,7 @@ use std::{
 
 use langmeld_core::SourceFile;
 use langmeld_language::parse_language_definition_project;
-use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver};
+use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver, ProjectLoadError};
 
 static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
 
@@ -194,7 +194,7 @@ fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
     )
     .unwrap_err();
 
-    assert!(error.contains("outside the project root"));
+    assert!(matches!(error, ProjectLoadError::OutsideRoot(_)));
 }
 
 #[test]

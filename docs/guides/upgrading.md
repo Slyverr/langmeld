@@ -16,6 +16,29 @@ currently provide an automatic migration command.
 
 ## Unreleased API changes
 
+### Preserve typed definition resolver errors
+
+`DefinitionResolver` now declares an associated `Error` type implementing
+`Display`. Update custom implementations to name their error type and return
+it directly instead of converting it to `String`:
+
+```rust,ignore
+impl DefinitionResolver for MyResolver {
+    type Error = MyResolveError;
+
+    fn resolve(
+        &self,
+        from_key: &str,
+        import: &str,
+    ) -> Result<DefinitionSource, Self::Error> {
+        // Resolve the import and preserve structured failures.
+    }
+}
+```
+
+The `.langmeld` project parser still presents import failures as source-located
+diagnostics. Direct Rust callers can now inspect the concrete resolver error.
+
 ### Bind direct construct dispatch to its parse result
 
 `ConstructHandlerRegistry::dispatch_construct` and `dispatch_block` now take

@@ -15,7 +15,9 @@ use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
     DocumentSymbolInfo, LanguageBackend, LanguageDefinitionBackend,
 };
-use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver, ProjectManifest};
+use langmeld_project::{
+    InMemoryDefinitionResolver, OverlayDefinitionResolver, ProjectLoadError, ProjectManifest,
+};
 use url::Url;
 
 use crate::definition_completion::complete_definition_field;
@@ -276,7 +278,9 @@ struct OpenFileOverlayResolver<'a> {
 }
 
 impl DefinitionResolver for OpenFileOverlayResolver<'_> {
-    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, String> {
+    type Error = ProjectLoadError;
+
+    fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
         let resolved = self.resolver.resolve(from_key, import)?;
         let (resolved_key, resolved_source) = resolved.into_parts();
         let is_new_source = self.loaded.borrow_mut().insert(resolved_key.clone());
