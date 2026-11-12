@@ -82,7 +82,7 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
         &self,
         context: &mut ConstructContext<'_, RuntimeState>,
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let print = context.typed::<generated::constructs::Print>()?;
+        let print = context.typed::<crate::generated::constructs::Print>()?;
         let name = print.name()?;
 
         context.state_mut().output.push_str(name.text);
@@ -111,7 +111,7 @@ the captures declared inside that group, so fields from different repetitions
 stay paired:
 
 ```rust,ignore
-let function = context.typed::<generated::constructs::Function>()?;
+let function = context.typed::<crate::generated::constructs::Function>()?;
 
 if let Some(parameters) = function.parameters()? {
     for parameter in parameters.additional_parameters()? {
