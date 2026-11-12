@@ -105,6 +105,10 @@ language host's responsibility. Field helpers report missing fields, wrong
 capture kinds, and invalid spans as source-located diagnostics instead of
 requiring unchecked indexing.
 
+Field names passed to these helpers are runtime lookups. Rust does not check
+them against the `.langmeld` definition at compile time, so a misspelled or
+undeclared name is reported only when the handler accesses that field.
+
 When a grammar can capture the same field more than once, `field` and
 `field_text` return the first capture. Use `fields` to process all captures in
 source order; it returns an empty iterator when an optional or repeated group
