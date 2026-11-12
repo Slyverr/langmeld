@@ -19,6 +19,23 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
+## Unreleased API changes
+
+### Completion candidate insertion format
+
+`CompletionCandidate` now includes `insert_text_format`. Values created with
+`CompletionCandidate::new` default to plain text and need no changes. If your
+code constructs candidates with struct literals, add the field:
+
+```rust,ignore
+insert_text_format: CompletionInsertTextFormat::PlainText,
+```
+
+Use `CompletionInsertTextFormat::Snippet` for snippet-formatted inserted text.
+The LSP adapter sends snippet candidates only to clients that advertise
+snippet support. `CompletionKind::Snippet` still selects the displayed item
+category; it does not change how inserted text is interpreted.
+
 ## Migrating from v0.9.0 to v0.10.0
 
 The changes below are included in v0.10.0. See the [changelog](../../CHANGELOG.md)
