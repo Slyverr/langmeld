@@ -1,13 +1,11 @@
 use std::{fs, path::Path};
 
+use crate::definition_index::DefinitionIndex;
 use langmeld_core::{SourceFile, Span};
 use langmeld_language::{
     CapturedField, CompletionCandidate, CompletionKind, ParseResult, ParsedConstruct,
     quote_definition_string,
 };
-use url::Url;
-
-use crate::definition_index::DefinitionIndex;
 use langmeld_project::resolve_import_key;
 
 const MAX_DIRECTORY_SUGGESTIONS: usize = 200;
@@ -104,7 +102,7 @@ fn complete_import_path(
         return Vec::new();
     }
 
-    let Some(document_directory) = document_directory(root, source) else {
+    let Some(document_directory) = document_directory(root, source_key) else {
         return Vec::new();
     };
     let (directory_prefix, name_prefix) = prefix
@@ -186,9 +184,8 @@ fn has_windows_drive_prefix(path: &str) -> bool {
     bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
-fn document_directory(root: &Path, source: &SourceFile) -> Option<std::path::PathBuf> {
-    let uri = Url::parse(source.name()).ok()?;
-    let path = uri.to_file_path().ok()?;
+fn document_directory(root: &Path, source_key: &str) -> Option<std::path::PathBuf> {
+    let path = root.join(source_key);
     let directory = path.parent()?.canonicalize().ok()?;
     directory.starts_with(root).then_some(directory)
 }

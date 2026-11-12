@@ -33,7 +33,8 @@ API migration notes are in the
 ### Fixed
 
 - Filter import-path completions using the same portability and project-root
-  checks as definition loading.
+  checks as definition loading, and resolve candidates from the importer's
+  canonical project key.
 - Keep formatted diagnostic columns consistent with editor positions for CRLF
   line endings.
 - Escape all reserved Rust keywords when deriving handler module names from

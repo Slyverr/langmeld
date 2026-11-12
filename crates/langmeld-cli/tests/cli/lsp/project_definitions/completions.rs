@@ -7,26 +7,40 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
     write_widget_project(&project);
     let root = project.join("language/language.langmeld");
     let module = project.join("language/constructs/statements.langmeld");
+    #[cfg(unix)]
+    let module_target = project.join("language/physical/statements.langmeld");
+    #[cfg(not(unix))]
+    let module_target = module.clone();
     let second_module = project.join("language/constructs/alpha.langmeld");
     let root_source = "language \"Widget\" { import \"constructs/statements.langmeld\"; import \"constructs/alpha.langmeld\"; construct \"program\" { syntax { literal \"program\"; } block \"{\" \"}\" { allow \"print\"; } } }";
-    let module_source = "construct \"print\" { implements \"statement\"; syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }";
+    let module_source = "import \"nested/item.langmeld\"; construct \"print\" { implements \"statement\"; syntax { literal \"print\"; identifier \"name\"; literal \";\"; } }";
     let second_module_source = "construct \"zebra\" { syntax { literal \"zebra\"; } }";
     fs::write(
         parent.path().join("outside.langmeld"),
         "construct \"private\" {}",
     )
     .unwrap();
+    fs::create_dir_all(module_target.parent().unwrap().join("nested")).unwrap();
+    fs::write(
+        module_target.parent().unwrap().join("nested/item.langmeld"),
+        "",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        fs::create_dir_all(module.parent().unwrap()).unwrap();
+        fs::remove_file(&module).unwrap();
+        std::os::unix::fs::symlink(&module_target, &module).unwrap();
+    }
     fs::write(&root, root_source).unwrap();
-    fs::write(&module, module_source).unwrap();
+    fs::write(&module_target, module_source).unwrap();
     fs::write(&second_module, second_module_source).unwrap();
     #[cfg(unix)]
     fs::create_dir_all(project.join("language/constructs/con")).unwrap();
     let root_uri = url::Url::from_file_path(fs::canonicalize(&root).unwrap())
         .unwrap()
         .to_string();
-    let module_uri = url::Url::from_file_path(fs::canonicalize(&module).unwrap())
-        .unwrap()
-        .to_string();
+    let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
 
     send_lsp_message(
@@ -76,6 +90,15 @@ fn project_definitions_lsp_completes_references_and_import_paths() {
             "statement",
             "Category",
             18,
+        ),
+        (
+            10,
+            &module_uri,
+            module_source,
+            "nested/",
+            "nested/item.langmeld",
+            ".langmeld definition",
+            17,
         ),
         (
             4,
