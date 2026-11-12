@@ -19,10 +19,12 @@ pub(super) fn parse(
         || !source.text().is_char_boundary(range.start)
         || !source.text().is_char_boundary(range.end)
     {
+        let empty_offset = source_boundary_at_or_before(source, range.start);
+
         return ExpressionParseResult {
             source: source.identity(),
             expression: None,
-            consumed: Span::new(range.start, range.start),
+            consumed: Span::new(empty_offset, empty_offset),
             diagnostics: vec![Diagnostic::spec_error(
                 "LM-EXPR-001",
                 "expression range is outside the source or not on UTF-8 boundaries",
@@ -398,7 +400,11 @@ impl Parser<'_> {
 }
 
 fn source_limit_offset(source: &SourceFile, start: usize, limit: usize, end: usize) -> usize {
-    let mut offset = start + limit.min(end - start);
+    source_boundary_at_or_before(source, start + limit.min(end - start))
+}
+
+fn source_boundary_at_or_before(source: &SourceFile, offset: usize) -> usize {
+    let mut offset = offset.min(source.text().len());
     while !source.text().is_char_boundary(offset) {
         offset -= 1;
     }

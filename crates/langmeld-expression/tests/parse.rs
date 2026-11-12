@@ -140,6 +140,29 @@ fn reports_invalid_ranges_and_malformed_expressions() {
 }
 
 #[test]
+fn invalid_ranges_return_a_safe_empty_consumed_span() {
+    let grammar = arithmetic();
+    let parser = ExpressionParser::new(&grammar);
+    let source = SourceFile::new("expression", "é + 1");
+    let source_len = source.text().len();
+
+    for range in [
+        Span::new(1, source_len),
+        Span::new(0, 1),
+        Span::new(usize::MAX, usize::MAX),
+    ] {
+        let parsed = parser.parse(&source, range);
+        let consumed = parsed.consumed();
+
+        assert_eq!(parsed.diagnostics()[0].code, "LM-EXPR-001");
+        assert!(parsed.expression().is_none());
+        assert!(consumed.is_empty());
+        assert!(consumed.end <= source_len);
+        assert!(source.text().is_char_boundary(consumed.start));
+    }
+}
+
+#[test]
 fn parse_result_retains_the_managed_source_identity() {
     let mut sources = SourceDatabase::default();
     let source_id = sources.insert("expression", "1 + )").unwrap();

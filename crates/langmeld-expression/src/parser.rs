@@ -103,7 +103,8 @@ pub struct ExpressionParseResult {
     source: SourceIdentity,
     /// Parsed expression when a valid root was recognized.
     expression: Option<Expression>,
-    /// Range consumed by the root expression, empty when parsing failed.
+    /// Range consumed by the root expression. On failure, the empty span uses
+    /// valid UTF-8 boundaries in the source.
     consumed: Span,
     /// Lexical and syntax diagnostics.
     diagnostics: Vec<Diagnostic>,
@@ -118,7 +119,8 @@ pub struct ExpressionParseResultParts {
     pub source_identity: SourceIdentity,
     /// Parsed expression when a valid root was recognized.
     pub expression: Option<Expression>,
-    /// Range consumed by the root expression, empty when parsing failed.
+    /// Range consumed by the root expression. On failure, the empty span uses
+    /// valid UTF-8 boundaries in the source.
     pub consumed: Span,
     /// Lexical and syntax diagnostics.
     pub diagnostics: Vec<Diagnostic>,
