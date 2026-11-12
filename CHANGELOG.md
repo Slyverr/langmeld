@@ -43,6 +43,8 @@ API migration notes are in the
 
 - TextMate comment patterns now follow the built-in lexer's longest-opening
   rule, so overlapping line and block comment markers tokenize consistently.
+- TextMate string highlighting now scopes a trailing backslash as an escape,
+  matching the built-in lexer's support for escaped line breaks.
 - **Breaking:** `ProjectManifest` now includes the `rust_bindings` field. Code
   constructing the struct directly must provide `RustBindings`; parsed
   manifests without the setting default to dynamic access.

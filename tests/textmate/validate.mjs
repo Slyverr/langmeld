@@ -94,6 +94,28 @@ function validateExampleGrammar() {
     ),
   );
 
+  const escapedLineBreak = String.raw`let text = "first\
+second";`;
+  const [firstStringLine, secondStringLine] = escapedLineBreak.split("\n");
+  const firstStringTokens = tokenizeLine(firstStringLine);
+  assert.ok(
+    scopesAt(firstStringLine, firstStringTokens.tokens, "first").includes(
+      "string.quoted.double.widgetscript",
+    ),
+  );
+  assert.ok(
+    scopesAt(firstStringLine, firstStringTokens.tokens, "\\").includes(
+      "constant.character.escape.widgetscript",
+    ),
+  );
+
+  const secondStringTokens = tokenizeLine(secondStringLine, firstStringTokens.ruleStack);
+  assert.ok(
+    scopesAt(secondStringLine, secondStringTokens.tokens, "second").includes(
+      "string.quoted.double.widgetscript",
+    ),
+  );
+
   console.log("TextMate grammar tokenization passed.");
 }
 

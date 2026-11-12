@@ -236,7 +236,7 @@ fn string_pattern(suffix: &str) -> StringPattern {
         end: "\"".to_owned(),
         patterns: vec![MatchPattern {
             name: format!("constant.character.escape.{suffix}"),
-            regex: r"\\.".to_owned(),
+            regex: r"\\(?:.|$)".to_owned(),
         }],
     }
 }

@@ -49,7 +49,7 @@ fn exports_deduplicated_literals_and_builtin_lexical_patterns() {
     assert_eq!(grammar["fileTypes"], serde_json::json!(["widget"]));
     let patterns = grammar["patterns"].as_array().unwrap();
     assert_eq!(patterns[0]["name"], "string.quoted.double.widget");
-    assert_eq!(patterns[0]["patterns"][0]["match"], r"\\.");
+    assert_eq!(patterns[0]["patterns"][0]["match"], r"\\(?:.|$)");
     assert_eq!(patterns[1]["match"], r"\b(?:program|if|else|print)\b");
     assert_eq!(patterns[2]["match"], r"\b[0-9]+\b");
     assert_eq!(patterns[3]["match"], r"(?:\[|\]|\{|\}|\|)");

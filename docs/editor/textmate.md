@@ -17,8 +17,9 @@ definition. It is lexical highlighting, not a generated parser: undeclared
 comments, semantic roles, and host-specific lexer rules are not inferred. CI
 tokenizes the generated example grammar with VS Code's TextMate
 engine and checks representative keyword, punctuation, number, string, escape,
-and non-keyword scopes. This validates the emitted grammar's behavior in the
-TextMate tokenizer; it does not test VS Code extension packaging, themes, or
-editor UI. Use the LSP for semantic diagnostics and navigation. See the
+and non-keyword scopes, including string escapes at line boundaries. This
+validates the emitted grammar's behavior in the TextMate tokenizer; it does not
+test VS Code extension packaging, themes, or editor UI. Use the LSP for semantic
+diagnostics and navigation. See the
 [VS Code syntax highlighting guide](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide)
 for TextMate grammar integration details.
