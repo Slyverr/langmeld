@@ -5,7 +5,7 @@ use crate::runtime::RuntimeState;
 pub(super) struct LetHandler;
 
 impl ConstructHandler<RuntimeState> for LetHandler {
-    const CONSTRUCT: &'static str = "let";
+    {{CONSTRUCT_DECLARATION}}
 
     fn handle(
         &self,

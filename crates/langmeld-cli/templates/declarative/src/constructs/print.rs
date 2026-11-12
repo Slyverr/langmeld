@@ -5,7 +5,7 @@ use crate::runtime::RuntimeState;
 pub(super) struct PrintHandler;
 
 impl ConstructHandler<RuntimeState> for PrintHandler {
-    const CONSTRUCT: &'static str = "print";
+    {{CONSTRUCT_DECLARATION}}
 
     fn handle(
         &self,

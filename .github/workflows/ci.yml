@@ -53,6 +53,12 @@ jobs:
           --literal fn
           --manifest-path
           "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
+      - name: Generate a typed handler in the declarative project
+        shell: bash
+        run: >-
+          cargo run -p langmeld-cli --locked -- generate handler program
+          --manifest-path
+          "$RUNNER_TEMP/langmeld-init-declarative/langmeld.toml"
       - name: Check and run declarative language project
         shell: bash
         run: |

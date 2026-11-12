@@ -67,7 +67,10 @@ use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 pub struct PrintHandler;
 
 impl ConstructHandler<RuntimeState> for PrintHandler {
-    const CONSTRUCT: &'static str = "print";
+    const CONSTRUCT: &'static str =
+        <crate::generated::constructs::Print<'static> as langmeld_language::TypedConstruct<
+            'static,
+        >>::CONSTRUCT;
 
     fn handle(
         &self,
@@ -85,6 +88,10 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
 Misspelled or undeclared accessor names fail Rust compilation. At runtime, the
 view checks that the parsed construct and syntax variant match the generated
 definition; incompatible captures return a source-located diagnostic.
+Typed handler scaffolds also derive their dispatch name from that generated
+construct type, so the registration identity cannot drift from the view used
+to access its captures. Dynamic handlers continue to declare their construct
+name directly.
 The view validates the construct's capture shape as it is accessed; it does
 not fingerprint the entire `LanguageSpec`. A different grammar with a
 compatible construct and capture shape can use the same projection. The Rust

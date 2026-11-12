@@ -160,6 +160,57 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
 }
 
 #[test]
+fn generate_typed_handler_uses_the_generated_construct_identity() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("typed-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+            "--typed-bindings",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let statements = project.join("language/constructs/statements.langmeld");
+    let mut source = fs::read_to_string(&statements).expect("constructs should be generated");
+    source.push_str(
+        "\nconstruct \"trace\" { syntax { literal \"trace\"; literal \";\"; } implements \"statement\"; }\n",
+    );
+    fs::write(&statements, source).expect("new construct should be written");
+
+    let manifest = project.join("langmeld.toml");
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "handler",
+            "trace",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+
+    let handler = fs::read_to_string(project.join("src/constructs/trace.rs"))
+        .expect("typed handler should be generated");
+    assert!(handler.contains(
+        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Trace<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+    ));
+    assert!(!handler.contains("const CONSTRUCT: &'static str = \"trace\";"));
+}
+
+#[test]
 fn generate_construct_adds_import_syntax_and_registered_handler() {
     let parent = TestDirectory::new();
     let project = parent.path().join("widget-language");

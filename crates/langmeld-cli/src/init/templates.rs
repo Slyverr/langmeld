@@ -2,6 +2,8 @@ use std::{io, path::Path};
 
 use langmeld_language::quote_definition_string;
 
+use crate::handler_generation::construct_declaration;
+
 use super::{AgentGuidance, Template, local_crates};
 
 pub(super) fn project_files(
@@ -112,6 +114,10 @@ pub(super) fn project_files(
                     "src/constructs/let_handler.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/let_handler.rs")
                         .replace(
+                            "{{CONSTRUCT_DECLARATION}}",
+                            &construct_declaration("let", typed_bindings.then_some("Let")),
+                        )
+                        .replace(
                             "{{CAPTURE_ACCESS}}",
                             if typed_bindings {
                                 "let syntax = context.typed::<crate::generated::constructs::Let>()?;\n        let name = syntax.name()?.text.to_owned();\n        let value = syntax.value()?;"
@@ -123,6 +129,10 @@ pub(super) fn project_files(
                 (
                     "src/constructs/print.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/print.rs")
+                        .replace(
+                            "{{CONSTRUCT_DECLARATION}}",
+                            &construct_declaration("print", typed_bindings.then_some("Print")),
+                        )
                         .replace(
                             "{{CAPTURE_ACCESS}}",
                             if typed_bindings {

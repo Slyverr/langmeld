@@ -43,6 +43,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(project.join("src/constructs/print.rs").is_file());
     let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
         .expect("declarative let handler should be generated");
+    assert!(let_handler.contains("const CONSTRUCT: &'static str = \"let\";"));
     assert!(let_handler.contains("context.field_text_capture(\"value\")?"));
     assert!(project.join("tests/language.rs").is_file());
     assert!(project.join("language/main.langmeld").is_file());
@@ -153,6 +154,10 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
 
     let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
         .expect("typed let handler should be generated");
+    assert!(let_handler.contains(
+        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Let<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+    ));
+    assert!(!let_handler.contains("const CONSTRUCT: &'static str = \"let\";"));
     assert!(let_handler.contains("context.typed::<crate::generated::constructs::Let>()?"));
     assert!(let_handler.contains("syntax.name()?"));
     assert!(let_handler.contains("syntax.value()?"));
@@ -160,6 +165,9 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
 
     let print_handler = fs::read_to_string(project.join("src/constructs/print.rs"))
         .expect("typed print handler should be generated");
+    assert!(print_handler.contains(
+        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Print<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+    ));
     assert!(print_handler.contains("context.typed::<crate::generated::constructs::Print>()?"));
     assert!(print_handler.contains("syntax.name()?"));
     assert!(!print_handler.contains("field_identifier_capture"));
@@ -221,6 +229,9 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
     );
     let repeat_handler = fs::read_to_string(project.join("src/constructs/repeat.rs"))
         .expect("typed construct handler should be generated");
+    assert!(repeat_handler.contains(
+        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Repeat<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+    ));
     assert!(repeat_handler.contains("context.typed::<crate::generated::constructs::Repeat>()?"));
 
     let readme = fs::read_to_string(project.join("README.md")).expect("README should exist");

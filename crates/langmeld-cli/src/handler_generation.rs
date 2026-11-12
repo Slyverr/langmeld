@@ -216,6 +216,7 @@ pub(crate) fn handler_template(
     handler_name: &str,
     typed_name: Option<&str>,
 ) -> String {
+    let construct_declaration = construct_declaration(construct, typed_name);
     let typed_access = typed_name.map_or_else(String::new, |type_name| {
         format!(
             "        let _syntax = context.typed::<crate::generated::constructs::{type_name}>()?;\n\n"
@@ -223,6 +224,37 @@ pub(crate) fn handler_template(
     });
 
     format!(
-        "use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};\n\nuse crate::runtime::RuntimeState;\n\npub(super) struct {handler_name};\n\nimpl ConstructHandler<RuntimeState> for {handler_name} {{\n    const CONSTRUCT: &'static str = {construct:?};\n\n    fn handle(\n        &self,\n        context: &mut ConstructContext<'_, RuntimeState>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{\n{typed_access}        Err(context.error_at(\n            \"LM-HANDLER-005\",\n            \"implement this construct's language behavior\",\n            context.construct().span,\n        ))\n    }}\n}}\n"
+        r#"use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};
+
+use crate::runtime::RuntimeState;
+
+pub(super) struct {handler_name};
+
+impl ConstructHandler<RuntimeState> for {handler_name} {{
+    {construct_declaration}
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, RuntimeState>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{
+{typed_access}        Err(context.error_at(
+            "LM-HANDLER-005",
+            "implement this construct's language behavior",
+            context.construct().span,
+        ))
+    }}
+}}
+"#
+    )
+}
+
+pub(crate) fn construct_declaration(construct: &str, typed_name: Option<&str>) -> String {
+    typed_name.map_or_else(
+        || format!("const CONSTRUCT: &'static str = {construct:?};"),
+        |type_name| {
+            format!(
+                "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::{type_name}<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+            )
+        },
     )
 }
