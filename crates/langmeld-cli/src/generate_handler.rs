@@ -4,11 +4,10 @@ use clap::Args;
 use langmeld_project::RustBindings;
 
 use crate::{
-    atomic_file::replace_existing,
+    file_ops::{replace_existing, write_new_file},
     handler_generation::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, ensure_new_path,
         handler_template, rust_names, update_managed_section, validate_constructs_directory,
-        write_new_file,
     },
     project::load_definition_project,
 };

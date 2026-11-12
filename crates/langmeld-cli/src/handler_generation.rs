@@ -1,8 +1,4 @@
-use std::{
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::Path,
-};
+use std::{fs, io, path::Path};
 
 pub(crate) const MODULES_BEGIN: &str = "// <langmeld:begin modules>";
 pub(crate) const MODULES_END: &str = "// <langmeld:end modules>";
@@ -30,23 +26,6 @@ pub(crate) fn ensure_new_path(path: &Path, description: &str) -> io::Result<()> 
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
-}
-
-pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
-    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
-    if let Err(error) = file.write_all(contents.as_bytes()) {
-        drop(file);
-        let cleanup_error = fs::remove_file(path).err();
-        return Err(match cleanup_error {
-            Some(cleanup_error) => io::Error::new(
-                error.kind(),
-                format!("{error}; could not remove incomplete file: {cleanup_error}"),
-            ),
-            None => error,
-        });
-    }
-
-    Ok(())
 }
 
 pub(crate) fn update_managed_section(

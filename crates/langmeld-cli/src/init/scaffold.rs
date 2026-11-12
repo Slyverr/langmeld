@@ -1,10 +1,10 @@
 use std::{
-    fs::{self, OpenOptions},
-    io::{self, Write},
+    fs, io,
     path::{Component, Path, PathBuf},
 };
 
 use super::{AgentGuidance, Template, templates::project_files};
+use crate::file_ops::write_new_file;
 
 pub(super) fn create_project(
     path: &Path,
@@ -54,25 +54,7 @@ pub(super) fn create_project(
                 io::Error::new(io::ErrorKind::InvalidInput, "generated file has no parent")
             })?;
             ensure_parent_directories(&root, parent, &mut created_directories)?;
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&destination)?;
-            if let Err(error) = file.write_all(contents.as_bytes()) {
-                drop(file);
-                if let Err(cleanup_error) = fs::remove_file(&destination)
-                    && cleanup_error.kind() != io::ErrorKind::NotFound
-                {
-                    return Err(io::Error::new(
-                        error.kind(),
-                        format!(
-                            "{error}; could not remove incomplete generated file `{}`: {cleanup_error}",
-                            destination.display()
-                        ),
-                    ));
-                }
-                return Err(error);
-            }
+            write_new_file(&destination, &contents)?;
             created_files.push(destination);
         }
         Ok(())

@@ -1,10 +1,31 @@
 use std::{
-    fs,
+    fs::{self, OpenOptions},
     io::{self, Write},
     path::Path,
 };
 
 use tempfile::NamedTempFile;
+
+pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    if let Err(error) = file.write_all(contents.as_bytes()) {
+        drop(file);
+        if let Err(cleanup_error) = fs::remove_file(path)
+            && cleanup_error.kind() != io::ErrorKind::NotFound
+        {
+            return Err(io::Error::new(
+                error.kind(),
+                format!(
+                    "{error}; could not remove incomplete generated file `{}`: {cleanup_error}",
+                    path.display()
+                ),
+            ));
+        }
+        return Err(error);
+    }
+
+    Ok(())
+}
 
 pub(crate) fn replace_existing(path: &Path, contents: &str) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;

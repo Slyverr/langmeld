@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    atomic_file::replace_existing,
-    handler_generation::{ensure_new_path, write_new_file},
+    file_ops::{replace_existing, write_new_file},
+    handler_generation::ensure_new_path,
 };
 
 pub(super) struct ConstructFiles<'a> {

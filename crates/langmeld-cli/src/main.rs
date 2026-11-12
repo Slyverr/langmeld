@@ -1,8 +1,8 @@
-mod atomic_file;
 mod check;
 mod definition_backend;
 mod definition_completion;
 mod definition_index;
+mod file_ops;
 mod format;
 mod generate;
 mod generate_construct;
