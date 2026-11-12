@@ -198,8 +198,9 @@ to validate the imported project graph against all open project file buffers.
 In manifest mode, it also suggests composed construct and category names in
 definition reference fields, and local `.langmeld` files and folders in import
 paths. When supported by the editor, it watches project `.langmeld` files and
-refreshes the open definition analysis when one changes on disk. Open buffers
-continue to take precedence over disk contents.
+legacy `.lm` files still used during migration, then refreshes the open
+definition analysis when one changes on disk. Open buffers continue to take
+precedence over disk contents.
 See
 [Editor integration](../editor/README.md) for supported features and host
 extension points.
