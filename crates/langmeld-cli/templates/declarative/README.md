@@ -16,6 +16,9 @@ definition starts at `language/main.langmeld` and imports modular construct
 definitions from `language/constructs/`. Rust behavior lives in
 `src/constructs/`; shared state and the runner live in `src/runtime.rs` and
 `src/lib.rs`. Add public language behavior tests under `tests/`.
+Generated diagnostic codes use the Cargo package name as their prefix (for
+example, `my-language` produces `MY-LANGUAGE-*`); adjust them to match your
+language's diagnostic conventions.
 
 Load the definition once with `language::load()`, then reuse the returned
 `Language` to parse or run source files. Its `specification()` method exposes

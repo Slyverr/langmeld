@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- Generate starter diagnostic codes with a prefix derived from the new Cargo
+  package name instead of the generic `EXAMPLE` prefix.
+
 ## [0.12.1] - 2026-11-12
 
 ### Fixed

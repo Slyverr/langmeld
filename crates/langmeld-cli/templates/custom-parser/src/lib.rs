@@ -35,7 +35,7 @@ impl LanguageParser for SayParser {
                 if let Some(message) = content.strip_prefix("say ") {
                     if message.trim().is_empty() {
                         diagnostics.push(Diagnostic::error(
-                            "EXAMPLE-001",
+                            "{{DIAGNOSTIC_PREFIX}}-001",
                             "expected text after `say`",
                             source,
                             content_span,
@@ -48,7 +48,7 @@ impl LanguageParser for SayParser {
                     }
                 } else {
                     diagnostics.push(Diagnostic::error(
-                        "EXAMPLE-001",
+                        "{{DIAGNOSTIC_PREFIX}}-001",
                         "expected `say <text>`",
                         source,
                         content_span,

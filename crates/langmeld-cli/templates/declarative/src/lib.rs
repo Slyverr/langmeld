@@ -62,7 +62,7 @@ impl Language {
         if !parsed.is_valid() {
             if diagnostics.is_empty() {
                 diagnostics.push(Diagnostic::error(
-                    "EXAMPLE-004",
+                    "{{DIAGNOSTIC_PREFIX}}-004",
                     "the parser could not produce a complete valid result",
                     source,
                     Span::new(0, 0),
@@ -77,7 +77,7 @@ impl Language {
 
         if parsed.constructs().is_empty() {
             diagnostics.push(Diagnostic::error(
-                "EXAMPLE-003",
+                "{{DIAGNOSTIC_PREFIX}}-003",
                 "program did not produce a root construct",
                 source,
                 Span::new(0, 0),
@@ -93,7 +93,10 @@ impl Language {
         let handlers = match constructs::registry() {
             Ok(handlers) => handlers,
             Err(error) => {
-                diagnostics.push(Diagnostic::spec_error("EXAMPLE-005", error.to_string()));
+                diagnostics.push(Diagnostic::spec_error(
+                    "{{DIAGNOSTIC_PREFIX}}-005",
+                    error.to_string(),
+                ));
 
                 return Err(RunFailure {
                     partial_output: state.output,

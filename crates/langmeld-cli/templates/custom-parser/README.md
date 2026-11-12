@@ -16,6 +16,9 @@ parse your own program. The parser, typed program tree, and source-spanned
 statements live in `src/lib.rs`; the CLI entry point is `src/main.rs`, and
 public behavior tests belong in `tests/`. This template uses Langmeld's
 `LanguageParser` contract and leaves grammar design to your Rust code.
+Generated diagnostic codes use the Cargo package name as their prefix (for
+example, `my-language` produces `MY-LANGUAGE-*`); adjust them to match your
+language's diagnostic conventions.
 
 ## Language server
 

@@ -19,7 +19,7 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
             .cloned()
             .ok_or_else(|| {
                 context.error_at(
-                    "EXAMPLE-002",
+                    "{{DIAGNOSTIC_PREFIX}}-002",
                     format!("unknown variable `{}`", name.text),
                     name.span,
                 )

@@ -15,6 +15,7 @@ pub(super) fn project_files(
     local_crate_root: Option<&Path>,
 ) -> io::Result<Vec<(String, String)>> {
     let version = env!("CARGO_PKG_VERSION");
+    let diagnostic_prefix = package_name.to_ascii_uppercase();
     let dependencies = match template {
         Template::Declarative => format!(
             "clap = {{ version = \"4.6\", features = [\"derive\"] }}\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
@@ -72,7 +73,8 @@ pub(super) fn project_files(
             } else {
                 ""
             };
-            let mut library = include_str!("../../templates/declarative/src/lib.rs").to_owned();
+            let mut library = include_str!("../../templates/declarative/src/lib.rs")
+                .replace("{{DIAGNOSTIC_PREFIX}}", &diagnostic_prefix);
             if typed_bindings {
                 library.push_str(
                     "\npub mod generated {\n    include!(concat!(env!(\"OUT_DIR\"), \"/langmeld_bindings.rs\"));\n}\n",
@@ -124,7 +126,8 @@ pub(super) fn project_files(
                             } else {
                                 "let name = context.field_identifier(\"name\")?.to_owned();\n        let value = context.field_text_capture(\"value\")?;"
                             },
-                        ),
+                        )
+                        .replace("{{DIAGNOSTIC_PREFIX}}", &diagnostic_prefix),
                 ),
                 (
                     "src/constructs/print.rs".to_owned(),
@@ -140,7 +143,8 @@ pub(super) fn project_files(
                             } else {
                                 "let name = context.field_identifier_capture(\"name\")?;"
                             },
-                        ),
+                        )
+                        .replace("{{DIAGNOSTIC_PREFIX}}", &diagnostic_prefix),
                 ),
                 (
                     "tests/language.rs".to_owned(),
@@ -177,7 +181,8 @@ pub(super) fn project_files(
                 ),
                 (
                     "src/lib.rs".to_owned(),
-                    include_str!("../../templates/custom-parser/src/lib.rs").to_owned(),
+                    include_str!("../../templates/custom-parser/src/lib.rs")
+                        .replace("{{DIAGNOSTIC_PREFIX}}", &diagnostic_prefix),
                 ),
                 (
                     "src/main.rs".to_owned(),

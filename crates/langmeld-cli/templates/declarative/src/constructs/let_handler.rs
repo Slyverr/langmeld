@@ -2,6 +2,8 @@ use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 
 use crate::runtime::RuntimeState;
 
+const STRING_CODE: &str = "{{DIAGNOSTIC_PREFIX}}-001";
+
 pub(super) struct LetHandler;
 
 impl ConstructHandler<RuntimeState> for LetHandler {
@@ -13,7 +15,7 @@ impl ConstructHandler<RuntimeState> for LetHandler {
     ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
         {{CAPTURE_ACCESS}}
         let value = decode_string(value.text)
-            .map_err(|message| context.error_at("EXAMPLE-001", message, value.span))?;
+            .map_err(|message| context.error_at(STRING_CODE, message, value.span))?;
 
         context.state_mut().variables.insert(name, value);
 
