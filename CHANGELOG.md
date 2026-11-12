@@ -47,6 +47,8 @@ API migration notes are in the
   matching the built-in lexer's support for escaped line breaks.
 - TextMate number highlighting now follows identifier and integer token
   boundaries, including digits adjacent to identifier text.
+- TextMate punctuation highlighting now follows the built-in lexer's grouped
+  operator boundaries.
 - **Breaking:** `ProjectManifest` now includes the `rust_bindings` field. Code
   constructing the struct directly must provide `RustBindings`; parsed
   manifests without the setting default to dynamic access.

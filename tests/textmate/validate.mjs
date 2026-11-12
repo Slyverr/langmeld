@@ -76,8 +76,18 @@ function validateExampleGrammar() {
   assert.ok(scopesAt(source, line.tokens, "draw").includes("keyword.other.widgetscript"));
   assert.ok(scopesAt(source, line.tokens, "circle").includes("keyword.other.widgetscript"));
   assert.ok(scopesAt(source, line.tokens, "{").includes("punctuation.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "=").includes("punctuation.widgetscript"));
   assert.ok(scopesAt(source, line.tokens, "Hello").includes("string.quoted.double.widgetscript"));
   assert.ok(!scopesAt(source, line.tokens, "title").includes("keyword.other.widgetscript"));
+
+  const groupedOperatorRun = "==";
+  assert.ok(
+    !scopesAt(
+      groupedOperatorRun,
+      tokenizeLine(groupedOperatorRun).tokens,
+      groupedOperatorRun,
+    ).includes("punctuation.widgetscript"),
+  );
 
   const numberLine = "let count = 42;";
   assert.ok(

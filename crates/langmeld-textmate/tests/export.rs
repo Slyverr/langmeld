@@ -57,7 +57,10 @@ fn exports_deduplicated_literals_and_builtin_lexical_patterns() {
     );
     assert!(!patterns[2].as_object().unwrap().contains_key("name"));
     assert_eq!(patterns[3]["match"], r"[0-9]+");
-    assert_eq!(patterns[4]["match"], r"(?:\[|\]|\{|\}|\|)");
+    assert_eq!(
+        patterns[4]["match"],
+        r"(?:(?<![+*/=!<>%&|^~?:.-])(?:\|)(?![+*/=!<>%&|^~?:.-])|(?:\[|\]|\{|\}))"
+    );
 }
 
 #[test]

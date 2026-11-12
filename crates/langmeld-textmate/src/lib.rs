@@ -6,6 +6,9 @@ use std::collections::HashSet;
 use langmeld_language::{LanguageSpec, PatternPart};
 use serde::Serialize;
 
+const GROUPED_OPERATOR_CHARACTERS: &str = "+-*/=!<>%&|^~?:.";
+const GROUPED_OPERATOR_CLASS: &str = r"[+*/=!<>%&|^~?:.-]";
+
 /// Metadata required to identify an exported TextMate grammar.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextMateOptions {
@@ -149,14 +152,7 @@ pub fn generate(
         patterns.push(
             MatchPattern {
                 name: Some(format!("punctuation.{suffix}")),
-                regex: format!(
-                    "(?:{})",
-                    punctuation
-                        .iter()
-                        .map(|token| regex_escape(token))
-                        .collect::<Vec<_>>()
-                        .join("|")
-                ),
+                regex: punctuation_regex(punctuation),
             }
             .into(),
         );
@@ -225,6 +221,43 @@ fn is_identifier_literal(literal: &str) -> bool {
         .next()
         .is_some_and(|character| character == '_' || character.is_alphabetic())
         && characters.all(|character| character == '_' || character.is_alphanumeric())
+}
+
+fn punctuation_regex(literals: Vec<String>) -> String {
+    let (mut grouped_operators, single_punctuation): (Vec<_>, Vec<_>) = literals
+        .into_iter()
+        .partition(|literal| is_grouped_operator_literal(literal));
+    grouped_operators.sort_by_key(|literal| std::cmp::Reverse(literal.len()));
+
+    let mut alternatives = Vec::new();
+    if !grouped_operators.is_empty() {
+        let operators = grouped_operators
+            .iter()
+            .map(|literal| regex_escape(literal))
+            .collect::<Vec<_>>()
+            .join("|");
+        alternatives.push(format!(
+            "(?<!{GROUPED_OPERATOR_CLASS})(?:{operators})(?!{GROUPED_OPERATOR_CLASS})"
+        ));
+    }
+    if !single_punctuation.is_empty() {
+        alternatives.push(format!(
+            "(?:{})",
+            single_punctuation
+                .iter()
+                .map(|literal| regex_escape(literal))
+                .collect::<Vec<_>>()
+                .join("|")
+        ));
+    }
+
+    format!("(?:{})", alternatives.join("|"))
+}
+
+fn is_grouped_operator_literal(literal: &str) -> bool {
+    literal
+        .chars()
+        .all(|character| GROUPED_OPERATOR_CHARACTERS.contains(character))
 }
 
 fn regex_escape(literal: &str) -> String {
