@@ -434,12 +434,13 @@ fn init_normalizes_directory_names_into_valid_package_defaults() {
 
 #[cfg(unix)]
 #[test]
-fn init_refuses_symlinked_output_directories_and_rolls_back_its_files() {
+fn init_rolls_back_files_and_directories_after_nested_symlink_failure() {
     let parent = TestDirectory::new();
     let outside = TestDirectory::new();
     let project = parent.path().join("symlinked-language");
-    fs::create_dir_all(&project).expect("project directory should be created");
-    std::os::unix::fs::symlink(outside.path(), project.join("src"))
+    fs::create_dir_all(project.join("language"))
+        .expect("language definition directory should be created");
+    std::os::unix::fs::symlink(outside.path(), project.join("language/constructs"))
         .expect("test symlink should be created");
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
@@ -454,6 +455,14 @@ fn init_refuses_symlinked_output_directories_and_rolls_back_its_files() {
     assert!(!output.status.success());
     assert!(!project.join("Cargo.toml").exists());
     assert!(!project.join("README.md").exists());
+    assert!(!project.join("language/main.langmeld").exists());
+    assert!(!project.join("src").exists());
+    assert!(
+        fs::symlink_metadata(project.join("language/constructs"))
+            .expect("user-owned symlink should remain")
+            .file_type()
+            .is_symlink()
+    );
     assert!(!outside.path().join("main.rs").exists());
 }
 
