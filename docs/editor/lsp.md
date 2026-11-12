@@ -168,7 +168,9 @@ its current source snapshot and URI.
 The [Aster example](../../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition,
 reference, and rename queries. It also provides semantic token types for
-functions, parameters, and variables, classifying declarations and resolved references.
+functions, parameters, and variables, classifying declarations and resolved
+references. Its host completion provider offers an LSP snippet for a function
+declaration only on a top-level blank line.
 Hosts return token names and UTF-8 byte spans; the adapter validates the legend,
 converts spans using the negotiated position encoding, and splits multiline
 spans into line-local tokens. Declarative grammars do not imply semantic roles.

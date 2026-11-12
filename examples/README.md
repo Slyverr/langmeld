@@ -14,7 +14,7 @@ language host.
 
 | Example | What it demonstrates |
 | --- | --- |
-| [`aster-language`](aster-language) | A custom parser and AST, ordered semantic passes, lexical scopes, and host-integrated LSP features |
+| [`aster-language`](aster-language) | A custom parser and AST, ordered semantic passes, lexical scopes, LSP navigation, and a context-limited function snippet |
 | [`schema-language`](schema-language) | Workspace-wide analysis, cross-file references, semantic completion, and LSP integration |
 
 ## Focused capabilities

@@ -84,9 +84,22 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
             .unwrap();
     });
 
-    send_request(&client, 1, "initialize", json!({"capabilities": {}}));
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({
+            "capabilities": {
+                "textDocument": {
+                    "completion": {
+                        "completionItem": { "snippetSupport": true }
+                    }
+                }
+            }
+        }),
+    );
     let initialized = receive_response(&client);
-    assert!(initialized["capabilities"]["completionProvider"].is_null());
+    assert!(!initialized["capabilities"]["completionProvider"].is_null());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
     assert_eq!(initialized["capabilities"]["referencesProvider"], true);
     assert_eq!(initialized["capabilities"]["renameProvider"], true);
@@ -98,7 +111,7 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///main.aster";
-    let text = "fn add(value: i32) -> i32 { return value; }\nfn main() -> i32 { return add(1); }\nfn invalid() -> i32 { return missing; }";
+    let text = "fn add(value: i32) -> i32 { return value; }\nfn main() -> i32 { return add(1); }\nfn invalid() -> i32 { return missing; }\n";
     send_notification(
         &client,
         "textDocument/didOpen",
@@ -230,7 +243,26 @@ fn exposes_host_semantic_diagnostics_and_resolved_navigation() {
     );
     assert_eq!(symbols[1]["containerName"], "add");
 
-    send_request(&client, 8, "shutdown", Value::Null);
+    send_request(
+        &client,
+        8,
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 3, "character": 0 }
+        }),
+    );
+    let completions = receive_response(&client);
+    assert_eq!(completions.as_array().unwrap().len(), 1);
+    assert_eq!(completions[0]["label"], "Function declaration");
+    assert_eq!(completions[0]["kind"], 15);
+    assert_eq!(completions[0]["insertTextFormat"], 2);
+    assert_eq!(
+        completions[0]["textEdit"]["newText"],
+        "fn ${1:name}(${2:parameter}: ${3:i32}) -> ${4:i32} {\n    $0\n}"
+    );
+
+    send_request(&client, 9, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();

@@ -50,8 +50,9 @@ cargo run -p langmeld-aster-language-example --bin aster-lsp --locked
 The server publishes Aster's parser and semantic diagnostics and uses its
 resolved symbol table for definition, references, rename, document symbols,
 and semantic tokens. The document outline groups parameters and local
-declarations under their containing functions. It does not offer completion
-because this example has no completion policy.
+declarations under their containing functions. At top-level blank lines, it
+offers a host-authored function declaration snippet; it does not offer that
+snippet inside a function body.
 
 The semantic rules here belong to this language. Langmeld currently provides
 the parser contracts and expression tree; it does not generate symbol tables,

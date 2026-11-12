@@ -1,5 +1,8 @@
-use langmeld_core::{Diagnostic, SourceFile, SourceLocation};
-use langmeld_language::{AnalysisDocument, LanguageAnalyzer, LanguageNavigator, ParsedDocument};
+use langmeld_core::{Diagnostic, SourceFile, SourceLocation, Span};
+use langmeld_language::{
+    AnalysisDocument, CompletionCandidate, CompletionInsertTextFormat, CompletionKind,
+    LanguageAnalyzer, LanguageNavigator, ParsedDocument,
+};
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, DocumentSymbolInfo, DocumentSymbolKind, LanguageBackend,
     SemanticToken, SemanticTokenLegend,
@@ -39,6 +42,7 @@ impl LanguageBackend for AsterBackend {
 
     fn capabilities(&self) -> BackendCapabilities {
         BackendCapabilities {
+            completion: true,
             definition: true,
             references: true,
             rename: true,
@@ -46,6 +50,33 @@ impl LanguageBackend for AsterBackend {
             semantic_tokens: true,
             ..BackendCapabilities::default()
         }
+    }
+
+    fn complete(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        if document.source_identity() != source.identity()
+            || document.state().parsed.source_identity() != source.identity()
+        {
+            return Vec::new();
+        }
+
+        let Some(replace) = top_level_blank_line(source, &document.state().parsed, offset) else {
+            return Vec::new();
+        };
+
+        vec![
+            CompletionCandidate::new(
+                "fn ${1:name}(${2:parameter}: ${3:i32}) -> ${4:i32} {\n    $0\n}",
+                replace,
+            )
+            .with_label("Function declaration")
+            .with_kind(CompletionKind::Snippet)
+            .with_insert_text_format(CompletionInsertTextFormat::Snippet),
+        ]
     }
 
     fn semantic_token_legend(&self) -> SemanticTokenLegend {
@@ -164,6 +195,35 @@ impl LanguageBackend for AsterBackend {
             })
             .collect()
     }
+}
+
+fn top_level_blank_line(
+    source: &SourceFile,
+    parsed: &ParsedDocument<Program>,
+    offset: usize,
+) -> Option<Span> {
+    let text = source.text();
+    let prefix = text.get(..offset)?;
+    let suffix = text.get(offset..)?;
+
+    if parsed
+        .tree()
+        .functions
+        .iter()
+        .any(|function| function.span.start <= offset && offset <= function.span.end)
+    {
+        return None;
+    }
+
+    let line_start = prefix.rfind('\n').map_or(0, |newline| newline + 1);
+    let line_end = suffix
+        .find('\n')
+        .map_or(text.len(), |newline| offset + newline);
+    let line = text.get(line_start..line_end)?;
+
+    line.chars()
+        .all(char::is_whitespace)
+        .then_some(Span::new(line_start, line_end))
 }
 
 fn symbol_kind_name(kind: SymbolKind) -> &'static str {

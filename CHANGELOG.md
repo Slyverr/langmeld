@@ -14,6 +14,8 @@ API migration notes are in the
 - Add `CompletionInsertTextFormat` to completion candidates, with plain text as
   the `CompletionCandidate::new` default. Struct-literal initializers must set
   the new field. The LSP adapter sends snippets only to supporting clients.
+- Demonstrate a host-authored, context-limited function declaration snippet in
+  the Aster language server example.
 
 ### Fixed
 
