@@ -1,9 +1,4 @@
-use std::{
-    error::Error,
-    fs, io,
-    io::IsTerminal,
-    path::{Path, PathBuf},
-};
+use std::{error::Error, io, io::IsTerminal, path::PathBuf};
 
 use clap::Args;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
@@ -11,13 +6,14 @@ use langmeld_core::SourceFile;
 use langmeld_language::{language_definition_grammar, parse, quote_definition_string};
 
 use crate::{
-    atomic_file::replace_existing,
     generate_handler::{
         MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
-        rust_names, update_managed_section, validate_constructs_directory, write_new_file,
+        rust_names, update_managed_section, validate_constructs_directory,
     },
     project::{DefinitionProjectContext, load_definition_project},
 };
+
+mod transaction;
 
 #[derive(Debug, Args)]
 pub(crate) struct ConstructArgs {
@@ -64,11 +60,9 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     validate_constructs_directory(&context.root.join("src"))?;
     validate_constructs_directory(&handler_directory)?;
     let handler_path = handler_directory.join(format!("{module_name}.rs"));
-    ensure_new_path(&syntax_path)?;
-    ensure_new_path(&handler_path)?;
 
     let registry_path = handler_directory.join("mod.rs");
-    let registry_source = read_regular_file(&registry_path)?;
+    let registry_source = transaction::read_regular_file(&registry_path)?;
     let module_line = format!("mod {module_name};");
     let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
     let updated_registry =
@@ -83,79 +77,25 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
             })
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
 
-    let root_source = read_regular_file(&root_path)?;
+    let root_source = transaction::read_regular_file(&root_path)?;
     let import_path = format!("constructs/{name}.langmeld");
     let updated_root = add_root_import(&root_source, &import_path)?;
     let syntax_source = syntax_template(&name, &literal, &category);
     let handler_source = handler_template(&name, &handler_name);
 
-    let mut created_directory = false;
-    match fs::symlink_metadata(&syntax_directory) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    format!("refusing to write into `{}`", syntax_directory.display()),
-                )
-                .into());
-            }
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            fs::create_dir(&syntax_directory)?;
-            created_directory = true;
-        }
-        Err(error) => return Err(error.into()),
-    }
-
-    if let Err(error) = write_new_file(&syntax_path, &syntax_source) {
-        let rollback_errors =
-            rollback_generated_paths(&[], created_directory.then_some(syntax_directory.as_path()));
-        return Err(with_rollback_errors(error, rollback_errors).into());
-    }
-
-    if let Err(error) = write_new_file(&handler_path, &handler_source) {
-        let rollback_errors = rollback_generated_paths(
-            &[syntax_path.as_path()],
-            created_directory.then_some(syntax_directory.as_path()),
-        );
-        return Err(with_rollback_errors(error, rollback_errors).into());
-    }
-
-    if let Err(error) = replace_existing(&root_path, &updated_root) {
-        let mut rollback_errors = rollback_generated_paths(
-            &[handler_path.as_path(), syntax_path.as_path()],
-            created_directory.then_some(syntax_directory.as_path()),
-        );
-        restore_file(
-            &root_path,
-            &root_source,
-            "language definition",
-            &mut rollback_errors,
-        );
-
-        return Err(with_rollback_errors(error, rollback_errors).into());
-    }
-
-    if let Err(error) = replace_existing(&registry_path, &updated_registry) {
-        let mut rollback_errors = rollback_generated_paths(
-            &[handler_path.as_path(), syntax_path.as_path()],
-            created_directory.then_some(syntax_directory.as_path()),
-        );
-        restore_file(
-            &registry_path,
-            &registry_source,
-            "handler registry",
-            &mut rollback_errors,
-        );
-        restore_file(
-            &root_path,
-            &root_source,
-            "language definition",
-            &mut rollback_errors,
-        );
-
-        return Err(with_rollback_errors(error, rollback_errors).into());
-    }
+    transaction::apply(transaction::ConstructFiles {
+        root_path: &root_path,
+        root_source: &root_source,
+        updated_root: &updated_root,
+        registry_path: &registry_path,
+        registry_source: &registry_source,
+        updated_registry: &updated_registry,
+        syntax_directory: &syntax_directory,
+        syntax_path: &syntax_path,
+        syntax_source: &syntax_source,
+        handler_path: &handler_path,
+        handler_source: &handler_source,
+    })?;
 
     let syntax_relative = syntax_path
         .strip_prefix(&context.root)
@@ -307,83 +247,4 @@ fn syntax_template(name: &str, literal: &str, category: &str) -> String {
 
 fn validate_construct_name(name: &str) -> Result<(), io::Error> {
     rust_names(name).map(|_| ())
-}
-
-fn ensure_new_path(path: &Path) -> Result<(), io::Error> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("refusing to overwrite `{}`", path.display()),
-        )),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
-fn read_regular_file(path: &Path) -> Result<String, io::Error> {
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "refusing to update symlink or non-file `{}`",
-                path.display()
-            ),
-        ));
-    }
-    fs::read_to_string(path)
-}
-
-fn rollback_generated_paths(files: &[&Path], directory: Option<&Path>) -> Vec<String> {
-    let mut errors = Vec::new();
-
-    for path in files {
-        if let Err(error) = fs::remove_file(path)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            errors.push(format!(
-                "could not remove generated file `{}`: {error}",
-                path.display()
-            ));
-        }
-    }
-
-    if let Some(directory) = directory
-        && let Err(error) = fs::remove_dir(directory)
-        && error.kind() != io::ErrorKind::NotFound
-    {
-        errors.push(format!(
-            "could not remove generated directory `{}`: {error}",
-            directory.display()
-        ));
-    }
-
-    errors
-}
-
-fn restore_file(path: &Path, contents: &str, description: &str, errors: &mut Vec<String>) {
-    if fs::read(path).is_ok_and(|current| current.as_slice() == contents.as_bytes()) {
-        return;
-    }
-
-    if let Err(error) = replace_existing(path, contents) {
-        errors.push(format!(
-            "could not restore {description} `{}`: {error}",
-            path.display()
-        ));
-    }
-}
-
-fn with_rollback_errors(error: io::Error, rollback_errors: Vec<String>) -> io::Error {
-    if rollback_errors.is_empty() {
-        return error;
-    }
-
-    io::Error::new(
-        error.kind(),
-        format!(
-            "{error}; rollback was incomplete: {}",
-            rollback_errors.join("; ")
-        ),
-    )
 }

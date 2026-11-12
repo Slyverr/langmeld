@@ -395,6 +395,68 @@ fn generate_construct_escapes_quoted_syntax_literals() {
 }
 
 #[test]
+fn generate_construct_rolls_back_files_when_registry_update_fails() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let root_path = project.join("language/main.langmeld");
+    let registry_path = project.join("src/constructs/mod.rs");
+    let original_root = fs::read_to_string(&root_path).expect("root definition should be readable");
+    let original_registry =
+        fs::read_to_string(&registry_path).expect("handler registry should be readable");
+    let original_permissions = fs::metadata(&registry_path)
+        .expect("handler registry metadata should be readable")
+        .permissions();
+    let mut readonly_permissions = original_permissions.clone();
+    readonly_permissions.set_readonly(true);
+    fs::set_permissions(&registry_path, readonly_permissions)
+        .expect("handler registry should become read-only");
+
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "trace",
+            "--manifest-path",
+            project
+                .join("langmeld.toml")
+                .to_str()
+                .expect("path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    fs::set_permissions(&registry_path, original_permissions)
+        .expect("handler registry permissions should be restored");
+
+    assert!(!generated.status.success());
+    assert!(String::from_utf8_lossy(&generated.stderr).contains("read-only"));
+    assert_eq!(
+        fs::read_to_string(&root_path).expect("root definition should remain readable"),
+        original_root
+    );
+    assert_eq!(
+        fs::read_to_string(&registry_path).expect("handler registry should remain readable"),
+        original_registry
+    );
+    assert!(!project.join("language/constructs/trace.langmeld").exists());
+    assert!(!project.join("src/constructs/trace.rs").exists());
+}
+
+#[test]
 fn generate_textmate_uses_imported_definitions_and_writes_json_to_stdout() {
     let parent = TestDirectory::new();
     let project = parent.path();
