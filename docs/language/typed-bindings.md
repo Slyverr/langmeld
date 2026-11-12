@@ -67,7 +67,8 @@ projection generator without requiring `langmeld.toml`.
 
 Generated construct views expose one method per declared capture. Identifiers
 return `CapturedIdentifier`, preserving the spelling and source span. Other
-capture kinds return `CapturedText` with their exact source text and span.
+capture kinds return `CapturedText` with their exact source text and span. Each
+construct view also exposes its declared construct name through `NAME`.
 
 ```rust,ignore
 use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
@@ -75,10 +76,7 @@ use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
 pub struct PrintHandler;
 
 impl ConstructHandler<RuntimeState> for PrintHandler {
-    const CONSTRUCT: &'static str =
-        <crate::generated::constructs::Print<'static> as langmeld_language::TypedConstruct<
-            'static,
-        >>::CONSTRUCT;
+    const CONSTRUCT: &'static str = crate::generated::constructs::Print::NAME;
 
     fn handle(
         &self,

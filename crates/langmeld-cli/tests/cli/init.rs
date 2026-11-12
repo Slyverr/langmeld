@@ -154,9 +154,10 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
 
     let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
         .expect("typed let handler should be generated");
-    assert!(let_handler.contains(
-        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Let<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
-    ));
+    assert!(
+        let_handler
+            .contains("const CONSTRUCT: &'static str = crate::generated::constructs::Let::NAME;")
+    );
     assert!(!let_handler.contains("const CONSTRUCT: &'static str = \"let\";"));
     assert!(let_handler.contains("context.typed::<crate::generated::constructs::Let>()?"));
     assert!(let_handler.contains("syntax.name()?"));
@@ -165,9 +166,10 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
 
     let print_handler = fs::read_to_string(project.join("src/constructs/print.rs"))
         .expect("typed print handler should be generated");
-    assert!(print_handler.contains(
-        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Print<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
-    ));
+    assert!(
+        print_handler
+            .contains("const CONSTRUCT: &'static str = crate::generated::constructs::Print::NAME;")
+    );
     assert!(print_handler.contains("context.typed::<crate::generated::constructs::Print>()?"));
     assert!(print_handler.contains("syntax.name()?"));
     assert!(!print_handler.contains("field_identifier_capture"));
@@ -229,9 +231,11 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
     );
     let repeat_handler = fs::read_to_string(project.join("src/constructs/repeat.rs"))
         .expect("typed construct handler should be generated");
-    assert!(repeat_handler.contains(
-        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Repeat<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
-    ));
+    assert!(
+        repeat_handler.contains(
+            "const CONSTRUCT: &'static str = crate::generated::constructs::Repeat::NAME;"
+        )
+    );
     assert!(repeat_handler.contains("context.typed::<crate::generated::constructs::Repeat>()?"));
 
     let readme = fs::read_to_string(project.join("README.md")).expect("README should exist");

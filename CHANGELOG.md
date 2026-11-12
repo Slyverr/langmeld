@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Expose a `NAME` constant on generated typed construct views for concise,
+  compile-time references from Rust handlers.
+
 ### Changed
 
 - Generate starter diagnostic codes with a prefix derived from the new Cargo

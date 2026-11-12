@@ -25,6 +25,7 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
             &construct.variants[0].view_type,
             &construct.variants[0].shape,
         )?;
+        emit_construct_name(output, construct);
         emit_single_variant_impl(output, construct, &construct.variants[0]);
         return Ok(());
     }
@@ -43,6 +44,7 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
         ));
     }
     output.push_str("    }\n\n");
+    emit_construct_name(output, construct);
 
     for variant in &construct.variants {
         emit_view(output, &variant.view_type, &variant.shape)?;
@@ -50,12 +52,12 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
 
     output.push_str(&format!(
         r#"    impl<'source> ::langmeld_language::TypedConstruct<'source> for {}<'source> {{
-        const CONSTRUCT: &'static str = {:?};
+        const CONSTRUCT: &'static str = Self::NAME;
 
         fn from_validated_construct(source: &'source ::langmeld_core::SourceFile, construct: &'source ::langmeld_language::ParsedConstruct) -> ::core::result::Result<Self, ::langmeld_core::Diagnostic> {{
             match construct.variant {{
 "#,
-        construct.type_name, construct.name
+        construct.type_name
     ));
     for variant in &construct.variants {
         let enum_variant = variant
@@ -76,6 +78,13 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
     Ok(())
 }
 
+fn emit_construct_name(output: &mut String, construct: &GeneratedConstruct) {
+    output.push_str(&format!(
+        "    impl<'source> {}<'source> {{\n        pub const NAME: &'static str = {:?};\n    }}\n\n",
+        construct.type_name, construct.name
+    ));
+}
+
 fn emit_single_variant_impl(
     output: &mut String,
     construct: &GeneratedConstruct,
@@ -83,7 +92,7 @@ fn emit_single_variant_impl(
 ) {
     output.push_str(&format!(
         r#"    impl<'source> ::langmeld_language::TypedConstruct<'source> for {}<'source> {{
-        const CONSTRUCT: &'static str = {:?};
+        const CONSTRUCT: &'static str = Self::NAME;
 
         fn from_validated_construct(source: &'source ::langmeld_core::SourceFile, construct: &'source ::langmeld_language::ParsedConstruct) -> ::core::result::Result<Self, ::langmeld_core::Diagnostic> {{
             if construct.variant != {} {{
@@ -92,7 +101,7 @@ fn emit_single_variant_impl(
 
             Ok(Self {{
 "#,
-        construct.type_name, construct.name, variant.index
+        construct.type_name, variant.index
     ));
     emit_construct_view_fields(output, "                ");
     output.push_str("            })\n        }\n    }\n\n");

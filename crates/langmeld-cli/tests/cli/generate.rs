@@ -266,9 +266,10 @@ fn generate_typed_handler_uses_the_generated_construct_identity() {
 
     let handler = fs::read_to_string(project.join("src/constructs/trace.rs"))
         .expect("typed handler should be generated");
-    assert!(handler.contains(
-        "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::Trace<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
-    ));
+    assert!(
+        handler
+            .contains("const CONSTRUCT: &'static str = crate::generated::constructs::Trace::NAME;")
+    );
     assert!(!handler.contains("const CONSTRUCT: &'static str = \"trace\";"));
 }
 

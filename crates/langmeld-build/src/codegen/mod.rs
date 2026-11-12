@@ -11,6 +11,7 @@ mod model;
 
 /// Generates typed Rust construct views for a validated language grammar.
 ///
+/// Each generated construct type exposes its declared name through `NAME`.
 /// Construct and capture names become Rust type and method names. All
 /// optional and repeated groups must have explicit names. Constructs with
 /// multiple syntax variants must name every variant with `syntax "name"`.

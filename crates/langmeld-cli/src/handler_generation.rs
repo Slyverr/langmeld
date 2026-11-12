@@ -253,7 +253,7 @@ pub(crate) fn construct_declaration(construct: &str, typed_name: Option<&str>) -
         || format!("const CONSTRUCT: &'static str = {construct:?};"),
         |type_name| {
             format!(
-                "const CONSTRUCT: &'static str =\n        <crate::generated::constructs::{type_name}<'static> as langmeld_language::TypedConstruct<\n            'static,\n        >>::CONSTRUCT;"
+                "const CONSTRUCT: &'static str = crate::generated::constructs::{type_name}::NAME;"
             )
         },
     )

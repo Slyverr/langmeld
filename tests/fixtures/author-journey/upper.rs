@@ -7,10 +7,7 @@ const UNKNOWN_VARIABLE_CODE: &str = "DEMO-LANGUAGE-006";
 pub(super) struct UpperHandler;
 
 impl ConstructHandler<RuntimeState> for UpperHandler {
-    const CONSTRUCT: &'static str =
-        <crate::generated::constructs::Upper<'static> as langmeld_language::TypedConstruct<
-            'static,
-        >>::CONSTRUCT;
+    const CONSTRUCT: &'static str = crate::generated::constructs::Upper::NAME;
 
     fn handle(
         &self,

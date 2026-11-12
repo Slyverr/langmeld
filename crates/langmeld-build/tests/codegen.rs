@@ -41,6 +41,8 @@ fn generates_typed_fields_and_named_capture_groups() {
         .expect("named groups can be represented by typed bindings");
 
     assert!(generated.contains("pub struct Function<'source>"));
+    assert!(generated.contains("pub const NAME: &'static str = \"function\";"));
+    assert!(generated.contains("const CONSTRUCT: &'static str = Self::NAME;"));
     assert!(generated.contains(
         "pub fn name(&self) -> ::core::result::Result<::langmeld_language::CapturedIdentifier<'source>, ::langmeld_core::Diagnostic>"
     ));
@@ -263,6 +265,7 @@ fn generates_variant_specific_views_for_named_syntax_alternatives() {
         .expect("named syntax alternatives can be represented by Rust enums");
 
     assert!(generated.contains("pub enum Value<'source>"));
+    assert!(generated.contains("pub const NAME: &'static str = \"value\";"));
     assert!(generated.contains("Declaration(ValueDeclaration<'source>)"));
     assert!(generated.contains("Assignment(ValueAssignment<'source>)"));
 }
