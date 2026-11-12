@@ -173,9 +173,11 @@ only when that release's gate passes.
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
-checks above and the archive verification command. Push the release commit to
-`develop` and wait for CI before tagging it. Create and push a signed annotated
-`vX.Y.Z` tag with the message `Langmeld vX.Y.Z`:
+checks above and the archive verification command. For a patch, tag the final
+compatible fix commit that carries the release metadata; for a minor release,
+tag its `chore(release)` commit. Push that commit to `develop` and wait for CI
+before creating the signed annotated `vX.Y.Z` tag with the message
+`Langmeld vX.Y.Z`:
 
 ```sh
 git tag -s vX.Y.Z -m "Langmeld vX.Y.Z"
