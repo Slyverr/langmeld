@@ -80,6 +80,21 @@ function validateExampleGrammar() {
   assert.ok(scopesAt(source, line.tokens, "Hello").includes("string.quoted.double.widgetscript"));
   assert.ok(!scopesAt(source, line.tokens, "title").includes("keyword.other.widgetscript"));
 
+  for (const identifier of [
+    "program1",
+    "program_name",
+    "_program",
+    "xprogram",
+    "programα",
+    "program١",
+  ]) {
+    const tokens = tokenizeLine(identifier).tokens;
+    assert.ok(
+      !scopesAt(identifier, tokens, "program").includes("keyword.other.widgetscript"),
+      `${JSON.stringify(identifier)} should not scope a keyword prefix`,
+    );
+  }
+
   const groupedOperatorRun = "==";
   assert.ok(
     !scopesAt(
