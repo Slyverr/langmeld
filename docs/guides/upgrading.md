@@ -309,3 +309,21 @@ fn handle(
 current construct. `dispatch_children()` likewise dispatches that construct's
 children, preventing a handler from accidentally mixing a node with another
 context.
+
+## Migrating from v0.4.0 to v0.5.0
+
+v0.5.0 changed language-definition files from `.lm` to `.langmeld`. The
+manifest schema remains `format = 1`, but its root `definition` path must now
+use `.langmeld`. Langmeld does not rename files or rewrite imports
+automatically. For each definition project:
+
+1. Rename every `.lm` definition file to `.langmeld`.
+2. Update each `import` path to use the renamed file.
+3. Update `definition` in `langmeld.toml` to point to the renamed root file.
+4. Update any project scripts or editor configuration that name those files.
+
+Then validate the imported definition graph:
+
+```sh
+langmeld check --manifest-path langmeld.toml
+```

@@ -264,6 +264,13 @@ API migration notes are in the
   references, imports, and choice values, plus watched-file refresh.
 - A bundled-definition extension example showing crate-provided constructs.
 
+### Changed
+
+- **Breaking:** Language definition files use the `.langmeld` extension instead
+  of `.lm`. Rename definition files and update imports and the manifest's
+  `definition` path; the manifest remains at `format = 1` and its root path
+  must use `.langmeld`.
+
 ### Fixed
 
 - Starter validation, package-name defaults, generated licenses, and recovery
