@@ -426,6 +426,41 @@ error. The built-in resolvers accept project-relative imports and reject
 absolute paths, backslash separators, and paths that escape the project root.
 Directory-backed imports also reject symlink escapes.
 
+## Mixing `.langmeld` and Rust-authored constructs
+
+Load a declarative project as a `LanguageSpec`, then use `into_builder()` to
+add constructs declared in Rust. This keeps one validated grammar model while
+allowing a language to split its syntax declarations between files and Rust
+modules:
+
+```rust,ignore
+use langmeld_language::{ConstructSpec, PatternPart};
+use langmeld_project::load_language_spec;
+
+let spec = load_language_spec(".")?;
+let language = spec
+    .into_builder()
+    .construct(ConstructSpec::new(
+        "version",
+        [
+            PatternPart::literal("version"),
+            PatternPart::integer("number"),
+            PatternPart::literal(";"),
+        ],
+    ))
+    .build()?;
+```
+
+The builder validates the full construct set at `build()`, so block rules and
+category membership can refer to constructs added from Rust. It preserves the
+loaded lexical rules. When the definition has explicit `root` declarations,
+the builder preserves that allowlist; add a Rust construct to the root with
+`with_root_constructs`. Without explicit root declarations, all constructs are
+allowed at the root by default.
+
+This adds grammar only. Register each construct's behavior separately with a
+`ConstructHandler` when the language needs runtime behavior.
+
 ## When to use Rust hooks
 
 Use `.langmeld` when the language can be described by ordered token patterns and

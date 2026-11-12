@@ -39,8 +39,8 @@ pub use parser::{
     parse, parse_with_lexer, parse_with_lexer_and_limits, parse_with_limits,
 };
 pub use spec::{
-    BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LexicalRules, PatternPart, RepeatMinimum,
-    SpecError,
+    BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LanguageSpecBuilder, LexicalRules,
+    PatternPart, RepeatMinimum, SpecError,
 };
 pub use syntax::{
     SyntaxElement, SyntaxNode, SyntaxNodeKind, SyntaxToken, SyntaxTokenKind, SyntaxTree,

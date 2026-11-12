@@ -36,9 +36,9 @@ for using Langmeld.
 Use `LanguageParser` when the language's syntax needs a different parsing
 strategy or a language-specific syntax tree. The generic `LanguageSpec` parser
 and grammar exporters cover the declarative subset; Rust-hosted parsers and
-backends use their documented host contracts instead. A complete grammar can
-be authored in Rust today, but there is not yet a first-class builder for
-combining a loaded `.langmeld` project with additional Rust-authored constructs.
+backends use their documented host contracts instead. A loaded declarative
+specification can be extended with Rust-authored constructs through
+`LanguageSpec::into_builder`; the builder validates the combined grammar once.
 
 In a declarative pattern, `identifier "name"` captures a lexically valid
 identifier in the field named `name`. It does not say whether that field

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use super::validation;
-use super::{ConstructSpec, LexicalRules, SpecError};
+use super::{ConstructSpec, LanguageSpecBuilder, LexicalRules, SpecError};
 
 /// A language's currently supported declarative grammar.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,6 +19,22 @@ pub struct LanguageSpec {
 }
 
 impl LanguageSpec {
+    /// Starts a builder for a grammar authored in Rust.
+    #[must_use]
+    pub fn builder(name: impl Into<String>) -> LanguageSpecBuilder {
+        LanguageSpecBuilder::new(name)
+    }
+
+    /// Converts this specification into a builder for adding Rust constructs.
+    ///
+    /// Existing lexical rules and explicit root-construct restrictions are
+    /// preserved. If root constructs were not explicitly restricted, added
+    /// constructs are allowed at the root by default.
+    #[must_use]
+    pub fn into_builder(self) -> LanguageSpecBuilder {
+        LanguageSpecBuilder::from_spec(self)
+    }
+
     /// Validates and creates a language grammar.
     pub fn new(
         name: impl Into<String>,
