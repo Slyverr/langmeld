@@ -86,6 +86,38 @@ function validateExampleGrammar() {
     ),
   );
 
+  const adjacentNumber = "123abc";
+  assert.ok(
+    scopesAt(adjacentNumber, tokenizeLine(adjacentNumber).tokens, "123").includes(
+      "constant.numeric.widgetscript",
+    ),
+  );
+
+  const identifierWithDigits = "abc123";
+  assert.ok(
+    !scopesAt(identifierWithDigits, tokenizeLine(identifierWithDigits).tokens, "123").includes(
+      "constant.numeric.widgetscript",
+    ),
+  );
+
+  const unicodeIdentifierWithDigits = "fox١23";
+  const unicodeIdentifierTokens = tokenizeLine(unicodeIdentifierWithDigits);
+  assert.ok(
+    !scopesAt(
+      unicodeIdentifierWithDigits,
+      unicodeIdentifierTokens.tokens,
+      "23",
+    ).includes("constant.numeric.widgetscript"),
+  );
+
+  const integerAfterUnicodeNumber = "١12";
+  const integerAfterUnicodeNumberTokens = tokenizeLine(integerAfterUnicodeNumber);
+  assert.ok(
+    scopesAt(integerAfterUnicodeNumber, integerAfterUnicodeNumberTokens.tokens, "12").includes(
+      "constant.numeric.widgetscript",
+    ),
+  );
+
   const escapedStringLine = String.raw`let text = "a\"b";`;
   const escapedString = tokenizeLine(escapedStringLine);
   assert.ok(

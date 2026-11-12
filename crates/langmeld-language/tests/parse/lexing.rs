@@ -1,6 +1,30 @@
 use super::*;
 
 #[test]
+fn ascii_integers_and_unicode_identifiers_have_consistent_token_boundaries() {
+    let source = SourceFile::new("tokens", "123abc abc123 fox١23 ١12");
+    let output = DefaultLexer.lex(&source);
+    let tokens = output
+        .tokens
+        .iter()
+        .map(|token| (token.text.as_str(), token.kind))
+        .collect::<Vec<_>>();
+
+    assert!(output.diagnostics.is_empty());
+    assert_eq!(
+        tokens,
+        [
+            ("123", TokenKind::Integer),
+            ("abc", TokenKind::Identifier),
+            ("abc123", TokenKind::Identifier),
+            ("fox١23", TokenKind::Identifier),
+            ("١", TokenKind::Punctuation),
+            ("12", TokenKind::Integer),
+        ]
+    );
+}
+
+#[test]
 fn configured_line_and_block_comments_are_skipped_without_changing_string_tokens() {
     let grammar = LanguageSpec::new(
         "Comments",

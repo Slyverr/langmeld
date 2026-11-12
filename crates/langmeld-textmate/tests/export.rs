@@ -51,8 +51,13 @@ fn exports_deduplicated_literals_and_builtin_lexical_patterns() {
     assert_eq!(patterns[0]["name"], "string.quoted.double.widget");
     assert_eq!(patterns[0]["patterns"][0]["match"], r"\\(?:.|$)");
     assert_eq!(patterns[1]["match"], r"\b(?:program|if|else|print)\b");
-    assert_eq!(patterns[2]["match"], r"\b[0-9]+\b");
-    assert_eq!(patterns[3]["match"], r"(?:\[|\]|\{|\}|\|)");
+    assert_eq!(
+        patterns[2]["match"],
+        r"(?:\p{Alphabetic}|_)(?:\p{Alphabetic}|\p{Number}|_)*"
+    );
+    assert!(!patterns[2].as_object().unwrap().contains_key("name"));
+    assert_eq!(patterns[3]["match"], r"[0-9]+");
+    assert_eq!(patterns[4]["match"], r"(?:\[|\]|\{|\}|\|)");
 }
 
 #[test]

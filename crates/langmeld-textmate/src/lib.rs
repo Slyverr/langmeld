@@ -106,7 +106,7 @@ pub fn generate(
             }
             .into(),
             None => MatchPattern {
-                name: format!("comment.line.{suffix}"),
+                name: Some(format!("comment.line.{suffix}")),
                 regex: format!("{}[^\\r\\n]*", regex_escape(opening)),
             }
             .into(),
@@ -116,7 +116,7 @@ pub fn generate(
     if !keywords.is_empty() {
         patterns.push(
             MatchPattern {
-                name: format!("keyword.other.{suffix}"),
+                name: Some(format!("keyword.other.{suffix}")),
                 regex: format!(
                     "\\b(?:{})\\b",
                     keywords
@@ -129,17 +129,26 @@ pub fn generate(
             .into(),
         );
     }
+
+    // Consume identifiers as whole tokens so numeric rules cannot highlight their suffixes.
     patterns.push(
         MatchPattern {
-            name: format!("constant.numeric.{suffix}"),
-            regex: r"\b[0-9]+\b".to_owned(),
+            name: None,
+            regex: r"(?:\p{Alphabetic}|_)(?:\p{Alphabetic}|\p{Number}|_)*".to_owned(),
+        }
+        .into(),
+    );
+    patterns.push(
+        MatchPattern {
+            name: Some(format!("constant.numeric.{suffix}")),
+            regex: r"[0-9]+".to_owned(),
         }
         .into(),
     );
     if !punctuation.is_empty() {
         patterns.push(
             MatchPattern {
-                name: format!("punctuation.{suffix}"),
+                name: Some(format!("punctuation.{suffix}")),
                 regex: format!(
                     "(?:{})",
                     punctuation
@@ -235,7 +244,7 @@ fn string_pattern(suffix: &str) -> StringPattern {
         begin: "\"".to_owned(),
         end: "\"".to_owned(),
         patterns: vec![MatchPattern {
-            name: format!("constant.character.escape.{suffix}"),
+            name: Some(format!("constant.character.escape.{suffix}")),
             regex: r"\\(?:.|$)".to_owned(),
         }],
     }
@@ -267,7 +276,8 @@ struct StringPattern {
 
 #[derive(Serialize)]
 struct MatchPattern {
-    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
     #[serde(rename = "match")]
     regex: String,
 }
