@@ -308,9 +308,12 @@ pub(crate) fn validate_tokens(
             && source.text().is_char_boundary(span.start)
             && source.text().is_char_boundary(span.end);
         if !valid_range {
-            diagnostics.push(Diagnostic::spec_error(
+            let offset = nearest_source_boundary(source, span.start);
+            diagnostics.push(Diagnostic::error(
                 "LM-LEX-002",
                 "lexer emitted an empty or invalid source range",
+                source,
+                Span::new(offset, offset),
             ));
             continue;
         }
@@ -336,6 +339,30 @@ pub(crate) fn validate_tokens(
         valid.push(token);
     }
     valid
+}
+
+fn nearest_source_boundary(source: &SourceFile, offset: usize) -> usize {
+    let text = source.text();
+    let offset = offset.min(text.len());
+    if text.is_char_boundary(offset) {
+        return offset;
+    }
+
+    let mut previous = offset;
+    while !text.is_char_boundary(previous) {
+        previous -= 1;
+    }
+
+    let mut next = offset;
+    while !text.is_char_boundary(next) {
+        next += 1;
+    }
+
+    if offset - previous <= next - offset {
+        previous
+    } else {
+        next
+    }
 }
 
 fn is_grouped_punctuation(character: char) -> bool {

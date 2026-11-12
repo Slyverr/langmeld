@@ -440,17 +440,29 @@ fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
 }
 
 #[test]
-fn rejects_custom_token_ranges_inside_utf8_codepoints_without_panicking() {
-    struct InvalidBoundaryLexer;
+fn reports_source_located_diagnostics_for_invalid_custom_token_ranges() {
+    struct InvalidSpanLexer;
 
-    impl Lexer for InvalidBoundaryLexer {
+    impl Lexer for InvalidSpanLexer {
         fn lex(&self, _source: &SourceFile) -> LexOutput {
             LexOutput {
-                tokens: vec![LexedToken {
-                    text: "x".into(),
-                    kind: TokenKind::Identifier,
-                    span: Span::new(1, 2),
-                }],
+                tokens: vec![
+                    LexedToken {
+                        text: "x".into(),
+                        kind: TokenKind::Identifier,
+                        span: Span::new(1, 2),
+                    },
+                    LexedToken {
+                        text: "y".into(),
+                        kind: TokenKind::Identifier,
+                        span: Span::new(99, 100),
+                    },
+                    LexedToken {
+                        text: "z".into(),
+                        kind: TokenKind::Identifier,
+                        span: Span::new(3, 4),
+                    },
+                ],
                 diagnostics: Vec::new(),
             }
         }
@@ -466,8 +478,29 @@ fn rejects_custom_token_ranges_inside_utf8_codepoints_without_panicking() {
     .unwrap();
     let source = SourceFile::new("unicode", "🦀");
 
-    let parsed = parse_with_lexer(&source, &grammar, &InvalidBoundaryLexer);
+    let parsed = parse_with_lexer(&source, &grammar, &InvalidSpanLexer);
 
     assert_eq!(parsed.diagnostics()[0].code, "LM-LEX-002");
+    let utf8_location = parsed.diagnostics()[0]
+        .location
+        .as_ref()
+        .expect("invalid UTF-8 ranges should retain the source identity");
+    assert_eq!(utf8_location.source_name(), "unicode");
+    assert_eq!(utf8_location.source_identity(), source.identity());
+    assert_eq!(utf8_location.span(), Span::new(0, 0));
+    let out_of_bounds_location = parsed.diagnostics()[1]
+        .location
+        .as_ref()
+        .expect("out-of-bounds ranges should retain the source identity");
+    assert_eq!(out_of_bounds_location.source_identity(), source.identity());
+    assert_eq!(out_of_bounds_location.span(), Span::new(4, 4));
+    assert_eq!(
+        parsed.diagnostics()[2]
+            .location
+            .as_ref()
+            .expect("invalid interior offsets should retain the source identity")
+            .span(),
+        Span::new(4, 4)
+    );
     assert!(parsed.constructs().is_empty());
 }

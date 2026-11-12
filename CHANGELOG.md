@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep invalid custom-lexer token-span diagnostics attached to the source,
+  using the nearest valid UTF-8 offset.
+
 ## [0.11.0] - 2026-11-12
 
 ### Added
