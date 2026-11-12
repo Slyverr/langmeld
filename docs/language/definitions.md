@@ -448,6 +448,42 @@ characters, and names ending in a dot or space. This policy applies on every
 host so a project can move between operating systems. Directory-backed imports
 also reject symlink escapes.
 
+## Defining a grammar entirely in Rust
+
+`.langmeld` is optional. Build the same validated grammar model directly with
+`LanguageSpec`, `ConstructSpec`, and `PatternPart`, then organize reusable
+constructs in ordinary Rust modules:
+
+```rust,ignore
+use langmeld_language::{CompletionKind, ConstructSpec, LanguageSpec, PatternPart};
+
+let print = ConstructSpec::new(
+    "print",
+    [
+        PatternPart::literal("print"),
+        PatternPart::string("value"),
+        PatternPart::literal(";"),
+    ],
+)
+.implements(&["statement"])
+.with_completion_kind(CompletionKind::Keyword);
+
+let program = ConstructSpec::new("program", [PatternPart::literal("program")])
+    .block_with_categories("{", "}", &[], &["statement"]);
+
+let grammar = LanguageSpec::builder("Tiny")
+    .construct(program)
+    .construct(print)
+    .with_root_constructs(&["program"])
+    .build()?;
+```
+
+This grammar accepts `program { print "Hello"; }`. It defines syntax and
+completion metadata only; implement execution or other language behavior in
+Rust handlers or other host components. Use `LanguageSpec::into_builder()` to
+extend a loaded `.langmeld` grammar, or `LanguageSpecBuilder::extend()` to add
+constructs collected from Rust modules.
+
 ## Mixing `.langmeld` and Rust-authored constructs
 
 Load a declarative project as a `LanguageSpec`, then use `into_builder()` to
