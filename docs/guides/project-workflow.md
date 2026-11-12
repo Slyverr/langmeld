@@ -150,8 +150,9 @@ different directory. The argument is the project root containing
 `langmeld.toml`, not a path to the `.langmeld` file.
 
 Format `1` requires the `format` field and optionally accepts `definition`.
-The definition path must be a project-relative `.langmeld` path without
-parent-directory segments.
+The definition path must be project-relative and cannot contain
+parent-directory segments. New projects should use `.langmeld`; legacy `.lm`
+paths remain loadable with a migration warning.
 
 The generated Cargo package is a standalone workspace. The initializer writes
 into an existing directory but refuses to overwrite any generated file. Its

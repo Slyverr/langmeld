@@ -89,7 +89,6 @@ fn rejects_invalid_or_non_portable_definition_paths() {
     for path in [
         "",
         "language.txt",
-        "language.lm",
         "/absolute/language.langmeld",
         "../language.langmeld",
         "C:/language.langmeld",
@@ -118,18 +117,9 @@ fn reads_the_conventional_manifest_from_a_project_root() {
 }
 
 #[test]
-fn explains_how_to_update_legacy_lm_definition_paths() {
-    let error = ProjectManifest::parse("format = 1\ndefinition = \"language/main.lm\"\n")
-        .expect_err("legacy `.lm` root paths should be rejected");
+fn accepts_legacy_lm_root_paths_for_migration() {
+    let manifest = ProjectManifest::parse("format = 1\ndefinition = \"language/main.lm\"\n")
+        .expect("legacy `.lm` root paths should remain loadable during migration");
 
-    assert!(
-        error
-            .to_string()
-            .contains("Langmeld 0.5.0 changed language definitions")
-    );
-    assert!(
-        error
-            .to_string()
-            .contains("update imports and `definition`")
-    );
+    assert_eq!(manifest.definition, "language/main.lm");
 }

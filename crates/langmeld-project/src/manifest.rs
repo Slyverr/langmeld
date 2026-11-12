@@ -28,7 +28,7 @@ pub enum RustBindings {
 /// Parsed project settings needed to locate the language definition.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectManifest {
-    /// Project-relative path to the root `.langmeld` definition.
+    /// Project-relative path to the root definition source.
     pub definition: String,
     /// Rust access strategy for generated project tooling.
     pub rust_bindings: RustBindings,
@@ -38,10 +38,12 @@ impl ProjectManifest {
     /// Parses and validates a Langmeld project manifest.
     ///
     /// The manifest requires `format = 1`. The optional `definition` field
-    /// selects a project-relative root `.langmeld` file and defaults to
-    /// [`DEFAULT_DEFINITION_PATH`]. The optional `rust_bindings` field accepts
-    /// `dynamic` or `typed` and defaults to `dynamic`. Unknown fields are
-    /// rejected so misspellings do not silently change project behavior.
+    /// selects a project-relative root definition file and defaults to
+    /// [`DEFAULT_DEFINITION_PATH`]. Legacy `.lm` paths are accepted for
+    /// migration and reported as warnings when the project is loaded. The
+    /// optional `rust_bindings` field accepts `dynamic` or `typed` and defaults
+    /// to `dynamic`. Unknown fields are rejected so misspellings do not
+    /// silently change project behavior.
     pub fn parse(source: &str) -> Result<Self, ProjectManifestError> {
         let document =
             toml::from_str::<toml::Value>(source).map_err(ProjectManifestError::Parse)?;
@@ -122,7 +124,7 @@ pub enum ProjectManifestError {
     UnknownField(String),
     /// The `rust_bindings` field is not `dynamic` or `typed`.
     InvalidRustBindings,
-    /// The root definition path is absolute, non-portable, or not an `.langmeld` file.
+    /// The root definition path is absolute, non-portable, or has an unsupported extension.
     InvalidDefinitionPath(String),
     /// The manifest file could not be read.
     Read {
@@ -157,10 +159,6 @@ impl fmt::Display for ProjectManifestError {
                     "unknown `{field}` field in {PROJECT_MANIFEST_FILE}"
                 )
             }
-            Self::InvalidDefinitionPath(path) if path.ends_with(".lm") => write!(
-                formatter,
-                "`definition` points to legacy `.lm` path `{path}`; Langmeld 0.5.0 changed language definitions to `.langmeld`. Rename the file, update imports and `definition`, and ensure the path is project-relative without parent segments"
-            ),
             Self::InvalidDefinitionPath(path) => write!(
                 formatter,
                 "`definition` must be a project-relative `.langmeld` path without parent segments, got `{path}`"
@@ -196,7 +194,7 @@ impl Error for ProjectManifestError {
 fn is_definition_path(path: &str) -> bool {
     !path.contains('\\')
         && !has_windows_drive_prefix(path)
-        && path.ends_with(".langmeld")
+        && (path.ends_with(".langmeld") || path.ends_with(".lm"))
         && !path.is_empty()
         && Path::new(path)
             .components()

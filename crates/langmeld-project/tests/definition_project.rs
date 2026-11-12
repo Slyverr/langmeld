@@ -66,6 +66,37 @@ fn loads_and_parses_a_manifest_backed_definition_project() {
 }
 
 #[test]
+fn loads_a_legacy_lm_root_and_reports_a_migration_warning() {
+    let project = TestDirectory::new();
+    project.write(
+        "langmeld.toml",
+        "format = 1\ndefinition = \"language/main.lm\"\n",
+    );
+    project.write(
+        "language/main.lm",
+        "language \"Example\" { construct \"item\" { syntax { literal \"item\"; } } }",
+    );
+
+    let loaded = load_definition_project(project.path()).unwrap();
+
+    assert!(loaded.is_valid(), "{:?}", loaded.definition().diagnostics);
+    let warning = loaded
+        .definition()
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-W001")
+        .expect("legacy root should produce a migration warning");
+    assert!(warning.message.contains("update `definition`"));
+    assert_eq!(
+        warning
+            .location
+            .as_ref()
+            .map(|location| location.source_name()),
+        Some("language/main.lm")
+    );
+}
+
+#[test]
 fn loads_a_valid_language_specification() {
     let project = TestDirectory::new();
     project.write("langmeld.toml", "format = 1\n");

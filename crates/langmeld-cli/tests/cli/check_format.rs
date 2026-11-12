@@ -134,7 +134,7 @@ fn check_warns_for_legacy_lm_imports_and_keeps_the_project_valid() {
 }
 
 #[test]
-fn check_explains_how_to_migrate_a_legacy_lm_root_path() {
+fn check_warns_for_a_legacy_lm_root_and_keeps_the_project_valid() {
     let parent = TestDirectory::new();
     let project = parent.path();
     fs::create_dir_all(project.join("language")).expect("language directory should be created");
@@ -143,6 +143,11 @@ fn check_explains_how_to_migrate_a_legacy_lm_root_path() {
         "format = 1\ndefinition = \"language/main.lm\"\n",
     )
     .expect("manifest should be written");
+    fs::write(
+        project.join("language/main.lm"),
+        r#"language "Legacy" { construct "program" { syntax { literal "program"; } } }"#,
+    )
+    .expect("legacy root definition should be written");
 
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args(["check", "--manifest-path", "langmeld.toml"])
@@ -150,10 +155,16 @@ fn check_explains_how_to_migrate_a_legacy_lm_root_path() {
         .output()
         .expect("CLI should start");
 
-    assert!(!output.status.success());
-    let error = String::from_utf8_lossy(&output.stderr);
-    assert!(error.contains("Langmeld 0.5.0 changed language definitions to `.langmeld`"));
-    assert!(error.contains("update imports and `definition`"));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let warning = String::from_utf8_lossy(&output.stderr);
+    assert!(warning.contains("language/main.lm:1:"));
+    assert!(warning.contains("warning[LM-DEF-W001]"));
+    assert!(warning.contains("update `definition`"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("Language `Legacy` is valid."));
 }
 
 #[test]

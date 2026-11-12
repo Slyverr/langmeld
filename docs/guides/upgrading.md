@@ -13,11 +13,11 @@ independently of the Langmeld crate version. Format `1` is currently supported;
 other values are rejected. `.langmeld` files do not have a separate format
 field, so their compatibility follows the Langmeld release. A definition that
 is still valid under the current grammar is not generally flagged as old. The
-loader warns on legacy `.lm` import paths, and a manifest that points to an old
-`.lm` root gives migration guidance. The diagnostic plumbing can carry and
-display warnings: `langmeld check` prints non-error diagnostics, the LSP
-preserves diagnostic severity, and `langmeld-build` forwards warning
-diagnostics to Cargo. There is no automatic migration command.
+loader warns on legacy `.lm` import paths and manifest roots while keeping them
+loadable. The diagnostic plumbing can carry and display warnings:
+`langmeld check` prints non-error diagnostics, the LSP preserves diagnostic
+severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
+no automatic migration command.
 
 ## Migrating from v0.9.0 to v0.10.0
 
@@ -313,8 +313,8 @@ context.
 ## Migrating from v0.4.0 to v0.5.0
 
 v0.5.0 changed language-definition files from `.lm` to `.langmeld`. The
-manifest schema remains `format = 1`, but its root `definition` path must now
-use `.langmeld`. Langmeld does not rename files or rewrite imports
+manifest schema remains `format = 1`. Legacy `.lm` imports and root paths remain
+loadable with warnings, but Langmeld does not rename files or rewrite imports
 automatically. For each definition project:
 
 1. Rename every `.lm` definition file to `.langmeld`.
@@ -322,9 +322,8 @@ automatically. For each definition project:
 3. Update `definition` in `langmeld.toml` to point to the renamed root file.
 4. Update any project scripts or editor configuration that name those files.
 
-The current loader reports a warning for every import path that ends in `.lm`,
-and `langmeld check` reports an actionable manifest error when the root path
-still ends in `.lm`.
+The current loader reports a warning for every import path that ends in `.lm`.
+`langmeld check` also warns when the manifest's root path still ends in `.lm`.
 
 Then validate the imported definition graph:
 

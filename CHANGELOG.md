@@ -11,8 +11,8 @@ API migration notes are in the
 
 ### Changed
 
-- Warn on definition imports using the legacy `.lm` extension and explain how
-  to update an old `.lm` root path in `langmeld.toml`.
+- Warn when a definition import or manifest root uses the legacy `.lm`
+  extension; both remain loadable while users migrate to `.langmeld`.
 
 ## [0.10.0] - 2026-11-12
 
