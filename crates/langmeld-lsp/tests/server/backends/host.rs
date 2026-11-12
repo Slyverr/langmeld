@@ -122,8 +122,7 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
 
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
-    let backend = HostLanguageBackend::new(DiagnosticParser)
-        .with_analyzer(DiagnosticAnalyzer)
+    let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
         .with_completer(DiagnosticCompleter)
         .with_navigator(DiagnosticNavigator);
     let server_thread = thread::spawn(move || {
@@ -247,8 +246,7 @@ fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
     let location_for_symbols = target_location.clone();
     let closed_document = Arc::new(Mutex::new(None));
     let closed_document_handler = Arc::clone(&closed_document);
-    let backend = HostLanguageBackend::new(DiagnosticParser)
-        .with_analyzer(DiagnosticAnalyzer)
+    let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
         .with_navigator(ExternalLocationNavigator(target_location))
         .with_source_resolver(move |location| {
             (location == &location_for_resolver)

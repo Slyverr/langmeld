@@ -28,8 +28,7 @@ fn completes_field_types_from_the_current_schema_symbols() {
 
 #[test]
 fn host_backend_connects_schema_analysis_completion_and_navigation() {
-    let backend = HostLanguageBackend::new(SchemaParser)
-        .with_analyzer(SchemaAnalyzer)
+    let backend = HostLanguageBackend::new_with_analyzer(SchemaParser, SchemaAnalyzer)
         .with_completer(SchemaCompleter)
         .with_navigator(SchemaNavigator);
     let source = SourceFile::new(
@@ -64,8 +63,7 @@ fn host_backend_connects_schema_analysis_completion_and_navigation() {
 
 #[test]
 fn workspace_analysis_resolves_and_navigates_across_open_files() {
-    let backend = HostLanguageBackend::new(SchemaParser)
-        .with_analyzer(SchemaAnalyzer)
+    let backend = HostLanguageBackend::new_with_analyzer(SchemaParser, SchemaAnalyzer)
         .with_workspace_analyzer(SchemaWorkspaceAnalyzer)
         .with_completer(SchemaCompleter)
         .with_navigator(SchemaNavigator);

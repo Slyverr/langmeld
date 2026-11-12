@@ -64,7 +64,7 @@ supports relative watcher patterns. If the backend requests any relative
 pattern from a client that does not support them, Langmeld skips that
 file-watcher registration.
 For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
-`HostLanguageBackend::new(parser).with_analyzer(analyzer)` combines their
+`HostLanguageBackend::new_with_analyzer(parser, analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and
 `with_navigator` to expose host completion, definition, and reference
 callbacks. Add `with_workspace_analyzer` when semantics depend on more than one
@@ -77,10 +77,9 @@ analysis for every supplied document so other open documents do not retain
 stale diagnostics. It parses each open source again for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
-parser diagnostics. Configure the analyzer before its workspace analyzer,
-completer, or navigator: those providers use the current analysis type, so
-adding the analyzer afterward clears any already attached providers. Rename,
-formatting, and hover still require a custom `LanguageBackend`.
+parser diagnostics. Select the analyzer at construction, then attach its
+workspace analyzer, completer, and navigator. Rename, formatting, and hover
+still require a custom `LanguageBackend`.
 Hosts can implement `format_document` to return formatted text for a complete
 document. Langmeld passes through the editor's formatting options and returns
 one whole-document edit using the negotiated position encoding. Formatting

@@ -6,8 +6,7 @@ use langmeld_schema_language_example::{
 };
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let backend = HostLanguageBackend::new(SchemaParser)
-        .with_analyzer(SchemaAnalyzer)
+    let backend = HostLanguageBackend::new_with_analyzer(SchemaParser, SchemaAnalyzer)
         .with_workspace_analyzer(SchemaWorkspaceAnalyzer)
         .with_completer(SchemaCompleter)
         .with_navigator(SchemaNavigator);

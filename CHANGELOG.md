@@ -41,6 +41,10 @@ API migration notes are in the
 
 - `langmeld check` now displays non-error definition diagnostics, and
   `langmeld-build` forwards definition warnings to Cargo.
+- **Breaking:** Replace `HostLanguageBackend::new(parser).with_analyzer(analyzer)`
+  with `HostLanguageBackend::new_with_analyzer(parser, analyzer)`. Choose the
+  analyzer before attaching analysis-dependent providers so none can be
+  silently discarded.
 - **Breaking:** `PatternPart::Optional` now stores an optional group name and
   its parts, and `PatternPart::Repeat` stores an optional name. Existing
   constructors remain available; direct enum construction must add `name: None`

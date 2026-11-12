@@ -225,12 +225,14 @@ fn backend(
     parser_source: Option<SourceFile>,
     analyzer_source: Option<SourceFile>,
 ) -> HostLanguageBackend<TestParser, TestAnalyzer> {
-    HostLanguageBackend::new(TestParser {
-        reported_source: parser_source,
-    })
-    .with_analyzer(TestAnalyzer {
-        reported_source: analyzer_source,
-    })
+    HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: parser_source,
+        },
+        TestAnalyzer {
+            reported_source: analyzer_source,
+        },
+    )
     .with_completer(TestCompleter)
     .with_navigator(TestNavigator)
 }
@@ -280,10 +282,12 @@ fn standalone_parser_source_mismatch_is_diagnosed_and_suppresses_queries() {
 fn stale_parser_result_is_discarded_before_analysis() {
     let (source, _, other_source) = managed_source_and_other_identity();
     let analyzer_calls = Arc::new(AtomicUsize::new(0));
-    let backend = HostLanguageBackend::new(TestParser {
-        reported_source: Some(other_source),
-    })
-    .with_analyzer(CountingAnalyzer(Arc::clone(&analyzer_calls)));
+    let backend = HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: Some(other_source),
+        },
+        CountingAnalyzer(Arc::clone(&analyzer_calls)),
+    );
 
     let document = backend.analyze(&source);
 
@@ -402,12 +406,14 @@ fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
 #[test]
 fn invalid_workspace_results_fall_back_to_per_source_analysis() {
     let (source, _, other_source) = managed_source_and_other_identity();
-    let backend = HostLanguageBackend::new(TestParser {
-        reported_source: None,
-    })
-    .with_analyzer(TestAnalyzer {
-        reported_source: None,
-    })
+    let backend = HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: None,
+        },
+        TestAnalyzer {
+            reported_source: None,
+        },
+    )
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
         reported_source: Some(other_source.clone()),
         output_count: None,
@@ -441,12 +447,14 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
 #[test]
 fn incomplete_workspace_results_fall_back_to_every_source() {
     let (source, _, other_source) = managed_source_and_other_identity();
-    let backend = HostLanguageBackend::new(TestParser {
-        reported_source: None,
-    })
-    .with_analyzer(TestAnalyzer {
-        reported_source: None,
-    })
+    let backend = HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: None,
+        },
+        TestAnalyzer {
+            reported_source: None,
+        },
+    )
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
         reported_source: None,
         output_count: Some(1),
@@ -480,12 +488,14 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
 #[test]
 fn mismatched_parser_results_keep_workspace_documents_in_sync() {
     let (source, other_identity, other_source) = managed_source_and_other_identity();
-    let backend = HostLanguageBackend::new(TestParser {
-        reported_source: Some(other_source.clone()),
-    })
-    .with_analyzer(TestAnalyzer {
-        reported_source: None,
-    })
+    let backend = HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: Some(other_source.clone()),
+        },
+        TestAnalyzer {
+            reported_source: None,
+        },
+    )
     .with_workspace_analyzer(TestWorkspaceAnalyzer {
         reported_source: None,
         output_count: None,

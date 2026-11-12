@@ -19,6 +19,14 @@ deprecated. The CLI does not provide an automatic migration command.
 
 ## Unreleased API changes
 
+### Host language backend construction
+
+Replace `HostLanguageBackend::new(parser).with_analyzer(analyzer)` with
+`HostLanguageBackend::new_with_analyzer(parser, analyzer)`. The analyzer is now
+selected when the backend is created, before completion, navigation, and
+workspace-analysis providers are attached. Parser-only backends still use
+`HostLanguageBackend::new(parser)`.
+
 ### Name syntax alternatives and capture groups
 
 `.langmeld` syntax may name a variant or optional/repeated group, for example

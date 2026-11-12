@@ -119,28 +119,6 @@ where
             document_close_handler: None,
         }
     }
-
-    /// Adds host semantic analysis to this backend.
-    ///
-    /// Call this before adding a workspace analyzer, completer, or navigator.
-    /// Those providers are typed against the current analyzer's result, so
-    /// changing the analyzer type clears providers that were already attached.
-    #[must_use]
-    pub fn with_analyzer<A>(self, analyzer: A) -> HostLanguageBackend<P, A>
-    where
-        A: LanguageAnalyzer<P>,
-    {
-        HostLanguageBackend {
-            parser: self.parser,
-            analyzer,
-            workspace_analyzer: None,
-            completer: None,
-            navigator: None,
-            source_resolver: self.source_resolver,
-            workspace_symbol_provider: self.workspace_symbol_provider,
-            document_close_handler: self.document_close_handler,
-        }
-    }
 }
 
 impl<P, A> HostLanguageBackend<P, A>
@@ -148,6 +126,25 @@ where
     P: LanguageParser,
     A: LanguageAnalyzer<P>,
 {
+    /// Creates a backend with host-defined semantic analysis.
+    ///
+    /// Choose the analyzer before attaching completion, navigation, or
+    /// workspace-analysis providers so those providers are checked against
+    /// the correct analysis type.
+    #[must_use]
+    pub fn new_with_analyzer(parser: P, analyzer: A) -> Self {
+        Self {
+            parser,
+            analyzer,
+            workspace_analyzer: None,
+            completer: None,
+            navigator: None,
+            source_resolver: None,
+            workspace_symbol_provider: None,
+            document_close_handler: None,
+        }
+    }
+
     fn analyze_parsed(
         &self,
         source: &SourceFile,
