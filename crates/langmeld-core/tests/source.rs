@@ -71,6 +71,24 @@ fn source_locations_count_unicode_columns_and_lines() {
 }
 
 #[test]
+fn source_locations_exclude_crlf_carriage_returns_from_columns() {
+    let source = SourceFile::new("crlf", "abc\r\ndef");
+    let index = source.line_index();
+
+    assert_eq!(source.line_column(3), (1, 4));
+    assert_eq!(source.line_column(4), (1, 4));
+    assert_eq!(source.line_column(5), (2, 1));
+    assert_eq!(source.line_column(usize::MAX), (2, 4));
+    assert_eq!(
+        index.position(4, PositionEncoding::Utf32),
+        Some(SourcePosition {
+            line: 0,
+            character: 3,
+        })
+    );
+}
+
+#[test]
 fn database_keeps_identity_and_advances_revision_only_for_changed_text() {
     let mut sources = SourceDatabase::default();
     let id = sources.insert("main", "one").unwrap();

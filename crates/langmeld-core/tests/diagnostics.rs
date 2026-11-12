@@ -66,6 +66,17 @@ fn formats_source_locations_using_unicode_scalar_columns() {
 }
 
 #[test]
+fn formats_crlf_locations_using_editor_compatible_columns() {
+    let source = SourceFile::new("main.lang", "abc\r\ndef");
+    let diagnostic = Diagnostic::error("TEST-001", "line ending", &source, Span::new(4, 5));
+
+    assert_eq!(
+        format_diagnostics(&[source], &[diagnostic]),
+        "main.lang:1:4: error[TEST-001]: line ending"
+    );
+}
+
+#[test]
 fn formats_missing_sources_and_project_level_diagnostics_with_safe_locations() {
     let missing_source = SourceFile::new("missing.lang", "text");
     let diagnostics = [

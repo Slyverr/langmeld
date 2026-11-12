@@ -130,6 +130,8 @@ impl SourceFile {
     }
 
     /// Converts a byte offset to one-based line and Unicode-scalar column.
+    /// Lines are split on LF, and a CR before LF is excluded from the column.
+    /// Offsets beyond the source are clamped to its end.
     /// Offsets inside a UTF-8 character are clamped to that character's start.
     #[must_use]
     pub fn line_column(&self, offset: usize) -> (usize, usize) {
@@ -147,7 +149,12 @@ impl SourceFile {
                 line += 1;
                 column = 1;
             } else {
-                column += 1;
+                let is_crlf_carriage_return =
+                    character == '\r' && self.text.as_bytes().get(byte + 1) == Some(&b'\n');
+
+                if !is_crlf_carriage_return {
+                    column += 1;
+                }
             }
         }
         (line, column)

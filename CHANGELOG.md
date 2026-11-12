@@ -30,6 +30,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Keep formatted diagnostic columns consistent with editor positions for CRLF
+  line endings.
 - Escape all reserved Rust keywords when deriving handler module names from
   construct names, including `become`, `box`, and `union`.
 - Reject existing handler paths, including dangling symlinks, with a consistent
