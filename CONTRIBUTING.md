@@ -167,7 +167,7 @@ git push origin vX.Y.Z
 ```
 
 The release workflow verifies that CI succeeded for the exact release commit
-on `develop`, then publishes the eight crates in dependency order through
+on `develop`, then publishes the nine crates in dependency order through
 crates.io Trusted Publishing when publishing is enabled. It does not rerun the
 CI matrix. No long-lived registry token is stored in GitHub Actions secrets.
 Configure each crate's Trusted Publisher for `Slyverr/langmeld`, workflow
