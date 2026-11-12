@@ -81,25 +81,37 @@ pub fn generate(
         .into_iter()
         .partition(|literal| is_identifier_literal(literal));
     let mut patterns = vec![string_pattern(suffix).into()];
-    for marker in language.lexical_rules().line_comments() {
-        patterns.push(
-            MatchPattern {
-                name: format!("comment.line.{suffix}"),
-                regex: format!("{}[^\\r\\n]*", regex_escape(marker)),
-            }
-            .into(),
-        );
-    }
-    for (opening, closing) in language.lexical_rules().block_comments() {
-        patterns.push(
-            StringPattern {
+    let mut comments = language
+        .lexical_rules()
+        .line_comments()
+        .iter()
+        .map(|opening| (opening.as_str(), None))
+        .chain(
+            language
+                .lexical_rules()
+                .block_comments()
+                .iter()
+                .map(|(opening, closing)| (opening.as_str(), Some(closing.as_str()))),
+        )
+        .collect::<Vec<_>>();
+    comments.sort_by_key(|(opening, _)| std::cmp::Reverse(opening.len()));
+
+    for (opening, closing) in comments {
+        let pattern = match closing {
+            Some(closing) => StringPattern {
                 name: format!("comment.block.{suffix}"),
                 begin: regex_escape(opening),
                 end: regex_escape(closing),
                 patterns: Vec::new(),
             }
             .into(),
-        );
+            None => MatchPattern {
+                name: format!("comment.line.{suffix}"),
+                regex: format!("{}[^\\r\\n]*", regex_escape(opening)),
+            }
+            .into(),
+        };
+        patterns.push(pattern);
     }
     if !keywords.is_empty() {
         patterns.push(

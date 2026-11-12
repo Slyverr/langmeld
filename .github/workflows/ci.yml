@@ -157,6 +157,14 @@ jobs:
             --scope-name source.widgetscript \
             --file-type widget |
           npm --prefix tests/textmate test
+      - name: Validate overlapping TextMate comment markers
+        run: |
+          set -o pipefail
+          cargo run -p langmeld-cli --locked -- generate textmate \
+            --manifest-path tests/fixtures/textmate-overlapping-comments/langmeld.toml \
+            --scope-name source.overlap \
+            --file-type overlap |
+          npm --prefix tests/textmate test -- --overlapping-comments
       - name: Generate and parse the example Tree-sitter grammar
         shell: bash
         run: |

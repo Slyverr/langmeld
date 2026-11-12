@@ -89,6 +89,26 @@ fn exports_configured_line_and_block_comments() {
 }
 
 #[test]
+fn exports_overlapping_comments_with_longest_opening_first() {
+    let language = language()
+        .with_lexical_rules(
+            LexicalRules::default()
+                .line_comment("#")
+                .block_comment("##", "!!"),
+        )
+        .unwrap();
+
+    let output = generate(&language, &TextMateOptions::new("source.widget")).unwrap();
+    let grammar: Value = serde_json::from_str(&output).unwrap();
+    let patterns = grammar["patterns"].as_array().unwrap();
+
+    assert_eq!(patterns[1]["name"], "comment.block.widget");
+    assert_eq!(patterns[1]["begin"], "##");
+    assert_eq!(patterns[2]["name"], "comment.line.widget");
+    assert_eq!(patterns[2]["match"], "#[^\\r\\n]*");
+}
+
+#[test]
 fn includes_finite_choice_values_in_lexical_highlighting() {
     let grammar = LanguageSpec::new(
         "Movement",

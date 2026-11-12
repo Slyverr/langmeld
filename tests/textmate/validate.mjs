@@ -39,29 +39,66 @@ function scopesAt(line, tokens, text) {
   return token.scopes;
 }
 
-const source = 'program { let title = "Hello"; draw circle; }';
-const line = tokenizeLine(source);
-assert.ok(scopesAt(source, line.tokens, "program").includes("keyword.other.widgetscript"));
-assert.ok(scopesAt(source, line.tokens, "let").includes("keyword.other.widgetscript"));
-assert.ok(scopesAt(source, line.tokens, "draw").includes("keyword.other.widgetscript"));
-assert.ok(scopesAt(source, line.tokens, "circle").includes("keyword.other.widgetscript"));
-assert.ok(scopesAt(source, line.tokens, "{").includes("punctuation.widgetscript"));
-assert.ok(scopesAt(source, line.tokens, "Hello").includes("string.quoted.double.widgetscript"));
-assert.ok(!scopesAt(source, line.tokens, "title").includes("keyword.other.widgetscript"));
+function validateOverlappingComments() {
+  const openingLine = "## begin block";
+  const opening = tokenizeLine(openingLine);
+  assert.ok(
+    scopesAt(openingLine, opening.tokens, "begin").includes("comment.block.overlap"),
+  );
 
-const numberLine = "let count = 42;";
-assert.ok(
-  scopesAt(numberLine, tokenizeLine(numberLine).tokens, "42").includes(
-    "constant.numeric.widgetscript",
-  ),
-);
+  const continuation = tokenizeLine("continued !! program", opening.ruleStack);
+  assert.ok(
+    scopesAt("continued !! program", continuation.tokens, "continued").includes(
+      "comment.block.overlap",
+    ),
+  );
+  assert.ok(
+    scopesAt("continued !! program", continuation.tokens, "program").includes(
+      "keyword.other.overlap",
+    ),
+  );
 
-const escapedStringLine = String.raw`let text = "a\"b";`;
-const escapedString = tokenizeLine(escapedStringLine);
-assert.ok(
-  scopesAt(escapedStringLine, escapedString.tokens, String.raw`\"`).includes(
-    "constant.character.escape.widgetscript",
-  ),
-);
+  const lineComment = "# line comment program";
+  assert.ok(
+    scopesAt(lineComment, tokenizeLine(lineComment).tokens, "program").includes(
+      "comment.line.overlap",
+    ),
+  );
 
-console.log("TextMate grammar tokenization passed.");
+  console.log("Overlapping TextMate comment tokenization passed.");
+}
+
+function validateExampleGrammar() {
+  const source = 'program { let title = "Hello"; draw circle; }';
+  const line = tokenizeLine(source);
+  assert.ok(scopesAt(source, line.tokens, "program").includes("keyword.other.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "let").includes("keyword.other.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "draw").includes("keyword.other.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "circle").includes("keyword.other.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "{").includes("punctuation.widgetscript"));
+  assert.ok(scopesAt(source, line.tokens, "Hello").includes("string.quoted.double.widgetscript"));
+  assert.ok(!scopesAt(source, line.tokens, "title").includes("keyword.other.widgetscript"));
+
+  const numberLine = "let count = 42;";
+  assert.ok(
+    scopesAt(numberLine, tokenizeLine(numberLine).tokens, "42").includes(
+      "constant.numeric.widgetscript",
+    ),
+  );
+
+  const escapedStringLine = String.raw`let text = "a\"b";`;
+  const escapedString = tokenizeLine(escapedStringLine);
+  assert.ok(
+    scopesAt(escapedStringLine, escapedString.tokens, String.raw`\"`).includes(
+      "constant.character.escape.widgetscript",
+    ),
+  );
+
+  console.log("TextMate grammar tokenization passed.");
+}
+
+if (process.argv.includes("--overlapping-comments")) {
+  validateOverlappingComments();
+} else {
+  validateExampleGrammar();
+}

@@ -42,6 +42,16 @@ cargo run -p langmeld-cli --locked -- generate textmate \
 npm --prefix tests/textmate test
 ```
 
+To check precedence when comment markers overlap, run the fixture variant:
+
+```sh
+cargo run -p langmeld-cli --locked -- generate textmate \
+  --manifest-path tests/fixtures/textmate-overlapping-comments/langmeld.toml \
+  --scope-name source.overlap \
+  --file-type overlap |
+npm --prefix tests/textmate test -- --overlapping-comments
+```
+
 The Tree-sitter exporter is validated by generating and parsing a grammar with
 the Tree-sitter CLI. This check requires Node.js 22 and a C compiler:
 
