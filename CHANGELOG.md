@@ -13,6 +13,8 @@ API migration notes are in the
 
 - Warn when a definition import or manifest root uses the legacy `.lm`
   extension; both remain loadable while users migrate to `.langmeld`.
+- Keep project LSP file watching active for legacy `.lm` definitions during
+  migration.
 
 ## [0.10.0] - 2026-11-12
 

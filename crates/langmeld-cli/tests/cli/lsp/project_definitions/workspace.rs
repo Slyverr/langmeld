@@ -6,8 +6,16 @@ fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers
     let project = parent.path().join("project");
     write_widget_project(&project);
     let root = project.join("language/language.langmeld");
-    let module = project.join("language/constructs/statements.langmeld");
+    let module = project.join("language/constructs/statements.lm");
     let root_source = fs::read_to_string(&root).unwrap();
+    let root_source =
+        root_source.replace("constructs/statements.langmeld", "constructs/statements.lm");
+    fs::rename(
+        project.join("language/constructs/statements.langmeld"),
+        &module,
+    )
+    .unwrap();
+    fs::write(&root, &root_source).unwrap();
     let module_uri = url::Url::from_file_path(&module).unwrap().to_string();
     let root_uri = url::Url::from_file_path(&root).unwrap().to_string();
     let (mut child, mut stdin, receiver) = start_lsp(&["lsp", "--definitions"], Some(&project));
@@ -28,13 +36,21 @@ fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers
     );
     let registration = receive_lsp_message(&receiver);
     assert_eq!(registration["method"], "client/registerCapability");
-    let watcher = &registration["params"]["registrations"][0]["registerOptions"]["watchers"][0];
-    assert_eq!(watcher["globPattern"]["pattern"], "**/*.langmeld");
-    assert_eq!(
-        watcher["globPattern"]["baseUri"],
-        url::Url::from_directory_path(fs::canonicalize(&project).unwrap())
-            .unwrap()
-            .as_str()
+    let watchers = registration["params"]["registrations"][0]["registerOptions"]["watchers"]
+        .as_array()
+        .unwrap();
+    let patterns = watchers
+        .iter()
+        .map(|watcher| watcher["globPattern"]["pattern"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(patterns, ["**/*.langmeld", "**/*.lm"]);
+    let project_uri = url::Url::from_directory_path(fs::canonicalize(&project).unwrap())
+        .unwrap()
+        .to_string();
+    assert!(
+        watchers
+            .iter()
+            .all(|watcher| watcher["globPattern"]["baseUri"] == project_uri)
     );
     send_lsp_message(
         &mut stdin,
@@ -61,7 +77,7 @@ fn project_definitions_lsp_refreshes_references_from_disk_and_incomplete_buffers
         .map(|symbol| symbol["name"].as_str().unwrap())
         .collect::<Vec<_>>();
     assert!(symbol_names.contains(&"Widget"));
-    assert!(symbol_names.contains(&"constructs/statements.langmeld"));
+    assert!(symbol_names.contains(&"constructs/statements.lm"));
     assert!(symbol_names.contains(&"program"));
 
     let completion_position = root_source.find("allow \"").unwrap() + "allow \"".len();

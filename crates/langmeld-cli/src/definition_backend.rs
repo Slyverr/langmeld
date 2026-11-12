@@ -160,21 +160,26 @@ impl LanguageBackend for ProjectDefinitionBackend {
         let Ok(root_url) = Url::from_directory_path(&self.root) else {
             return BackendWorkspaceCapabilities::default();
         };
-        let Ok(root_uri) = root_url.as_str().parse() else {
+        let Ok(root_uri): Result<lsp_types::Uri, _> = root_url.as_str().parse() else {
             return BackendWorkspaceCapabilities::default();
         };
-        BackendWorkspaceCapabilities {
-            watched_files: vec![lsp_types::FileSystemWatcher {
+        let watched_files = ["**/*.langmeld", "**/*.lm"]
+            .into_iter()
+            .map(|pattern| lsp_types::FileSystemWatcher {
                 glob_pattern: lsp_types::GlobPattern::Relative(lsp_types::RelativePattern {
-                    base_uri: lsp_types::OneOf::Right(root_uri),
-                    pattern: "**/*.langmeld".into(),
+                    base_uri: lsp_types::OneOf::Right(root_uri.clone()),
+                    pattern: pattern.into(),
                 }),
                 kind: Some(
                     lsp_types::WatchKind::Create
                         | lsp_types::WatchKind::Change
                         | lsp_types::WatchKind::Delete,
                 ),
-            }],
+            })
+            .collect();
+
+        BackendWorkspaceCapabilities {
+            watched_files,
             ..BackendWorkspaceCapabilities::default()
         }
     }
