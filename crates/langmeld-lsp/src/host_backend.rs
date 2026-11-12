@@ -190,6 +190,18 @@ where
         )
     }
 
+    fn analyze_individually(
+        &self,
+        sources: &[SourceFile],
+        parsed: Vec<ParsedDocument<P::Tree>>,
+    ) -> Vec<BackendDocument<HostDocument<P::Tree, A::Analysis>>> {
+        sources
+            .iter()
+            .zip(parsed)
+            .map(|(source, parsed)| self.analyze_parsed(source, parsed))
+            .collect()
+    }
+
     /// Adds semantic analysis across the currently open parsed documents.
     #[must_use]
     pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
@@ -279,13 +291,7 @@ where
             .zip(sources)
             .any(|(parsed, source)| parsed.source_identity() != source.identity())
         {
-            return Some(
-                sources
-                    .iter()
-                    .zip(parsed)
-                    .map(|(source, parsed)| self.analyze_parsed(source, parsed))
-                    .collect(),
-            );
+            return Some(self.analyze_individually(sources, parsed));
         }
         let documents = sources.iter().zip(&parsed).collect::<Vec<_>>();
         let analyses = workspace_analyzer.analyze_workspace(&self.analyzer, &documents);
@@ -295,13 +301,7 @@ where
                 .zip(sources)
                 .any(|(analysis, source)| analysis.source_identity() != source.identity())
         {
-            return Some(
-                sources
-                    .iter()
-                    .zip(parsed)
-                    .map(|(source, parsed)| self.analyze_parsed(source, parsed))
-                    .collect(),
-            );
+            return Some(self.analyze_individually(sources, parsed));
         }
 
         Some(
