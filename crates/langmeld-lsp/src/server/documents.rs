@@ -8,6 +8,7 @@ use lsp_types::{
 };
 use serde::de::DeserializeOwned;
 
+use crate::backend::BackendDocument;
 use crate::conversion::{byte_offset, diagnostics_for};
 
 use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
@@ -88,6 +89,28 @@ impl<B: LanguageBackend> ServerState<B> {
         )
     }
 
+    fn publish_analysis(
+        &mut self,
+        uri: Uri,
+        source_id: SourceId,
+        version: i32,
+        source: &SourceFile,
+        analysis: BackendDocument<B::Document>,
+        connection: &Connection,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let diagnostics = diagnostics_for(source, &analysis, self.encoding);
+        self.documents.insert(
+            uri.clone(),
+            OpenDocument {
+                source_id,
+                version,
+                analysis,
+            },
+        );
+
+        publish_diagnostics(connection, uri, Some(version), diagnostics)
+    }
+
     pub(super) fn refresh_workspace(
         &mut self,
         updated: Option<(Uri, SourceId, i32)>,
@@ -136,16 +159,7 @@ impl<B: LanguageBackend> ServerState<B> {
                     })
         }) {
             for ((uri, source_id, version, source), analysis) in entries.into_iter().zip(analyses) {
-                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
-                self.documents.insert(
-                    uri.clone(),
-                    OpenDocument {
-                        source_id,
-                        version,
-                        analysis,
-                    },
-                );
-                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
             }
             return Ok(());
         }
@@ -153,16 +167,7 @@ impl<B: LanguageBackend> ServerState<B> {
         if has_workspace_result {
             for (uri, source_id, version, source) in entries {
                 let analysis = self.backend.analyze(&source);
-                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
-                self.documents.insert(
-                    uri.clone(),
-                    OpenDocument {
-                        source_id,
-                        version,
-                        analysis,
-                    },
-                );
-                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
             }
             return Ok(());
         }
@@ -173,16 +178,7 @@ impl<B: LanguageBackend> ServerState<B> {
             }
             for (uri, source_id, version, source) in entries {
                 let analysis = self.backend.analyze(&source);
-                let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
-                self.documents.insert(
-                    uri.clone(),
-                    OpenDocument {
-                        source_id,
-                        version,
-                        analysis,
-                    },
-                );
-                publish_diagnostics(connection, uri, Some(version), diagnostics)?;
+                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
             }
             return Ok(());
         };
@@ -192,16 +188,7 @@ impl<B: LanguageBackend> ServerState<B> {
             .expect("upserted document source exists")
             .clone();
         let analysis = self.backend.analyze(&source);
-        let diagnostics = diagnostics_for(&source, &analysis, self.encoding);
-        self.documents.insert(
-            uri.clone(),
-            OpenDocument {
-                source_id,
-                version,
-                analysis,
-            },
-        );
-        publish_diagnostics(connection, uri, Some(version), diagnostics)
+        self.publish_analysis(uri, source_id, version, &source, analysis, connection)
     }
 }
 
