@@ -113,6 +113,17 @@ fn builder_validates_the_complete_rust_grammar_and_reports_conflicts() {
 
     assert_eq!(language.constructs().len(), 2);
 
+    let source = SourceFile::new("main.rustlang", "program { statement }");
+    let parsed = parse(&source, &language);
+
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(parsed.constructs()[0].name, "program");
+    assert_eq!(parsed.constructs()[0].children[0].name, "statement");
+
     let error = declarative_language()
         .into_builder()
         .construct(ConstructSpec::new(
