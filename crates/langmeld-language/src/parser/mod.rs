@@ -58,6 +58,12 @@ impl ParseResult {
         &self.constructs
     }
 
+    /// Returns whether `construct` is borrowed from this parse result.
+    #[must_use]
+    pub fn contains_construct(&self, target: &ParsedConstruct) -> bool {
+        contains_construct(&self.constructs, target)
+    }
+
     /// Returns the lossless syntax tree for editor integrations and other tools.
     #[must_use]
     pub const fn syntax_tree(&self) -> &crate::SyntaxTree {
@@ -93,6 +99,12 @@ impl ParseResult {
     pub fn is_valid(&self) -> bool {
         !self.resource_limited && !has_errors(&self.diagnostics)
     }
+}
+
+fn contains_construct(constructs: &[ParsedConstruct], target: &ParsedConstruct) -> bool {
+    constructs.iter().any(|construct| {
+        std::ptr::eq(construct, target) || contains_construct(&construct.children, target)
+    })
 }
 
 /// Input and work bounds for the generic token-pattern parser.

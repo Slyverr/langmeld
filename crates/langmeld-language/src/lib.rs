@@ -13,6 +13,7 @@ mod navigation;
 mod parser;
 mod spec;
 mod syntax;
+mod typed;
 
 pub use analysis::{AnalysisContext, AnalysisInput, LanguagePass};
 pub use completion::{CompletionCandidate, complete_at, complete_at_with_lexer, complete_with};
@@ -46,3 +47,4 @@ pub use spec::{
 pub use syntax::{
     SyntaxElement, SyntaxNode, SyntaxNodeKind, SyntaxToken, SyntaxTokenKind, SyntaxTree,
 };
+pub use typed::TypedConstruct;

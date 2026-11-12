@@ -8,7 +8,7 @@ use std::{collections::HashMap, error::Error, fmt};
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::{CapturedField, CapturedValue, ParseResult, ParsedConstruct};
+use crate::{CapturedField, CapturedValue, ParseResult, ParsedConstruct, TypedConstruct};
 
 /// Behavior associated with one stable construct name from a language definition.
 ///
@@ -148,7 +148,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         validate_parsed_construct(source, parsed, block)?;
 
-        self.dispatch_block_children(source, block, state)
+        self.dispatch_block_children(source, parsed, block, state)
     }
 
     /// Dispatches every top-level construct in a parser result, in source order.
@@ -169,7 +169,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         validate_parsed_source(source, parsed)?;
 
-        self.dispatch_constructs(source, parsed.constructs(), state)
+        self.dispatch_constructs(source, parsed, parsed.constructs(), state)
     }
 
     /// Dispatches the direct children of each top-level construct in source
@@ -189,7 +189,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         validate_parsed_source(source, parsed)?;
 
         for construct in parsed.constructs() {
-            match self.dispatch_block_children(source, construct, state)? {
+            match self.dispatch_block_children(source, parsed, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
             }
@@ -201,11 +201,12 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     fn dispatch_constructs(
         &self,
         source: &SourceFile,
+        parsed: &ParseResult,
         constructs: &[ParsedConstruct],
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         for construct in constructs {
-            match self.dispatch_one_construct(source, construct, state)? {
+            match self.dispatch_one_construct(source, parsed, construct, state)? {
                 HandlerControl::Continue => {}
                 signal @ HandlerControl::Signal(_) => return Ok(signal),
             }
@@ -237,21 +238,23 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
         validate_parsed_construct(source, parsed, construct)?;
 
-        self.dispatch_one_construct(source, construct, state)
+        self.dispatch_one_construct(source, parsed, construct, state)
     }
 
     fn dispatch_block_children(
         &self,
         source: &SourceFile,
+        parsed: &ParseResult,
         block: &ParsedConstruct,
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
-        self.dispatch_constructs(source, &block.children, state)
+        self.dispatch_constructs(source, parsed, &block.children, state)
     }
 
     fn dispatch_one_construct(
         &self,
         source: &SourceFile,
+        parsed: &ParseResult,
         construct: &ParsedConstruct,
         state: &mut State,
     ) -> Result<HandlerControl<Signal>, Diagnostic> {
@@ -268,6 +271,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
         };
 
         let mut context = ConstructContext {
+            parsed,
             construct,
             source,
             state,
@@ -298,7 +302,7 @@ fn validate_parsed_construct(
 ) -> Result<(), Diagnostic> {
     validate_parsed_source(source, parsed)?;
 
-    if !contains_construct(parsed.constructs(), construct) {
+    if !parsed.contains_construct(construct) {
         return Err(Diagnostic::error(
             "LM-HANDLER-006",
             "selected construct does not belong to the supplied parse result",
@@ -310,14 +314,9 @@ fn validate_parsed_construct(
     Ok(())
 }
 
-fn contains_construct(constructs: &[ParsedConstruct], target: &ParsedConstruct) -> bool {
-    constructs.iter().any(|construct| {
-        std::ptr::eq(construct, target) || contains_construct(&construct.children, target)
-    })
-}
-
 /// Source-aware access to the current construct, host state, and nested dispatch.
 pub struct ConstructContext<'a, State, Signal = ()> {
+    parsed: &'a ParseResult,
     construct: &'a ParsedConstruct,
     source: &'a SourceFile,
     state: &'a mut State,
@@ -353,6 +352,26 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     #[must_use]
     pub fn construct(&self) -> &'source ParsedConstruct {
         self.construct
+    }
+
+    /// Returns a generated typed view of the current construct.
+    ///
+    /// The generated view checks the source snapshot, parse membership,
+    /// construct name, and syntax variant before exposing typed fields.
+    pub fn typed<T>(&self) -> Result<T, Diagnostic>
+    where
+        T: TypedConstruct<'source>,
+    {
+        if self.construct.name != T::CONSTRUCT {
+            return Err(Diagnostic::error(
+                "LM-TYPED-001",
+                format!("expected construct `{}`", T::CONSTRUCT),
+                self.source,
+                self.construct.span,
+            ));
+        }
+
+        T::from_validated_construct(self.source, self.construct)
     }
 
     /// Returns the immutable source snapshot containing the current construct.
@@ -485,7 +504,7 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// only when the condition is true.
     pub fn dispatch_children(&mut self) -> Result<HandlerControl<Signal>, Diagnostic> {
         self.handlers
-            .dispatch_block_children(self.source, self.construct, self.state)
+            .dispatch_block_children(self.source, self.parsed, self.construct, self.state)
     }
 
     /// Creates an error diagnostic at an explicit source range.
