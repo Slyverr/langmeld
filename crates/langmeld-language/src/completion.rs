@@ -21,7 +21,7 @@ pub enum CompletionInsertTextFormat {
 /// A completion suggestion and the source range it replaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompletionCandidate {
-    /// Token text to insert.
+    /// Text to insert, interpreted according to [`Self::insert_text_format`].
     pub text: String,
     /// How an editor should interpret [`Self::text`].
     pub insert_text_format: CompletionInsertTextFormat,
