@@ -71,6 +71,33 @@ fn reports_unnamed_groups_with_an_actionable_error() {
             .contains("unnamed optional or repeated group")
     );
     assert!(error.to_string().contains("optional \"name\""));
+    assert!(error.to_string().contains("zero_or_more \"name\""));
+    assert!(error.to_string().contains("one_or_more \"name\""));
+    assert!(
+        error
+            .to_string()
+            .contains("ParsedConstruct::capture_groups")
+    );
+}
+
+#[test]
+fn reports_unnamed_syntax_variants_with_the_dynamic_api_alternative() {
+    let construct = ConstructSpec::new(
+        "function",
+        [PatternPart::literal("fn"), PatternPart::identifier("name")],
+    )
+    .variant([
+        PatternPart::literal("function"),
+        PatternPart::identifier("name"),
+    ]);
+    let specification = LanguageSpec::new("Example", [construct])
+        .expect("the example language specification is valid");
+
+    let error = generate_bindings(&specification)
+        .expect_err("typed bindings need stable names for syntax variants");
+
+    assert!(error.to_string().contains("syntax \"variant_name\""));
+    assert!(error.to_string().contains("use the dynamic API"));
 }
 
 #[test]

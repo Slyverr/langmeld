@@ -52,7 +52,7 @@ pub(super) fn build(specification: &LanguageSpec) -> Result<Vec<GeneratedConstru
         for (index, pattern) in construct.variants().iter().enumerate() {
             let Some(variant_name) = construct.variant_name(index) else {
                 return Err(unsupported(format!(
-                    "construct `{}` has multiple syntax variants; name each with `syntax \"variant_name\"` before generating typed Rust bindings",
+                    "construct `{}` has multiple syntax variants; name each with `syntax \"variant_name\"` to generate typed Rust bindings, or use the dynamic API",
                     construct.name()
                 )));
             };
@@ -162,7 +162,7 @@ fn group_shape(
 ) -> Result<GroupShape, BuildError> {
     let Some(name) = name else {
         return Err(unsupported(format!(
-            "construct `{construct}` has an unnamed optional or repeated group; name it with `optional \"name\"` or `zero_or_more \"name\"` to generate typed Rust bindings"
+            "construct `{construct}` has an unnamed optional or repeated group; name it with `optional \"name\"`, `zero_or_more \"name\"`, or `one_or_more \"name\"` to generate typed Rust bindings, or use `ParsedConstruct::capture_groups` through the dynamic API"
         )));
     };
     let rust_name = rust_field_name(name)?;

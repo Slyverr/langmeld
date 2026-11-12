@@ -85,6 +85,44 @@ fn check_reports_definition_diagnostics_with_source_locations() {
 }
 
 #[test]
+fn check_explains_typed_binding_requirements_for_unnamed_repeated_groups() {
+    let parent = TestDirectory::new();
+    let project = parent.path();
+    fs::create_dir_all(project.join("language")).expect("language directory should be created");
+    fs::write(
+        project.join("langmeld.toml"),
+        "format = 1\nrust_bindings = \"typed\"\n",
+    )
+    .expect("manifest should be written");
+    fs::write(
+        project.join("language/main.langmeld"),
+        r#"language "Widget" {
+    construct "function" {
+        syntax {
+            literal "fn";
+            one_or_more {
+                identifier "parameter";
+            }
+        }
+    }
+}
+"#,
+    )
+    .expect("definition should be written");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .arg("check")
+        .current_dir(project)
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    let error = String::from_utf8_lossy(&output.stderr);
+    assert!(error.contains("one_or_more \"name\""), "{error}");
+    assert!(error.contains("ParsedConstruct::capture_groups"), "{error}");
+}
+
+#[test]
 fn format_command_rewrites_valid_definitions_and_check_mode_is_read_only() {
     let parent = TestDirectory::new();
     let definition = parent.path().join("language.langmeld");

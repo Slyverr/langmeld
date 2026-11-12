@@ -74,6 +74,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Typed-binding errors now list every supported unnamed-group naming form and
+  point to the dynamic API when generated views are not a fit.
 - The generated declarative library no longer imports an unused diagnostic
   formatter.
 - Typed binding generation no longer reserves `new` for internal view
