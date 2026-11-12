@@ -93,3 +93,14 @@ fn reports_tape_boundary_and_execution_limit_errors() {
     assert!(pointer_error.contains("moved before the start of the tape"));
     assert!(budget_error.contains("instruction limit"));
 }
+
+#[test]
+fn counts_executed_loop_closing_brackets_in_the_instruction_budget() {
+    let source = SourceFile::new("budget.bf", "+++[-]");
+    let error = run_with_step_limit(&source, &[], 11)
+        .expect_err("all executed Brainfuck commands must count toward the budget");
+
+    assert!(error.contains("budget.bf:1:6"), "{error}");
+    assert!(error.contains("instruction limit"), "{error}");
+    assert!(run_with_step_limit(&source, &[], 12).is_ok());
+}

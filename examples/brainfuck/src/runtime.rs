@@ -4,7 +4,7 @@
 
 use std::io::{self, Read};
 
-use langmeld_core::{Diagnostic, SourceFile};
+use langmeld_core::{Diagnostic, SourceFile, Span};
 
 use crate::{Instruction, InstructionKind, Program};
 
@@ -87,13 +87,24 @@ fn execute_instructions(
                 tick(source, instruction, runtime)?;
                 runtime.tape[runtime.pointer] = read_input_byte(source, instruction, runtime)?;
             }
-            InstructionKind::Loop(body) => loop {
-                tick(source, instruction, runtime)?;
-                if runtime.tape[runtime.pointer] == 0 {
-                    break;
+            InstructionKind::Loop(body) => {
+                let opening_bracket = Span::new(instruction.span.start, instruction.span.start + 1);
+                let closing_bracket = Span::new(instruction.span.end - 1, instruction.span.end);
+
+                loop {
+                    tick_at(source, opening_bracket, runtime)?;
+                    if runtime.tape[runtime.pointer] == 0 {
+                        break;
+                    }
+
+                    execute_instructions(source, body, runtime)?;
+
+                    tick_at(source, closing_bracket, runtime)?;
+                    if runtime.tape[runtime.pointer] == 0 {
+                        break;
+                    }
                 }
-                execute_instructions(source, body, runtime)?;
-            },
+            }
         }
     }
 
@@ -105,12 +116,16 @@ fn tick(
     instruction: &Instruction,
     runtime: &mut Runtime<'_>,
 ) -> Result<(), Diagnostic> {
+    tick_at(source, instruction.span, runtime)
+}
+
+fn tick_at(source: &SourceFile, span: Span, runtime: &mut Runtime<'_>) -> Result<(), Diagnostic> {
     if runtime.steps == runtime.max_steps {
         return Err(Diagnostic::error(
             "BF-RUNTIME-003",
             "execution exceeded the configured instruction limit",
             source,
-            instruction.span,
+            span,
         ));
     }
 
