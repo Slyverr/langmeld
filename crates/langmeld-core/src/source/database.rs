@@ -30,18 +30,13 @@ impl std::fmt::Display for SourceDatabaseError {
 
 impl std::error::Error for SourceDatabaseError {}
 
-#[derive(Clone, Debug)]
-struct SourceRecord {
-    source: SourceFile,
-}
-
 /// Stores source snapshots with stable IDs and monotonically increasing revisions.
 ///
 /// Cloning a database creates a distinct namespace identity while preserving
 /// each source's local ID and revision.
 #[derive(Debug)]
 pub struct SourceDatabase {
-    records: HashMap<SourceId, SourceRecord>,
+    sources: HashMap<SourceId, SourceFile>,
     ids_by_name: HashMap<String, SourceId>,
     next_id: u64,
     namespace_id: u64,
@@ -50,7 +45,7 @@ pub struct SourceDatabase {
 impl Default for SourceDatabase {
     fn default() -> Self {
         Self {
-            records: HashMap::new(),
+            sources: HashMap::new(),
             ids_by_name: HashMap::new(),
             next_id: 0,
             namespace_id: super::allocate_source_namespace_id(),
@@ -61,15 +56,15 @@ impl Default for SourceDatabase {
 impl Clone for SourceDatabase {
     fn clone(&self) -> Self {
         let namespace_id = super::allocate_source_namespace_id();
-        let mut records = self.records.clone();
-        for record in records.values_mut() {
-            record.source.identity = SourceIdentity {
+        let mut sources = self.sources.clone();
+        for source in sources.values_mut() {
+            source.identity = SourceIdentity {
                 namespace_id,
-                ..record.source.identity
+                ..source.identity
             };
         }
         Self {
-            records,
+            sources,
             ids_by_name: self.ids_by_name.clone(),
             next_id: self.next_id,
             namespace_id,
@@ -103,7 +98,7 @@ impl SourceDatabase {
             },
             true,
         );
-        self.records.insert(id, SourceRecord { source });
+        self.sources.insert(id, source);
         self.ids_by_name.insert(name, id);
         self.next_id = following_id;
         Ok(id)
@@ -133,36 +128,36 @@ impl SourceDatabase {
         text: impl Into<String>,
     ) -> Result<u64, SourceDatabaseError> {
         let text = text.into();
-        let record = self
-            .records
+        let source = self
+            .sources
             .get_mut(&id)
             .ok_or(SourceDatabaseError::UnknownSource(id))?;
-        if record.source.text.as_str() != text {
-            let identity = record.source.identity;
+        if source.text.as_str() != text {
+            let identity = source.identity;
             let revision = identity
                 .revision
                 .checked_add(1)
                 .ok_or(SourceDatabaseError::RevisionExhausted(id))?;
-            record.source.text = Arc::new(text);
-            record.source.identity = SourceIdentity {
+            source.text = Arc::new(text);
+            source.identity = SourceIdentity {
                 revision,
                 ..identity
             };
         }
-        Ok(record.source.identity.revision)
+        Ok(source.identity.revision)
     }
 
     /// Removes a source and returns its most recent snapshot.
     pub fn remove(&mut self, id: SourceId) -> Option<SourceFile> {
-        let record = self.records.remove(&id)?;
-        self.ids_by_name.remove(&record.source.name);
-        Some(record.source)
+        let source = self.sources.remove(&id)?;
+        self.ids_by_name.remove(&source.name);
+        Some(source)
     }
 
     /// Returns a source snapshot by stable identity.
     #[must_use]
     pub fn get(&self, id: SourceId) -> Option<&SourceFile> {
-        self.records.get(&id).map(|r| &r.source)
+        self.sources.get(&id)
     }
 
     /// Finds a source identity by display name.
@@ -174,8 +169,6 @@ impl SourceDatabase {
     /// Returns a source's current revision, starting at 1.
     #[must_use]
     pub fn revision(&self, id: SourceId) -> Option<u64> {
-        self.records
-            .get(&id)
-            .map(|record| record.source.identity.revision)
+        self.sources.get(&id).map(|source| source.identity.revision)
     }
 }
