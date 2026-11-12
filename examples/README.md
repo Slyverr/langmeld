@@ -23,7 +23,7 @@ language host.
 | --- | --- |
 | [`declarative-functions`](declarative-functions) | Parameterized declarations with the generic parser and host-owned analysis |
 | [`custom-lexer`](custom-lexer) | A custom lexer while retaining the generic `.langmeld` parser |
-| [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | A consumer combining local definitions with definition sources supplied by another Rust crate |
+| [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | A consumer combining local definitions, a crate-provided extension, and a Rust-authored construct |
 
 Each example focuses on a distinct authoring path or framework capability.
 Language-specific semantics and runtime policy remain in the host project; no

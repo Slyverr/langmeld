@@ -1,23 +1,34 @@
 fn main() {
     match langmeld_embedded_definitions_example::parse_example() {
         Ok(parsed) => {
-            let shape = parsed
+            let statements = parsed
                 .constructs()
                 .first()
-                .and_then(|program| program.children.first())
+                .map_or(&[][..], |program| program.children.as_slice());
+            let shape = statements
+                .iter()
+                .find(|statement| statement.name == "draw")
                 .and_then(|draw| draw.fields.first())
                 .and_then(|field| match &field.value {
                     langmeld_language::CapturedValue::Token { text, .. } => Some(text),
                     _ => None,
                 });
+            let message = statements
+                .iter()
+                .find(|statement| statement.name == "host_note")
+                .and_then(|note| note.fields.first())
+                .and_then(|field| match &field.value {
+                    langmeld_language::CapturedValue::String(text) => Some(text),
+                    _ => None,
+                });
 
-            match shape {
-                Some(shape) => println!("Geometry: draw({shape})"),
-                None => {
-                    eprintln!("parsed program did not contain a draw shape");
-                    std::process::exit(1);
-                }
-            }
+            let (Some(shape), Some(message)) = (shape, message) else {
+                eprintln!("parsed program did not contain both expected statements");
+                std::process::exit(1);
+            };
+
+            println!("Geometry: draw({shape})");
+            println!("Rust-authored: note({message})");
         }
         Err(error) => {
             eprintln!("{error}");

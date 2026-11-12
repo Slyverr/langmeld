@@ -8,4 +8,5 @@ construct "draw" {
         }
         literal ";";
     }
+    implements "statement";
 }

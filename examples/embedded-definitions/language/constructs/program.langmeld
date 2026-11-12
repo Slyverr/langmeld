@@ -3,6 +3,6 @@ construct "program" {
         literal "program";
     }
     block "{" "}" {
-        allow "draw";
+        allow_category "statement";
     }
 }

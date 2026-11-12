@@ -1,9 +1,11 @@
 use langmeld_core::{SourceFile, format_diagnostics};
-use langmeld_language::{ParseResult, parse, parse_language_definition_project};
+use langmeld_language::{
+    ConstructSpec, ParseResult, PatternPart, parse, parse_language_definition_project,
+};
 use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver};
 
 const ROOT_KEY: &str = "language/main.langmeld";
-const PROGRAM: &str = "program { draw circle; }";
+const PROGRAM: &str = "program { draw circle; note \"added by Rust\"; }";
 
 /// Loads a project definition with a Rust-embedded module and parses its sample.
 pub fn parse_example() -> Result<ParseResult, String> {
@@ -27,6 +29,21 @@ pub fn parse_example() -> Result<ParseResult, String> {
     let language = definition
         .language
         .ok_or_else(|| "language definition produced no language".to_owned())?;
+    let language = language
+        .into_builder()
+        .construct(
+            ConstructSpec::new(
+                "host_note",
+                [
+                    PatternPart::literal("note"),
+                    PatternPart::string("message"),
+                    PatternPart::literal(";"),
+                ],
+            )
+            .implements(&["statement"]),
+        )
+        .build()
+        .map_err(|error| error.to_string())?;
 
     let program_source = SourceFile::new("main.geometry", PROGRAM);
     let parsed = parse(&program_source, &language);
