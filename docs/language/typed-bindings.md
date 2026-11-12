@@ -74,6 +74,10 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
 Misspelled or undeclared accessor names fail Rust compilation. At runtime, the
 view checks that the parsed construct and syntax variant match the generated
 definition; incompatible captures return a source-located diagnostic.
+The view validates the construct's capture shape as it is accessed; it does
+not fingerprint the entire `LanguageSpec`. A different grammar with a
+compatible construct and capture shape can use the same projection. The Rust
+host remains responsible for deciding what those captures mean.
 
 ## Named groups and syntax variants
 
