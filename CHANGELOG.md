@@ -28,6 +28,8 @@ API migration notes are in the
 
 - Escape all reserved Rust keywords when deriving handler module names from
   construct names, including `become`, `box`, and `union`.
+- Reject existing handler paths, including dangling symlinks, with a consistent
+  already-exists diagnostic.
 - Correct the typed-bindings dependency example and document local crate
   resolution before the current release line is published.
 - Fully qualify generated typed-binding support types so language constructs

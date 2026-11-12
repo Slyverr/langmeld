@@ -4,7 +4,10 @@ use std::{
     path::Path,
 };
 
-use crate::{atomic_file::replace_existing, handler_generation::write_new_file};
+use crate::{
+    atomic_file::replace_existing,
+    handler_generation::{ensure_new_path, write_new_file},
+};
 
 pub(super) struct ConstructFiles<'a> {
     pub(super) root_path: &'a Path,
@@ -21,8 +24,8 @@ pub(super) struct ConstructFiles<'a> {
 }
 
 pub(super) fn apply(files: ConstructFiles<'_>) -> io::Result<()> {
-    ensure_new_path(files.syntax_path)?;
-    ensure_new_path(files.handler_path)?;
+    ensure_new_path(files.syntax_path, "syntax file")?;
+    ensure_new_path(files.handler_path, "handler source")?;
 
     let created_directory = match fs::symlink_metadata(files.syntax_directory) {
         Ok(metadata) => {
@@ -107,17 +110,6 @@ pub(super) fn read_regular_file(path: &Path) -> io::Result<String> {
         ));
     }
     fs::read_to_string(path)
-}
-
-fn ensure_new_path(path: &Path) -> io::Result<()> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => Err(io::Error::new(
-            ErrorKind::AlreadyExists,
-            format!("refusing to overwrite `{}`", path.display()),
-        )),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
 }
 
 fn rollback_generated_paths(files: &[&Path], directory: Option<&Path>) -> Vec<String> {

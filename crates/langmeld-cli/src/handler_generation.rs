@@ -21,6 +21,17 @@ pub(crate) fn validate_constructs_directory(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+pub(crate) fn ensure_new_path(path: &Path, description: &str) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("{description} `{}` already exists", path.display()),
+        )),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     if let Err(error) = file.write_all(contents.as_bytes()) {

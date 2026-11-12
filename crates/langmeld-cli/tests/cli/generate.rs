@@ -285,6 +285,71 @@ fn generate_handler_removes_new_file_when_registry_update_fails() {
     assert!(!project.join("src/constructs/trace.rs").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn generate_handler_rejects_dangling_source_symlinks_cleanly() {
+    use std::os::unix::fs::symlink;
+
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let statements = project.join("language/constructs/statements.langmeld");
+    let mut source = fs::read_to_string(&statements).expect("constructs should be generated");
+    source.push_str(
+        "\nconstruct \"trace\" { syntax { literal \"trace\"; literal \";\"; } implements \"statement\"; }\n",
+    );
+    fs::write(&statements, source).expect("new construct should be written");
+
+    let handler_path = project.join("src/constructs/trace.rs");
+    let missing_target = parent.path().join("missing-handler.rs");
+    symlink(&missing_target, &handler_path).expect("dangling handler symlink should be created");
+
+    let registry_path = project.join("src/constructs/mod.rs");
+    let original_registry =
+        fs::read_to_string(&registry_path).expect("handler registry should be generated");
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "handler",
+            "trace",
+            "--manifest-path",
+            project
+                .join("langmeld.toml")
+                .to_str()
+                .expect("path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!generated.status.success());
+    assert!(String::from_utf8_lossy(&generated.stderr).contains("handler source"));
+    assert!(String::from_utf8_lossy(&generated.stderr).contains("already exists"));
+    assert!(
+        fs::symlink_metadata(&handler_path)
+            .expect("handler symlink should remain")
+            .file_type()
+            .is_symlink()
+    );
+    assert!(!missing_target.exists());
+    assert_eq!(
+        fs::read_to_string(registry_path).expect("registry should remain readable"),
+        original_registry
+    );
+}
+
 #[test]
 fn generate_typed_handler_uses_the_generated_construct_identity() {
     let parent = TestDirectory::new();

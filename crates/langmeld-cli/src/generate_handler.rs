@@ -6,8 +6,9 @@ use langmeld_project::RustBindings;
 use crate::{
     atomic_file::replace_existing,
     handler_generation::{
-        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
-        rust_names, update_managed_section, validate_constructs_directory, write_new_file,
+        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, ensure_new_path,
+        handler_template, rust_names, update_managed_section, validate_constructs_directory,
+        write_new_file,
     },
     project::load_definition_project,
 };
@@ -45,13 +46,7 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     validate_constructs_directory(&constructs_directory)?;
 
     let handler_path = constructs_directory.join(format!("{module_name}.rs"));
-    if handler_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("handler source `{}` already exists", handler_path.display()),
-        )
-        .into());
-    }
+    ensure_new_path(&handler_path, "handler source")?;
 
     let registry_path = constructs_directory.join("mod.rs");
     let registry_metadata = fs::symlink_metadata(&registry_path)?;
