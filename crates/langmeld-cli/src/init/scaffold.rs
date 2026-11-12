@@ -31,14 +31,19 @@ pub(super) fn create_project(
     }
     if path.exists() {
         for (relative, _) in &files {
-            if path.join(relative).exists() {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!(
-                        "`{}` already exists; no files were changed",
-                        path.join(relative).display()
-                    ),
-                ));
+            let destination = path.join(relative);
+            match fs::symlink_metadata(&destination) {
+                Ok(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!(
+                            "`{}` already exists; no files were changed",
+                            destination.display()
+                        ),
+                    ));
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
             }
         }
     }

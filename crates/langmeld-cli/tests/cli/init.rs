@@ -500,6 +500,44 @@ fn init_refuses_to_overwrite_existing_project_files() {
     assert!(!project.join("src").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn init_rejects_dangling_generated_file_symlinks_during_preflight() {
+    use std::os::unix::fs::symlink;
+
+    let parent = TestDirectory::new();
+    let project = parent.path().join("widget-language");
+    let definition_directory = project.join("language");
+    fs::create_dir_all(&definition_directory).expect("definition directory should be created");
+
+    let definition_path = definition_directory.join("main.langmeld");
+    let missing_target = parent.path().join("missing-main.langmeld");
+    symlink(&missing_target, &definition_path).expect("test symlink should be created");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("already exists; no files were changed")
+    );
+    assert!(
+        fs::symlink_metadata(&definition_path)
+            .expect("dangling symlink should remain")
+            .file_type()
+            .is_symlink()
+    );
+    assert!(!missing_target.exists());
+    assert!(!project.join("Cargo.toml").exists());
+    assert!(!project.join("README.md").exists());
+}
+
 #[test]
 fn help_lists_init_and_the_non_interactive_mode() {
     let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
