@@ -15,6 +15,17 @@ pub struct ParsedDocument<T> {
     diagnostics: Vec<Diagnostic>,
 }
 
+/// Owned components of a consumed [`ParsedDocument`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParsedDocumentParts<T> {
+    /// Identity and revision of the source snapshot this parse belongs to.
+    pub source_identity: SourceIdentity,
+    /// Parser-owned syntax tree or intermediate representation.
+    pub tree: T,
+    /// Lexical and syntactic findings associated with the parse.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 impl<T> ParsedDocument<T> {
     /// Creates a parse document tied to the supplied source snapshot.
     #[must_use]
@@ -46,8 +57,12 @@ impl<T> ParsedDocument<T> {
 
     /// Consumes the parse and returns its source identity, tree, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
-        (self.source, self.tree, self.diagnostics)
+    pub fn into_parts(self) -> ParsedDocumentParts<T> {
+        ParsedDocumentParts {
+            source_identity: self.source,
+            tree: self.tree,
+            diagnostics: self.diagnostics,
+        }
     }
 
     /// Returns whether parsing produced no error diagnostics.
@@ -66,6 +81,17 @@ pub struct AnalysisDocument<T> {
     result: T,
     /// Semantic findings associated with the source snapshot.
     diagnostics: Vec<Diagnostic>,
+}
+
+/// Owned components of a consumed [`AnalysisDocument`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AnalysisDocumentParts<T> {
+    /// Identity and revision of the source snapshot this analysis belongs to.
+    pub source_identity: SourceIdentity,
+    /// Language-specific semantic result, such as symbols or typed facts.
+    pub result: T,
+    /// Semantic findings associated with the source snapshot.
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 impl<T> AnalysisDocument<T> {
@@ -99,8 +125,12 @@ impl<T> AnalysisDocument<T> {
 
     /// Consumes the analysis and returns its source identity, result, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
-        (self.source, self.result, self.diagnostics)
+    pub fn into_parts(self) -> AnalysisDocumentParts<T> {
+        AnalysisDocumentParts {
+            source_identity: self.source,
+            result: self.result,
+            diagnostics: self.diagnostics,
+        }
     }
 
     /// Returns whether analysis produced no error diagnostics.

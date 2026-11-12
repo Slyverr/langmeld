@@ -127,9 +127,9 @@ impl LanguageBackend for ProjectDefinitionBackend {
                 .zip(keys)
                 .map(|(source, key)| {
                     if let Some(key) = key.as_ref().filter(|key| loaded.contains(*key)) {
-                        let syntax_state = parsed_sources
-                            .remove(key)
-                            .unwrap_or_else(|| self.syntax_backend.analyze(source).into_parts().1);
+                        let syntax_state = parsed_sources.remove(key).unwrap_or_else(|| {
+                            self.syntax_backend.analyze(source).into_parts().state
+                        });
                         let diagnostics = result
                             .diagnostics
                             .iter()

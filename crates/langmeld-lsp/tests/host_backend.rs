@@ -383,8 +383,8 @@ fn editor_queries_reject_a_document_with_a_different_outer_source_identity() {
     let backend = backend(None, None);
 
     let document = backend.analyze(&source);
-    let (_, state, _) = document.into_parts();
-    let mismatched_document = BackendDocument::new(&other_source, state, Vec::new());
+    let parts = document.into_parts();
+    let mismatched_document = BackendDocument::new(&other_source, parts.state, Vec::new());
 
     assert!(
         backend

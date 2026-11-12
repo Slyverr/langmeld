@@ -18,6 +18,8 @@ API migration notes are in the
 
 ### Changed
 
+- Return named parts structs from host parse, analysis, and LSP backend document
+  `into_parts()` methods instead of positional tuples.
 - Return a named `LoadedDefinitionProjectParts` from `into_parts()`, including
   watched paths alongside the other owned project data.
 - Match generated handler struct casing to generated typed construct views.

@@ -13,7 +13,7 @@ mod server;
 mod workspace_symbol;
 
 pub use backend::{
-    BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
+    BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, LanguageBackend,
 };
 pub use declarative_backend::DeclarativeBackend;

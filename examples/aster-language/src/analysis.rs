@@ -90,8 +90,8 @@ pub fn analyze(
     context.run_pass(&DeclareFunctions);
     context.run_pass(&AnalyzeFunctionBodies);
 
-    let (_, analyzer, diagnostics) = context.finish().into_parts();
-    AnalysisDocument::new(source, analyzer.analysis, diagnostics)
+    let parts = context.finish().into_parts();
+    AnalysisDocument::new(source, parts.result.analysis, parts.diagnostics)
 }
 
 /// Analyzer for Aster's scope and type rules.

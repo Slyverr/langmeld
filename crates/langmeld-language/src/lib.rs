@@ -32,8 +32,9 @@ pub use handler::{
     HandlerControl, HandlerRegistrationError,
 };
 pub use host::{
-    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
-    LanguageWorkspaceAnalyzer, ParsedDocument,
+    AnalysisDocument, AnalysisDocumentParts, LanguageAnalyzer, LanguageCompleter,
+    LanguageNavigator, LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
+    ParsedDocumentParts,
 };
 pub use lexer::{DefaultLexer, LexOutput, LexedToken, Lexer, TokenKind};
 pub use navigation::{definition_at, references_at};

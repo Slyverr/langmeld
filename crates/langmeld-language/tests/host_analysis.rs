@@ -70,9 +70,9 @@ fn analysis_document_can_be_consumed_without_separating_its_source_identity() {
     );
     let analysis = AnalysisDocument::new(&source, 7, vec![diagnostic]);
 
-    let (analysis_source, result, diagnostics) = analysis.into_parts();
+    let parts = analysis.into_parts();
 
-    assert_eq!(analysis_source, source_identity);
-    assert_eq!(result, 7);
-    assert_eq!(diagnostics[0].code, "TEST-SEM-002");
+    assert_eq!(parts.source_identity, source_identity);
+    assert_eq!(parts.result, 7);
+    assert_eq!(parts.diagnostics[0].code, "TEST-SEM-002");
 }

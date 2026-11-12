@@ -86,9 +86,9 @@ fn parsed_document_can_be_consumed_without_separating_its_source_identity() {
     );
     let parsed = ParsedDocument::new(&source, vec!["width"], vec![diagnostic]);
 
-    let (parsed_source, tree, diagnostics) = parsed.into_parts();
+    let parts = parsed.into_parts();
 
-    assert_eq!(parsed_source, source_identity);
-    assert_eq!(tree, ["width"]);
-    assert_eq!(diagnostics[0].code, "HOST-PARSE-003");
+    assert_eq!(parts.source_identity, source_identity);
+    assert_eq!(parts.tree, ["width"]);
+    assert_eq!(parts.diagnostics[0].code, "HOST-PARSE-003");
 }

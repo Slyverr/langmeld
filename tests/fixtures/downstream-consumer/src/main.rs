@@ -1,6 +1,9 @@
 use langmeld_core::{SourceFile, Span};
 use langmeld_expression::{Associativity, ExpressionGrammar, ExpressionParser, OperatorSpec};
-use langmeld_language::{CapturedValue, parse, parse_language_definition_project};
+use langmeld_language::{
+    AnalysisDocument, AnalysisDocumentParts, CapturedValue, ParsedDocument, ParsedDocumentParts,
+    parse, parse_language_definition_project,
+};
 use langmeld_project::{DirectoryDefinitionResolver, InMemoryDefinitionResolver};
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
@@ -8,6 +11,7 @@ use std::path::Path;
 
 fn main() {
     verify_in_memory_language_project();
+    verify_named_result_parts();
 
     let project_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let resolver = DirectoryDefinitionResolver::new(project_root)
@@ -68,6 +72,31 @@ fn main() {
     assert!(expression.expression().is_some());
 
     println!("standalone Langmeld consumer, project imports, and editor exports passed");
+}
+
+fn verify_named_result_parts() {
+    let source = SourceFile::new("api.mini", "value");
+    let parsed = ParsedDocument::new(&source, "syntax tree", Vec::new()).into_parts();
+    let ParsedDocumentParts {
+        source_identity,
+        tree,
+        diagnostics,
+    } = parsed;
+
+    assert_eq!(source_identity, source.identity());
+    assert_eq!(tree, "syntax tree");
+    assert!(diagnostics.is_empty());
+
+    let analysis = AnalysisDocument::new(&source, 17, Vec::new()).into_parts();
+    let AnalysisDocumentParts {
+        source_identity,
+        result,
+        diagnostics,
+    } = analysis;
+
+    assert_eq!(source_identity, source.identity());
+    assert_eq!(result, 17);
+    assert!(diagnostics.is_empty());
 }
 
 fn verify_in_memory_language_project() {

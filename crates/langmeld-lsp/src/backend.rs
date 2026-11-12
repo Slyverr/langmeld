@@ -25,6 +25,17 @@ pub struct BackendDocument<T> {
     diagnostics: Vec<Diagnostic>,
 }
 
+/// Owned components of a consumed [`BackendDocument`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackendDocumentParts<T> {
+    /// Identity and revision analyzed by the backend.
+    pub source_identity: SourceIdentity,
+    /// Host-owned parse tree, analysis state, or combined document data.
+    pub state: T,
+    /// Findings to publish for this document.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 /// A source snapshot for a location outside the editor's open documents.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BackendSource {
@@ -88,8 +99,12 @@ impl<T> BackendDocument<T> {
 
     /// Consumes the document and returns its source identity, state, and findings.
     #[must_use]
-    pub fn into_parts(self) -> (SourceIdentity, T, Vec<Diagnostic>) {
-        (self.source, self.state, self.diagnostics)
+    pub fn into_parts(self) -> BackendDocumentParts<T> {
+        BackendDocumentParts {
+            source_identity: self.source,
+            state: self.state,
+            diagnostics: self.diagnostics,
+        }
     }
 }
 
