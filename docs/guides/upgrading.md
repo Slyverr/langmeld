@@ -16,6 +16,28 @@ currently provide an automatic migration command.
 
 ## Unreleased API changes
 
+### Name syntax alternatives and capture groups
+
+`.langmeld` syntax may now name a variant or optional/repeated group, for example
+`syntax "signature" { ... }` and `zero_or_more "parameters" { ... }`.
+Existing unnamed forms remain valid. Rust grammars can use
+`ConstructSpec::with_first_variant_name`, `ConstructSpec::variant_named`, and
+`PatternPart::{optional_named, zero_or_more_named, one_or_more_named}`. Labels
+are metadata for tooling; they do not assign language semantics or currently
+generate typed Rust accessors.
+
+`PatternPart::Optional` changed from a tuple variant to a struct variant that
+also stores an optional name. `PatternPart::Repeat` now includes an optional
+`name` field. Prefer the constructors for stable source code:
+
+```rust,ignore
+let parameters = PatternPart::optional_named("parameters", parts);
+let rest = PatternPart::zero_or_more_named("rest", parts);
+```
+
+For direct enum construction or matching, use `Optional { name, parts }` and
+`Repeat { name, parts, minimum }`; use `name: None` for unnamed groups.
+
 ### Preserve optional and repeated capture groups
 
 `ParsedConstruct` now includes `capture_groups`. Parser-produced constructs

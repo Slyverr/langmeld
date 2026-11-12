@@ -12,7 +12,7 @@ pub(super) fn patterns_overlap(left: &[PatternPart], right: &[PatternPart]) -> b
 
 pub(super) fn has_group(pattern: &[PatternPart]) -> bool {
     pattern.iter().any(|part| match part {
-        PatternPart::Optional(_) | PatternPart::Repeat { .. } => true,
+        PatternPart::Optional { .. } | PatternPart::Repeat { .. } => true,
         PatternPart::Literal(_)
         | PatternPart::Field { .. }
         | PatternPart::Choice { .. }
@@ -45,9 +45,9 @@ fn parts_overlap(left: &PatternPart, right: &PatternPart) -> bool {
         | (PatternPart::Field { kind, .. }, PatternPart::Literal(literal)) => {
             *kind == FieldKind::Token || literal_kind(literal) == Some(*kind)
         }
-        (PatternPart::Optional(_), _)
+        (PatternPart::Optional { .. }, _)
         | (PatternPart::Repeat { .. }, _)
-        | (_, PatternPart::Optional(_))
+        | (_, PatternPart::Optional { .. })
         | (_, PatternPart::Repeat { .. }) => true,
     }
 }
@@ -126,7 +126,7 @@ pub(super) fn validate_pattern(
                     });
                 }
             }
-            PatternPart::Optional(parts) => {
+            PatternPart::Optional { parts, .. } => {
                 if parts.is_empty() {
                     return Err(SpecError::EmptyPatternGroup(construct.to_owned()));
                 }
@@ -149,13 +149,52 @@ pub(super) fn validate_pattern(
     Ok(())
 }
 
+pub(super) fn validate_pattern_names(
+    pattern: &[PatternPart],
+    construct: &str,
+) -> Result<(), SpecError> {
+    let mut names = HashSet::new();
+
+    for part in pattern {
+        match part {
+            PatternPart::Field { name, .. }
+            | PatternPart::Choice { name, .. }
+            | PatternPart::Expression { name, .. } => {
+                if !names.insert(name.as_str()) {
+                    return Err(SpecError::DuplicatePatternName {
+                        construct: construct.to_owned(),
+                        name: name.clone(),
+                    });
+                }
+            }
+            PatternPart::Optional { name, parts } | PatternPart::Repeat { name, parts, .. } => {
+                if let Some(name) = name {
+                    if name.trim().is_empty() {
+                        return Err(SpecError::EmptyPatternGroupName(construct.to_owned()));
+                    }
+                    if !names.insert(name.as_str()) {
+                        return Err(SpecError::DuplicatePatternName {
+                            construct: construct.to_owned(),
+                            name: name.clone(),
+                        });
+                    }
+                }
+                validate_pattern_names(parts, construct)?;
+            }
+            PatternPart::Literal(_) => {}
+        }
+    }
+
+    Ok(())
+}
+
 pub(super) fn sequence_is_nullable(parts: &[PatternPart]) -> bool {
     parts.iter().all(|part| match part {
         PatternPart::Literal(_)
         | PatternPart::Field { .. }
         | PatternPart::Choice { .. }
         | PatternPart::Expression { .. } => false,
-        PatternPart::Optional(_) => true,
+        PatternPart::Optional { .. } => true,
         PatternPart::Repeat { minimum, .. } => *minimum == RepeatMinimum::Zero,
     })
 }
@@ -187,8 +226,8 @@ fn first_set(pattern: &[PatternPart]) -> Vec<FirstMatcher<'_>> {
                 first.push(FirstMatcher::Field(FieldKind::Token));
                 break;
             }
-            PatternPart::Optional(parts) => first.extend(first_set(parts)),
-            PatternPart::Repeat { parts, minimum } => {
+            PatternPart::Optional { parts, .. } => first.extend(first_set(parts)),
+            PatternPart::Repeat { parts, minimum, .. } => {
                 first.extend(first_set(parts));
                 if *minimum == RepeatMinimum::One {
                     break;
@@ -231,7 +270,7 @@ pub(super) fn validate_decision_points(
 ) -> Result<(), SpecError> {
     for (index, part) in pattern.iter().enumerate() {
         let group = match part {
-            PatternPart::Optional(parts) | PatternPart::Repeat { parts, .. } => Some(parts),
+            PatternPart::Optional { parts, .. } | PatternPart::Repeat { parts, .. } => Some(parts),
             PatternPart::Literal(_)
             | PatternPart::Field { .. }
             | PatternPart::Choice { .. }

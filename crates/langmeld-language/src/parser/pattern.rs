@@ -50,12 +50,12 @@ fn pattern_may_start_with(pattern: &[PatternPart], token: &LexedToken) -> bool {
                     && values.iter().any(|value| value == &token.text);
             }
             PatternPart::Expression { .. } => return token.kind != TokenKind::Invalid,
-            PatternPart::Optional(parts) => {
+            PatternPart::Optional { parts, .. } => {
                 if pattern_may_start_with(parts, token) {
                     return true;
                 }
             }
-            PatternPart::Repeat { parts, minimum } => {
+            PatternPart::Repeat { parts, minimum, .. } => {
                 if pattern_may_start_with(parts, token) {
                     return true;
                 }
@@ -176,7 +176,7 @@ pub(super) fn match_sequence<'a>(
                 });
                 cursor = end + 1;
             }
-            PatternPart::Optional(parts) => {
+            PatternPart::Optional { name, parts } => {
                 let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
                 if attempt.complete {
                     let field_start = fields.len();
@@ -185,6 +185,7 @@ pub(super) fn match_sequence<'a>(
                     shift_group_ranges(&mut nested_groups, field_start);
                     fields.extend(attempt.fields);
                     groups.push(CaptureGroup {
+                        name: name.clone(),
                         kind: CaptureGroupKind::Optional,
                         occurrences: vec![CaptureGroupOccurrence {
                             span: matched_span(tokens, cursor, attempt.end),
@@ -203,12 +204,17 @@ pub(super) fn match_sequence<'a>(
                     });
                 } else {
                     groups.push(CaptureGroup {
+                        name: name.clone(),
                         kind: CaptureGroupKind::Optional,
                         occurrences: Vec::new(),
                     });
                 }
             }
-            PatternPart::Repeat { parts, minimum } => {
+            PatternPart::Repeat {
+                name,
+                parts,
+                minimum,
+            } => {
                 let mut repetitions = 0;
                 let mut occurrences = Vec::new();
                 loop {
@@ -248,6 +254,7 @@ pub(super) fn match_sequence<'a>(
                     }
                 }
                 groups.push(CaptureGroup {
+                    name: name.clone(),
                     kind: CaptureGroupKind::Repeat,
                     occurrences,
                 });
@@ -310,7 +317,7 @@ pub(super) fn describe_pattern(part: &PatternPart) -> String {
                 .join(", ")
         ),
         PatternPart::Expression { .. } => "an expression".to_owned(),
-        PatternPart::Optional(_) | PatternPart::Repeat { .. } => {
+        PatternPart::Optional { .. } | PatternPart::Repeat { .. } => {
             "the expected syntax sequence".to_owned()
         }
     }

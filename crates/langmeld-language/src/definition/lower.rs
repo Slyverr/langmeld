@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use langmeld_core::{Diagnostic, SourceFile};
 
 use crate::{
@@ -6,6 +8,12 @@ use crate::{
 };
 
 use super::{decode_definition_string as decode_quoted, unit::ImportDirective};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PatternNameKind {
+    Field,
+    Group,
+}
 
 pub(super) fn lower_lexical_rules(
     node: &ParsedConstruct,
@@ -107,15 +115,53 @@ pub(super) fn lower_construct(
         return None;
     }
 
-    let mut patterns = Vec::new();
+    let mut variants = Vec::new();
+    let mut variant_names = HashSet::new();
     for syntax in syntax_nodes {
+        let variant_name = if syntax.fields.iter().any(|field| field.name == "name") {
+            let Some(name) = string_field(syntax, "name").and_then(decode_quoted) else {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-034",
+                    "syntax variant name must be a valid quoted string",
+                    source,
+                    syntax.span,
+                ));
+                return None;
+            };
+            if name.trim().is_empty() {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-034",
+                    "syntax variant name cannot be empty",
+                    source,
+                    syntax.span,
+                ));
+                return None;
+            }
+            if !variant_names.insert(name.clone()) {
+                diagnostics.push(Diagnostic::error(
+                    "LM-DEF-035",
+                    format!("syntax variant `{name}` is declared more than once"),
+                    source,
+                    syntax.span,
+                ));
+                return None;
+            }
+            Some(name)
+        } else {
+            None
+        };
+
+        if !validate_pattern_group_names(&syntax.children, source, diagnostics) {
+            return None;
+        }
+
         let mut pattern = Vec::new();
         for part in &syntax.children {
             if let Some(pattern_part) = lower_pattern(part, source, diagnostics) {
                 pattern.push(pattern_part);
             }
         }
-        patterns.push(pattern);
+        variants.push((variant_name, pattern));
     }
 
     let completion_nodes: Vec<_> = node
@@ -154,13 +200,21 @@ pub(super) fn lower_construct(
         return None;
     }
 
-    let mut patterns = patterns.into_iter();
-    let mut construct = ConstructSpec::new(name, patterns.next().unwrap_or_default());
+    let mut variants = variants.into_iter();
+    let (first_variant_name, first_pattern) = variants.next().unwrap_or_default();
+    let mut construct = ConstructSpec::new(name, first_pattern);
+    if let Some(variant_name) = first_variant_name {
+        construct = construct.with_first_variant_name(variant_name);
+    }
     if let Some(kind) = completion_kind {
         construct = construct.with_completion_kind(kind);
     }
-    for pattern in patterns {
-        construct = construct.variant(pattern);
+    for (variant_name, pattern) in variants {
+        construct = if let Some(variant_name) = variant_name {
+            construct.variant_named(variant_name, pattern)
+        } else {
+            construct.variant(pattern)
+        };
     }
     let mut implemented_categories = Vec::new();
     for implementation in node
@@ -232,6 +286,88 @@ pub(super) fn lower_construct(
         construct = construct.block_names_with_categories(open, close, children, categories);
     }
     Some(construct)
+}
+
+fn validate_pattern_group_names(
+    parts: &[ParsedConstruct],
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut names = HashMap::<String, PatternNameKind>::new();
+
+    for part in parts {
+        match part.name.as_str() {
+            "optional" | "zero_or_more" | "one_or_more" => {
+                if part.fields.iter().any(|field| field.name == "name") {
+                    let Some(name) = string_field(part, "name").and_then(decode_quoted) else {
+                        continue;
+                    };
+                    if name.trim().is_empty() {
+                        diagnostics.push(Diagnostic::error(
+                            "LM-DEF-036",
+                            "syntax group name cannot be empty",
+                            source,
+                            part.span,
+                        ));
+                        return false;
+                    }
+                    if names.insert(name.clone(), PatternNameKind::Group).is_some() {
+                        diagnostics.push(Diagnostic::error(
+                            "LM-DEF-037",
+                            format!(
+                                "syntax field or group name `{name}` is repeated in this scope"
+                            ),
+                            source,
+                            part.span,
+                        ));
+                        return false;
+                    }
+                }
+                if !validate_pattern_group_names(&part.children, source, diagnostics) {
+                    return false;
+                }
+            }
+            "identifier" | "integer" | "string" => {
+                if let Some(name) = string_field(part, "value").and_then(decode_quoted)
+                    && !record_pattern_field_name(name, part, &mut names, source, diagnostics)
+                {
+                    return false;
+                }
+            }
+            "choice" | "expression" => {
+                if let Some(name) = string_field(part, "name").and_then(decode_quoted)
+                    && !record_pattern_field_name(name, part, &mut names, source, diagnostics)
+                {
+                    return false;
+                }
+            }
+            "literal" | "token" => {}
+            _ => {}
+        }
+    }
+
+    true
+}
+
+fn record_pattern_field_name(
+    name: String,
+    part: &ParsedConstruct,
+    names: &mut HashMap<String, PatternNameKind>,
+    source: &SourceFile,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if names.get(&name) == Some(&PatternNameKind::Group) {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-037",
+            format!("syntax field or group name `{name}` is repeated in this scope"),
+            source,
+            part.span,
+        ));
+        return false;
+    }
+
+    names.entry(name).or_insert(PatternNameKind::Field);
+    true
 }
 
 pub(super) fn lower_pattern(
@@ -352,15 +488,35 @@ pub(super) fn lower_pattern(
             Some(PatternPart::expression(name, terminator))
         }
         "optional" | "zero_or_more" | "one_or_more" => {
+            let has_name = node.fields.iter().any(|field| field.name == "name");
+            let group_name = if has_name {
+                let Some(name) = string_field(node, "name").and_then(decode_quoted) else {
+                    diagnostics.push(Diagnostic::error(
+                        "LM-DEF-036",
+                        "syntax group name must be a valid quoted string",
+                        source,
+                        node.span,
+                    ));
+                    return None;
+                };
+                Some(name)
+            } else {
+                None
+            };
+
             let parts = node
                 .children
                 .iter()
                 .filter_map(|child| lower_pattern(child, source, diagnostics))
                 .collect::<Vec<_>>();
-            Some(match node.name.as_str() {
-                "optional" => PatternPart::optional(parts),
-                "zero_or_more" => PatternPart::zero_or_more(parts),
-                "one_or_more" => PatternPart::one_or_more(parts),
+
+            Some(match (node.name.as_str(), group_name) {
+                ("optional", Some(name)) => PatternPart::optional_named(name, parts),
+                ("optional", None) => PatternPart::optional(parts),
+                ("zero_or_more", Some(name)) => PatternPart::zero_or_more_named(name, parts),
+                ("zero_or_more", None) => PatternPart::zero_or_more(parts),
+                ("one_or_more", Some(name)) => PatternPart::one_or_more_named(name, parts),
+                ("one_or_more", None) => PatternPart::one_or_more(parts),
                 _ => return None,
             })
         }

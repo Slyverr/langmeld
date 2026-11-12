@@ -17,6 +17,15 @@ pub enum SpecError {
     EmptyPattern(String),
     /// Two alternatives of one construct have overlapping syntax.
     AmbiguousVariants(String),
+    /// A syntax alternative's generated name is blank.
+    EmptyVariantName(String),
+    /// Syntax alternative names must be unique within a construct.
+    DuplicateVariantName {
+        /// Construct that contains the repeated name.
+        construct: String,
+        /// Repeated syntax alternative name.
+        variant: String,
+    },
     /// A literal pattern must contain one token.
     EmptyLiteral(String),
     /// A literal contains whitespace or more than one lexical token.
@@ -60,6 +69,15 @@ pub enum SpecError {
     },
     /// An optional or repeated group contains no syntax parts.
     EmptyPatternGroup(String),
+    /// A named optional or repeated group has a blank name.
+    EmptyPatternGroupName(String),
+    /// Named fields and groups must be unique among siblings in a syntax pattern.
+    DuplicatePatternName {
+        /// Construct that contains the repeated name.
+        construct: String,
+        /// Repeated field or group name.
+        name: String,
+    },
     /// An optional group can match without consuming a token.
     EmptyOptional(String),
     /// A repeated group can match without consuming a token.
@@ -140,6 +158,14 @@ impl std::fmt::Display for SpecError {
                 f,
                 "construct `{construct}` has syntax alternatives with overlapping patterns"
             ),
+            Self::EmptyVariantName(construct) => write!(
+                f,
+                "construct `{construct}` has a syntax alternative with an empty name"
+            ),
+            Self::DuplicateVariantName { construct, variant } => write!(
+                f,
+                "construct `{construct}` names syntax alternative `{variant}` more than once"
+            ),
             Self::EmptyLiteral(name) => write!(f, "construct `{name}` has an empty literal token"),
             Self::InvalidLiteral { construct, literal } => write!(
                 f,
@@ -177,6 +203,14 @@ impl std::fmt::Display for SpecError {
                     "construct `{construct}` contains an empty optional or repeated group"
                 )
             }
+            Self::EmptyPatternGroupName(construct) => write!(
+                f,
+                "construct `{construct}` has an optional or repeated group with an empty name"
+            ),
+            Self::DuplicatePatternName { construct, name } => write!(
+                f,
+                "construct `{construct}` repeats field or group name `{name}` in the same syntax scope"
+            ),
             Self::EmptyOptional(construct) => write!(
                 f,
                 "construct `{construct}` contains an optional group that can match no tokens"

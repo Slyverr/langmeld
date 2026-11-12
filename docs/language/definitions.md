@@ -92,22 +92,23 @@ used by the root block. See the complete consumer in
 
 Every construct has at least one `syntax` block. Multiple blocks are
 alternatives for the same construct; a parsed node records the zero-based
-alternative index in `variant`.
+alternative index in `variant`. A block may also have an optional stable name,
+available from `ConstructSpec::variant_name(index)`:
 
 ```langmeld
 construct "function" {
-    syntax {
+    syntax "parenthesized" {
         literal "fn";
         identifier "name";
         literal "(";
-        optional {
+        optional "parameters" {
             identifier "parameter";
         }
         literal ")";
         literal "->";
         identifier "return_type";
     }
-    syntax {
+    syntax "legacy" {
         literal "function";
         identifier "name";
     }
@@ -151,6 +152,13 @@ Pattern items match lexer tokens in order:
 - `optional { ... }` matches its sequence zero or one times.
 - `zero_or_more { ... }` and `one_or_more { ... }` repeat a sequence; fields
   from each match are captured in source order.
+- Optional and repeated groups may have a stable name, for example
+  `zero_or_more "parameters" { ... }`. Names are exposed on
+  `CaptureGroup::name`; they distinguish structural groups but do not assign
+  language semantics. Unnamed groups remain valid.
+- `syntax "name" { ... }` names a syntax alternative. Names must be unique
+  within that construct; unnamed alternatives remain valid and continue to be
+  identified by their zero-based `variant` index.
 
 `ParsedConstruct::fields` remains a flat, source-ordered list for simple field
 lookup. `ParsedConstruct::capture_groups` preserves which captures belonged to
@@ -158,8 +166,8 @@ each optional or repeated match, including nested groups. Each occurrence can
 return its matching field slice with `captures(construct)`. This lets a host
 keep related captures together, such as a parameter name and type, without
 reconstructing their pairing from separate field-name lists. It preserves
-grammar grouping only; group names and language-specific meaning remain
-host-owned.
+grammar grouping and optional group names only; language-specific meaning
+remains host-owned. These names do not yet generate typed Rust field accessors.
 
 If a partially matched construct fails where a complete construct allowed in
 the current scope begins, the parser reports the missing syntax and resumes at

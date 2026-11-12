@@ -252,8 +252,8 @@ fn collect_first_literals(parts: &[PatternPart], output: &mut Vec<String>) {
                 return;
             }
             PatternPart::Field { .. } | PatternPart::Expression { .. } => return,
-            PatternPart::Optional(parts) => collect_first_literals(parts, output),
-            PatternPart::Repeat { parts, minimum } => {
+            PatternPart::Optional { parts, .. } => collect_first_literals(parts, output),
+            PatternPart::Repeat { parts, minimum, .. } => {
                 collect_first_literals(parts, output);
                 if *minimum == RepeatMinimum::One {
                     return;

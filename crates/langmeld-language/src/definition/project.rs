@@ -242,6 +242,8 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         SpecError::DuplicateConstruct(name)
         | SpecError::EmptyPattern(name)
         | SpecError::EmptyLiteral(name)
+        | SpecError::EmptyVariantName(name)
+        | SpecError::EmptyPatternGroupName(name)
         | SpecError::InvalidBlockDelimiter(name) => Some(name),
         SpecError::InvalidLiteral { construct, .. } | SpecError::EmptyFieldName(construct) => {
             Some(construct)
@@ -250,6 +252,8 @@ fn spec_error_construct(error: &SpecError) -> Option<&str> {
         | SpecError::InvalidChoiceValue { construct, .. }
         | SpecError::DuplicateChoiceValue { construct, .. } => Some(construct),
         SpecError::DuplicateField { construct, .. }
+        | SpecError::DuplicateVariantName { construct, .. }
+        | SpecError::DuplicatePatternName { construct, .. }
         | SpecError::UnknownChildConstruct { construct, .. }
         | SpecError::DuplicateChildConstruct { construct, .. }
         | SpecError::EmptyCategoryName(construct)

@@ -49,12 +49,19 @@ pub enum PatternPart {
     /// A sequence that is included when it matches, and otherwise omitted.
     /// Its match and nested captures are recorded in
     /// [`ParsedConstruct::capture_groups`](crate::ParsedConstruct::capture_groups).
-    Optional(Vec<PatternPart>),
+    Optional {
+        /// Stable name for typed projections, when one is supplied.
+        name: Option<String>,
+        /// Syntax parts in the optional sequence.
+        parts: Vec<PatternPart>,
+    },
     /// A sequence matched repeatedly as one unit. Captured fields are appended
     /// in source order for every match. The corresponding occurrences and their
     /// field ranges are also recorded in
     /// [`ParsedConstruct::capture_groups`](crate::ParsedConstruct::capture_groups).
     Repeat {
+        /// Stable name for typed projections, when one is supplied.
+        name: Option<String>,
         /// Sequence consumed by each repetition.
         parts: Vec<PatternPart>,
         /// Whether zero repetitions are accepted.
@@ -156,13 +163,42 @@ impl PatternPart {
     /// Creates an optional sequence of syntax parts.
     #[must_use]
     pub fn optional(parts: impl IntoIterator<Item = PatternPart>) -> Self {
-        Self::Optional(parts.into_iter().collect())
+        Self::Optional {
+            name: None,
+            parts: parts.into_iter().collect(),
+        }
+    }
+
+    /// Creates a named optional sequence for generated, typed projections.
+    #[must_use]
+    pub fn optional_named(
+        name: impl Into<String>,
+        parts: impl IntoIterator<Item = PatternPart>,
+    ) -> Self {
+        Self::Optional {
+            name: Some(name.into()),
+            parts: parts.into_iter().collect(),
+        }
     }
 
     /// Creates a sequence that may repeat zero or more times.
     #[must_use]
     pub fn zero_or_more(parts: impl IntoIterator<Item = PatternPart>) -> Self {
         Self::Repeat {
+            name: None,
+            parts: parts.into_iter().collect(),
+            minimum: RepeatMinimum::Zero,
+        }
+    }
+
+    /// Creates a named sequence that may repeat zero or more times.
+    #[must_use]
+    pub fn zero_or_more_named(
+        name: impl Into<String>,
+        parts: impl IntoIterator<Item = PatternPart>,
+    ) -> Self {
+        Self::Repeat {
+            name: Some(name.into()),
             parts: parts.into_iter().collect(),
             minimum: RepeatMinimum::Zero,
         }
@@ -172,6 +208,20 @@ impl PatternPart {
     #[must_use]
     pub fn one_or_more(parts: impl IntoIterator<Item = PatternPart>) -> Self {
         Self::Repeat {
+            name: None,
+            parts: parts.into_iter().collect(),
+            minimum: RepeatMinimum::One,
+        }
+    }
+
+    /// Creates a named sequence that must repeat at least once.
+    #[must_use]
+    pub fn one_or_more_named(
+        name: impl Into<String>,
+        parts: impl IntoIterator<Item = PatternPart>,
+    ) -> Self {
+        Self::Repeat {
+            name: Some(name.into()),
             parts: parts.into_iter().collect(),
             minimum: RepeatMinimum::One,
         }

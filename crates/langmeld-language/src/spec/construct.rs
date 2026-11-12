@@ -9,6 +9,8 @@ pub struct ConstructSpec {
     pub(crate) name: String,
     /// Ordered syntax alternatives that make up this construct.
     pub(crate) patterns: Vec<Vec<PatternPart>>,
+    /// Optional stable labels corresponding to `patterns` by index.
+    pub(crate) variant_names: Vec<Option<String>>,
     /// Named structural groups this construct belongs to.
     pub(crate) categories: Vec<String>,
     /// Optional semantic kind for construct-start completion candidates.
@@ -24,6 +26,7 @@ impl ConstructSpec {
         Self {
             name: name.into(),
             patterns: vec![pattern.into_iter().collect()],
+            variant_names: vec![None],
             categories: Vec::new(),
             completion_kind: None,
             block: None,
@@ -52,6 +55,26 @@ impl ConstructSpec {
     #[must_use]
     pub fn variant(mut self, pattern: impl IntoIterator<Item = PatternPart>) -> Self {
         self.patterns.push(pattern.into_iter().collect());
+        self.variant_names.push(None);
+        self
+    }
+
+    /// Adds a syntax alternative with a stable name for generated projections.
+    #[must_use]
+    pub fn variant_named(
+        mut self,
+        name: impl Into<String>,
+        pattern: impl IntoIterator<Item = PatternPart>,
+    ) -> Self {
+        self.patterns.push(pattern.into_iter().collect());
+        self.variant_names.push(Some(name.into()));
+        self
+    }
+
+    /// Names the first syntax alternative for generated projections.
+    #[must_use]
+    pub fn with_first_variant_name(mut self, name: impl Into<String>) -> Self {
+        self.variant_names[0] = Some(name.into());
         self
     }
 
@@ -150,6 +173,12 @@ impl ConstructSpec {
     #[must_use]
     pub fn variants(&self) -> &[Vec<PatternPart>] {
         &self.patterns
+    }
+
+    /// Returns the stable name assigned to one syntax alternative, if any.
+    #[must_use]
+    pub fn variant_name(&self, index: usize) -> Option<&str> {
+        self.variant_names.get(index)?.as_deref()
     }
 
     /// Returns the first syntax alternative, or an empty slice if it is invalid.

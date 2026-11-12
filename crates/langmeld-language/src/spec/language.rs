@@ -57,6 +57,18 @@ impl LanguageSpec {
             if !names.insert(construct.name.clone()) {
                 return Err(SpecError::DuplicateConstruct(construct.name.clone()));
             }
+            let mut variant_names = HashSet::new();
+            for variant in construct.variant_names.iter().flatten() {
+                if variant.trim().is_empty() {
+                    return Err(SpecError::EmptyVariantName(construct.name.clone()));
+                }
+                if !variant_names.insert(variant.as_str()) {
+                    return Err(SpecError::DuplicateVariantName {
+                        construct: construct.name.clone(),
+                        variant: variant.clone(),
+                    });
+                }
+            }
             let mut categories = HashSet::new();
             for category in &construct.categories {
                 if category.trim().is_empty() {
@@ -82,6 +94,7 @@ impl LanguageSpec {
                 }
                 let mut fields = HashSet::new();
                 validation::validate_pattern(pattern, &construct.name, &mut fields)?;
+                validation::validate_pattern_names(pattern, &construct.name)?;
                 validation::validate_decision_points(pattern, &construct.name)?;
                 if construct.patterns[..index].iter().any(|previous| {
                     !validation::has_group(pattern)

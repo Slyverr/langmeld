@@ -92,11 +92,14 @@ pub(super) fn definition_grammar() -> &'static LanguageSpec {
                     PatternPart::string("kind"),
                     PatternPart::literal(";"),
                 ]),
-                ConstructSpec::new("syntax", [PatternPart::literal("syntax")]).block(
-                    "{",
-                    "}",
-                    PATTERN_ITEMS,
-                ),
+                ConstructSpec::new(
+                    "syntax",
+                    [
+                        PatternPart::literal("syntax"),
+                        PatternPart::optional([PatternPart::string("name")]),
+                    ],
+                )
+                .block("{", "}", PATTERN_ITEMS),
                 ConstructSpec::new(
                     "block",
                     [
@@ -106,21 +109,30 @@ pub(super) fn definition_grammar() -> &'static LanguageSpec {
                     ],
                 )
                 .block("{", "}", &["allow", "allow_category"]),
-                ConstructSpec::new("optional", [PatternPart::literal("optional")]).block(
-                    "{",
-                    "}",
-                    PATTERN_ITEMS,
-                ),
-                ConstructSpec::new("zero_or_more", [PatternPart::literal("zero_or_more")]).block(
-                    "{",
-                    "}",
-                    PATTERN_ITEMS,
-                ),
-                ConstructSpec::new("one_or_more", [PatternPart::literal("one_or_more")]).block(
-                    "{",
-                    "}",
-                    PATTERN_ITEMS,
-                ),
+                ConstructSpec::new(
+                    "optional",
+                    [
+                        PatternPart::literal("optional"),
+                        PatternPart::optional([PatternPart::string("name")]),
+                    ],
+                )
+                .block("{", "}", PATTERN_ITEMS),
+                ConstructSpec::new(
+                    "zero_or_more",
+                    [
+                        PatternPart::literal("zero_or_more"),
+                        PatternPart::optional([PatternPart::string("name")]),
+                    ],
+                )
+                .block("{", "}", PATTERN_ITEMS),
+                ConstructSpec::new(
+                    "one_or_more",
+                    [
+                        PatternPart::literal("one_or_more"),
+                        PatternPart::optional([PatternPart::string("name")]),
+                    ],
+                )
+                .block("{", "}", PATTERN_ITEMS),
                 ConstructSpec::new(
                     "choice",
                     [PatternPart::literal("choice"), PatternPart::string("name")],

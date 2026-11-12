@@ -1,13 +1,13 @@
 construct "function" {
-    syntax {
+    syntax "signature" {
         literal "fn";
         identifier "name";
         literal "(";
-        optional {
+        optional "parameters" {
             identifier "first_parameter";
             literal ":";
             identifier "first_parameter_type";
-            zero_or_more {
+            zero_or_more "additional_parameters" {
                 literal ",";
                 identifier "parameter";
                 literal ":";
@@ -27,7 +27,7 @@ construct "function" {
 }
 
 construct "invoke" {
-    syntax {
+    syntax "expression_call" {
         literal "invoke";
         expression "call" until ";";
     }

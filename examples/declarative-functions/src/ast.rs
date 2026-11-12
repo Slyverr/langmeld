@@ -2,7 +2,7 @@ use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_expression::{
     Associativity, Expression, ExpressionGrammar, ExpressionKind, ExpressionParser, OperatorSpec,
 };
-use langmeld_language::{CaptureGroupKind, CapturedValue, ParseResult, ParsedConstruct};
+use langmeld_language::{CapturedValue, ParseResult, ParsedConstruct};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Program {
@@ -115,7 +115,7 @@ fn lower_parameters(
     let Some(optional_group) = construct
         .capture_groups
         .iter()
-        .find(|group| group.kind == CaptureGroupKind::Optional)
+        .find(|group| group.name.as_deref() == Some("parameters"))
     else {
         return Vec::new();
     };
@@ -137,7 +137,7 @@ fn lower_parameters(
     for repeated_group in parameter_list
         .groups
         .iter()
-        .filter(|group| group.kind == CaptureGroupKind::Repeat)
+        .filter(|group| group.name.as_deref() == Some("additional_parameters"))
     {
         for occurrence in &repeated_group.occurrences {
             let Some(fields) = occurrence.captures(construct) else {

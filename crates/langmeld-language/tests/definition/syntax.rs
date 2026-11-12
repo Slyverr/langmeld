@@ -106,11 +106,11 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
         "functions.langmeld",
         r#"language "Functions" {
             construct "function" {
-                syntax {
+                syntax "short" {
                     literal "fn";
                     identifier "name";
                 }
-                syntax {
+                syntax "parenthesized" {
                     literal "function";
                     identifier "name";
                     literal "(";
@@ -133,6 +133,43 @@ fn definition_frontend_lowers_multiple_syntax_variants() {
         parsed.diagnostics()
     );
     assert_eq!(parsed.constructs()[0].variant, 1);
+    let function = definition
+        .language
+        .as_ref()
+        .unwrap()
+        .constructs()
+        .iter()
+        .find(|construct| construct.name() == "function")
+        .unwrap();
+    assert_eq!(function.variant_name(0), Some("short"));
+    assert_eq!(function.variant_name(1), Some("parenthesized"));
+}
+
+#[test]
+fn definition_frontend_reports_duplicate_syntax_names_at_the_later_variant() {
+    let source = SourceFile::new(
+        "functions.langmeld",
+        r#"language "Functions" {
+            construct "function" {
+                syntax "body" { literal "fn"; }
+                syntax "body" { literal "function"; }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.language.is_none());
+
+    let duplicate = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-035")
+        .expect("the later syntax label should be diagnosed");
+    let span = duplicate.location.as_ref().unwrap().span();
+    assert_eq!(
+        span.start,
+        source.text().rfind("syntax \"body\" {").unwrap()
+    );
 }
 
 #[test]
@@ -204,20 +241,100 @@ fn definition_frontend_lowers_expression_captures_with_consumed_terminators() {
 }
 
 #[test]
+fn definition_frontend_reports_empty_group_names_at_the_group() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Names" {
+            construct "item" {
+                syntax {
+                    literal "item";
+                    optional "  " { literal "value"; }
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.language.is_none());
+
+    let diagnostic = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-036")
+        .expect("the empty group name should be diagnosed");
+    let span = diagnostic.location.as_ref().unwrap().span();
+    assert_eq!(span.start, source.text().find("optional").unwrap());
+}
+
+#[test]
+fn definition_frontend_reports_duplicate_group_names_at_the_later_group() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Names" {
+            construct "item" {
+                syntax {
+                    literal "item";
+                    optional "body" { literal "first"; }
+                    optional "body" { literal "second"; }
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.language.is_none());
+
+    let diagnostic = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-037")
+        .expect("the duplicate group name should be diagnosed");
+    let span = diagnostic.location.as_ref().unwrap().span();
+    assert_eq!(span.start, source.text().rfind("optional").unwrap());
+}
+
+#[test]
+fn definition_frontend_reports_a_field_that_reuses_a_group_name() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Names" {
+            construct "item" {
+                syntax {
+                    literal "item";
+                    optional "value" { literal "optional"; }
+                    identifier "value";
+                }
+            }
+        }"#,
+    );
+
+    let definition = parse_language_definition(&source);
+    assert!(definition.language.is_none());
+
+    let diagnostic = definition
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-037")
+        .expect("the field/group name collision should be diagnosed");
+    let span = diagnostic.location.as_ref().unwrap().span();
+    assert_eq!(span.start, source.text().find("identifier").unwrap());
+}
+
+#[test]
 fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
     let source = SourceFile::new(
         "functions.langmeld",
         r#"language "Functions" {
             construct "function" {
-                syntax {
+                syntax "signature" {
                     literal "fn";
                     identifier "name";
                     literal "(";
-                    optional {
+                    optional "parameters" {
                         identifier "first_parameter";
                         literal ":";
                         identifier "first_type";
-                        zero_or_more {
+                        zero_or_more "additional_parameters" {
                             literal ",";
                             identifier "parameter";
                             literal ":";
@@ -225,7 +342,7 @@ fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
                         }
                     }
                     literal ")";
-                    optional {
+                    optional "return_type_clause" {
                         literal "->";
                         identifier "return_type";
                     }
@@ -247,4 +364,18 @@ fn definition_frontend_lowers_optional_and_repeated_syntax_groups() {
         parsed.diagnostics()
     );
     assert_eq!(parsed.constructs()[0].fields.len(), 6);
+    assert_eq!(
+        parsed.constructs()[0].capture_groups[0].name.as_deref(),
+        Some("parameters")
+    );
+    assert_eq!(
+        parsed.constructs()[0].capture_groups[0].occurrences[0].groups[0]
+            .name
+            .as_deref(),
+        Some("additional_parameters")
+    );
+    assert_eq!(
+        parsed.constructs()[0].capture_groups[1].name.as_deref(),
+        Some("return_type_clause")
+    );
 }

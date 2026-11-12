@@ -118,17 +118,23 @@ fn capture_groups_preserve_optional_and_repeated_field_boundaries() {
                 P::literal("fn"),
                 P::identifier("name"),
                 P::literal("("),
-                P::optional([
-                    P::identifier("first_name"),
-                    P::literal(":"),
-                    P::identifier("first_type"),
-                    P::zero_or_more([
-                        P::literal(","),
-                        P::identifier("additional_name"),
+                P::optional_named(
+                    "parameters",
+                    [
+                        P::identifier("first_name"),
                         P::literal(":"),
-                        P::identifier("additional_type"),
-                    ]),
-                ]),
+                        P::identifier("first_type"),
+                        P::zero_or_more_named(
+                            "additional_parameters",
+                            [
+                                P::literal(","),
+                                P::identifier("additional_name"),
+                                P::literal(":"),
+                                P::identifier("additional_type"),
+                            ],
+                        ),
+                    ],
+                ),
                 P::literal(")"),
             ],
         )],
@@ -145,6 +151,7 @@ fn capture_groups_preserve_optional_and_repeated_field_boundaries() {
     assert_eq!(construct.capture_groups.len(), 1);
 
     let parameters = &construct.capture_groups[0];
+    assert_eq!(parameters.name.as_deref(), Some("parameters"));
     assert_eq!(parameters.kind, CaptureGroupKind::Optional);
     assert_eq!(parameters.occurrences.len(), 1);
 
@@ -173,6 +180,10 @@ fn capture_groups_preserve_optional_and_repeated_field_boundaries() {
     assert_eq!(parameter_list.span.end, source.text().len() - 1);
 
     let additional_parameters = &parameter_list.groups[0];
+    assert_eq!(
+        additional_parameters.name.as_deref(),
+        Some("additional_parameters")
+    );
     assert_eq!(additional_parameters.kind, CaptureGroupKind::Repeat);
     assert_eq!(additional_parameters.occurrences.len(), 2);
     assert_eq!(
@@ -196,11 +207,69 @@ fn capture_groups_preserve_optional_and_repeated_field_boundaries() {
 
     let empty = parse(&SourceFile::new("empty", "fn empty()"), &grammar);
     assert_eq!(empty.constructs()[0].capture_groups.len(), 1);
+    assert_eq!(
+        empty.constructs()[0].capture_groups[0].name.as_deref(),
+        Some("parameters")
+    );
     assert!(
         empty.constructs()[0].capture_groups[0]
             .occurrences
             .is_empty()
     );
+
+    let list_grammar = LanguageSpec::new(
+        "Lists",
+        [ConstructSpec::new(
+            "list",
+            [
+                P::literal("list"),
+                P::zero_or_more_named("items", [P::identifier("item")]),
+            ],
+        )],
+    )
+    .unwrap();
+    let empty_list = parse(&SourceFile::new("list", "list"), &list_grammar);
+    let items = &empty_list.constructs()[0].capture_groups[0];
+    assert_eq!(items.name.as_deref(), Some("items"));
+    assert_eq!(items.kind, CaptureGroupKind::Repeat);
+    assert!(items.occurrences.is_empty());
+}
+
+#[test]
+fn validates_names_for_syntax_variants_and_pattern_groups() {
+    use PatternPart as P;
+
+    let duplicate_variant_names = ConstructSpec::new("item", [P::literal("item")])
+        .with_first_variant_name("word")
+        .variant_named("word", [P::literal("value")]);
+    assert!(matches!(
+        LanguageSpec::new("Names", [duplicate_variant_names]),
+        Err(langmeld_language::SpecError::DuplicateVariantName { .. })
+    ));
+
+    let empty_group_name = ConstructSpec::new(
+        "item",
+        [
+            P::literal("item"),
+            P::optional_named("  ", [P::literal("optional")]),
+        ],
+    );
+    assert!(matches!(
+        LanguageSpec::new("Names", [empty_group_name]),
+        Err(langmeld_language::SpecError::EmptyPatternGroupName(_))
+    ));
+
+    let duplicate_sibling_names = ConstructSpec::new(
+        "item",
+        [
+            P::identifier("items"),
+            P::optional_named("items", [P::literal("optional")]),
+        ],
+    );
+    assert!(matches!(
+        LanguageSpec::new("Names", [duplicate_sibling_names]),
+        Err(langmeld_language::SpecError::DuplicatePatternName { .. })
+    ));
 }
 
 #[test]

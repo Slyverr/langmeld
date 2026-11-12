@@ -71,6 +71,8 @@ pub enum CaptureGroupKind {
 /// A matched optional or repeated group in a construct's syntax pattern.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CaptureGroup {
+    /// Stable group name declared in the grammar, when available.
+    pub name: Option<String>,
     /// Whether this group was optional or repeated in the grammar.
     pub kind: CaptureGroupKind,
     /// Source occurrences of this group, in source order.

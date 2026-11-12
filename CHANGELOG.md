@@ -11,6 +11,9 @@ API migration notes are in the
 
 ### Added
 
+- `.langmeld` and Rust grammars can assign names to syntax alternatives and
+  optional/repeated groups. `ConstructSpec` retains alternative names, and
+  parsed capture groups retain group names for tooling.
 - `ParsedConstruct::capture_groups` preserves occurrence boundaries and nested
   structure for optional and repeated syntax groups while retaining the flat
   captured-field list.
@@ -30,6 +33,10 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** `PatternPart::Optional` now stores an optional group name and
+  its parts, and `PatternPart::Repeat` stores an optional name. Existing
+  constructors remain available; direct enum construction must add `name: None`
+  or use the `optional`, `zero_or_more`, and `one_or_more` constructors.
 - **Breaking:** `ParsedConstruct` includes `capture_groups`; update any direct
   struct initializers. Parser-produced constructs populate the field.
 - **Breaking:** `LanguagePass` is now generic over the parser's complete

@@ -230,8 +230,10 @@ fn pattern_part(part: &PatternPart, construct: &str) -> Result<String, TreeSitte
                 field: name.clone(),
             });
         }
-        PatternPart::Optional(parts) => format!("optional({})", sequence(parts, construct)?),
-        PatternPart::Repeat { parts, minimum } => {
+        PatternPart::Optional { parts, .. } => {
+            format!("optional({})", sequence(parts, construct)?)
+        }
+        PatternPart::Repeat { parts, minimum, .. } => {
             let function = match minimum {
                 RepeatMinimum::Zero => "repeat",
                 RepeatMinimum::One => "repeat1",
@@ -338,7 +340,8 @@ fn collect_lexer_needs(
                 FieldKind::String => *needs_string = true,
                 FieldKind::Identifier => {}
             },
-            PatternPart::Optional(group) | PatternPart::Repeat { parts: group, .. } => {
+            PatternPart::Optional { parts: group, .. }
+            | PatternPart::Repeat { parts: group, .. } => {
                 collect_lexer_needs(group, needs_integer, needs_string, needs_punctuation);
             }
             PatternPart::Literal(_)
