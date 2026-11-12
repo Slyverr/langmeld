@@ -170,7 +170,7 @@ fn select_local_crates(
     if interactive
         && Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt(format!(
-                "Use local Langmeld crates from `{}` for development?",
+                "Use local Langmeld crates from `{}` for development?\nThis writes a Git-ignored `.cargo/config.toml` that requires this checkout.",
                 root.display()
             ))
             .default(true)
