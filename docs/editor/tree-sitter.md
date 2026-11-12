@@ -6,7 +6,8 @@ optional and repeated groups, and child blocks. The generated lexer covers the
 configured line comments and the built-in identifier, decimal integer, quoted
 string, and punctuation categories. Configured block comments are reported as
 unsupported. Escaped line breaks in strings follow the built-in Langmeld
-lexer.
+lexer. Punctuation follows its grouped ASCII operator runs and single-character
+fallback tokens.
 It cannot infer a host lexer, custom parser, semantic rules, or runtime
 behavior, so those languages need a host-authored Tree-sitter grammar.
 

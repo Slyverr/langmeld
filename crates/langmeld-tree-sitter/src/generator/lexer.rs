@@ -6,6 +6,9 @@ use langmeld_language::{FieldKind, LanguageSpec, PatternPart};
 
 use super::js_string;
 
+const PUNCTUATION_REGEX: &str =
+    r#"(?:[+\-*\/=!<>%&|^~?:.]+|[^\p{Alphabetic}0-9_\s"+\-*\/=!<>%&|^~?:.])"#;
+
 pub(super) fn write_lexer_rules(output: &mut String, language: &LanguageSpec) {
     writeln!(
         output,
@@ -33,11 +36,8 @@ pub(super) fn write_lexer_rules(output: &mut String, language: &LanguageSpec) {
             .expect("writing to a string cannot fail");
     }
     if needs_punctuation {
-        writeln!(
-            output,
-            "    punctuation: _ => /[^\\p{{Alphabetic}}0-9_\\s\"]+/,"
-        )
-        .expect("writing to a string cannot fail");
+        writeln!(output, "    punctuation: _ => /{PUNCTUATION_REGEX}/,")
+            .expect("writing to a string cannot fail");
         writeln!(
             output,
             "    token: $ => choice($.identifier, $.integer, $.string, $.punctuation),"

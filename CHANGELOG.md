@@ -76,6 +76,7 @@ API migration notes are in the
 
 - Tree-sitter grammar export now accepts escaped line breaks in quoted strings,
   matching the built-in Langmeld lexer.
+- Tree-sitter punctuation tokens now follow the built-in lexer's grouping rules.
 - The project-definition LSP now drops its shared symbol and completion index
   when the configured root definition cannot be loaded, avoiding stale results.
 - Construct generation now preserves CRLF line endings in managed Rust

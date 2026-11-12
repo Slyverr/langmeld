@@ -164,6 +164,43 @@ fn keeps_escaped_line_breaks_inside_string_tokens() {
 }
 
 #[test]
+fn keeps_unmapped_punctuation_as_single_character_tokens() {
+    let grammar = LanguageSpec::new(
+        "Punctuation",
+        [ConstructSpec::new(
+            "symbols",
+            [
+                PatternPart::literal("@"),
+                PatternPart::literal("#"),
+                PatternPart::literal(";"),
+            ],
+        )
+        .variant([PatternPart::literal("+-")])],
+    )
+    .unwrap();
+
+    let separate_symbols = SourceFile::new("punctuation", "@#;");
+    let parsed_separate = parse(&separate_symbols, &grammar);
+
+    assert!(
+        parsed_separate.diagnostics().is_empty(),
+        "{:?}",
+        parsed_separate.diagnostics()
+    );
+    assert_eq!(parsed_separate.constructs().len(), 1);
+
+    let grouped_symbols = SourceFile::new("punctuation", "+-");
+    let parsed_grouped = parse(&grouped_symbols, &grammar);
+
+    assert!(
+        parsed_grouped.diagnostics().is_empty(),
+        "{:?}",
+        parsed_grouped.diagnostics()
+    );
+    assert_eq!(parsed_grouped.constructs().len(), 1);
+}
+
+#[test]
 fn reports_unterminated_string_literals() {
     let grammar = LanguageSpec::new(
         "Strings",

@@ -68,6 +68,21 @@ fn exported_string_rule_accepts_escaped_line_breaks() {
 }
 
 #[test]
+fn exported_punctuation_rule_keeps_single_character_tokens_separate() {
+    let output = generate(&language(), &TreeSitterOptions::new("widget_script"))
+        .expect("valid grammar name");
+    let punctuation_rule = output
+        .lines()
+        .find(|line| line.contains("punctuation: _ =>"))
+        .expect("token captures use the punctuation rule");
+
+    assert_eq!(
+        punctuation_rule.trim(),
+        r#"punctuation: _ => /(?:[+\-*\/=!<>%&|^~?:.]+|[^\p{Alphabetic}0-9_\s"+\-*\/=!<>%&|^~?:.])/,"#
+    );
+}
+
+#[test]
 fn rejects_invalid_grammar_names_and_languages_without_root_constructs() {
     assert!(generate(&language(), &TreeSitterOptions::new("Widget Script")).is_err());
     let no_roots = language()
