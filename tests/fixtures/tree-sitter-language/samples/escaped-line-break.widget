@@ -1,0 +1,4 @@
+program {
+    say hello to world with "first\
+second";
+}

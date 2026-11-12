@@ -60,6 +60,14 @@ fn exports_constructs_fields_groups_and_blocks_as_tree_sitter_rules() {
 }
 
 #[test]
+fn exported_string_rule_accepts_escaped_line_breaks() {
+    let output = generate(&language(), &TreeSitterOptions::new("widget_script"))
+        .expect("valid grammar name");
+
+    assert!(output.contains(r#"string: _ => /"([^"\\]|\\[\s\S])*"/,"#));
+}
+
+#[test]
 fn rejects_invalid_grammar_names_and_languages_without_root_constructs() {
     assert!(generate(&language(), &TreeSitterOptions::new("Widget Script")).is_err());
     let no_roots = language()

@@ -29,7 +29,7 @@ pub(super) fn write_lexer_rules(output: &mut String, language: &LanguageSpec) {
         writeln!(output, "    integer: _ => /[0-9]+/,").expect("writing to a string cannot fail");
     }
     if needs_string {
-        writeln!(output, "    string: _ => /\"([^\"\\\\]|\\\\.)*\"/,")
+        writeln!(output, "    string: _ => /\"([^\"\\\\]|\\\\[\\s\\S])*\"/,")
             .expect("writing to a string cannot fail");
     }
     if needs_punctuation {

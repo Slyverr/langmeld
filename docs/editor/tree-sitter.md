@@ -5,7 +5,8 @@ to a Tree-sitter `grammar.js` source. It maps construct variants, captures,
 optional and repeated groups, and child blocks. The generated lexer covers the
 configured line comments and the built-in identifier, decimal integer, quoted
 string, and punctuation categories. Configured block comments are reported as
-unsupported.
+unsupported. Escaped line breaks in strings follow the built-in Langmeld
+lexer.
 It cannot infer a host lexer, custom parser, semantic rules, or runtime
 behavior, so those languages need a host-authored Tree-sitter grammar.
 

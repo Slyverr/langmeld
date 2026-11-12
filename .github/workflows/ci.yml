@@ -173,6 +173,14 @@ jobs:
           tests/tree-sitter/node_modules/.bin/tree-sitter parse \
             --grammar-path target/tree-sitter-validation \
             target/tree-sitter-validation/sample.widget
+          parse_output="$(tests/tree-sitter/node_modules/.bin/tree-sitter parse \
+            --grammar-path target/tree-sitter-validation \
+            tests/fixtures/tree-sitter-language/samples/escaped-line-break.widget)"
+          printf '%s\n' "$parse_output"
+          if grep -Eq 'ERROR|MISSING' <<< "$parse_output"; then
+            echo 'escaped line break in a string should parse without errors' >&2
+            exit 1
+          fi
       - name: Check reusable libraries for WebAssembly
         run: >-
           cargo check --target wasm32-unknown-unknown

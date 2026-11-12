@@ -135,6 +135,35 @@ fn reports_unmatched_tokens_and_keeps_parsing_after_them() {
 }
 
 #[test]
+fn keeps_escaped_line_breaks_inside_string_tokens() {
+    let grammar = LanguageSpec::new(
+        "Strings",
+        [ConstructSpec::new(
+            "say",
+            [
+                PatternPart::literal("say"),
+                PatternPart::string("value"),
+                PatternPart::literal(";"),
+            ],
+        )],
+    )
+    .unwrap();
+    let source = SourceFile::new("strings", "say \"first\\\nsecond\";");
+
+    let parsed = parse(&source, &grammar);
+
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    assert_eq!(
+        parsed.constructs()[0].fields[0].value,
+        CapturedValue::String("\"first\\\nsecond\"".into())
+    );
+}
+
+#[test]
 fn reports_unterminated_string_literals() {
     let grammar = LanguageSpec::new(
         "Strings",
