@@ -41,13 +41,77 @@ fn generates_typed_fields_and_named_capture_groups() {
         .expect("named groups can be represented by typed bindings");
 
     assert!(generated.contains("pub struct Function<'source>"));
-    assert!(
-        generated.contains("pub fn name(&self) -> Result<CapturedIdentifier<'source>, Diagnostic>")
-    );
     assert!(generated.contains(
-        "pub fn parameters(&self) -> Result<Option<FunctionParameters<'source>>, Diagnostic>"
+        "pub fn name(&self) -> ::core::result::Result<::langmeld_language::CapturedIdentifier<'source>, ::langmeld_core::Diagnostic>"
     ));
-    assert!(generated.contains("pub fn additional_parameters(&self) -> Result<Vec<FunctionParametersAdditionalParameters<'source>>, Diagnostic>"));
+    assert!(generated.contains("pub fn parameters(&self) -> ::core::result::Result<::core::option::Option<FunctionParameters<'source>>, ::langmeld_core::Diagnostic>"));
+    assert!(generated.contains("pub fn additional_parameters(&self) -> ::core::result::Result<::std::vec::Vec<FunctionParametersAdditionalParameters<'source>>, ::langmeld_core::Diagnostic>"));
+}
+
+#[test]
+fn generated_names_do_not_shadow_framework_or_prelude_types() {
+    let names = [
+        "diagnostic",
+        "source_file",
+        "span",
+        "capture_group",
+        "capture_group_kind",
+        "capture_group_occurrence",
+        "captured_field",
+        "captured_identifier",
+        "captured_text",
+        "captured_value",
+        "parsed_construct",
+        "typed_construct",
+        "option",
+        "result",
+        "vec",
+    ];
+    let mut constructs = names
+        .iter()
+        .map(|name| ConstructSpec::new(*name, [PatternPart::literal(*name)]))
+        .collect::<Vec<_>>();
+    constructs.push(ConstructSpec::new(
+        "collection",
+        [
+            PatternPart::optional_named("maybe", [PatternPart::literal("maybe")]),
+            PatternPart::literal("with"),
+            PatternPart::one_or_more_named("items", [PatternPart::literal("item")]),
+        ],
+    ));
+    let specification =
+        LanguageSpec::new("Example", constructs).expect("all constructs have unique names");
+
+    let generated = generate_bindings(&specification)
+        .expect("user names may match imported Rust and Langmeld type names");
+
+    for name in [
+        "Diagnostic",
+        "SourceFile",
+        "Span",
+        "CaptureGroup",
+        "CaptureGroupKind",
+        "CaptureGroupOccurrence",
+        "CapturedField",
+        "CapturedIdentifier",
+        "CapturedText",
+        "CapturedValue",
+        "ParsedConstruct",
+        "TypedConstruct",
+        "Option",
+        "Result",
+        "Vec",
+    ] {
+        assert!(generated.contains(&format!("pub struct {name}<'source>")));
+    }
+
+    assert!(generated.contains("::langmeld_core::Diagnostic"));
+    assert!(generated.contains("::langmeld_language::TypedConstruct"));
+    assert!(generated.contains("::core::option::Option<"));
+    assert!(generated.contains("::core::result::Result<"));
+    assert!(generated.contains("::std::vec::Vec<"));
+    assert!(!generated.contains("use langmeld_core::"));
+    assert!(!generated.contains("use langmeld_language::"));
 }
 
 #[test]
@@ -130,7 +194,7 @@ fn generates_accessors_named_new_without_colliding_with_view_construction() {
         .expect("capture names may use ordinary Rust method names");
 
     assert!(
-        generated.contains("pub fn new(&self) -> Result<CapturedIdentifier<'source>, Diagnostic>")
+        generated.contains("pub fn new(&self) -> ::core::result::Result<::langmeld_language::CapturedIdentifier<'source>, ::langmeld_core::Diagnostic>")
     );
     assert!(!generated.contains("fn new(source:"));
     assert!(generated.contains("Ok(Self {"));

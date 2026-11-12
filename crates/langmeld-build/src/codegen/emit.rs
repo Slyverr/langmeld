@@ -6,9 +6,7 @@ use super::{
 };
 
 pub(super) fn bindings(constructs: &[GeneratedConstruct]) -> Result<String, BuildError> {
-    let mut output = String::from(
-        "#[allow(dead_code, missing_docs)]\npub mod constructs {\n    use langmeld_core::{Diagnostic, SourceFile, Span};\n    use langmeld_language::{\n        CaptureGroup, CaptureGroupKind, CapturedField, CapturedIdentifier, CapturedText,\n        CapturedValue, ParsedConstruct, TypedConstruct,\n    };\n\n",
-    );
+    let mut output = String::from("#[allow(dead_code, missing_docs)]\npub mod constructs {\n\n");
     output.push_str(HELPERS);
 
     for construct in constructs {
@@ -51,10 +49,10 @@ fn emit_construct(output: &mut String, construct: &GeneratedConstruct) -> Result
     }
 
     output.push_str(&format!(
-        r#"    impl<'source> TypedConstruct<'source> for {}<'source> {{
+        r#"    impl<'source> ::langmeld_language::TypedConstruct<'source> for {}<'source> {{
         const CONSTRUCT: &'static str = {:?};
 
-        fn from_validated_construct(source: &'source SourceFile, construct: &'source ParsedConstruct) -> Result<Self, Diagnostic> {{
+        fn from_validated_construct(source: &'source ::langmeld_core::SourceFile, construct: &'source ::langmeld_language::ParsedConstruct) -> ::core::result::Result<Self, ::langmeld_core::Diagnostic> {{
             match construct.variant {{
 "#,
         construct.type_name, construct.name
@@ -84,10 +82,10 @@ fn emit_single_variant_impl(
     variant: &GeneratedVariant,
 ) {
     output.push_str(&format!(
-        r#"    impl<'source> TypedConstruct<'source> for {}<'source> {{
+        r#"    impl<'source> ::langmeld_language::TypedConstruct<'source> for {}<'source> {{
         const CONSTRUCT: &'static str = {:?};
 
-        fn from_validated_construct(source: &'source SourceFile, construct: &'source ParsedConstruct) -> Result<Self, Diagnostic> {{
+        fn from_validated_construct(source: &'source ::langmeld_core::SourceFile, construct: &'source ::langmeld_language::ParsedConstruct) -> ::core::result::Result<Self, ::langmeld_core::Diagnostic> {{
             if construct.variant != {} {{
                 return Err(__error(source, construct.name.as_str(), "syntax variant is not present in generated bindings", construct.span));
             }}
@@ -133,11 +131,11 @@ fn emit_scope_view(
     output.push_str(&format!(
         r#"    #[derive(Clone, Copy, Debug)]
     pub struct {type_name}<'source> {{
-        source: &'source SourceFile,
-        construct: &'source ParsedConstruct,
-        fields: &'source [CapturedField],
-        groups: &'source [CaptureGroup],
-        span: Span,
+        source: &'source ::langmeld_core::SourceFile,
+        construct: &'source ::langmeld_language::ParsedConstruct,
+        fields: &'source [::langmeld_language::CapturedField],
+        groups: &'source [::langmeld_language::CaptureGroup],
+        span: ::langmeld_core::Span,
     }}
 
     impl<'source> {type_name}<'source> {{
@@ -172,23 +170,32 @@ fn emit_field_method(output: &mut String, field: &FieldShape) {
     };
     let (return_type, access) = match field.expected {
         ExpectedCapture::Identifier => (
-            "CapturedIdentifier<'source>".to_owned(),
+            "::langmeld_language::CapturedIdentifier<'source>".to_owned(),
             format!(
                 "__capture_identifier(self.source, self.construct, self.fields, {:?}, self.span)",
                 field.name
             ),
         ),
-        ExpectedCapture::Token => ("CapturedText<'source>".to_owned(), text_access("Token")),
-        ExpectedCapture::Integer => ("CapturedText<'source>".to_owned(), text_access("Integer")),
-        ExpectedCapture::String => ("CapturedText<'source>".to_owned(), text_access("String")),
+        ExpectedCapture::Token => (
+            "::langmeld_language::CapturedText<'source>".to_owned(),
+            text_access("Token"),
+        ),
+        ExpectedCapture::Integer => (
+            "::langmeld_language::CapturedText<'source>".to_owned(),
+            text_access("Integer"),
+        ),
+        ExpectedCapture::String => (
+            "::langmeld_language::CapturedText<'source>".to_owned(),
+            text_access("String"),
+        ),
         ExpectedCapture::Expression => (
-            "CapturedText<'source>".to_owned(),
+            "::langmeld_language::CapturedText<'source>".to_owned(),
             text_access("Expression"),
         ),
     };
 
     output.push_str(&format!(
-        r#"        pub fn {}(&self) -> Result<{return_type}, Diagnostic> {{
+        r#"        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
             {access}
         }}
 
@@ -199,19 +206,27 @@ fn emit_field_method(output: &mut String, field: &FieldShape) {
 
 fn emit_group_method(output: &mut String, group: &GroupShape, group_type: &str) {
     let (expected_kind, return_type, collection) = match group.kind {
-        GroupKind::Optional => ("Optional", format!("Option<{group_type}<'source>>"), false),
-        GroupKind::Repeated => ("Repeat", format!("Vec<{group_type}<'source>>"), true),
+        GroupKind::Optional => (
+            "Optional",
+            format!("::core::option::Option<{group_type}<'source>>"),
+            false,
+        ),
+        GroupKind::Repeated => (
+            "Repeat",
+            format!("::std::vec::Vec<{group_type}<'source>>"),
+            true,
+        ),
     };
 
     output.push_str(&format!(
-        r#"        pub fn {}(&self) -> Result<{return_type}, Diagnostic> {{
+        r#"        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
             let group = __group(
                 self.source,
                 self.construct,
                 self.groups,
                 {:?},
                 self.span,
-                CaptureGroupKind::{expected_kind},
+                ::langmeld_language::CaptureGroupKind::{expected_kind},
             )?;
 "#,
         group.rust_name, group.name
@@ -219,7 +234,7 @@ fn emit_group_method(output: &mut String, group: &GroupShape, group_type: &str) 
 
     if collection {
         output.push_str(&format!(
-            r#"            let mut views = Vec::with_capacity(group.occurrences.len());
+            r#"            let mut views = ::std::vec::Vec::with_capacity(group.occurrences.len());
             for occurrence in &group.occurrences {{
                 let fields = __occurrence_fields(self.source, self.construct, occurrence)?;
                 views.push({group_type} {{

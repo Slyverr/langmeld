@@ -20,6 +20,8 @@ API migration notes are in the
 
 - Correct the typed-bindings dependency example and document local crate
   resolution before the current release line is published.
+- Fully qualify generated typed-binding support types so language constructs
+  can use names such as `Option`, `Result`, or `Diagnostic` without collisions.
 
 ## [0.12.1] - 2026-11-12
 
