@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-12
+
+### Fixed
+
+- Refuse to follow destination symlinks when replacing CLI-managed files.
+
 ## [0.12.0] - 2026-11-12
 
 ### Added

@@ -321,3 +321,32 @@ fn format_command_does_not_write_a_project_with_invalid_imports() {
     assert_eq!(fs::read_to_string(&root).unwrap(), original_root);
     assert_eq!(fs::read_to_string(&module).unwrap(), invalid_module);
 }
+
+#[cfg(unix)]
+#[test]
+fn format_command_refuses_to_replace_a_symlink_target() {
+    use std::os::unix::fs::symlink;
+
+    let parent = TestDirectory::new();
+    let target = parent.path().join("target.langmeld");
+    let link = parent.path().join("linked.langmeld");
+    let original = "language \"Toy\"{construct \"item\"{syntax{literal \"item\";}}}";
+    fs::write(&target, original).unwrap();
+    symlink(&target, &link).unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args(["format"])
+        .arg(&link)
+        .output()
+        .expect("CLI should start");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("refusing to replace symlink"));
+    assert_eq!(fs::read_to_string(&target).unwrap(), original);
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+}

@@ -7,12 +7,17 @@ use std::{
 use tempfile::NamedTempFile;
 
 pub(crate) fn replace_existing(path: &Path, contents: &str) -> io::Result<()> {
-    let target = fs::canonicalize(path)?;
-    let metadata = fs::metadata(&target)?;
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("refusing to replace symlink `{}`", path.display()),
+        ));
+    }
     if !metadata.is_file() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("refusing to replace non-file `{}`", target.display()),
+            format!("refusing to replace non-file `{}`", path.display()),
         ));
     }
 
@@ -20,10 +25,21 @@ pub(crate) fn replace_existing(path: &Path, contents: &str) -> io::Result<()> {
     if permissions.readonly() {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
-            format!("refusing to replace read-only file `{}`", target.display()),
+            format!("refusing to replace read-only file `{}`", path.display()),
         ));
     }
 
+    let file_name = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("file `{}` has no file name", path.display()),
+        )
+    })?;
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let target = fs::canonicalize(parent)?.join(file_name);
     let parent = target.parent().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
