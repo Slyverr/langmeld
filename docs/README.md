@@ -11,6 +11,8 @@ framework users. The guides describe behavior available in the current codebase.
   guidance for pre-1.0 changes.
 - [Construct handlers](language/handlers.md): implement and register Rust
   behavior for declarative constructs.
+- [Typed Rust bindings](language/typed-bindings.md): generate checked Rust views
+  for captures and named syntax groups.
 - [Analysis passes](language/analysis-passes.md): organize ordered semantic
   phases over parsed documents with host-owned state.
 - [Language definitions](language/definitions.md): organize `.langmeld` files,

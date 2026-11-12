@@ -11,6 +11,12 @@ API migration notes are in the
 
 ### Added
 
+- `langmeld-build` generates typed Rust views of declarative constructs,
+  captures, named optional groups, and repeated groups into Cargo's `OUT_DIR`.
+- `ConstructContext::typed` lets handlers access a generated view of the
+  current construct; `ParseResult::contains_construct` checks node membership,
+  and the declarative-functions example uses generated views while lowering
+  its AST.
 - `.langmeld` and Rust grammars can assign names to syntax alternatives and
   optional/repeated groups. `ConstructSpec` retains alternative names, and
   parsed capture groups retain group names for tooling.

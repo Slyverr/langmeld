@@ -13,5 +13,8 @@ langmeld-expression.workspace = true
 langmeld-language.workspace = true
 langmeld-project.workspace = true
 
+[build-dependencies]
+langmeld-build.workspace = true
+
 [lints]
 workspace = true

@@ -1,6 +1,10 @@
 mod analysis;
 mod ast;
 
+pub mod generated {
+    include!(concat!(env!("OUT_DIR"), "/langmeld_bindings.rs"));
+}
+
 use std::path::Path;
 
 use langmeld_core::{Diagnostic, SourceFile};

@@ -18,13 +18,13 @@ currently provide an automatic migration command.
 
 ### Name syntax alternatives and capture groups
 
-`.langmeld` syntax may now name a variant or optional/repeated group, for example
+`.langmeld` syntax may name a variant or optional/repeated group, for example
 `syntax "signature" { ... }` and `zero_or_more "parameters" { ... }`.
 Existing unnamed forms remain valid. Rust grammars can use
 `ConstructSpec::with_first_variant_name`, `ConstructSpec::variant_named`, and
 `PatternPart::{optional_named, zero_or_more_named, one_or_more_named}`. Labels
-are metadata for tooling; they do not assign language semantics or currently
-generate typed Rust accessors.
+remain metadata rather than language semantics; the optional `langmeld-build`
+crate uses them to generate typed Rust accessors.
 
 `PatternPart::Optional` changed from a tuple variant to a struct variant that
 also stores an optional name. `PatternPart::Repeat` now includes an optional

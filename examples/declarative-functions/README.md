@@ -5,12 +5,16 @@ for the language-specific AST and semantic rules. It checks parameterized
 function declarations, forward calls, unresolved names, and call arity. It does
 not define a runtime or compiler.
 
-The grammar lives in `language/`. Rust lowers generic parsed constructs into a
-typed AST in `src/ast.rs`; `src/analysis.rs` collects function signatures and
-then resolves calls in two ordered `LanguagePass` stages. This demonstrates
+The grammar lives in `language/`. Its build script generates typed capture views
+under Cargo's `OUT_DIR`; `src/ast.rs` uses those views to lower parsed constructs
+into a language-specific AST. `src/analysis.rs` collects function signatures
+and then resolves calls in two ordered `LanguagePass` stages. This demonstrates
 that syntax declarations do not implicitly create symbols or determine
-function semantics. Named syntax groups let Rust find the parameter list and
-keep each repeated parameter's name and type together.
+function semantics. Named syntax groups generate optional and repeated Rust
+views, keeping each parameter's name and type together.
+
+The generated bindings are included from the stable source module in
+`src/lib.rs`. The generated file is build output and should not be checked in.
 
 Run the valid sample or analyze a source file:
 

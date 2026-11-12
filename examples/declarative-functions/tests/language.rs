@@ -1,5 +1,7 @@
 use langmeld_core::SourceFile;
-use langmeld_declarative_functions_example::{analyze, diagnostics};
+use langmeld_declarative_functions_example::{analyze, diagnostics, generated::constructs};
+use langmeld_language::{TypedConstruct, parse};
+use langmeld_project::load_language_spec;
 
 #[test]
 fn accepts_parameterized_functions_and_forward_calls() {
@@ -91,4 +93,27 @@ fn rejects_trailing_commas_in_function_parameters() {
     let analysis = analyze(&source).expect("the checked-in grammar should load");
 
     assert!(!analysis.parsed.is_valid());
+}
+
+#[test]
+fn generated_views_reject_mismatched_sources_and_parse_results() {
+    let source = SourceFile::new("typed.functionflow", "program { fn main() -> i32 {} }");
+    let language = load_language_spec(env!("CARGO_MANIFEST_DIR"))
+        .expect("the checked-in definition project should load");
+    let parsed = parse(&source, &language);
+    let function = &parsed.constructs()[0].children[0];
+    let view = constructs::Function::from_construct(&source, &parsed, function)
+        .expect("the generated view should accept its source construct");
+
+    assert_eq!(view.name().expect("name is captured").text, "main");
+
+    let same_text = SourceFile::new("typed-copy.functionflow", source.text());
+    let source_error = constructs::Function::from_construct(&same_text, &parsed, function)
+        .expect_err("a different source snapshot must not be accepted");
+    assert_eq!(source_error.code, "LM-TYPED-001");
+
+    let other_parse = parse(&same_text, &language);
+    let membership_error = constructs::Function::from_construct(&same_text, &other_parse, function)
+        .expect_err("a construct from another parse result must not be accepted");
+    assert_eq!(membership_error.code, "LM-TYPED-001");
 }

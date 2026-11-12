@@ -38,6 +38,7 @@ release_crates=(
   langmeld-expression
   langmeld-language
   langmeld-project
+  langmeld-build
   langmeld-lsp
   langmeld-textmate
   langmeld-tree-sitter

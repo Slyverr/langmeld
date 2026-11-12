@@ -384,6 +384,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "langmeld-build"
+version = "0.9.0"
+dependencies = [
+ "heck",
+ "langmeld-core",
+ "langmeld-language",
+ "langmeld-project",
+]
+
+[[package]]
 name = "langmeld-cli"
 version = "0.9.0"
 dependencies = [
@@ -418,6 +428,7 @@ dependencies = [
 name = "langmeld-declarative-functions-example"
 version = "0.9.0"
 dependencies = [
+ "langmeld-build",
  "langmeld-core",
  "langmeld-expression",
  "langmeld-language",
