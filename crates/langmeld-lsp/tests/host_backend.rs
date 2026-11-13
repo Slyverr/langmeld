@@ -80,10 +80,13 @@ struct TestWorkspaceAnalyzer {
     output_count: Option<usize>,
 }
 
-impl LanguageWorkspaceAnalyzer<TestParser, TestAnalyzer> for TestWorkspaceAnalyzer {
+impl<A> LanguageWorkspaceAnalyzer<TestParser, A> for TestWorkspaceAnalyzer
+where
+    A: LanguageAnalyzer<TestParser, Analysis = ()>,
+{
     fn analyze_workspace(
         &self,
-        _analyzer: &TestAnalyzer,
+        _analyzer: &A,
         documents: &[(&SourceFile, &ParsedDocument<()>)],
     ) -> Vec<AnalysisDocument<()>> {
         documents
@@ -487,6 +490,40 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
                 .map(ParsedDocument::source_identity),
             Some(source.identity())
         );
+        assert_eq!(
+            document
+                .state()
+                .analysis()
+                .map(AnalysisDocument::source_identity),
+            Some(source.identity())
+        );
+    }
+}
+
+#[test]
+fn valid_workspace_results_replace_per_source_analysis() {
+    let (source, _, other_source) = managed_source_and_other_identity();
+    let analyzer_calls = Arc::new(AtomicUsize::new(0));
+    let backend = HostLanguageBackend::new_with_analyzer(
+        TestParser {
+            reported_source: None,
+        },
+        CountingAnalyzer(Arc::clone(&analyzer_calls)),
+    )
+    .with_workspace_analyzer(TestWorkspaceAnalyzer {
+        reported_source: None,
+        output_count: None,
+    });
+    let sources = [source.clone(), other_source];
+
+    let documents = backend
+        .analyze_workspace(&sources)
+        .expect("configured workspace analysis returns a complete result");
+
+    assert_eq!(analyzer_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(documents.len(), sources.len());
+    for (document, source) in documents.iter().zip(&sources) {
+        assert_eq!(document.source_identity(), source.identity());
         assert_eq!(
             document
                 .state()
