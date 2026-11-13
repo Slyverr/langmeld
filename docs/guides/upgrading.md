@@ -19,7 +19,12 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
-## Unreleased LSP backend thread bounds
+## Migrating from v0.13.0 to v0.14.0
+
+The changes below are included in v0.14.0. See the
+[changelog](../../CHANGELOG.md) for the complete release notes.
+
+### LSP backend thread bounds
 
 `LanguageBackend` and its retained `Document` state no longer require
 `Send + Sync + 'static`. `HostLanguageBackend` providers can also borrow
@@ -38,7 +43,7 @@ closure still need to meet Rust's normal `Send + 'static` requirements. A
 custom backend that is moved or shared across threads should add the required
 bounds to its own type and synchronize shared state explicitly.
 
-## Unreleased handler registry lifetime
+### Handler registry lifetime
 
 `ConstructHandlerRegistry` now has a leading lifetime parameter so registered
 dynamic and typed handlers can borrow configuration. In explicit type

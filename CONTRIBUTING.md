@@ -198,11 +198,14 @@ cargo semver-checks \
 
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
-tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
-checks above and the archive verification command. For a patch, tag the final
-compatible fix commit that carries the release metadata; for a minor release,
-tag its `chore(release)` commit. Push that commit to `develop` and wait for CI
-before creating the signed annotated `vX.Y.Z` tag with the message
+tag aligned. Regenerate the workspace lockfile and update standalone
+consumer fixtures that pin Langmeld crate versions, including their lockfiles
+(`benchmarks/langmeld-performance` and `tests/fixtures/downstream-consumer`).
+Then run the development checks above and the archive verification command.
+For a patch, tag the final compatible fix commit that carries the release
+metadata; for a minor release, tag its `chore(release)` commit. Push that
+commit to `develop` and wait for CI before creating the signed annotated
+`vX.Y.Z` tag with the message
 `Langmeld vX.Y.Z`:
 
 ```sh
