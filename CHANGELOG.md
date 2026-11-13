@@ -34,6 +34,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Explain when distinct construct names collide on a generated Rust handler
+  module instead of reporting only that the handler path already exists.
 - Keep the empty consumed span on a UTF-8 boundary when an expression range is
   invalid.
 - Diagnose invalid host workspace-analysis result batches before falling back

@@ -155,7 +155,10 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
         .output()
         .expect("CLI should start");
     assert!(!second_colliding_name.status.success());
-    assert!(String::from_utf8_lossy(&second_colliding_name.stderr).contains("already exists"));
+    let collision_message = String::from_utf8_lossy(&second_colliding_name.stderr);
+    assert!(collision_message.contains("foo_bar` and `foo-bar`"));
+    assert!(collision_message.contains("both map to Rust module `foo_bar`"));
+    assert!(collision_message.contains("rename one construct"));
 }
 
 #[test]

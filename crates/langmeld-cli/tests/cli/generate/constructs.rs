@@ -387,3 +387,92 @@ fn generate_construct_rolls_back_files_when_registry_update_fails() {
     assert!(!project.join("language/constructs/trace.langmeld").exists());
     assert!(!project.join("src/constructs/trace.rs").exists());
 }
+
+#[test]
+fn generate_construct_explains_handler_module_collisions_without_partial_files() {
+    let parent = TestDirectory::new();
+    let project = parent.path().join("colliding-language");
+    let init = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "init",
+            project.to_str().expect("temporary path is UTF-8"),
+            "--non-interactive",
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+
+    let statements = project.join("language/constructs/statements.langmeld");
+    let mut source = fs::read_to_string(&statements).expect("constructs should be generated");
+    source.push_str(
+        "\nconstruct \"foo-bar\" { syntax { literal \"foo\"; literal \";\"; } implements \"statement\"; }\n",
+    );
+    fs::write(&statements, source).expect("the existing construct should be added");
+
+    let manifest = project.join("langmeld.toml");
+    let existing_handler = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "handler",
+            "foo-bar",
+            "--manifest-path",
+            manifest.to_str().expect("manifest path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        existing_handler.status.success(),
+        "{}",
+        String::from_utf8_lossy(&existing_handler.stderr)
+    );
+
+    let root_path = project.join("language/main.langmeld");
+    let original_root = fs::read_to_string(&root_path).expect("root definition should be readable");
+    let registry_path = project.join("src/constructs/mod.rs");
+    let original_registry =
+        fs::read_to_string(&registry_path).expect("handler registry should be readable");
+    let handler_path = project.join("src/constructs/foo_bar.rs");
+    let original_handler =
+        fs::read_to_string(&handler_path).expect("first handler should be generated");
+
+    let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "construct",
+            "foo_bar",
+            "--literal",
+            "foo_bar",
+            "--category",
+            "statement",
+            "--manifest-path",
+            manifest.to_str().expect("manifest path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+
+    assert!(!generated.status.success());
+    let collision_message = String::from_utf8_lossy(&generated.stderr);
+    assert!(
+        collision_message.contains("foo_bar` and `foo-bar`"),
+        "{collision_message}"
+    );
+    assert!(
+        collision_message.contains("both map to Rust module `foo_bar`"),
+        "{collision_message}"
+    );
+    assert_eq!(fs::read_to_string(&root_path).unwrap(), original_root);
+    assert_eq!(
+        fs::read_to_string(&registry_path).unwrap(),
+        original_registry
+    );
+    assert_eq!(fs::read_to_string(&handler_path).unwrap(), original_handler);
+    assert!(
+        !project
+            .join("language/constructs/foo_bar.langmeld")
+            .exists()
+    );
+}

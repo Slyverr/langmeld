@@ -10,7 +10,8 @@ use langmeld_project::RustBindings;
 
 use crate::{
     handler_generation::{
-        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, handler_template,
+        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END,
+        find_handler_module_collision, handler_module_collision_error, handler_template,
         rust_names, update_managed_section, validate_constructs_directory,
     },
     project::load_definition_project,
@@ -79,10 +80,28 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     validate_constructs_directory(&project.root.join("src"))?;
     validate_constructs_directory(&handler_directory)?;
     let handler_path = handler_directory.join(format!("{module_name}.rs"));
+    let colliding_construct = find_handler_module_collision(
+        &name,
+        &module_name,
+        project
+            .language
+            .constructs()
+            .iter()
+            .map(|construct| construct.name()),
+    );
 
     let registry_path = handler_directory.join("mod.rs");
     let registry_source = transaction::read_regular_file(&registry_path)?;
     let module_line = format!("mod {module_name};");
+    if let Some(colliding_construct) = colliding_construct.as_deref()
+        && registry_source
+            .lines()
+            .any(|line| line.trim() == module_line)
+    {
+        return Err(
+            handler_module_collision_error(&name, colliding_construct, &module_name).into(),
+        );
+    }
     let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
     let updated_registry =
         update_managed_section(&registry_source, MODULES_BEGIN, MODULES_END, &module_line)
@@ -114,6 +133,9 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
         syntax_source: &syntax_source,
         handler_path: &handler_path,
         handler_source: &handler_source,
+        construct_name: &name,
+        handler_module_name: &module_name,
+        colliding_construct: colliding_construct.as_deref(),
     })?;
 
     let syntax_relative = syntax_path

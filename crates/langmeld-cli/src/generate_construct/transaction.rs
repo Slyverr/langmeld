@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     file_ops::{replace_existing, write_new_file},
-    handler_generation::ensure_new_path,
+    handler_generation::{ensure_new_handler_path, ensure_new_path},
 };
 
 pub(super) struct ConstructFiles<'a> {
@@ -21,11 +21,19 @@ pub(super) struct ConstructFiles<'a> {
     pub(super) syntax_source: &'a str,
     pub(super) handler_path: &'a Path,
     pub(super) handler_source: &'a str,
+    pub(super) construct_name: &'a str,
+    pub(super) handler_module_name: &'a str,
+    pub(super) colliding_construct: Option<&'a str>,
 }
 
 pub(super) fn apply(files: ConstructFiles<'_>) -> io::Result<()> {
     ensure_new_path(files.syntax_path, "syntax file")?;
-    ensure_new_path(files.handler_path, "handler source")?;
+    ensure_new_handler_path(
+        files.handler_path,
+        files.construct_name,
+        files.handler_module_name,
+        files.colliding_construct,
+    )?;
 
     let created_directory = match fs::symlink_metadata(files.syntax_directory) {
         Ok(metadata) => {

@@ -6,8 +6,9 @@ use langmeld_project::RustBindings;
 use crate::{
     file_ops::{replace_existing, write_new_file},
     handler_generation::{
-        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END, ensure_new_path,
-        handler_template, rust_names, update_managed_section, validate_constructs_directory,
+        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END,
+        ensure_new_handler_path, find_handler_module_collision, handler_template, rust_names,
+        update_managed_section, validate_constructs_directory,
     },
     project::load_definition_project,
 };
@@ -45,7 +46,21 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     validate_constructs_directory(&constructs_directory)?;
 
     let handler_path = constructs_directory.join(format!("{module_name}.rs"));
-    ensure_new_path(&handler_path, "handler source")?;
+    let colliding_construct = find_handler_module_collision(
+        &args.construct,
+        &module_name,
+        project
+            .language
+            .constructs()
+            .iter()
+            .map(|construct| construct.name()),
+    );
+    ensure_new_handler_path(
+        &handler_path,
+        &args.construct,
+        &module_name,
+        colliding_construct.as_deref(),
+    )?;
 
     let registry_path = constructs_directory.join("mod.rs");
     let registry_metadata = fs::symlink_metadata(&registry_path)?;

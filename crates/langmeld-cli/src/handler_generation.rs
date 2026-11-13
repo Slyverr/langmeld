@@ -28,6 +28,54 @@ pub(crate) fn ensure_new_path(path: &Path, description: &str) -> io::Result<()> 
     }
 }
 
+pub(crate) fn find_handler_module_collision<'a>(
+    construct: &str,
+    module_name: &str,
+    declared_constructs: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    declared_constructs
+        .into_iter()
+        .filter(|candidate| *candidate != construct)
+        .find(|candidate| {
+            rust_names(candidate).is_ok_and(|(candidate_module, _)| candidate_module == module_name)
+        })
+        .map(str::to_owned)
+}
+
+pub(crate) fn ensure_new_handler_path(
+    path: &Path,
+    construct: &str,
+    module_name: &str,
+    colliding_construct: Option<&str>,
+) -> io::Result<()> {
+    ensure_new_path(path, "handler source").map_err(|error| {
+        if error.kind() != io::ErrorKind::AlreadyExists {
+            return error;
+        }
+
+        let Some(colliding_construct) = colliding_construct else {
+            return error;
+        };
+
+        let collision_error =
+            handler_module_collision_error(construct, colliding_construct, module_name);
+        io::Error::new(error.kind(), format!("{error}; {collision_error}"))
+    })
+}
+
+pub(crate) fn handler_module_collision_error(
+    construct: &str,
+    colliding_construct: &str,
+    module_name: &str,
+) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        format!(
+            "constructs `{construct}` and `{colliding_construct}` both map to Rust module `{module_name}`; rename one construct to generate separate handlers"
+        ),
+    )
+}
+
 pub(crate) fn update_managed_section(
     source: &str,
     begin_marker: &str,
