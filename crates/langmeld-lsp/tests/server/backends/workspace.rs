@@ -206,3 +206,111 @@ fn invalid_workspace_results_reanalyze_every_open_document() {
         .expect("server thread should finish")
         .expect("server should shut down cleanly");
 }
+
+struct MismatchedFallbackBackend;
+
+impl LanguageBackend for MismatchedFallbackBackend {
+    type Document = ();
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        let stale_source = SourceFile::new(source.name(), source.text());
+        let stale_diagnostic = Diagnostic::error(
+            "STALE-DIAGNOSTIC",
+            "diagnostic for an obsolete snapshot",
+            &stale_source,
+            Span::new(0, stale_source.text().len()),
+        );
+
+        BackendDocument::new(&stale_source, (), vec![stale_diagnostic])
+    }
+
+    fn analyze_workspace(
+        &self,
+        _sources: &[SourceFile],
+    ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        Some(Vec::new())
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            completion: true,
+            ..BackendCapabilities::default()
+        }
+    }
+
+    fn complete(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        vec![CompletionCandidate::new("stale", Span::new(0, 0))]
+    }
+}
+
+#[test]
+fn invalid_workspace_fallback_preserves_mismatched_analysis_identity() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, MismatchedFallbackBackend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(&client, 1, "initialize", json!({"capabilities": {}}));
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+    send_notification(
+        &client,
+        "textDocument/didOpen",
+        json!({
+            "textDocument": {
+                "uri": "file:///workspace-fallback.test",
+                "languageId": "test",
+                "version": 1,
+                "text": "current"
+            }
+        }),
+    );
+
+    let diagnostics = receive_diagnostics(&client);
+    let diagnostics = diagnostics["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 2);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "LM-LSP-001")
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "LM-LSP-002")
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic["code"] != "STALE-DIAGNOSTIC")
+    );
+
+    send_request(
+        &client,
+        2,
+        "textDocument/completion",
+        json!({
+            "textDocument": { "uri": "file:///workspace-fallback.test" },
+            "position": { "line": 0, "character": 0 }
+        }),
+    );
+    assert_eq!(receive_response(&client), json!([]));
+
+    send_request(&client, 3, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}

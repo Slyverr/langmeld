@@ -8,6 +8,7 @@ use lsp_types::{
 };
 use serde::de::DeserializeOwned;
 
+use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
 use crate::backend::BackendDocument;
 use crate::conversion::{byte_offset, diagnostic_for, diagnostics_for};
 
@@ -15,7 +16,12 @@ const WORKSPACE_RESULT_CODE: &str = "LM-LSP-001";
 const DOCUMENT_SOURCE_MISMATCH_CODE: &str = "LM-LSP-002";
 const DIAGNOSTIC_LOCATION_CODE: &str = "LM-LSP-003";
 
-use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
+struct WorkspaceEntry {
+    uri: Uri,
+    source_id: SourceId,
+    version: i32,
+    source: SourceFile,
+}
 
 impl<B: LanguageBackend> ServerState<B> {
     pub(super) fn open(
@@ -95,39 +101,51 @@ impl<B: LanguageBackend> ServerState<B> {
 
     fn publish_analysis(
         &mut self,
-        uri: Uri,
-        source_id: SourceId,
-        version: i32,
-        source: &SourceFile,
+        entry: WorkspaceEntry,
         analysis: BackendDocument<B::Document>,
+        fallback_diagnostic: Option<Diagnostic>,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let converted = diagnostics_for(source, &analysis, self.encoding);
+        let WorkspaceEntry {
+            uri,
+            source_id,
+            version,
+            source,
+        } = entry;
+        let converted = diagnostics_for(&source, &analysis, self.encoding);
         let mut diagnostics = converted.diagnostics;
 
         if converted.invalid_locations {
             let invalid_locations = Diagnostic::error(
                 DIAGNOSTIC_LOCATION_CODE,
                 "host language backend returned diagnostics with foreign or invalid source locations; those diagnostics were suppressed",
-                source,
+                &source,
                 Span::new(0, source.text().len()),
             );
-            if let Some(diagnostic) = diagnostic_for(source, &invalid_locations, self.encoding) {
+            if let Some(diagnostic) = diagnostic_for(&source, &invalid_locations, self.encoding) {
                 diagnostics.push(diagnostic);
             }
         }
 
-        if !analysis.matches_source(source) {
+        if !analysis.matches_source(&source) {
             let mismatch = Diagnostic::error(
                 DOCUMENT_SOURCE_MISMATCH_CODE,
                 "host language backend returned a document for a different source snapshot; its diagnostics and editor queries were suppressed",
-                source,
+                &source,
                 Span::new(0, source.text().len()),
             );
-            if let Some(diagnostic) = diagnostic_for(source, &mismatch, self.encoding) {
+            if let Some(diagnostic) = diagnostic_for(&source, &mismatch, self.encoding) {
                 diagnostics.push(diagnostic);
             }
         }
+
+        if let Some(diagnostic) = fallback_diagnostic
+            .as_ref()
+            .and_then(|diagnostic| diagnostic_for(&source, diagnostic, self.encoding))
+        {
+            diagnostics.push(diagnostic);
+        }
+
         self.documents.insert(
             uri.clone(),
             OpenDocument {
@@ -152,14 +170,14 @@ impl<B: LanguageBackend> ServerState<B> {
             .iter()
             .filter(|(uri, _)| Some(*uri) != updated_uri)
             .filter_map(|(uri, document)| {
-                self.sources.get(document.source_id).map(|source| {
-                    (
-                        uri.clone(),
-                        document.source_id,
-                        document.version,
-                        source.clone(),
-                    )
-                })
+                self.sources
+                    .get(document.source_id)
+                    .map(|source| WorkspaceEntry {
+                        uri: uri.clone(),
+                        source_id: document.source_id,
+                        version: document.version,
+                        source: source.clone(),
+                    })
             })
             .collect::<Vec<_>>();
         if let Some((uri, source_id, version)) = &updated {
@@ -168,13 +186,18 @@ impl<B: LanguageBackend> ServerState<B> {
                 .get(*source_id)
                 .expect("upserted document source exists")
                 .clone();
-            entries.push((uri.clone(), *source_id, *version, source));
+            entries.push(WorkspaceEntry {
+                uri: uri.clone(),
+                source_id: *source_id,
+                version: *version,
+                source,
+            });
         }
-        entries.sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
+        entries.sort_by(|left, right| left.uri.as_str().cmp(right.uri.as_str()));
 
         let sources = entries
             .iter()
-            .map(|(_, _, _, source)| source.clone())
+            .map(|entry| entry.source.clone())
             .collect::<Vec<_>>();
         if let Some(analyses) = self.backend.analyze_workspace(&sources) {
             let invalid_batch = if analyses.len() != entries.len() {
@@ -187,9 +210,7 @@ impl<B: LanguageBackend> ServerState<B> {
                 analyses
                     .iter()
                     .zip(&entries)
-                    .position(|(analysis, (_, _, _, source))| {
-                        !analysis.matches_source(source)
-                    })
+                    .position(|(analysis, entry)| !analysis.matches_source(&entry.source))
                     .map(|index| {
                         format!(
                             "host language backend returned a result for a different source snapshot at document {}; per-document analysis was used instead",
@@ -199,24 +220,20 @@ impl<B: LanguageBackend> ServerState<B> {
             };
 
             if let Some(message) = invalid_batch {
-                for (uri, source_id, version, source) in entries {
-                    let parts = self.backend.analyze(&source).into_parts();
-                    let mut diagnostics = parts.diagnostics;
-                    diagnostics.push(Diagnostic::error(
+                for entry in entries {
+                    let analysis = self.backend.analyze(&entry.source);
+                    let fallback_diagnostic = Some(Diagnostic::error(
                         WORKSPACE_RESULT_CODE,
                         message.clone(),
-                        &source,
-                        Span::new(0, source.text().len()),
+                        &entry.source,
+                        Span::new(0, entry.source.text().len()),
                     ));
-                    let analysis = BackendDocument::new(&source, parts.state, diagnostics);
 
-                    self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+                    self.publish_analysis(entry, analysis, fallback_diagnostic, connection)?;
                 }
             } else {
-                for ((uri, source_id, version, source), analysis) in
-                    entries.into_iter().zip(analyses)
-                {
-                    self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+                for (entry, analysis) in entries.into_iter().zip(analyses) {
+                    self.publish_analysis(entry, analysis, None, connection)?;
                 }
             }
 
@@ -227,9 +244,9 @@ impl<B: LanguageBackend> ServerState<B> {
             if !matches!(trigger, WorkspaceRefreshTrigger::WorkspaceChanged) {
                 return Ok(());
             }
-            for (uri, source_id, version, source) in entries {
-                let analysis = self.backend.analyze(&source);
-                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+            for entry in entries {
+                let analysis = self.backend.analyze(&entry.source);
+                self.publish_analysis(entry, analysis, None, connection)?;
             }
             return Ok(());
         };
@@ -239,7 +256,17 @@ impl<B: LanguageBackend> ServerState<B> {
             .expect("upserted document source exists")
             .clone();
         let analysis = self.backend.analyze(&source);
-        self.publish_analysis(uri, source_id, version, &source, analysis, connection)
+        self.publish_analysis(
+            WorkspaceEntry {
+                uri,
+                source_id,
+                version,
+                source,
+            },
+            analysis,
+            None,
+            connection,
+        )
     }
 }
 

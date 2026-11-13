@@ -40,6 +40,8 @@ API migration notes are in the
   to per-source analysis.
 - Diagnose invalid custom LSP workspace results before falling back to
   per-document analysis.
+- Preserve source identities when an invalid workspace result falls back to
+  per-document analysis.
 - Diagnose custom single-document backend results tied to a different source
   snapshot and suppress their stale editor data.
 - Report and suppress backend diagnostics with invalid or foreign source
