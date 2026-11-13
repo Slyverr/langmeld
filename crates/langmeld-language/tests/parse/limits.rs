@@ -130,7 +130,7 @@ fn custom_lexer_token_overflow_is_rejected_before_parsing() {
 }
 
 #[test]
-fn foreign_custom_diagnostic_cannot_hide_a_token_limit_error() {
+fn custom_diagnostics_cannot_hide_a_token_limit_error() {
     struct InvalidLimitDiagnostic;
 
     impl Lexer for InvalidLimitDiagnostic {
@@ -149,12 +149,20 @@ fn foreign_custom_diagnostic_cannot_hide_a_token_limit_error() {
                         span: Span::new(6, 11),
                     },
                 ],
-                diagnostics: vec![Diagnostic::error(
-                    "LM-PARSE-008",
-                    "foreign token limit finding",
-                    &foreign_source,
-                    Span::new(0, 5),
-                )],
+                diagnostics: vec![
+                    Diagnostic::error(
+                        "LM-PARSE-008",
+                        "foreign token limit finding",
+                        &foreign_source,
+                        Span::new(0, 5),
+                    ),
+                    Diagnostic::error(
+                        "LM-PARSE-008",
+                        "host reused a framework diagnostic code",
+                        source,
+                        Span::new(0, 5),
+                    ),
+                ],
             }
         }
     }
@@ -180,7 +188,10 @@ fn foreign_custom_diagnostic_cannot_hide_a_token_limit_error() {
     let token_limit = result
         .diagnostics()
         .iter()
-        .find(|diagnostic| diagnostic.code == "LM-PARSE-008")
+        .find(|diagnostic| {
+            diagnostic.code == "LM-PARSE-008"
+                && diagnostic.message == "token count exceeds the configured limit of 1"
+        })
         .expect("token overflow must report its own source-bound diagnostic");
     assert_eq!(
         token_limit

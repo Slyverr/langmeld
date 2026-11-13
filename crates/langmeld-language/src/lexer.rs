@@ -279,17 +279,14 @@ fn limit_lex_output(source: &SourceFile, mut output: LexOutput, max_tokens: usiz
 
     if output.tokens.len() > max_tokens {
         output.tokens = Vec::new();
-        if !output
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == "LM-PARSE-008")
-        {
-            output.diagnostics.push(Diagnostic::error(
-                "LM-PARSE-008",
-                format!("token count exceeds the configured limit of {max_tokens}"),
-                source,
-                Span::new(source.text().len(), source.text().len()),
-            ));
+        let limit_diagnostic = Diagnostic::error(
+            "LM-PARSE-008",
+            format!("token count exceeds the configured limit of {max_tokens}"),
+            source,
+            Span::new(source.text().len(), source.text().len()),
+        );
+        if !output.diagnostics.contains(&limit_diagnostic) {
+            output.diagnostics.push(limit_diagnostic);
         }
     }
     output
