@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
+use langmeld_language::{ConstructContext, HandlerControl, TypedConstructHandler};
 
 use crate::runtime::RuntimeState;
 
@@ -6,14 +6,18 @@ const UNKNOWN_VARIABLE_CODE: &str = "DEMO-LANGUAGE-006";
 
 pub(super) struct UpperHandler;
 
-impl ConstructHandler<RuntimeState> for UpperHandler {
-    const CONSTRUCT: &'static str = crate::generated::constructs::Upper::NAME;
+impl TypedConstructHandler<RuntimeState> for UpperHandler {
+    type View<'source> = crate::generated::constructs::Upper<'source>;
 
-    fn handle(
+    fn handle<'source>(
         &self,
-        context: &mut ConstructContext<'_, RuntimeState>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let syntax = context.typed::<crate::generated::constructs::Upper>()?;
+        context: &mut ConstructContext<'source, RuntimeState>,
+        syntax: Self::View<'source>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic>
+    where
+        RuntimeState: 'source,
+        (): 'source,
+    {
         let name = syntax.name()?;
         let value = context
             .state()
