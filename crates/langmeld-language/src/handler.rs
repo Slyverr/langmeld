@@ -21,7 +21,7 @@ pub use context::{CapturedIdentifier, CapturedText, ConstructContext};
 /// semantics require it. Langmeld does not assume that child constructs should
 /// always be visited or executed.
 pub trait ConstructHandler<State, Signal = ()> {
-    /// Name of the construct declared in `.langmeld`.
+    /// Name of the construct declared in the language specification.
     const CONSTRUCT: &'static str;
 
     /// Handles one parsed construct.
