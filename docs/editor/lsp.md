@@ -201,5 +201,10 @@ The server accepts both full-document replacements and incremental ranged
 changes. It applies changes in order using the negotiated LSP position
 encoding. Each change still produces a new source snapshot and runs analysis
 for that snapshot; this is not incremental parsing or semantic analysis.
+Backend analysis and editor requests run synchronously on the server's message
+loop. The server does not currently handle `$/cancelRequest`, so slow custom
+parser, analyzer, or backend work can delay later editor messages. Custom
+backends own their work bounds and should avoid waiting on long-running
+external operations in these callbacks.
 TextMate output is lexical only; it includes configured comments but does not
 infer undeclared comments, host lexer rules, or semantic classifications.
