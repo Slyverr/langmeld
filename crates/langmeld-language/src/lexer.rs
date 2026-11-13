@@ -359,7 +359,7 @@ pub(crate) fn validate_tokens(
             ));
             continue;
         }
-        if source.text().get(span.start..span.end) != Some(token.text.as_str()) {
+        if source.slice(span) != Some(token.text.as_str()) {
             diagnostics.push(Diagnostic::error(
                 "LM-LEX-002",
                 "lexer token text does not match its source range",

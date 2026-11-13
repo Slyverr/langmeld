@@ -117,11 +117,18 @@ impl SourceFile {
         self.text.is_char_boundary(offset)
     }
 
+    /// Returns the text selected by `span` in this snapshot, if it is an
+    /// ordered, in-bounds UTF-8 byte range.
+    #[must_use]
+    pub fn slice(&self, span: Span) -> Option<&str> {
+        self.text.get(span.start..span.end)
+    }
+
     /// Returns whether `span` is an ordered, in-bounds UTF-8 byte range in this
     /// snapshot. Empty spans are valid when their offset is a character boundary.
     #[must_use]
     pub fn is_valid_span(&self, span: Span) -> bool {
-        self.text.get(span.start..span.end).is_some()
+        self.slice(span).is_some()
     }
 
     /// Returns this snapshot's stable identity and revision.

@@ -66,7 +66,7 @@ pub(super) const HELPERS: &str = r#"
             ));
         }
 
-        let Some(text) = source.text().get(field.span.start..field.span.end) else {
+        let Some(text) = source.slice(field.span) else {
             return Err(__error(
                 source,
                 construct.name.as_str(),

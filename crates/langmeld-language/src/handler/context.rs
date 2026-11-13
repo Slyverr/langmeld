@@ -159,17 +159,14 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
 
     /// Returns the exact source text covered by a captured field.
     pub fn captured_text(&self, field: &CapturedField) -> Result<&'source str, Diagnostic> {
-        self.source
-            .text()
-            .get(field.span.start..field.span.end)
-            .ok_or_else(|| {
-                Diagnostic::error(
-                    "LM-HANDLER-003",
-                    format!("captured field `{}` has an invalid source span", field.name),
-                    self.source,
-                    field.span,
-                )
-            })
+        self.source.slice(field.span).ok_or_else(|| {
+            Diagnostic::error(
+                "LM-HANDLER-003",
+                format!("captured field `{}` has an invalid source span", field.name),
+                self.source,
+                field.span,
+            )
+        })
     }
 
     /// Returns the current construct's identifier capture or a source-located

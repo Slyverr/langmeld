@@ -129,10 +129,7 @@ fn reports_an_unknown_variable_at_its_reference() {
         diagnostic.message == "unknown variable `missing`"
             && diagnostic.location.as_ref().is_some_and(|location| {
                 location.source_name() == "unknown.widget"
-                    && source
-                        .text()
-                        .get(location.span().start..location.span().end)
-                        == Some("missing")
+                    && source.slice(location.span()) == Some("missing")
             })
     }));
 }

@@ -89,6 +89,6 @@ impl SyntaxToken {
     /// span.
     #[must_use]
     pub fn text<'a>(&self, source: &'a SourceFile) -> Option<&'a str> {
-        source.text().get(self.span.start..self.span.end)
+        source.slice(self.span)
     }
 }

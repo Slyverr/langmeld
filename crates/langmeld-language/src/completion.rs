@@ -156,23 +156,21 @@ pub fn complete_at_with_lexer(
         return Vec::new();
     }
 
-    let prefix_token = lex_bounded(source, lexer, limits.max_tokens)
-        .tokens
-        .into_iter()
-        .find(|token| {
-            token.kind != crate::TokenKind::Invalid
-                && token.span.start < offset
-                && offset <= token.span.end
-                && (offset < token.span.end
-                    || token
-                        .text
-                        .chars()
-                        .last()
-                        .is_some_and(|character| character == '_' || character.is_alphanumeric()))
-                && token.span.start < token.span.end
-                && source.is_valid_span(token.span)
-                && source.text().get(token.span.start..token.span.end) == Some(token.text.as_str())
-        });
+    let prefix_token =
+        lex_bounded(source, lexer, limits.max_tokens)
+            .tokens
+            .into_iter()
+            .find(|token| {
+                token.kind != crate::TokenKind::Invalid
+                    && token.span.start < offset
+                    && offset <= token.span.end
+                    && (offset < token.span.end
+                        || token.text.chars().last().is_some_and(|character| {
+                            character == '_' || character.is_alphanumeric()
+                        }))
+                    && token.span.start < token.span.end
+                    && source.slice(token.span) == Some(token.text.as_str())
+            });
     let token_is_complete = prefix_token
         .as_ref()
         .is_some_and(|token| offset == token.span.end);

@@ -41,6 +41,18 @@ fn source_rejects_reversed_out_of_bounds_and_mid_codepoint_spans() {
 }
 
 #[test]
+fn source_slices_valid_spans_and_rejects_invalid_ranges() {
+    let source = SourceFile::new("unicode", "aé");
+
+    assert_eq!(source.slice(Span::new(1, 3)), Some("é"));
+    assert_eq!(source.slice(Span::new(1, 1)), Some(""));
+
+    assert_eq!(source.slice(Span::new(2, 1)), None);
+    assert_eq!(source.slice(Span::new(0, 4)), None);
+    assert_eq!(source.slice(Span::new(2, 3)), None);
+}
+
+#[test]
 fn line_index_converts_utf8_utf16_and_utf32_positions() {
     let source = SourceFile::new("unicode", "a😀é");
     let index = source.line_index();

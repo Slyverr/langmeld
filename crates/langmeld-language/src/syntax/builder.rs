@@ -177,7 +177,7 @@ fn append_gap(
     rules: &LexicalRules,
     output: &mut Vec<SyntaxToken>,
 ) {
-    let Some(gap) = source.text().get(span.start..span.end) else {
+    let Some(gap) = source.slice(span) else {
         return;
     };
     let mut offset = 0;
