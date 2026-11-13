@@ -41,6 +41,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Route project-definition LSP diagnostics to the matching source snapshot
+  instead of matching buffers by display name alone.
 - Suppress custom lexer diagnostics with missing, foreign, or invalid source
   locations, and prevent them from hiding the parser's token-limit diagnostic.
 - Explain when distinct construct names collide on a generated Rust handler
