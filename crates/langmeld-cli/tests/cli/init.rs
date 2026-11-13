@@ -625,56 +625,6 @@ fn init_rejects_dangling_generated_file_symlinks_during_preflight() {
 }
 
 #[test]
-fn help_lists_init_and_the_non_interactive_mode() {
-    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
-        .args(["init", "--help"])
-        .output()
-        .expect("CLI should start");
-
-    assert!(output.status.success());
-    let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Create a starter language project"));
-    assert!(help.contains("--non-interactive"));
-    assert!(help.contains("--typed-bindings"));
-    assert!(help.contains("--local-crates"));
-    assert!(help.contains("--agents-md"));
-    assert!(help.contains("--agent-skill"));
-
-    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
-        .args(["lsp", "--help"])
-        .output()
-        .expect("CLI should start");
-
-    assert!(output.status.success());
-    let help = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        help.contains("Serve editor support for a language project or `.langmeld` definitions")
-    );
-    assert!(help.contains("--manifest-path"));
-    assert!(help.contains("--definitions"));
-
-    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
-        .args(["format", "--help"])
-        .output()
-        .expect("CLI should start");
-
-    assert!(output.status.success());
-    let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Format a language project's `.langmeld` definitions"));
-    assert!(help.contains("--check"));
-
-    let output = Command::new(env!("CARGO_BIN_EXE_langmeld"))
-        .args(["generate", "textmate", "--help"])
-        .output()
-        .expect("CLI should start");
-
-    assert!(output.status.success());
-    let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("Generate a lexical TextMate grammar"));
-    assert!(help.contains("--scope-name"));
-}
-
-#[test]
 fn init_can_scaffold_a_host_owned_rust_parser() {
     let parent = TestDirectory::new();
     let project = parent.path().join("custom-language");

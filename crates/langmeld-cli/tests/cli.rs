@@ -51,6 +51,8 @@ fn write_widget_project(project: &Path) {
 mod check_format;
 #[path = "cli/generate.rs"]
 mod generate;
+#[path = "cli/help.rs"]
+mod help;
 #[path = "cli/init.rs"]
 mod init;
 #[path = "cli/lsp.rs"]
