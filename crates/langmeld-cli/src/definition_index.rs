@@ -197,8 +197,5 @@ fn string_field<'a>(
 fn valid_location(source: &SourceFile, location: &SourceLocation) -> bool {
     location.source_name() != source.name()
         || (location.source_identity() == source.identity()
-            && location.span().start <= location.span().end
-            && location.span().end <= source.text().len()
-            && source.text().is_char_boundary(location.span().start)
-            && source.text().is_char_boundary(location.span().end))
+            && source.is_valid_span(location.span()))
 }

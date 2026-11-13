@@ -38,16 +38,12 @@ pub(crate) fn to_lsp_position(
     ))
 }
 
-pub(crate) fn has_valid_source_span(source: &SourceFile, span: Span) -> bool {
-    source.text().get(span.start..span.end).is_some()
-}
-
 pub(crate) fn to_lsp_range(
     source: &SourceFile,
     span: Span,
     encoding: PositionEncoding,
 ) -> Option<Range> {
-    if !has_valid_source_span(source, span) {
+    if !source.is_valid_span(span) {
         return None;
     }
 

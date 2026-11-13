@@ -110,6 +110,13 @@ impl SourceFile {
         self.text.as_str()
     }
 
+    /// Returns whether `span` is an ordered, in-bounds UTF-8 byte range in this
+    /// snapshot. Empty spans are valid when their offset is a character boundary.
+    #[must_use]
+    pub fn is_valid_span(&self, span: Span) -> bool {
+        self.text.get(span.start..span.end).is_some()
+    }
+
     /// Returns this snapshot's stable identity and revision.
     #[must_use]
     pub const fn identity(&self) -> SourceIdentity {

@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Expose `SourceFile::is_valid_span` to check ordered, in-bounds UTF-8 ranges
+  against a source snapshot.
 - Expose `langmeld_project::resolve_import_key` so editor integrations can
   validate import paths with the project's resolver rules.
 - Expose a `NAME` constant on generated typed construct views for concise,

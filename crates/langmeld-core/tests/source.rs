@@ -4,6 +4,24 @@ use langmeld_core::{
 };
 
 #[test]
+fn source_validates_empty_and_nonempty_utf8_spans() {
+    let source = SourceFile::new("unicode", "aé");
+
+    assert!(source.is_valid_span(Span::new(0, 0)));
+    assert!(source.is_valid_span(Span::new(1, 3)));
+    assert!(source.is_valid_span(Span::new(3, 3)));
+}
+
+#[test]
+fn source_rejects_reversed_out_of_bounds_and_mid_codepoint_spans() {
+    let source = SourceFile::new("unicode", "aé");
+
+    assert!(!source.is_valid_span(Span::new(2, 1)));
+    assert!(!source.is_valid_span(Span::new(0, 4)));
+    assert!(!source.is_valid_span(Span::new(2, 3)));
+}
+
+#[test]
 fn line_index_converts_utf8_utf16_and_utf32_positions() {
     let source = SourceFile::new("unicode", "a😀é");
     let index = source.line_index();

@@ -64,10 +64,7 @@ fn query_locations<P, A>(
             if location.source_name() != source.name() {
                 return true;
             }
-            location.source_identity() == source.identity()
-                && span.end <= source.text().len()
-                && source.text().is_char_boundary(span.start)
-                && source.text().is_char_boundary(span.end)
+            location.source_identity() == source.identity() && source.is_valid_span(span)
         })
         .collect()
 }

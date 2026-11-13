@@ -117,14 +117,9 @@ pub(super) fn hover_for(
         HoverContent::Markdown(value) if supports_markdown => (MarkupKind::Markdown, value),
         HoverContent::Markdown(_) => return None,
     };
-    let range = info.range.and_then(|span| {
-        (span.start <= span.end
-            && span.end <= source.text().len()
-            && source.text().is_char_boundary(span.start)
-            && source.text().is_char_boundary(span.end))
-        .then(|| to_lsp_range(source, span, encoding))
-        .flatten()
-    });
+    let range = info
+        .range
+        .and_then(|span| to_lsp_range(source, span, encoding));
     Some(lsp_types::Hover {
         contents: lsp_types::HoverContents::Markup(MarkupContent { kind, value }),
         range,

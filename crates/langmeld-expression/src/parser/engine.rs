@@ -14,11 +14,7 @@ pub(super) fn parse(
     limits: ExpressionLimits,
     terminators: &[&str],
 ) -> ExpressionParseResult {
-    if range.start > range.end
-        || range.end > source.text().len()
-        || !source.text().is_char_boundary(range.start)
-        || !source.text().is_char_boundary(range.end)
-    {
+    if !source.is_valid_span(range) {
         let empty_offset = source_boundary_at_or_before(source, range.start);
 
         return ExpressionParseResult {

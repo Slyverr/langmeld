@@ -119,12 +119,7 @@ where
     completer
         .complete(source, parsed, analysis, offset)
         .into_iter()
-        .filter(|candidate| {
-            candidate.replace.start <= candidate.replace.end
-                && candidate.replace.end <= source.text().len()
-                && source.text().is_char_boundary(candidate.replace.start)
-                && source.text().is_char_boundary(candidate.replace.end)
-        })
+        .filter(|candidate| source.is_valid_span(candidate.replace))
         .collect()
 }
 
@@ -179,9 +174,7 @@ pub fn complete_at_with_lexer(
                         .last()
                         .is_some_and(|character| character == '_' || character.is_alphanumeric()))
                 && token.span.start < token.span.end
-                && token.span.end <= source.text().len()
-                && source.text().is_char_boundary(token.span.start)
-                && source.text().is_char_boundary(token.span.end)
+                && source.is_valid_span(token.span)
                 && source.text().get(token.span.start..token.span.end) == Some(token.text.as_str())
         });
     let token_is_complete = prefix_token

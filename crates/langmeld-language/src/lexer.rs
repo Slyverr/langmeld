@@ -311,7 +311,7 @@ fn validate_lexer_diagnostics(source: &SourceFile, diagnostics: &mut Vec<Diagnos
         let span = location.span();
         let valid_location = location.source_name() == source.name()
             && location.source_identity() == source.identity()
-            && source.text().get(span.start..span.end).is_some();
+            && source.is_valid_span(span);
         if valid_location {
             return true;
         }
@@ -339,10 +339,7 @@ pub(crate) fn validate_tokens(
     let mut previous_end = 0;
     for token in tokens {
         let span = token.span;
-        let valid_range = span.start < span.end
-            && span.end <= source.text().len()
-            && source.text().is_char_boundary(span.start)
-            && source.text().is_char_boundary(span.end);
+        let valid_range = span.start < span.end && source.is_valid_span(span);
         if !valid_range {
             let offset = nearest_source_boundary(source, span.start);
             diagnostics.push(Diagnostic::error(
