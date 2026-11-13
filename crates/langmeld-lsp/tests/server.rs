@@ -157,10 +157,11 @@ impl LanguageBackend for Backend {
             )];
         }
         vec![
-            SemanticToken::new(Span::new("😀".len(), "😀bad".len()), "variable"),
             SemanticToken::new(Span::new(0, "😀".len()), "variable").with_modifier("declaration"),
+            SemanticToken::new(Span::new("😀".len(), "😀bad".len()), "variable"),
             SemanticToken::new(Span::new(2, 5), "variable"),
             SemanticToken::new(Span::new(4, 7), "unknown"),
+            SemanticToken::new(Span::new(7, 2), "variable"),
         ]
     }
 
