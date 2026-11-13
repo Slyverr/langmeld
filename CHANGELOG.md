@@ -23,6 +23,10 @@ API migration notes are in the
   compile-time references from Rust handlers.
 - Expose `construct_handler_names` so handler generators can share Langmeld's
   Rust module and handler-struct naming rules.
+- Add `TypedConstructHandler` and `register_typed` so generated construct views
+  provide handler dispatch identity and are passed directly to handlers.
+- Generate typed handler scaffolds that register through their typed construct
+  view instead of repeating a construct name and constructing the view again.
 
 ### Changed
 

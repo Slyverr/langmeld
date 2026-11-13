@@ -111,6 +111,13 @@ undeclared name is reported only when the handler accesses that field.
 Projects that want compile-time checked capture access can use the optional
 [`langmeld-build` typed bindings](typed-bindings.md).
 
+In typed mode, implement `TypedConstructHandler` and register it with
+`ConstructHandlerRegistry::register_typed`. Its associated generated view
+provides the dispatch name, and Langmeld passes that view into the handler.
+This keeps the construct identity and typed projection together. Runtime-loaded
+definitions are still validated when the view is created and produce a
+source-located diagnostic if their captures do not match.
+
 When a grammar can capture the same field more than once, `field` and
 `field_text` return the first capture. Use `fields` to process all captures in
 source order; it returns an empty iterator when an optional or repeated group

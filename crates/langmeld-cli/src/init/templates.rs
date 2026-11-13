@@ -2,7 +2,9 @@ use std::{io, path::Path};
 
 use langmeld_language::quote_definition_string;
 
-use crate::handler_generation::construct_declaration;
+use crate::handler_generation::{
+    construct_declaration, handler_signature, handler_trait_name, registration_method,
+};
 
 use super::{AgentGuidance, Template, local_crates};
 
@@ -69,7 +71,7 @@ pub(super) fn project_files(
     match template {
         Template::Declarative => {
             let typed_guidance = if typed_bindings {
-                "\nTyped capture accessors are generated during the Cargo build. In handlers, use `context.typed::<crate::generated::constructs::Let>()?` or the matching construct view instead of string-based field lookup. Capture and group names must convert unambiguously to Rust identifiers.\n"
+                "\nTyped capture accessors are generated during the Cargo build. Typed handlers receive their generated construct view directly, and the registry derives dispatch names from that view. Capture and group names must convert unambiguously to Rust identifiers.\n"
             } else {
                 ""
             };
@@ -110,19 +112,35 @@ pub(super) fn project_files(
                 ),
                 (
                     "src/constructs/mod.rs".to_owned(),
-                    include_str!("../../templates/declarative/src/constructs/mod.rs").to_owned(),
+                    include_str!("../../templates/declarative/src/constructs/mod.rs")
+                        .replace(
+                            "{{REGISTRATION_METHOD}}",
+                            registration_method(typed_bindings.then_some("typed")),
+                        ),
                 ),
                 (
                     "src/constructs/let_handler.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/let_handler.rs")
                         .replace(
+                            "{{HANDLER_TRAIT}}",
+                            handler_trait_name(typed_bindings.then_some("typed")),
+                        )
+                        .replace(
                             "{{CONSTRUCT_DECLARATION}}",
                             &construct_declaration("let", typed_bindings.then_some("Let")),
                         )
                         .replace(
+                            "{{HANDLE_SIGNATURE}}",
+                            &handler_signature(
+                                typed_bindings.then_some("typed"),
+                                "RuntimeState",
+                                "syntax",
+                            ),
+                        )
+                        .replace(
                             "{{CAPTURE_ACCESS}}",
                             if typed_bindings {
-                                "let syntax = context.typed::<crate::generated::constructs::Let>()?;\n        let name = syntax.name()?.text.to_owned();\n        let value = syntax.value()?;"
+                                "let name = syntax.name()?.text.to_owned();\n        let value = syntax.value()?;"
                             } else {
                                 "let name = context.field_identifier(\"name\")?.to_owned();\n        let value = context.field_text_capture(\"value\")?;"
                             },
@@ -133,13 +151,25 @@ pub(super) fn project_files(
                     "src/constructs/print.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/print.rs")
                         .replace(
+                            "{{HANDLER_TRAIT}}",
+                            handler_trait_name(typed_bindings.then_some("typed")),
+                        )
+                        .replace(
                             "{{CONSTRUCT_DECLARATION}}",
                             &construct_declaration("print", typed_bindings.then_some("Print")),
                         )
                         .replace(
+                            "{{HANDLE_SIGNATURE}}",
+                            &handler_signature(
+                                typed_bindings.then_some("typed"),
+                                "RuntimeState",
+                                "syntax",
+                            ),
+                        )
+                        .replace(
                             "{{CAPTURE_ACCESS}}",
                             if typed_bindings {
-                                "let syntax = context.typed::<crate::generated::constructs::Print>()?;\n        let name = syntax.name()?;"
+                                "let name = syntax.name()?;"
                             } else {
                                 "let name = context.field_identifier_capture(\"name\")?;"
                             },

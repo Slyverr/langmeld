@@ -171,23 +171,23 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
 
     let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
         .expect("typed let handler should be generated");
+    assert!(let_handler.contains("impl TypedConstructHandler<RuntimeState> for LetHandler"));
     assert!(
-        let_handler
-            .contains("const CONSTRUCT: &'static str = crate::generated::constructs::Let::NAME;")
+        let_handler.contains("type View<'source> = crate::generated::constructs::Let<'source>;")
     );
-    assert!(!let_handler.contains("const CONSTRUCT: &'static str = \"let\";"));
-    assert!(let_handler.contains("context.typed::<crate::generated::constructs::Let>()?"));
+    assert!(let_handler.contains("syntax: Self::View<'source>"));
     assert!(let_handler.contains("syntax.name()?"));
     assert!(let_handler.contains("syntax.value()?"));
     assert!(!let_handler.contains("field_text_capture"));
 
     let print_handler = fs::read_to_string(project.join("src/constructs/print.rs"))
         .expect("typed print handler should be generated");
+    assert!(print_handler.contains("impl TypedConstructHandler<RuntimeState> for PrintHandler"));
     assert!(
         print_handler
-            .contains("const CONSTRUCT: &'static str = crate::generated::constructs::Print::NAME;")
+            .contains("type View<'source> = crate::generated::constructs::Print<'source>;")
     );
-    assert!(print_handler.contains("context.typed::<crate::generated::constructs::Print>()?"));
+    assert!(print_handler.contains("syntax: Self::View<'source>"));
     assert!(print_handler.contains("syntax.name()?"));
     assert!(!print_handler.contains("field_identifier_capture"));
 
@@ -249,11 +249,13 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
     let repeat_handler = fs::read_to_string(project.join("src/constructs/repeat.rs"))
         .expect("typed construct handler should be generated");
     assert!(
-        repeat_handler.contains(
-            "const CONSTRUCT: &'static str = crate::generated::constructs::Repeat::NAME;"
-        )
+        repeat_handler
+            .contains("type View<'source> = crate::generated::constructs::Repeat<'source>;")
     );
-    assert!(repeat_handler.contains("context.typed::<crate::generated::constructs::Repeat>()?"));
+    assert!(repeat_handler.contains("syntax: Self::View<'source>"));
+    let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
+        .expect("typed registry should be updated");
+    assert!(registry.contains("handlers.register_typed(repeat::RepeatHandler)?;"));
 
     let readme = fs::read_to_string(project.join("README.md")).expect("README should exist");
     assert!(readme.contains("Typed capture accessors are generated"));

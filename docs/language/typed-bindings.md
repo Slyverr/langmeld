@@ -71,18 +71,22 @@ capture kinds return `CapturedText` with their exact source text and span. Each
 construct view also exposes its declared construct name through `NAME`.
 
 ```rust,ignore
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
+use langmeld_language::{ConstructContext, HandlerControl, TypedConstructHandler};
 
 pub struct PrintHandler;
 
-impl ConstructHandler<RuntimeState> for PrintHandler {
-    const CONSTRUCT: &'static str = crate::generated::constructs::Print::NAME;
+impl TypedConstructHandler<RuntimeState> for PrintHandler {
+    type View<'source> = crate::generated::constructs::Print<'source>;
 
-    fn handle(
+    fn handle<'source>(
         &self,
-        context: &mut ConstructContext<'_, RuntimeState>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
-        let print = context.typed::<crate::generated::constructs::Print>()?;
+        context: &mut ConstructContext<'source, RuntimeState>,
+        print: Self::View<'source>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic>
+    where
+        RuntimeState: 'source,
+        (): 'source,
+    {
         let name = print.name()?;
 
         context.state_mut().output.push_str(name.text);
@@ -90,6 +94,11 @@ impl ConstructHandler<RuntimeState> for PrintHandler {
     }
 }
 ```
+
+Register it with `registry.register_typed(PrintHandler)?`. The registry takes
+the dispatch name from the generated view's `CONSTRUCT` constant and passes
+that view to `handle`, so the handler does not repeat the construct name or
+create the view manually.
 
 Misspelled or undeclared accessor names fail Rust compilation. At runtime, the
 view checks that the parsed construct and syntax variant match the generated

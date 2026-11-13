@@ -12,7 +12,7 @@ use langmeld_project::RustBindings;
 use crate::{
     handler_generation::{
         find_handler_module_collision, handler_module_collision_error, handler_template,
-        rust_names, update_handler_registry, validate_constructs_directory,
+        registration_method, rust_names, update_handler_registry, validate_constructs_directory,
     },
     project::load_definition_project,
 };
@@ -102,7 +102,10 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
             handler_module_collision_error(&name, colliding_construct, &module_name).into(),
         );
     }
-    let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
+    let registration_line = format!(
+        "handlers.{}({module_name}::{handler_name})?;",
+        registration_method(typed_name.as_deref())
+    );
     let updated_registry =
         update_handler_registry(&registry_source, &module_line, &registration_line)
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;

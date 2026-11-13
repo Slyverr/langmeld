@@ -13,8 +13,8 @@ pub(super) fn registry() -> Result<ConstructHandlerRegistry<RuntimeState>, Handl
     let mut handlers = ConstructHandlerRegistry::new();
 
     // <langmeld:begin registrations>
-    handlers.register(let_handler::LetHandler)?;
-    handlers.register(print::PrintHandler)?;
+    handlers.{{REGISTRATION_METHOD}}(let_handler::LetHandler)?;
+    handlers.{{REGISTRATION_METHOD}}(print::PrintHandler)?;
     // <langmeld:end registrations>
 
     Ok(handlers)

@@ -169,27 +169,21 @@ pub(crate) fn handler_template(
     typed_name: Option<&str>,
 ) -> String {
     let construct_declaration = construct_declaration(construct, typed_name);
-    let typed_access = typed_name.map_or_else(String::new, |type_name| {
-        format!(
-            "        let _syntax = context.typed::<crate::generated::constructs::{type_name}>()?;\n\n"
-        )
-    });
+    let handler_trait = handler_trait_name(typed_name);
+    let handle_signature = handler_signature(typed_name, "RuntimeState", "_syntax");
 
     format!(
-        r#"use langmeld_language::{{ConstructContext, ConstructHandler, HandlerControl}};
+        r#"use langmeld_language::{{ConstructContext, {handler_trait}, HandlerControl}};
 
 use crate::runtime::RuntimeState;
 
 pub(super) struct {handler_name};
 
-impl ConstructHandler<RuntimeState> for {handler_name} {{
+impl {handler_trait}<RuntimeState> for {handler_name} {{
     {construct_declaration}
 
-    fn handle(
-        &self,
-        context: &mut ConstructContext<'_, RuntimeState>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{
-{typed_access}        Err(context.error_at(
+    {handle_signature} {{
+        Err(context.error_at(
             "LM-HANDLER-005",
             "implement this construct's language behavior",
             context.construct().span,
@@ -204,9 +198,39 @@ pub(crate) fn construct_declaration(construct: &str, typed_name: Option<&str>) -
     typed_name.map_or_else(
         || format!("const CONSTRUCT: &'static str = {construct:?};"),
         |type_name| {
-            format!(
-                "const CONSTRUCT: &'static str = crate::generated::constructs::{type_name}::NAME;"
-            )
+            format!("type View<'source> = crate::generated::constructs::{type_name}<'source>;")
         },
     )
+}
+
+pub(crate) fn registration_method(typed_name: Option<&str>) -> &'static str {
+    if typed_name.is_some() {
+        "register_typed"
+    } else {
+        "register"
+    }
+}
+
+pub(crate) fn handler_trait_name(typed_name: Option<&str>) -> &'static str {
+    if typed_name.is_some() {
+        "TypedConstructHandler"
+    } else {
+        "ConstructHandler"
+    }
+}
+
+pub(crate) fn handler_signature(
+    typed_name: Option<&str>,
+    state_type: &str,
+    view_parameter: &str,
+) -> String {
+    if typed_name.is_some() {
+        format!(
+            "fn handle<'source>(\n        &self,\n        context: &mut ConstructContext<'source, {state_type}>,\n        {view_parameter}: Self::View<'source>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>\n    where\n        {state_type}: 'source,\n        (): 'source"
+        )
+    } else {
+        format!(
+            "fn handle(\n        &self,\n        context: &mut ConstructContext<'_, {state_type}>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>"
+        )
+    }
 }

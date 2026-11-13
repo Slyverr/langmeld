@@ -6,8 +6,8 @@ use langmeld_project::RustBindings;
 use crate::{
     file_ops::{read_regular_file, replace_existing, write_new_file},
     handler_generation::{
-        ensure_new_handler_path, find_handler_module_collision, handler_template, rust_names,
-        update_handler_registry, validate_constructs_directory,
+        ensure_new_handler_path, find_handler_module_collision, handler_template,
+        registration_method, rust_names, update_handler_registry, validate_constructs_directory,
     },
     project::load_definition_project,
 };
@@ -61,9 +61,17 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
         colliding_construct.as_deref(),
     )?;
 
+    let typed_name = match project.manifest.rust_bindings {
+        RustBindings::Dynamic => None,
+        RustBindings::Typed => Some(langmeld_build::construct_type_name(&args.construct)?),
+    };
+
     let registry_path = constructs_directory.join("mod.rs");
     let registry_source = read_regular_file(&registry_path)?;
-    let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
+    let registration_line = format!(
+        "handlers.{}({module_name}::{handler_name})?;",
+        registration_method(typed_name.as_deref())
+    );
     if registry_source
         .lines()
         .any(|line| line.trim() == registration_line)
@@ -82,10 +90,6 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     let updated_registry =
         update_handler_registry(&registry_source, &module_line, &registration_line)
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
-    let typed_name = match project.manifest.rust_bindings {
-        RustBindings::Dynamic => None,
-        RustBindings::Typed => Some(langmeld_build::construct_type_name(&args.construct)?),
-    };
     let handler_source = handler_template(&args.construct, &handler_name, typed_name.as_deref());
 
     write_new_file(&handler_path, &handler_source)?;

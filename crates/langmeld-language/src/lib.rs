@@ -29,7 +29,7 @@ pub use definition::{
 pub use format::{DefinitionFormatOptions, format_language_definition};
 pub use handler::{
     CapturedIdentifier, CapturedText, ConstructContext, ConstructHandler, ConstructHandlerRegistry,
-    HandlerControl, HandlerRegistrationError,
+    HandlerControl, HandlerRegistrationError, TypedConstructHandler,
 };
 pub use host::{
     AnalysisDocument, AnalysisDocumentParts, LanguageAnalyzer, LanguageCompleter,

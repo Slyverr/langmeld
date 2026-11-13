@@ -1,16 +1,13 @@
-use langmeld_language::{ConstructContext, ConstructHandler, HandlerControl};
+use langmeld_language::{ConstructContext, {{HANDLER_TRAIT}}, HandlerControl};
 
 use crate::runtime::RuntimeState;
 
 pub(super) struct PrintHandler;
 
-impl ConstructHandler<RuntimeState> for PrintHandler {
+impl {{HANDLER_TRAIT}}<RuntimeState> for PrintHandler {
     {{CONSTRUCT_DECLARATION}}
 
-    fn handle(
-        &self,
-        context: &mut ConstructContext<'_, RuntimeState>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+    {{HANDLE_SIGNATURE}} {
         {{CAPTURE_ACCESS}}
         let value = context
             .state()

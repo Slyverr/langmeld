@@ -8,7 +8,7 @@ use std::{collections::HashMap, error::Error, fmt};
 
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::{ParseResult, ParsedConstruct};
+use crate::{ParseResult, ParsedConstruct, TypedConstruct};
 
 mod context;
 
@@ -31,6 +31,31 @@ pub trait ConstructHandler<State, Signal = ()> {
     ) -> Result<HandlerControl<Signal>, Diagnostic>;
 }
 
+/// Behavior for one construct using a typed view.
+///
+/// The registry derives the dispatch name from the view's `CONSTRUCT` value
+/// and creates the view before calling the handler. This keeps typed capture
+/// access and handler registration tied to one construct type. Use
+/// [`ConstructHandler`] when the language is dynamic or the handler needs
+/// runtime field access.
+pub trait TypedConstructHandler<State, Signal = ()> {
+    /// Typed projection for the current construct and source lifetime.
+    type View<'source>: TypedConstruct<'source>
+    where
+        State: 'source,
+        Signal: 'source;
+
+    /// Handles one parsed construct after creating its typed view.
+    fn handle<'source>(
+        &self,
+        context: &mut ConstructContext<'source, State, Signal>,
+        syntax: Self::View<'source>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>
+    where
+        State: 'source,
+        Signal: 'source;
+}
+
 /// Whether dispatch should continue or propagate a host-defined signal.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HandlerControl<Signal = ()> {
@@ -41,10 +66,13 @@ pub enum HandlerControl<Signal = ()> {
 }
 
 trait ErasedConstructHandler<State, Signal> {
-    fn handle(
+    fn handle<'source>(
         &self,
-        context: &mut ConstructContext<'_, State, Signal>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic>;
+        context: &mut ConstructContext<'source, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>
+    where
+        State: 'source,
+        Signal: 'source;
 }
 
 struct HandlerAdapter<Handler>(Handler);
@@ -53,18 +81,42 @@ impl<State, Signal, Handler> ErasedConstructHandler<State, Signal> for HandlerAd
 where
     Handler: ConstructHandler<State, Signal>,
 {
-    fn handle(
+    fn handle<'source>(
         &self,
-        context: &mut ConstructContext<'_, State, Signal>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        context: &mut ConstructContext<'source, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>
+    where
+        State: 'source,
+        Signal: 'source,
+    {
         self.0.handle(context)
+    }
+}
+
+struct TypedHandlerAdapter<Handler>(Handler);
+
+impl<State, Signal, Handler> ErasedConstructHandler<State, Signal> for TypedHandlerAdapter<Handler>
+where
+    Handler: TypedConstructHandler<State, Signal>,
+{
+    fn handle<'source>(
+        &self,
+        context: &mut ConstructContext<'source, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>
+    where
+        State: 'source,
+        Signal: 'source,
+    {
+        let syntax = context.typed::<Handler::View<'source>>()?;
+
+        self.0.handle(context, syntax)
     }
 }
 
 /// Registration failure for a construct handler.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HandlerRegistrationError {
-    /// A handler declared an empty construct name.
+    /// A handler's typed view or declaration has an empty construct name.
     EmptyConstructName,
     /// Another handler is already registered for this construct.
     DuplicateConstruct(String),
@@ -114,7 +166,31 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     where
         Handler: ConstructHandler<State, Signal> + 'static,
     {
-        let name = Handler::CONSTRUCT;
+        self.register_erased(Handler::CONSTRUCT, Box::new(HandlerAdapter(handler)))
+    }
+
+    /// Registers a typed handler under the construct name from its view.
+    ///
+    /// The view is created for each dispatched construct before the handler
+    /// runs. If a runtime-loaded definition does not match the view's expected
+    /// capture shape, dispatch returns its source-located diagnostic.
+    pub fn register_typed<Handler>(
+        &mut self,
+        handler: Handler,
+    ) -> Result<(), HandlerRegistrationError>
+    where
+        Handler: TypedConstructHandler<State, Signal> + 'static,
+    {
+        let name = typed_construct_name::<State, Signal, Handler>(&handler);
+
+        self.register_erased(name, Box::new(TypedHandlerAdapter(handler)))
+    }
+
+    fn register_erased(
+        &mut self,
+        name: &'static str,
+        handler: Box<dyn ErasedConstructHandler<State, Signal>>,
+    ) -> Result<(), HandlerRegistrationError> {
         if name.is_empty() {
             return Err(HandlerRegistrationError::EmptyConstructName);
         }
@@ -124,8 +200,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
             ));
         }
 
-        self.handlers
-            .insert(name, Box::new(HandlerAdapter(handler)));
+        self.handlers.insert(name, handler);
 
         Ok(())
     }
@@ -278,6 +353,15 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
 
         handler.handle(&mut context)
     }
+}
+
+fn typed_construct_name<'source, State, Signal, Handler>(_handler: &'source Handler) -> &'static str
+where
+    Handler: TypedConstructHandler<State, Signal>,
+    State: 'source,
+    Signal: 'source,
+{
+    <Handler::View<'source> as TypedConstruct<'source>>::CONSTRUCT
 }
 
 fn validate_parsed_source(source: &SourceFile, parsed: &ParseResult) -> Result<(), Diagnostic> {
