@@ -21,6 +21,51 @@ pub(crate) fn read_regular_file(path: &Path) -> io::Result<String> {
     fs::read_to_string(path)
 }
 
+pub(crate) fn rollback_created_paths<'a>(
+    files: impl IntoIterator<Item = &'a Path>,
+    directories: impl IntoIterator<Item = &'a Path>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    for file in files {
+        if let Err(error) = fs::remove_file(file)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            errors.push(format!(
+                "could not remove generated file `{}`: {error}",
+                file.display()
+            ));
+        }
+    }
+
+    for directory in directories {
+        if let Err(error) = fs::remove_dir(directory)
+            && error.kind() != io::ErrorKind::NotFound
+        {
+            errors.push(format!(
+                "could not remove generated directory `{}`: {error}",
+                directory.display()
+            ));
+        }
+    }
+
+    errors
+}
+
+pub(crate) fn include_rollback_errors(error: io::Error, rollback_errors: Vec<String>) -> io::Error {
+    if rollback_errors.is_empty() {
+        return error;
+    }
+
+    io::Error::new(
+        error.kind(),
+        format!(
+            "{error}; rollback was incomplete: {}",
+            rollback_errors.join("; ")
+        ),
+    )
+}
+
 pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     if let Err(error) = file.write_all(contents.as_bytes()) {

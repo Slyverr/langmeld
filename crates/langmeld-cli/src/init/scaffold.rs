@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::{AgentGuidance, Template, templates::project_files};
-use crate::file_ops::write_new_file;
+use crate::file_ops::{include_rollback_errors, rollback_created_paths, write_new_file};
 
 pub(super) fn create_project(
     path: &Path,
@@ -65,52 +65,13 @@ pub(super) fn create_project(
         Ok(())
     })();
     if let Err(error) = write_result {
-        let rollback_errors = rollback_created_paths(&created_files, &created_directories);
+        let rollback_errors = rollback_created_paths(
+            created_files.iter().rev().map(PathBuf::as_path),
+            created_directories.iter().rev().map(PathBuf::as_path),
+        );
         return Err(include_rollback_errors(error, rollback_errors));
     }
     Ok(())
-}
-
-fn rollback_created_paths(files: &[PathBuf], directories: &[PathBuf]) -> Vec<String> {
-    let mut errors = Vec::new();
-
-    for file in files.iter().rev() {
-        if let Err(error) = fs::remove_file(file)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            errors.push(format!(
-                "could not remove generated file `{}`: {error}",
-                file.display()
-            ));
-        }
-    }
-
-    for directory in directories.iter().rev() {
-        if let Err(error) = fs::remove_dir(directory)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            errors.push(format!(
-                "could not remove generated directory `{}`: {error}",
-                directory.display()
-            ));
-        }
-    }
-
-    errors
-}
-
-fn include_rollback_errors(error: io::Error, rollback_errors: Vec<String>) -> io::Error {
-    if rollback_errors.is_empty() {
-        return error;
-    }
-
-    io::Error::new(
-        error.kind(),
-        format!(
-            "{error}; rollback was incomplete: {}",
-            rollback_errors.join("; ")
-        ),
-    )
 }
 
 fn ensure_parent_directories(
