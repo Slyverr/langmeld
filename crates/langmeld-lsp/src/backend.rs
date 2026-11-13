@@ -197,7 +197,8 @@ pub trait LanguageBackend: Send + Sync + 'static {
     /// per-document analysis behavior. Workspace-aware backends can use this
     /// hook to account for unsaved changes in related open files. If a
     /// returned workspace does not match the supplied snapshots, the server
-    /// falls back to analyzing each open document separately.
+    /// emits `LM-LSP-001` for each open document and falls back to analyzing
+    /// each open document separately.
     fn analyze_workspace(
         &self,
         _sources: &[SourceFile],

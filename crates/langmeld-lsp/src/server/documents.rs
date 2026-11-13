@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use langmeld_core::{PositionEncoding, SourceFile, SourceId};
+use langmeld_core::{Diagnostic, PositionEncoding, SourceFile, SourceId, Span};
 use lsp_server::{Connection, Message, Notification};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
@@ -147,28 +147,50 @@ impl<B: LanguageBackend> ServerState<B> {
             .iter()
             .map(|(_, _, _, source)| source.clone())
             .collect::<Vec<_>>();
-        let workspace = self.backend.analyze_workspace(&sources);
-        let has_workspace_result = workspace.is_some();
-        if let Some(analyses) = workspace.filter(|analyses| {
-            analyses.len() == entries.len()
-                && analyses
+        if let Some(analyses) = self.backend.analyze_workspace(&sources) {
+            let invalid_batch = if analyses.len() != entries.len() {
+                Some(format!(
+                    "host language backend returned {} workspace results for {} open documents; per-document analysis was used instead",
+                    analyses.len(),
+                    entries.len(),
+                ))
+            } else {
+                analyses
                     .iter()
                     .zip(&entries)
-                    .all(|(analysis, (_, _, _, source))| {
-                        analysis.source_identity() == source.identity()
+                    .position(|(analysis, (_, _, _, source))| {
+                        analysis.source_identity() != source.identity()
                     })
-        }) {
-            for ((uri, source_id, version, source), analysis) in entries.into_iter().zip(analyses) {
-                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
-            }
-            return Ok(());
-        }
+                    .map(|index| {
+                        format!(
+                            "host language backend returned a result for a different source snapshot at document {}; per-document analysis was used instead",
+                            index + 1,
+                        )
+                    })
+            };
 
-        if has_workspace_result {
-            for (uri, source_id, version, source) in entries {
-                let analysis = self.backend.analyze(&source);
-                self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+            if let Some(message) = invalid_batch {
+                for (uri, source_id, version, source) in entries {
+                    let parts = self.backend.analyze(&source).into_parts();
+                    let mut diagnostics = parts.diagnostics;
+                    diagnostics.push(Diagnostic::error(
+                        "LM-LSP-001",
+                        message.clone(),
+                        &source,
+                        Span::new(0, source.text().len()),
+                    ));
+                    let analysis = BackendDocument::new(&source, parts.state, diagnostics);
+
+                    self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+                }
+            } else {
+                for ((uri, source_id, version, source), analysis) in
+                    entries.into_iter().zip(analyses)
+                {
+                    self.publish_analysis(uri, source_id, version, &source, analysis, connection)?;
+                }
             }
+
             return Ok(());
         }
 

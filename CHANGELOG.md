@@ -38,6 +38,8 @@ API migration notes are in the
   invalid.
 - Diagnose invalid host workspace-analysis result batches before falling back
   to per-source analysis.
+- Diagnose invalid custom LSP workspace results before falling back to
+  per-document analysis.
 - Filter import-path completions using the same portability and project-root
   checks as definition loading, and resolve candidates from the importer's
   canonical project key.

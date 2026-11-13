@@ -165,6 +165,13 @@ fn invalid_workspace_results_reanalyze_every_open_document() {
     let first = receive_diagnostics(&client);
     assert_eq!(first["uri"], "file:///first.test");
     assert_eq!(first["diagnostics"][0]["code"], "OPEN-1");
+    assert!(
+        first["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "LM-LSP-001")
+    );
 
     send_notification(
         &client,
@@ -182,6 +189,13 @@ fn invalid_workspace_results_reanalyze_every_open_document() {
         .expect("fallback analyzes the newly opened source");
     assert_eq!(first_after_refresh["diagnostics"][0]["code"], "OPEN-2");
     assert_eq!(second_after_refresh["diagnostics"][0]["code"], "OPEN-2");
+    assert!(refreshed.iter().all(|diagnostics| {
+        diagnostics["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|diagnostic| diagnostic["code"] == "LM-LSP-001")
+    }));
 
     send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
