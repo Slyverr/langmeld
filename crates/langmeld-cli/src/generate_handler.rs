@@ -4,11 +4,10 @@ use clap::Args;
 use langmeld_project::RustBindings;
 
 use crate::{
-    file_ops::{replace_existing, write_new_file},
+    file_ops::{read_regular_file, replace_existing, write_new_file},
     handler_generation::{
-        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END,
         ensure_new_handler_path, find_handler_module_collision, handler_template, rust_names,
-        update_managed_section, validate_constructs_directory,
+        update_handler_registry, validate_constructs_directory,
     },
     project::load_definition_project,
 };
@@ -63,15 +62,7 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     )?;
 
     let registry_path = constructs_directory.join("mod.rs");
-    let registry_metadata = fs::symlink_metadata(&registry_path)?;
-    if registry_metadata.file_type().is_symlink() || !registry_metadata.is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("refusing to update symlink `{}`", registry_path.display()),
-        )
-        .into());
-    }
-    let registry_source = fs::read_to_string(&registry_path)?;
+    let registry_source = read_regular_file(&registry_path)?;
     let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
     if registry_source
         .lines()
@@ -89,15 +80,7 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
 
     let module_line = format!("mod {module_name};");
     let updated_registry =
-        update_managed_section(&registry_source, MODULES_BEGIN, MODULES_END, &module_line)
-            .and_then(|source| {
-                update_managed_section(
-                    &source,
-                    REGISTRATIONS_BEGIN,
-                    REGISTRATIONS_END,
-                    &registration_line,
-                )
-            })
+        update_handler_registry(&registry_source, &module_line, &registration_line)
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
     let typed_name = match project.manifest.rust_bindings {
         RustBindings::Dynamic => None,

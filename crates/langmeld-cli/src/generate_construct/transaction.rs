@@ -106,20 +106,6 @@ pub(super) fn apply(files: ConstructFiles<'_>) -> io::Result<()> {
     Ok(())
 }
 
-pub(super) fn read_regular_file(path: &Path) -> io::Result<String> {
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(io::Error::new(
-            ErrorKind::InvalidInput,
-            format!(
-                "refusing to update symlink or non-file `{}`",
-                path.display()
-            ),
-        ));
-    }
-    fs::read_to_string(path)
-}
-
 fn rollback_generated_paths(files: &[&Path], directory: Option<&Path>) -> Vec<String> {
     let mut errors = Vec::new();
 

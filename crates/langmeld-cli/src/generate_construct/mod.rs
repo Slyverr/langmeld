@@ -1,5 +1,6 @@
 use std::{error::Error, io, io::IsTerminal, path::PathBuf};
 
+use crate::file_ops::read_regular_file;
 use clap::Args;
 use dialoguer::{Input, Select, theme::ColorfulTheme};
 use langmeld_core::SourceFile;
@@ -10,9 +11,8 @@ use langmeld_project::RustBindings;
 
 use crate::{
     handler_generation::{
-        MODULES_BEGIN, MODULES_END, REGISTRATIONS_BEGIN, REGISTRATIONS_END,
         find_handler_module_collision, handler_module_collision_error, handler_template,
-        rust_names, update_managed_section, validate_constructs_directory,
+        rust_names, update_handler_registry, validate_constructs_directory,
     },
     project::load_definition_project,
 };
@@ -91,7 +91,7 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     );
 
     let registry_path = handler_directory.join("mod.rs");
-    let registry_source = transaction::read_regular_file(&registry_path)?;
+    let registry_source = read_regular_file(&registry_path)?;
     let module_line = format!("mod {module_name};");
     if let Some(colliding_construct) = colliding_construct.as_deref()
         && registry_source
@@ -104,18 +104,10 @@ pub(crate) fn generate_construct(args: ConstructArgs) -> Result<(), Box<dyn Erro
     }
     let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
     let updated_registry =
-        update_managed_section(&registry_source, MODULES_BEGIN, MODULES_END, &module_line)
-            .and_then(|source| {
-                update_managed_section(
-                    &source,
-                    REGISTRATIONS_BEGIN,
-                    REGISTRATIONS_END,
-                    &registration_line,
-                )
-            })
+        update_handler_registry(&registry_source, &module_line, &registration_line)
             .map_err(|message| io::Error::new(io::ErrorKind::InvalidData, message))?;
 
-    let root_source = transaction::read_regular_file(&root_path)?;
+    let root_source = read_regular_file(&root_path)?;
     let import_path = format!("constructs/{name}.langmeld");
     let updated_root = add_root_import(&root_source, &import_path)?;
     let syntax_source = syntax_template(&name, &literal, &category);

@@ -6,6 +6,21 @@ use std::{
 
 use tempfile::NamedTempFile;
 
+pub(crate) fn read_regular_file(path: &Path) -> io::Result<String> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "refusing to update symlink or non-file `{}`",
+                path.display()
+            ),
+        ));
+    }
+
+    fs::read_to_string(path)
+}
+
 pub(crate) fn write_new_file(path: &Path, contents: &str) -> io::Result<()> {
     let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
     if let Err(error) = file.write_all(contents.as_bytes()) {

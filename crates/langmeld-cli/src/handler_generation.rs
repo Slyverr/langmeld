@@ -141,6 +141,21 @@ pub(crate) fn update_managed_section(
     Ok(updated)
 }
 
+pub(crate) fn update_handler_registry(
+    source: &str,
+    module_line: &str,
+    registration_line: &str,
+) -> Result<String, String> {
+    let source = update_managed_section(source, MODULES_BEGIN, MODULES_END, module_line)?;
+
+    update_managed_section(
+        &source,
+        REGISTRATIONS_BEGIN,
+        REGISTRATIONS_END,
+        registration_line,
+    )
+}
+
 pub(crate) fn rust_names(construct: &str) -> Result<(String, String), io::Error> {
     let names = langmeld_build::construct_handler_names(construct)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error.to_string()))?;
