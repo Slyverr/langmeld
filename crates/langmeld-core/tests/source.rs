@@ -4,6 +4,25 @@ use langmeld_core::{
 };
 
 #[test]
+fn source_validates_offsets_at_utf8_boundaries() {
+    let source = SourceFile::new("unicode", "aé");
+
+    assert!(source.is_valid_offset(0));
+    assert!(source.is_valid_offset(1));
+    assert!(source.is_valid_offset(3));
+
+    assert!(!source.is_valid_offset(2));
+    assert!(!source.is_valid_offset(4));
+}
+
+#[test]
+fn empty_source_has_a_valid_zero_offset() {
+    let source = SourceFile::new("empty", "");
+
+    assert!(source.is_valid_offset(0));
+}
+
+#[test]
 fn source_validates_empty_and_nonempty_utf8_spans() {
     let source = SourceFile::new("unicode", "aé");
 

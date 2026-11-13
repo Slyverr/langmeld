@@ -108,8 +108,7 @@ where
     P: LanguageParser,
     C: LanguageCompleter<P> + ?Sized,
 {
-    if offset > source.text().len()
-        || !source.text().is_char_boundary(offset)
+    if !source.is_valid_offset(offset)
         || parsed.source_identity() != source.identity()
         || analysis.is_some_and(|analysis| analysis.source_identity() != source.identity())
     {
@@ -153,10 +152,7 @@ pub fn complete_at_with_lexer(
     lexer: &impl Lexer,
 ) -> Vec<CompletionCandidate> {
     let limits = ParseLimits::default();
-    if offset > source.text().len()
-        || !source.text().is_char_boundary(offset)
-        || source.text().len() > limits.max_source_bytes
-    {
+    if !source.is_valid_offset(offset) || source.text().len() > limits.max_source_bytes {
         return Vec::new();
     }
 

@@ -110,6 +110,13 @@ impl SourceFile {
         self.text.as_str()
     }
 
+    /// Returns whether `offset` is an in-bounds UTF-8 character boundary in
+    /// this snapshot. The end of the source is a valid offset.
+    #[must_use]
+    pub fn is_valid_offset(&self, offset: usize) -> bool {
+        self.text.is_char_boundary(offset)
+    }
+
     /// Returns whether `span` is an ordered, in-bounds UTF-8 byte range in this
     /// snapshot. Empty spans are valid when their offset is a character boundary.
     #[must_use]

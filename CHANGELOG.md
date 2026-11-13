@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Expose `SourceFile::is_valid_offset` to validate an in-bounds UTF-8 boundary
+  against a source snapshot.
 - Expose `SourceFile::is_valid_span` to check ordered, in-bounds UTF-8 ranges
   against a source snapshot.
 - Expose `langmeld_project::resolve_import_key` so editor integrations can
