@@ -26,6 +26,12 @@ no automatic migration command.
 host state and use single-threaded types such as `Rc<RefCell<_>>`. The LSP
 adapter calls backend methods synchronously on the connection thread.
 
+`HostLanguageBackend` now has a leading backend lifetime parameter. In
+explicit type annotations, use `HostLanguageBackend<'static, Parser, Analyzer>`
+when the backend owns all its components, or the appropriate borrow lifetime
+when a parser, analyzer, or provider borrows host state. Inferred local
+variables usually need no annotation.
+
 If a server runs inside `std::thread::spawn`, create its
 `HostLanguageBackend` inside the spawned closure. Values captured by that
 closure still need to meet Rust's normal `Send + 'static` requirements. A
