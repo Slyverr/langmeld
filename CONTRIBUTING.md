@@ -170,14 +170,17 @@ Keep workspace crate versions aligned during development. Do not make a separate
 commit that bumps to the next version after a release; update release metadata
 only when that release's gate passes.
 
-Before a release, compare all distributable crate APIs against the latest
+Before a release, compare all distributable library APIs against the latest
 release tag with `cargo-semver-checks`. Use `--release-type minor` for a `0.x`
 minor release and `--release-type patch` for a compatible patch release. Review
 findings against the changelog, upgrade guide, and downstream consumer tests.
 The check does not detect every breaking API change, so inspect public
-signature changes manually; a clean result is not proof of compatibility. The
-release-only tool is not a workspace dependency; make it available on `PATH`
-for the check. For example, from `develop` before a minor release:
+signature changes manually; a clean result is not proof of compatibility. It
+does not check binary behavior: `langmeld-cli` has no library target, and its
+command behavior is covered by CLI integration tests and generated-starter
+workflows in CI. The release-only tool is not a workspace dependency; make it
+available on `PATH` for the check. For example, from `develop` before a minor
+release:
 
 ```sh
 cargo semver-checks \
@@ -189,7 +192,6 @@ cargo semver-checks \
   -p langmeld-project \
   -p langmeld-lsp \
   -p langmeld-build \
-  -p langmeld-cli \
   -p langmeld-textmate \
   -p langmeld-tree-sitter
 ```
