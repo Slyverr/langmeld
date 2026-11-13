@@ -22,8 +22,10 @@ pub struct BackendDocument<T> {
     /// Host-owned parse tree, analysis state, or combined document data.
     state: T,
     /// Findings to publish for this document. Source-located findings must
-    /// refer to this source snapshot; unlocated findings cannot be published
-    /// as text-document diagnostics.
+    /// refer to this source snapshot. The adapter suppresses unlocated,
+    /// foreign, or malformed findings and reports the backend contract
+    /// violation because they cannot be published as text-document
+    /// diagnostics.
     diagnostics: Vec<Diagnostic>,
 }
 

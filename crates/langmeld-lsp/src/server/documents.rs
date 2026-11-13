@@ -115,14 +115,16 @@ impl<B: LanguageBackend> ServerState<B> {
         let converted = diagnostics_for(&source, &analysis, self.encoding);
         let mut diagnostics = converted.diagnostics;
 
-        if converted.invalid_locations {
-            let invalid_locations = Diagnostic::error(
+        if converted.has_unpublishable_diagnostics {
+            let unpublishable_diagnostics = Diagnostic::error(
                 DIAGNOSTIC_LOCATION_CODE,
-                "host language backend returned diagnostics with foreign or invalid source locations; those diagnostics were suppressed",
+                "host language backend returned document diagnostics with missing, foreign, or invalid source locations; those diagnostics were suppressed",
                 &source,
                 Span::new(0, source.text().len()),
             );
-            if let Some(diagnostic) = diagnostic_for(&source, &invalid_locations, self.encoding) {
+            if let Some(diagnostic) =
+                diagnostic_for(&source, &unpublishable_diagnostics, self.encoding)
+            {
                 diagnostics.push(diagnostic);
             }
         }

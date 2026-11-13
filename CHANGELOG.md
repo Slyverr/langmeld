@@ -44,8 +44,8 @@ API migration notes are in the
   per-document analysis.
 - Diagnose custom single-document backend results tied to a different source
   snapshot and suppress their stale editor data.
-- Report and suppress backend diagnostics with invalid or foreign source
-  locations instead of silently dropping them.
+- Report and suppress backend diagnostics with missing, invalid, or foreign
+  source locations instead of silently dropping them.
 - Filter import-path completions using the same portability and project-root
   checks as definition loading, and resolve candidates from the importer's
   canonical project key.

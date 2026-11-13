@@ -11,7 +11,7 @@ use crate::backend::BackendDocument;
 
 pub(crate) struct ConvertedDiagnostics {
     pub diagnostics: Vec<Diagnostic>,
-    pub invalid_locations: bool,
+    pub has_unpublishable_diagnostics: bool,
 }
 
 pub(crate) fn byte_offset(
@@ -56,23 +56,24 @@ pub(crate) fn diagnostics_for<D>(
     if !document.matches_source(source) {
         return ConvertedDiagnostics {
             diagnostics: Vec::new(),
-            invalid_locations: false,
+            has_unpublishable_diagnostics: false,
         };
     }
 
     let mut converted = ConvertedDiagnostics {
         diagnostics: Vec::new(),
-        invalid_locations: false,
+        has_unpublishable_diagnostics: false,
     };
     for finding in document.diagnostics() {
         if finding.location.is_none() {
+            converted.has_unpublishable_diagnostics = true;
             continue;
         }
 
         if let Some(diagnostic) = diagnostic_for(source, finding, encoding) {
             converted.diagnostics.push(diagnostic);
         } else {
-            converted.invalid_locations = true;
+            converted.has_unpublishable_diagnostics = true;
         }
     }
 

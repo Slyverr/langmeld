@@ -22,6 +22,7 @@ impl LanguageBackend for MismatchedDiagnosticBackend {
                 source,
                 Span::new(0, source.text().len() + 1),
             ),
+            Diagnostic::spec_error("PROJECT", "project-level diagnostic"),
         ];
 
         BackendDocument::new(source, (), diagnostics)
