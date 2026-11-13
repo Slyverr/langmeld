@@ -1,6 +1,19 @@
 use super::*;
 use std::process::Command;
 
+fn shared_target_dir(workspace_root: &Path) -> PathBuf {
+    std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .map(|target_dir| {
+            if target_dir.is_absolute() {
+                target_dir
+            } else {
+                workspace_root.join(target_dir)
+            }
+        })
+        .unwrap_or_else(|| workspace_root.join("target"))
+}
+
 #[test]
 fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     let parent = TestDirectory::new();
@@ -122,6 +135,7 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
             "TypedLanguage",
             "--non-interactive",
             "--typed-bindings",
+            "--local-crates",
         ])
         .output()
         .expect("CLI should start");
@@ -141,6 +155,9 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         "[build-dependencies]\nlangmeld-build = \"{}\"",
         env!("CARGO_PKG_VERSION")
     )));
+    let cargo_config = fs::read_to_string(project.join(".cargo/config.toml"))
+        .expect("local Langmeld crate overrides should be generated");
+    assert!(cargo_config.contains("langmeld-build = { path = "));
     assert!(project.join("build.rs").is_file());
     assert_eq!(
         fs::read_to_string(project.join("build.rs")).unwrap(),
@@ -252,6 +269,28 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         "{}",
         String::from_utf8_lossy(&check.stderr)
     );
+
+    let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let cargo_test = Command::new("cargo")
+        .current_dir(&project)
+        .args(["test", "--offline", "--manifest-path"])
+        .arg("Cargo.toml")
+        .arg("--target-dir")
+        .arg(shared_target_dir(&workspace_root))
+        .output()
+        .expect("generated project should compile and run its tests");
+    assert!(
+        cargo_test.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_test.stdout),
+        String::from_utf8_lossy(&cargo_test.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&cargo_test.stdout)
+            .contains("test runs_a_program_from_the_project_definition ... ok"),
+        "{}",
+        String::from_utf8_lossy(&cargo_test.stdout)
+    );
 }
 
 #[test]
@@ -290,6 +329,7 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             None,
             ["langmeld-core", "langmeld-language", "langmeld-project"].as_slice(),
             false,
+            Some("runs_a_program_from_the_project_definition"),
         ),
         (
             "typed-declarative",
@@ -302,16 +342,18 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             ]
             .as_slice(),
             true,
+            None,
         ),
         (
             "custom-parser",
             Some("custom-parser"),
             ["langmeld-core", "langmeld-language", "langmeld-lsp"].as_slice(),
             false,
+            Some("parses_a_valid_say_statement"),
         ),
     ];
 
-    for (project_name, template, crates, typed_bindings) in templates {
+    for (project_name, template, crates, typed_bindings, expected_test) in templates {
         let project = parent.path().join(project_name);
         let mut command = Command::new(env!("CARGO_BIN_EXE_langmeld"));
         command.args([
@@ -381,6 +423,29 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             metadata.status.success(),
             "{}",
             String::from_utf8_lossy(&metadata.stderr)
+        );
+
+        let Some(expected_test) = expected_test else {
+            continue;
+        };
+        let output = Command::new("cargo")
+            .current_dir(&project)
+            .args(["test", "--offline", "--manifest-path", "Cargo.toml"])
+            .arg("--target-dir")
+            .arg(shared_target_dir(&workspace_root))
+            .output()
+            .expect("generated project tests should run");
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout)
+                .contains(&format!("test {expected_test} ... ok")),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
         );
     }
 }
