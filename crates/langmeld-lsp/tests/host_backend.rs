@@ -6,7 +6,6 @@ use langmeld_language::{
 use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
 use std::{
     cell::Cell,
-    rc::Rc,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -585,13 +584,13 @@ struct LocalParser<'state> {
     calls: &'state Cell<usize>,
 }
 
-impl LanguageParser for LocalParser<'_> {
-    type Tree = Rc<Cell<usize>>;
+impl<'state> LanguageParser for LocalParser<'state> {
+    type Tree = &'state Cell<usize>;
 
     fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
         self.calls.set(self.calls.get() + 1);
 
-        ParsedDocument::new(source, Rc::new(Cell::new(1)), Vec::new())
+        ParsedDocument::new(source, self.calls, Vec::new())
     }
 }
 
@@ -600,35 +599,33 @@ struct LocalAnalyzer<'state> {
 }
 
 impl<'state> LanguageAnalyzer<LocalParser<'state>> for LocalAnalyzer<'state> {
-    type Analysis = Rc<Cell<usize>>;
+    type Analysis = &'state Cell<usize>;
 
     fn analyze(
         &self,
         source: &SourceFile,
-        parsed: &ParsedDocument<Rc<Cell<usize>>>,
+        _parsed: &ParsedDocument<&Cell<usize>>,
     ) -> AnalysisDocument<Self::Analysis> {
         self.calls.set(self.calls.get() + 1);
 
-        AnalysisDocument::new(
-            source,
-            Rc::new(Cell::new(parsed.tree().get() + 1)),
-            Vec::new(),
-        )
+        AnalysisDocument::new(source, self.calls, Vec::new())
     }
 }
 
 struct LocalCompleter<'state>(&'state Cell<usize>);
 
 impl<'state, 'parser> LanguageCompleter<LocalParser<'parser>> for LocalCompleter<'state> {
-    type Analysis = Rc<Cell<usize>>;
+    type Analysis = &'state Cell<usize>;
 
     fn complete(
         &self,
         _source: &SourceFile,
-        _parsed: &ParsedDocument<Rc<Cell<usize>>>,
-        _analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        parsed: &ParsedDocument<&Cell<usize>>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
         _offset: usize,
     ) -> Vec<CompletionCandidate> {
+        assert_eq!(parsed.tree().get(), 1);
+        assert_eq!(analysis.unwrap().result().get(), 1);
         self.0.set(self.0.get() + 1);
 
         vec![CompletionCandidate::new("local", Span::new(0, 0))]
