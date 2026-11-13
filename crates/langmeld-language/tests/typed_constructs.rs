@@ -57,19 +57,13 @@ struct BorrowedState<'state> {
 struct BorrowedGreetHandler;
 
 impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandler {
-    type View<'source>
-        = NameView<'source>
-    where
-        BorrowedState<'state>: 'source;
+    type View<'source> = NameView<'source>;
 
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, BorrowedState<'state>>,
-        greet: Self::View<'source>,
-    ) -> Result<HandlerControl, Diagnostic>
-    where
-        BorrowedState<'state>: 'source,
-    {
+        context: &mut ConstructContext<'_, BorrowedState<'state>>,
+        greet: Self::View<'_>,
+    ) -> Result<HandlerControl, Diagnostic> {
         let greeting = format!("{} {}", context.state().prefix, greet.name);
         context.state_mut().output.push(greeting);
 
@@ -80,14 +74,11 @@ impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandl
 impl TypedConstructHandler<Vec<String>> for GreetHandler {
     type View<'source> = NameView<'source>;
 
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, Vec<String>>,
-        greet: Self::View<'source>,
-    ) -> Result<HandlerControl, Diagnostic>
-    where
-        Vec<String>: 'source,
-    {
+        context: &mut ConstructContext<'_, Vec<String>>,
+        greet: Self::View<'_>,
+    ) -> Result<HandlerControl, Diagnostic> {
         context.state_mut().push(greet.name.to_owned());
 
         Ok(HandlerControl::Continue)

@@ -37,23 +37,18 @@ pub trait ConstructHandler<State, Signal = ()> {
 /// and creates the view before calling the handler. This keeps typed capture
 /// access and handler registration tied to one construct type. Use
 /// [`ConstructHandler`] when the language is dynamic or the handler needs
-/// runtime field access.
+/// runtime field access. The view's source lifetime is independent of the
+/// host-state and control-signal types.
 pub trait TypedConstructHandler<State, Signal = ()> {
     /// Typed projection for the current construct and source lifetime.
-    type View<'source>: TypedConstruct<'source>
-    where
-        State: 'source,
-        Signal: 'source;
+    type View<'source>: TypedConstruct<'source>;
 
     /// Handles one parsed construct after creating its typed view.
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, State, Signal>,
-        syntax: Self::View<'source>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic>
-    where
-        State: 'source,
-        Signal: 'source;
+        context: &mut ConstructContext<'_, State, Signal>,
+        syntax: Self::View<'_>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>;
 }
 
 /// Whether dispatch should continue or propagate a host-defined signal.
@@ -66,13 +61,10 @@ pub enum HandlerControl<Signal = ()> {
 }
 
 trait ErasedConstructHandler<State, Signal> {
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, State, Signal>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic>
-    where
-        State: 'source,
-        Signal: 'source;
+        context: &mut ConstructContext<'_, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic>;
 }
 
 struct HandlerAdapter<Handler>(Handler);
@@ -81,14 +73,10 @@ impl<State, Signal, Handler> ErasedConstructHandler<State, Signal> for HandlerAd
 where
     Handler: ConstructHandler<State, Signal>,
 {
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, State, Signal>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic>
-    where
-        State: 'source,
-        Signal: 'source,
-    {
+        context: &mut ConstructContext<'_, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
         self.0.handle(context)
     }
 }
@@ -99,15 +87,11 @@ impl<State, Signal, Handler> ErasedConstructHandler<State, Signal> for TypedHand
 where
     Handler: TypedConstructHandler<State, Signal>,
 {
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, State, Signal>,
-    ) -> Result<HandlerControl<Signal>, Diagnostic>
-    where
-        State: 'source,
-        Signal: 'source,
-    {
-        let syntax = context.typed::<Handler::View<'source>>()?;
+        context: &mut ConstructContext<'_, State, Signal>,
+    ) -> Result<HandlerControl<Signal>, Diagnostic> {
+        let syntax = context.typed::<Handler::View<'_>>()?;
 
         self.0.handle(context, syntax)
     }
@@ -181,7 +165,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     where
         Handler: TypedConstructHandler<State, Signal> + 'static,
     {
-        let name = typed_construct_name::<State, Signal, Handler>(&handler);
+        let name = typed_construct_name::<State, Signal, Handler>();
 
         self.register_erased(name, Box::new(TypedHandlerAdapter(handler)))
     }
@@ -355,13 +339,11 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     }
 }
 
-fn typed_construct_name<'source, State, Signal, Handler>(_handler: &'source Handler) -> &'static str
+fn typed_construct_name<State, Signal, Handler>() -> &'static str
 where
     Handler: TypedConstructHandler<State, Signal>,
-    State: 'source,
-    Signal: 'source,
 {
-    <Handler::View<'source> as TypedConstruct<'source>>::CONSTRUCT
+    <Handler::View<'static> as TypedConstruct<'static>>::CONSTRUCT
 }
 
 fn validate_parsed_source(source: &SourceFile, parsed: &ParseResult) -> Result<(), Diagnostic> {

@@ -78,14 +78,11 @@ pub struct PrintHandler;
 impl TypedConstructHandler<RuntimeState> for PrintHandler {
     type View<'source> = crate::generated::constructs::Print<'source>;
 
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, RuntimeState>,
-        print: Self::View<'source>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic>
-    where
-        RuntimeState: 'source,
-    {
+        context: &mut ConstructContext<'_, RuntimeState>,
+        print: Self::View<'_>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
         let name = print.name()?;
 
         context.state_mut().output.push_str(name.text);

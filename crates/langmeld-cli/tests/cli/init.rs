@@ -176,10 +176,11 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
     let let_handler = fs::read_to_string(project.join("src/constructs/let_handler.rs"))
         .expect("typed let handler should be generated");
     assert!(let_handler.contains("impl TypedConstructHandler<RuntimeState> for LetHandler"));
+    assert!(!let_handler.contains("fn handle<'source>"));
     assert!(
         let_handler.contains("type View<'source> = crate::generated::constructs::Let<'source>;")
     );
-    assert!(let_handler.contains("syntax: Self::View<'source>"));
+    assert!(let_handler.contains("syntax: Self::View<'_>"));
     assert!(let_handler.contains("syntax.name()?"));
     assert!(let_handler.contains("syntax.value()?"));
     assert!(!let_handler.contains("field_text_capture"));
@@ -187,11 +188,12 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
     let print_handler = fs::read_to_string(project.join("src/constructs/print.rs"))
         .expect("typed print handler should be generated");
     assert!(print_handler.contains("impl TypedConstructHandler<RuntimeState> for PrintHandler"));
+    assert!(!print_handler.contains("fn handle<'source>"));
     assert!(
         print_handler
             .contains("type View<'source> = crate::generated::constructs::Print<'source>;")
     );
-    assert!(print_handler.contains("syntax: Self::View<'source>"));
+    assert!(print_handler.contains("syntax: Self::View<'_>"));
     assert!(print_handler.contains("syntax.name()?"));
     assert!(!print_handler.contains("field_identifier_capture"));
 
@@ -256,7 +258,8 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         repeat_handler
             .contains("type View<'source> = crate::generated::constructs::Repeat<'source>;")
     );
-    assert!(repeat_handler.contains("syntax: Self::View<'source>"));
+    assert!(repeat_handler.contains("syntax: Self::View<'_>"));
+    assert!(!repeat_handler.contains("fn handle<'source>"));
     let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
         .expect("typed registry should be updated");
     assert!(registry.contains("handlers.register_typed(repeat::RepeatHandler)?;"));

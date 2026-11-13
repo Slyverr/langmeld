@@ -419,8 +419,9 @@ fn generate_typed_handler_uses_the_generated_construct_identity() {
         .expect("typed handler should be generated");
     assert!(handler.contains("type View<'source> = crate::generated::constructs::Trace<'source>;"));
     assert!(handler.contains("impl TypedConstructHandler<RuntimeState> for TraceHandler"));
-    assert!(handler.contains("syntax: Self::View<'source>"));
+    assert!(handler.contains("syntax: Self::View<'_>"));
     assert!(!handler.contains("(): 'source"));
+    assert!(!handler.contains("fn handle<'source>"));
     let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
         .expect("typed registry should be updated");
     assert!(registry.contains("handlers.register_typed(trace::TraceHandler)?;"));

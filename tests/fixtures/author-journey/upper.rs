@@ -9,14 +9,11 @@ pub(super) struct UpperHandler;
 impl TypedConstructHandler<RuntimeState> for UpperHandler {
     type View<'source> = crate::generated::constructs::Upper<'source>;
 
-    fn handle<'source>(
+    fn handle(
         &self,
-        context: &mut ConstructContext<'source, RuntimeState>,
-        syntax: Self::View<'source>,
-    ) -> Result<HandlerControl, langmeld_core::Diagnostic>
-    where
-        RuntimeState: 'source,
-    {
+        context: &mut ConstructContext<'_, RuntimeState>,
+        syntax: Self::View<'_>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
         let name = syntax.name()?;
         let value = context
             .state()
