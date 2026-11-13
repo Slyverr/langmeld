@@ -168,6 +168,8 @@ pub fn parse_with_limits(
 ///
 /// Tokens with invalid, overlapping, out-of-order, or mismatched source spans
 /// are discarded and reported as `LM-LEX-002` diagnostics before parsing.
+/// Lexer diagnostics with missing, foreign, or invalid source locations are
+/// suppressed and reported as `LM-LEX-004`.
 #[must_use]
 pub fn parse_with_lexer(
     source: &SourceFile,

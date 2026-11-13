@@ -35,6 +35,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Suppress custom lexer diagnostics with missing, foreign, or invalid source
+  locations, and prevent them from hiding the parser's token-limit diagnostic.
 - Explain when distinct construct names collide on a generated Rust handler
   module instead of reporting only that the handler path already exists.
 - Compare complete module-qualified handler registrations so distinct modules

@@ -1,4 +1,4 @@
-use langmeld_core::{Severity, SourceDatabase, SourceFile, Span};
+use langmeld_core::{Diagnostic, Severity, SourceDatabase, SourceFile, Span};
 use langmeld_language::{
     CaptureGroupKind, CapturedValue, ConstructSpec, DefaultLexer, LanguageSpec, LexOutput,
     LexedToken, Lexer, LexicalRules, ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer,

@@ -33,6 +33,10 @@ pub enum TokenKind {
 }
 
 /// Tokens and lexical diagnostics produced for one source snapshot.
+///
+/// Lexical diagnostics must be located in the exact source snapshot supplied
+/// to [`Lexer::lex`]. The parser suppresses diagnostics with missing, foreign,
+/// or invalid source locations and reports `LM-LEX-004` instead.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LexOutput {
     /// Non-overlapping tokens in source order. Whitespace and comments may be omitted.
@@ -44,6 +48,9 @@ pub struct LexOutput {
 /// Host-provided lexical behavior for the generic Langmeld parser.
 pub trait Lexer {
     /// Lexes the supplied immutable source snapshot.
+    ///
+    /// Source-located diagnostics must use this snapshot and valid UTF-8 byte
+    /// ranges. The parser validates these locations before returning results.
     fn lex(&self, source: &SourceFile) -> LexOutput;
 
     /// Lexes with a token limit. The default applies the limit after [`Self::lex`]
@@ -268,6 +275,8 @@ fn comment_start<'a>(
 }
 
 fn limit_lex_output(source: &SourceFile, mut output: LexOutput, max_tokens: usize) -> LexOutput {
+    validate_lexer_diagnostics(source, &mut output.diagnostics);
+
     if output.tokens.len() > max_tokens {
         output.tokens = Vec::new();
         if !output
@@ -292,6 +301,36 @@ pub(crate) fn lex_bounded(source: &SourceFile, lexer: &impl Lexer, max_tokens: u
         lexer.lex_with_token_limit(source, max_tokens),
         max_tokens,
     )
+}
+
+fn validate_lexer_diagnostics(source: &SourceFile, diagnostics: &mut Vec<Diagnostic>) {
+    let mut invalid_offset = None;
+    diagnostics.retain(|diagnostic| {
+        let Some(location) = diagnostic.location.as_ref() else {
+            invalid_offset.get_or_insert(0);
+            return false;
+        };
+
+        let span = location.span();
+        let valid_location = location.source_name() == source.name()
+            && location.source_identity() == source.identity()
+            && source.text().get(span.start..span.end).is_some();
+        if valid_location {
+            return true;
+        }
+
+        invalid_offset.get_or_insert_with(|| nearest_source_boundary(source, span.start));
+        false
+    });
+
+    if let Some(offset) = invalid_offset {
+        diagnostics.push(Diagnostic::error(
+            "LM-LEX-004",
+            "lexer emitted diagnostics without valid locations in the supplied source; malformed diagnostics were suppressed",
+            source,
+            Span::new(offset, offset),
+        ));
+    }
 }
 
 pub(crate) fn validate_tokens(

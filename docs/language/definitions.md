@@ -328,7 +328,9 @@ The generic parser checks source size before calling the lexer and caps the
 tokens it validates. A custom lexer that returns more than the token limit is
 discarded by default, but this post-check cannot bound the lexer's own work or
 allocations. Override `Lexer::lex_with_token_limit` to stop early and return a
-valid prefix. These limits do not constrain custom `LanguageParser`
+valid prefix. Custom lexer diagnostics must refer to the exact source snapshot
+and use valid UTF-8 ranges; malformed findings are suppressed and reported as
+`LM-LEX-004`. These limits do not constrain custom `LanguageParser`
 implementations, which own their parsing behavior and must choose their own
 resource policy.
 

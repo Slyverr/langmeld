@@ -440,6 +440,52 @@ fn rejects_custom_tokens_that_do_not_match_their_source_spans() {
 }
 
 #[test]
+fn suppresses_custom_lexer_diagnostics_without_valid_source_locations() {
+    struct DiagnosticsLexer {
+        diagnostics: Vec<Diagnostic>,
+    }
+
+    impl Lexer for DiagnosticsLexer {
+        fn lex(&self, _source: &SourceFile) -> LexOutput {
+            LexOutput {
+                tokens: Vec::new(),
+                diagnostics: self.diagnostics.clone(),
+            }
+        }
+    }
+
+    let source = SourceFile::new("source", "item");
+    let valid = Diagnostic::warning("HOST-001", "valid finding", &source, Span::new(0, 4));
+    let foreign = SourceFile::new("source", "item");
+    let lexer = DiagnosticsLexer {
+        diagnostics: vec![
+            valid.clone(),
+            Diagnostic::error("HOST-002", "foreign snapshot", &foreign, Span::new(0, 4)),
+            Diagnostic::error("HOST-003", "invalid range", &source, Span::new(1, 5)),
+            Diagnostic::spec_info("HOST-004", "missing source location"),
+        ],
+    };
+    let grammar = LanguageSpec::new(
+        "Custom",
+        [ConstructSpec::new("item", [PatternPart::literal("item")])],
+    )
+    .unwrap();
+
+    let parsed = parse_with_lexer(&source, &grammar, &lexer);
+
+    assert_eq!(parsed.diagnostics().len(), 2);
+    assert_eq!(parsed.diagnostics()[0], valid);
+    let malformed = &parsed.diagnostics()[1];
+    assert_eq!(malformed.code, "LM-LEX-004");
+    let location = malformed
+        .location
+        .as_ref()
+        .expect("framework diagnostics must use the parsed source");
+    assert_eq!(location.source_identity(), source.identity());
+    assert_eq!(location.span(), Span::new(0, 0));
+}
+
+#[test]
 fn reports_source_located_diagnostics_for_invalid_custom_token_ranges() {
     struct InvalidSpanLexer;
 
