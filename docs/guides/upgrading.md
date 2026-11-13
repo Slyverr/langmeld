@@ -61,6 +61,11 @@ let LoadedDefinitionProjectParts {
 } = project.into_parts();
 ```
 
+## Migrating from v0.11.0 to v0.12.0
+
+The changes below are included in v0.12.0. See the [changelog](../../CHANGELOG.md)
+for the complete release notes.
+
 ### Completion candidate insertion format
 
 `CompletionCandidate` now includes `insert_text_format`. Values created with
