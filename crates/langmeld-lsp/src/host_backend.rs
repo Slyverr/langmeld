@@ -223,6 +223,9 @@ where
     /// associates a result with the wrong source snapshot, the batch is
     /// discarded, an `LM-HOST-003` diagnostic is added to each returned
     /// document, and per-source analysis is used instead.
+    /// For a valid batch, the workspace analyzer's results replace the
+    /// per-source analyzer's results. Call the supplied per-source analyzer
+    /// from the workspace analyzer when its checks should also run.
     #[must_use]
     pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
     where

@@ -181,8 +181,9 @@ pub trait LanguageAnalyzer<P: LanguageParser> {
 /// Each returned result must correspond to the source at the same input index
 /// and retain that source's identity. Hosts that need to load unopened files or
 /// retain project indexes can implement the lower-level workspace backend.
-/// The existing per-source analyzer is passed in so workspace analysis can
-/// reuse its checks and combine them with cross-document rules.
+/// For a valid batch, this replaces the per-source analyzer's results; the
+/// existing analyzer is passed in so the workspace analyzer can call it where
+/// those checks should be included. It is not called automatically.
 pub trait LanguageWorkspaceAnalyzer<P: LanguageParser, A: LanguageAnalyzer<P>> {
     /// Analyzes open source snapshots and their already parsed trees together.
     fn analyze_workspace(

@@ -70,13 +70,16 @@ For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 parse and semantic diagnostics for LSP. Add `with_completer` and
 `with_navigator` to expose host completion, definition, and reference
 callbacks. Add `with_workspace_analyzer` when semantics depend on more than one
-open document; its analyzer receives each source with its parsed tree and must
-return one source-bound analysis result for each input. The adapter combines
-those results with parser diagnostics and reanalyzes open documents when the
-workspace changes. If parsing or workspace analysis violates the source
-identity or result-count contract, the adapter falls back to per-source
-analysis for every supplied document so other open documents do not retain
-stale diagnostics. It parses each open source again for a workspace pass;
+open document; the provider receives the per-source analyzer and each source
+with its parsed tree, and must return one source-bound analysis result for each
+input. For a valid batch, its results replace the per-source analyzer's
+results; call the supplied analyzer yourself when its checks should also run.
+The adapter combines the workspace results with parser diagnostics and
+reanalyzes open documents when the workspace changes. If parsing or workspace
+analysis violates the source identity or result-count contract, the adapter
+falls back to per-source analysis for every supplied document so other open
+documents do not retain stale diagnostics. It parses each open source again
+for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
 parser diagnostics. Select the analyzer at construction, then attach its
