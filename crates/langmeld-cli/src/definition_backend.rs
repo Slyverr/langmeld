@@ -8,8 +8,8 @@ use std::{
 
 use langmeld_core::{SourceFile, SourceLocation};
 use langmeld_language::{
-    DefinitionResolver, DefinitionSource, ParseResult, language_definition_grammar, parse,
-    parse_language_definition_project,
+    DefinitionResolver, DefinitionSource, DefinitionSourceParts, ParseResult,
+    language_definition_grammar, parse, parse_language_definition_project,
 };
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
@@ -250,7 +250,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
             return None;
         }
         let uri = Url::from_file_path(path).ok()?.as_str().parse().ok()?;
-        let (_, source) = resolved.into_parts();
+        let DefinitionSourceParts { source, .. } = resolved.into_parts();
         Some(BackendSource::new(uri, source))
     }
 
@@ -302,9 +302,11 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
 
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error> {
         let resolved = self.resolver.resolve(from_key, import)?;
-        let (resolved_key, resolved_source) = resolved.into_parts();
+        let DefinitionSourceParts {
+            key: resolved_key,
+            source,
+        } = resolved.into_parts();
         let is_new_source = self.loaded.borrow_mut().insert(resolved_key.clone());
-        let source = resolved_source;
         let mut sources = self.sources.borrow_mut();
         if is_new_source {
             sources.push((resolved_key.clone(), source.clone()));

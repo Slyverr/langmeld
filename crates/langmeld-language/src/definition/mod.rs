@@ -40,6 +40,15 @@ pub struct DefinitionSource {
     source: SourceFile,
 }
 
+/// Owned components of a consumed [`DefinitionSource`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DefinitionSourceParts {
+    /// Stable resolver key used to identify this source.
+    pub key: String,
+    /// Immutable source snapshot containing the definition text.
+    pub source: SourceFile,
+}
+
 /// Maximum number of nested definition imports accepted in one project.
 pub const MAX_DEFINITION_IMPORT_DEPTH: usize = 64;
 
@@ -65,10 +74,13 @@ impl DefinitionSource {
         &self.source
     }
 
-    /// Consumes this value and returns its resolver key and source snapshot.
+    /// Consumes this value and returns its named resolver key and source snapshot.
     #[must_use]
-    pub fn into_parts(self) -> (String, SourceFile) {
-        (self.key, self.source)
+    pub fn into_parts(self) -> DefinitionSourceParts {
+        DefinitionSourceParts {
+            key: self.key,
+            source: self.source,
+        }
     }
 }
 

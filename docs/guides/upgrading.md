@@ -21,7 +21,7 @@ no automatic migration command.
 
 ## Unreleased API changes
 
-### Named host and backend result parts
+### Named result parts
 
 `ParsedDocument::into_parts()`, `AnalysisDocument::into_parts()`, and
 `BackendDocument::into_parts()` now return named parts structs instead of
@@ -37,6 +37,13 @@ let ParsedDocumentParts {
 
 The corresponding types are `AnalysisDocumentParts` and
 `BackendDocumentParts`.
+
+`DefinitionSource::into_parts()` also returns a named `DefinitionSourceParts`
+value. Replace positional destructuring with named fields:
+
+```rust,ignore
+let DefinitionSourceParts { key, source } = resolved.into_parts();
+```
 
 ### Preserve loaded project watcher paths
 

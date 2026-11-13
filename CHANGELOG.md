@@ -24,6 +24,8 @@ API migration notes are in the
   `into_parts()` methods instead of positional tuples.
 - Return a named `LoadedDefinitionProjectParts` from `into_parts()`, including
   watched paths alongside the other owned project data.
+- Return named `DefinitionSourceParts` from `DefinitionSource::into_parts()`
+  instead of positional tuple values.
 - Match generated handler struct casing to generated typed construct views.
 - Generate starter diagnostic codes with a prefix derived from the new Cargo
   package name instead of the generic `EXAMPLE` prefix.
