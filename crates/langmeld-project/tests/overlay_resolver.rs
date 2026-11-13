@@ -1,49 +1,14 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering},
-};
+mod common;
 
 use langmeld_core::SourceFile;
 use langmeld_language::parse_language_definition_project;
 use langmeld_project::{InMemoryDefinitionResolver, OverlayDefinitionResolver, ProjectLoadError};
 
-static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
-
-struct TestDirectory(PathBuf);
-
-impl TestDirectory {
-    fn new() -> Self {
-        let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "langmeld-overlay-resolver-test-{}-{id}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&path).expect("test directory should be created");
-        Self(path)
-    }
-
-    fn write(&self, relative: &str, contents: &str) {
-        let path = self.0.join(relative);
-        fs::create_dir_all(path.parent().expect("file has a parent"))
-            .expect("parent directory should be created");
-        fs::write(path, contents).expect("test file should be written");
-    }
-
-    fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+use common::TestDirectory;
 
 #[test]
 fn combines_local_and_embedded_construct_modules() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write(
         "language/main.langmeld",
         r#"language "Geometry" {
@@ -95,7 +60,7 @@ fn combines_local_and_embedded_construct_modules() {
 
 #[test]
 fn overlay_sources_replace_disk_snapshots_by_import_key() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write("language/main.langmeld", "language \"Example\"");
     project.write(
         "language/constructs/statement.langmeld",
@@ -137,7 +102,7 @@ fn overlay_sources_replace_disk_snapshots_by_import_key() {
 
 #[test]
 fn overlay_sources_keep_distinct_keys_with_the_same_display_name() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write("language/main.langmeld", "language \"Example\"");
     project.write(
         "language/constructs/statement.langmeld",
@@ -181,7 +146,7 @@ fn overlay_sources_keep_distinct_keys_with_the_same_display_name() {
 
 #[test]
 fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write("language/main.langmeld", "language \"Example\"");
     let resolver =
         OverlayDefinitionResolver::new(project.path(), InMemoryDefinitionResolver::new()).unwrap();
@@ -199,7 +164,7 @@ fn rejects_imports_that_escape_the_project_root_before_overlay_lookup() {
 
 #[test]
 fn resolves_new_imports_from_the_overlay_before_reading_disk() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write(
         "language/main.langmeld",
         r#"language "Example" {
@@ -232,7 +197,7 @@ fn resolves_new_imports_from_the_overlay_before_reading_disk() {
 
 #[test]
 fn loads_an_open_root_definition_from_the_overlay() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("overlay-resolver");
     project.write("language/main.langmeld", "language \"Disk version\" {");
     let mut overlay = InMemoryDefinitionResolver::new();
     overlay

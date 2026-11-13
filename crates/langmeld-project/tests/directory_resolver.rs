@@ -1,46 +1,13 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering},
-};
+mod common;
 
 use langmeld_language::{DefinitionResolver, parse_language_definition_project};
 use langmeld_project::{DirectoryDefinitionResolver, ProjectLoadError};
 
-static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
-
-struct TestDirectory(PathBuf);
-
-impl TestDirectory {
-    fn new() -> Self {
-        let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("langmeld-project-test-{}-{id}", std::process::id()));
-        fs::create_dir_all(&path).expect("test directory should be created");
-        Self(path)
-    }
-
-    fn write(&self, relative: &str, contents: &str) {
-        let path = self.0.join(relative);
-        fs::create_dir_all(path.parent().expect("file has a parent"))
-            .expect("parent directory should be created");
-        fs::write(path, contents).expect("test file should be written");
-    }
-
-    fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+use common::TestDirectory;
 
 #[test]
 fn resolves_nested_imports_and_retains_source_snapshots() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("language/main.langmeld", "language \"Example\"");
     project.write("language/constructs/items.langmeld", "construct \"item\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
@@ -66,7 +33,7 @@ fn resolves_nested_imports_and_retains_source_snapshots() {
 
 #[test]
 fn reuses_identity_for_unchanged_files_and_replaces_changed_snapshots() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("language/main.langmeld", "language \"Example\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
 
@@ -84,7 +51,7 @@ fn reuses_identity_for_unchanged_files_and_replaces_changed_snapshots() {
 
 #[test]
 fn requires_an_existing_directory_as_project_root() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("file.langmeld", "language \"Example\"");
 
     assert!(DirectoryDefinitionResolver::new(project.path().join("file.langmeld")).is_err());
@@ -93,7 +60,7 @@ fn requires_an_existing_directory_as_project_root() {
 
 #[test]
 fn maps_existing_and_not_yet_created_paths_to_project_keys() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("language/main.langmeld", "language \"Example\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
 
@@ -120,7 +87,7 @@ fn maps_existing_and_not_yet_created_paths_to_project_keys() {
 #[cfg(unix)]
 #[test]
 fn rejects_backslashes_in_native_filename_components() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("nested/file.langmeld", "construct \"nested\"");
     project.write("nested\\file.langmeld", "construct \"literal backslash\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
@@ -139,8 +106,8 @@ fn rejects_backslashes_in_native_filename_components() {
 
 #[test]
 fn rejects_nonexistent_paths_outside_the_project_root() {
-    let project = TestDirectory::new();
-    let outside = TestDirectory::new();
+    let project = TestDirectory::new("project");
+    let outside = TestDirectory::new("outside");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
 
     let error = resolver
@@ -152,7 +119,7 @@ fn rejects_nonexistent_paths_outside_the_project_root() {
 
 #[test]
 fn imported_definition_diagnostics_keep_the_imported_source_name() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write(
         "language.langmeld",
         "language \"Example\" { import \"constructs/item.langmeld\"; }",
@@ -174,7 +141,7 @@ fn imported_definition_diagnostics_keep_the_imported_source_name() {
 
 #[test]
 fn allows_parent_segments_while_target_remains_inside_project() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("language/main.langmeld", "language \"Example\"");
     project.write("constructs/items.langmeld", "construct \"item\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
@@ -187,8 +154,8 @@ fn allows_parent_segments_while_target_remains_inside_project() {
 
 #[test]
 fn rejects_imports_that_escape_the_project_root() {
-    let project = TestDirectory::new();
-    let outside = TestDirectory::new();
+    let project = TestDirectory::new("project");
+    let outside = TestDirectory::new("outside");
     project.write("language/main.langmeld", "language \"Example\"");
     outside.write("private.langmeld", "construct \"secret\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
@@ -207,7 +174,7 @@ fn rejects_imports_that_escape_the_project_root() {
 
 #[test]
 fn rejects_absolute_and_non_portable_import_paths() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("project");
     project.write("main.langmeld", "language \"Example\"");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();
     let root = resolver.load("main.langmeld").unwrap();
@@ -257,8 +224,8 @@ fn rejects_absolute_and_non_portable_import_paths() {
 #[cfg(unix)]
 #[test]
 fn rejects_symlinks_that_escape_the_project_root() {
-    let project = TestDirectory::new();
-    let outside = TestDirectory::new();
+    let project = TestDirectory::new("project");
+    let outside = TestDirectory::new("outside");
     project.write("language/main.langmeld", "language \"Example\"");
     outside.write("secret.langmeld", "construct \"secret\"");
     std::os::unix::fs::symlink(
@@ -277,8 +244,8 @@ fn rejects_symlinks_that_escape_the_project_root() {
 #[cfg(unix)]
 #[test]
 fn rejects_nonexistent_paths_beneath_symlinks_that_escape_the_project_root() {
-    let project = TestDirectory::new();
-    let outside = TestDirectory::new();
+    let project = TestDirectory::new("project");
+    let outside = TestDirectory::new("outside");
     std::os::unix::fs::symlink(outside.path(), project.path().join("external"))
         .expect("test symlink should be created");
     let resolver = DirectoryDefinitionResolver::new(project.path()).unwrap();

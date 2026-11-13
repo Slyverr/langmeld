@@ -1,50 +1,15 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering},
-};
+mod common;
 
 use langmeld_project::{
     LanguageSpecLoadError, load_definition_project, load_definition_project_from_manifest,
     load_language_spec,
 };
 
-static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
-
-struct TestDirectory(PathBuf);
-
-impl TestDirectory {
-    fn new() -> Self {
-        let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "langmeld-definition-project-test-{}-{id}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&path).expect("test directory should be created");
-        Self(path)
-    }
-
-    fn write(&self, relative: &str, contents: &str) {
-        let path = self.0.join(relative);
-        fs::create_dir_all(path.parent().expect("file has a parent"))
-            .expect("parent directory should be created");
-        fs::write(path, contents).expect("test file should be written");
-    }
-
-    fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+use common::TestDirectory;
 
 #[test]
 fn loads_and_parses_a_manifest_backed_definition_project() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "langmeld.toml",
         "format = 1\ndefinition = \"language/main.langmeld\"\n",
@@ -68,7 +33,7 @@ fn loads_and_parses_a_manifest_backed_definition_project() {
 #[cfg(unix)]
 #[test]
 fn exposes_watch_paths_for_internal_symlink_imports() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "langmeld.toml",
         "format = 1\ndefinition = \"language/main.langmeld\"\n",
@@ -110,7 +75,7 @@ fn exposes_watch_paths_for_internal_symlink_imports() {
 #[cfg(unix)]
 #[test]
 fn avoids_watching_the_project_root_for_top_level_symlink_imports() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "langmeld.toml",
         "format = 1\ndefinition = \"language/main.langmeld\"\n",
@@ -144,7 +109,7 @@ fn avoids_watching_the_project_root_for_top_level_symlink_imports() {
 
 #[test]
 fn loads_a_legacy_lm_root_and_reports_a_migration_warning() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "langmeld.toml",
         "format = 1\ndefinition = \"language/main.lm\"\n",
@@ -175,7 +140,7 @@ fn loads_a_legacy_lm_root_and_reports_a_migration_warning() {
 
 #[test]
 fn loads_a_valid_language_specification() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write("langmeld.toml", "format = 1\n");
     project.write(
         "language/main.langmeld",
@@ -189,7 +154,7 @@ fn loads_a_valid_language_specification() {
 
 #[test]
 fn returns_definition_diagnostics_with_their_source_snapshots() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write("langmeld.toml", "format = 1\n");
     project.write(
         "language/main.langmeld",
@@ -214,7 +179,7 @@ fn returns_definition_diagnostics_with_their_source_snapshots() {
 
 #[test]
 fn returns_project_errors_without_definition_diagnostics() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
 
     let error = load_language_spec(project.path()).unwrap_err();
 
@@ -225,7 +190,7 @@ fn returns_project_errors_without_definition_diagnostics() {
 
 #[test]
 fn preserves_definition_diagnostics_and_imported_sources_for_rendering() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "langmeld.toml",
         "format = 1\ndefinition = \"language/main.langmeld\"\n",
@@ -253,7 +218,7 @@ fn preserves_definition_diagnostics_and_imported_sources_for_rendering() {
 
 #[test]
 fn loads_a_project_from_a_non_default_manifest_path() {
-    let project = TestDirectory::new();
+    let project = TestDirectory::new("definition-project");
     project.write(
         "config/langmeld.toml",
         "format = 1\ndefinition = \"language/main.langmeld\"\n",

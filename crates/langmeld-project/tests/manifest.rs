@@ -1,35 +1,11 @@
-use std::{
-    fs,
-    path::PathBuf,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+mod common;
 
 use langmeld_project::{
     DEFAULT_DEFINITION_PATH, PROJECT_MANIFEST_FILE, ProjectManifest, ProjectManifestError,
     RustBindings, read_project_manifest,
 };
 
-static NEXT_TEMP: AtomicUsize = AtomicUsize::new(0);
-
-struct TestDirectory(PathBuf);
-
-impl TestDirectory {
-    fn new() -> Self {
-        let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
-        let path = std::env::temp_dir().join(format!(
-            "langmeld-manifest-test-{}-{id}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&path).expect("test directory should be created");
-        Self(path)
-    }
-}
-
-impl Drop for TestDirectory {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+use common::TestDirectory;
 
 #[test]
 fn parses_the_root_definition_from_a_supported_manifest() {
@@ -125,11 +101,10 @@ fn rejects_invalid_or_non_portable_definition_paths() {
 
 #[test]
 fn reads_the_conventional_manifest_from_a_project_root() {
-    let project = TestDirectory::new();
-    fs::write(project.0.join(PROJECT_MANIFEST_FILE), "format = 1\n")
-        .expect("manifest should be written");
+    let project = TestDirectory::new("manifest");
+    project.write(PROJECT_MANIFEST_FILE, "format = 1\n");
 
-    let manifest = read_project_manifest(&project.0).unwrap();
+    let manifest = read_project_manifest(project.path()).unwrap();
 
     assert_eq!(manifest.definition, DEFAULT_DEFINITION_PATH);
 }
