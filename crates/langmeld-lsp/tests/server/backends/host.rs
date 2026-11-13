@@ -122,10 +122,10 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
 
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
-    let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
-        .with_completer(DiagnosticCompleter)
-        .with_navigator(DiagnosticNavigator);
     let server_thread = thread::spawn(move || {
+        let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
+            .with_completer(DiagnosticCompleter)
+            .with_navigator(DiagnosticNavigator);
         let result = run_connection(server_connection, backend);
         server_sender
             .send(result.map_err(|error| error.to_string()))
@@ -246,32 +246,32 @@ fn host_backend_supports_closed_file_navigation_symbols_and_close_hooks() {
     let location_for_symbols = target_location.clone();
     let closed_document = Arc::new(Mutex::new(None));
     let closed_document_handler = Arc::clone(&closed_document);
-    let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
-        .with_navigator(ExternalLocationNavigator(target_location))
-        .with_source_resolver(move |location| {
-            (location == &location_for_resolver)
-                .then(|| BackendSource::new(uri.clone(), Arc::clone(&target)))
-        })
-        .with_workspace_symbol_provider(move |query| {
-            if !"ClosedDeclaration"
-                .to_lowercase()
-                .contains(&query.to_lowercase())
-            {
-                return Vec::new();
-            }
-            vec![WorkspaceSymbolInfo::new(
-                "ClosedDeclaration",
-                DocumentSymbolKind::Struct,
-                location_for_symbols.clone(),
-            )]
-        })
-        .with_document_close_handler(move |source| {
-            *closed_document_handler.lock().unwrap() =
-                Some((source.name().to_owned(), source.text().to_string()));
-        });
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
+        let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
+            .with_navigator(ExternalLocationNavigator(target_location))
+            .with_source_resolver(move |location| {
+                (location == &location_for_resolver)
+                    .then(|| BackendSource::new(uri.clone(), Arc::clone(&target)))
+            })
+            .with_workspace_symbol_provider(move |query| {
+                if !"ClosedDeclaration"
+                    .to_lowercase()
+                    .contains(&query.to_lowercase())
+                {
+                    return Vec::new();
+                }
+                vec![WorkspaceSymbolInfo::new(
+                    "ClosedDeclaration",
+                    DocumentSymbolKind::Struct,
+                    location_for_symbols.clone(),
+                )]
+            })
+            .with_document_close_handler(move |source| {
+                *closed_document_handler.lock().unwrap() =
+                    Some((source.name().to_owned(), source.text().to_string()));
+            });
         let result = run_connection(server_connection, backend);
         server_sender
             .send(result.map_err(|error| error.to_string()))

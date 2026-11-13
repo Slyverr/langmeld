@@ -4,8 +4,14 @@ use langmeld_language::{
     LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
 };
 use langmeld_lsp::{BackendDocument, HostLanguageBackend, LanguageBackend};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    cell::Cell,
+    rc::Rc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 struct TestParser {
     reported_source: Option<SourceFile>,
@@ -227,7 +233,7 @@ fn managed_source_and_other_identity() -> (SourceFile, SourceIdentity, SourceFil
 fn backend(
     parser_source: Option<SourceFile>,
     analyzer_source: Option<SourceFile>,
-) -> HostLanguageBackend<TestParser, TestAnalyzer> {
+) -> HostLanguageBackend<'static, TestParser, TestAnalyzer> {
     HostLanguageBackend::new_with_analyzer(
         TestParser {
             reported_source: parser_source,
@@ -573,4 +579,83 @@ fn mismatched_parser_results_keep_workspace_documents_in_sync() {
             .map(ParsedDocument::source_identity),
         Some(other_identity)
     );
+}
+
+struct LocalParser<'state> {
+    calls: &'state Cell<usize>,
+}
+
+impl LanguageParser for LocalParser<'_> {
+    type Tree = Rc<Cell<usize>>;
+
+    fn parse(&self, source: &SourceFile) -> ParsedDocument<Self::Tree> {
+        self.calls.set(self.calls.get() + 1);
+
+        ParsedDocument::new(source, Rc::new(Cell::new(1)), Vec::new())
+    }
+}
+
+struct LocalAnalyzer<'state> {
+    calls: &'state Cell<usize>,
+}
+
+impl<'state> LanguageAnalyzer<LocalParser<'state>> for LocalAnalyzer<'state> {
+    type Analysis = Rc<Cell<usize>>;
+
+    fn analyze(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<Rc<Cell<usize>>>,
+    ) -> AnalysisDocument<Self::Analysis> {
+        self.calls.set(self.calls.get() + 1);
+
+        AnalysisDocument::new(
+            source,
+            Rc::new(Cell::new(parsed.tree().get() + 1)),
+            Vec::new(),
+        )
+    }
+}
+
+struct LocalCompleter<'state>(&'state Cell<usize>);
+
+impl<'state, 'parser> LanguageCompleter<LocalParser<'parser>> for LocalCompleter<'state> {
+    type Analysis = Rc<Cell<usize>>;
+
+    fn complete(
+        &self,
+        _source: &SourceFile,
+        _parsed: &ParsedDocument<Rc<Cell<usize>>>,
+        _analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        _offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        self.0.set(self.0.get() + 1);
+
+        vec![CompletionCandidate::new("local", Span::new(0, 0))]
+    }
+}
+
+#[test]
+fn host_backend_accepts_borrowed_single_threaded_language_state() {
+    let parse_calls = Cell::new(0);
+    let analysis_calls = Cell::new(0);
+    let completion_calls = Cell::new(0);
+    let backend = HostLanguageBackend::new_with_analyzer(
+        LocalParser {
+            calls: &parse_calls,
+        },
+        LocalAnalyzer {
+            calls: &analysis_calls,
+        },
+    )
+    .with_completer(LocalCompleter(&completion_calls));
+    let source = SourceFile::new("local.lang", "program");
+
+    let document = backend.analyze(&source);
+    let completions = backend.complete(&source, &document, 0);
+
+    assert_eq!(parse_calls.get(), 1);
+    assert_eq!(analysis_calls.get(), 1);
+    assert_eq!(completion_calls.get(), 1);
+    assert_eq!(completions.len(), 1);
 }

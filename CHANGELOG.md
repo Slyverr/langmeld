@@ -9,6 +9,13 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Remove implicit `Send + Sync + 'static` bounds from LSP
+  backends, retained document state, and attached providers. This allows
+  borrowed and single-threaded host state. See the [unreleased migration
+  note](docs/guides/upgrading.md#unreleased-lsp-backend-thread-bounds).
+
 ## [0.13.0] - 2026-11-13
 
 ### Added

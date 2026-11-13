@@ -172,10 +172,14 @@ pub struct BackendWorkspace {
 ///
 /// A host can retain any parsed or analyzed state in `Document`. Name
 /// resolution, project semantics, and tree shape remain host-owned. Methods
-/// with no implementation should keep their capability disabled.
-pub trait LanguageBackend: Send + Sync + 'static {
+/// with no implementation should keep their capability disabled. The LSP
+/// adapter invokes backend methods synchronously on its connection thread; it
+/// does not require thread-safe backend or document state. Hosts that share
+/// their backend across threads should add the bounds and synchronization they
+/// need.
+pub trait LanguageBackend {
     /// Backend-owned state retained for an open document.
-    type Document: Send + Sync + 'static;
+    type Document;
 
     /// Receives the editor's initial workspace context before initialization
     /// completes. Hosts may use it to prepare project indexes or configuration.

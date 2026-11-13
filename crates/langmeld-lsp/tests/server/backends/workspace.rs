@@ -44,10 +44,10 @@ impl LanguageWorkspaceAnalyzer<DiagnosticParser, WorkspaceDiagnosticAnalyzer>
 fn host_language_backend_analyzes_open_sources_together_when_configured() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
-    let backend =
-        HostLanguageBackend::new_with_analyzer(DiagnosticParser, WorkspaceDiagnosticAnalyzer)
-            .with_workspace_analyzer(WorkspaceDiagnosticAnalyzer);
     let server_thread = thread::spawn(move || {
+        let backend =
+            HostLanguageBackend::new_with_analyzer(DiagnosticParser, WorkspaceDiagnosticAnalyzer)
+                .with_workspace_analyzer(WorkspaceDiagnosticAnalyzer);
         let result = run_connection(server_connection, backend);
         server_sender
             .send(result.map_err(|error| error.to_string()))

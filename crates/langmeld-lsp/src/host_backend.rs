@@ -12,9 +12,9 @@ const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
 const ANALYZER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-002";
 const WORKSPACE_ANALYZER_RESULT_CODE: &str = "LM-HOST-003";
 
-type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
-type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
-type DocumentCloseHandler = dyn Fn(&SourceFile) + Send + Sync;
+type SourceResolver<'backend> = dyn Fn(&SourceLocation) -> Option<BackendSource> + 'backend;
+type WorkspaceSymbolProvider<'backend> = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + 'backend;
+type DocumentCloseHandler<'backend> = dyn Fn(&SourceFile) + 'backend;
 
 /// Validated parse and analysis results produced by a [`HostLanguageBackend`].
 /// Results tied to another source snapshot are discarded and exposed as `None`.
@@ -88,26 +88,28 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 /// Workspace analysis is available through [`Self::with_workspace_analyzer`].
 /// Workspace-analysis batches with an invalid result count or source identity
 /// are diagnosed and fall back to per-source analysis.
+/// The backend and its providers may borrow single-threaded host state; this
+/// adapter invokes them synchronously on the LSP connection thread.
 /// Semantic tokens, document symbols, rename, formatting, and hover require a
 /// custom [`LanguageBackend`] implementation.
-pub struct HostLanguageBackend<P, A = NoAnalyzer>
+pub struct HostLanguageBackend<'backend, P, A = NoAnalyzer>
 where
-    P: LanguageParser,
-    A: LanguageAnalyzer<P>,
+    P: LanguageParser + 'backend,
+    A: LanguageAnalyzer<P> + 'backend,
 {
     parser: P,
     analyzer: A,
-    workspace_analyzer: Option<Box<dyn LanguageWorkspaceAnalyzer<P, A> + Send + Sync>>,
-    completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync>>,
-    navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync>>,
-    source_resolver: Option<Box<SourceResolver>>,
-    workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider>>,
-    document_close_handler: Option<Box<DocumentCloseHandler>>,
+    workspace_analyzer: Option<Box<dyn LanguageWorkspaceAnalyzer<P, A> + 'backend>>,
+    completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + 'backend>>,
+    navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + 'backend>>,
+    source_resolver: Option<Box<SourceResolver<'backend>>>,
+    workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider<'backend>>>,
+    document_close_handler: Option<Box<DocumentCloseHandler<'backend>>>,
 }
 
-impl<P> HostLanguageBackend<P, NoAnalyzer>
+impl<'backend, P> HostLanguageBackend<'backend, P, NoAnalyzer>
 where
-    P: LanguageParser,
+    P: LanguageParser + 'backend,
 {
     /// Creates a backend that publishes parser diagnostics only.
     #[must_use]
@@ -125,10 +127,10 @@ where
     }
 }
 
-impl<P, A> HostLanguageBackend<P, A>
+impl<'backend, P, A> HostLanguageBackend<'backend, P, A>
 where
-    P: LanguageParser,
-    A: LanguageAnalyzer<P>,
+    P: LanguageParser + 'backend,
+    A: LanguageAnalyzer<P> + 'backend,
 {
     /// Creates a backend with host-defined semantic analysis.
     ///
@@ -229,7 +231,7 @@ where
     #[must_use]
     pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
     where
-        W: LanguageWorkspaceAnalyzer<P, A> + Send + Sync + 'static,
+        W: LanguageWorkspaceAnalyzer<P, A> + 'backend,
     {
         self.workspace_analyzer = Some(Box::new(analyzer));
         self
@@ -239,7 +241,7 @@ where
     #[must_use]
     pub fn with_completer<C>(mut self, completer: C) -> Self
     where
-        C: LanguageCompleter<P, Analysis = A::Analysis> + Send + Sync + 'static,
+        C: LanguageCompleter<P, Analysis = A::Analysis> + 'backend,
     {
         self.completer = Some(Box::new(completer));
         self
@@ -249,7 +251,7 @@ where
     #[must_use]
     pub fn with_navigator<N>(mut self, navigator: N) -> Self
     where
-        N: LanguageNavigator<P, Analysis = A::Analysis> + Send + Sync + 'static,
+        N: LanguageNavigator<P, Analysis = A::Analysis> + 'backend,
     {
         self.navigator = Some(Box::new(navigator));
         self
@@ -259,7 +261,7 @@ where
     #[must_use]
     pub fn with_source_resolver(
         mut self,
-        resolver: impl Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync + 'static,
+        resolver: impl Fn(&SourceLocation) -> Option<BackendSource> + 'backend,
     ) -> Self {
         self.source_resolver = Some(Box::new(resolver));
         self
@@ -269,7 +271,7 @@ where
     #[must_use]
     pub fn with_workspace_symbol_provider(
         mut self,
-        provider: impl Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync + 'static,
+        provider: impl Fn(&str) -> Vec<WorkspaceSymbolInfo> + 'backend,
     ) -> Self {
         self.workspace_symbol_provider = Some(Box::new(provider));
         self
@@ -278,21 +280,16 @@ where
     /// Registers a callback for removing or refreshing an editor-buffer entry
     /// when its document closes.
     #[must_use]
-    pub fn with_document_close_handler(
-        mut self,
-        handler: impl Fn(&SourceFile) + Send + Sync + 'static,
-    ) -> Self {
+    pub fn with_document_close_handler(mut self, handler: impl Fn(&SourceFile) + 'backend) -> Self {
         self.document_close_handler = Some(Box::new(handler));
         self
     }
 }
 
-impl<P, A> LanguageBackend for HostLanguageBackend<P, A>
+impl<'backend, P, A> LanguageBackend for HostLanguageBackend<'backend, P, A>
 where
-    P: LanguageParser + Send + Sync + 'static,
-    P::Tree: Send + Sync + 'static,
-    A: LanguageAnalyzer<P> + Send + Sync + 'static,
-    A::Analysis: Send + Sync + 'static,
+    P: LanguageParser + 'backend,
+    A: LanguageAnalyzer<P> + 'backend,
 {
     type Document = HostDocument<P::Tree, A::Analysis>;
 

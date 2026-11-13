@@ -19,6 +19,19 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
+## Unreleased LSP backend thread bounds
+
+`LanguageBackend` and its retained `Document` state no longer require
+`Send + Sync + 'static`. `HostLanguageBackend` providers can also borrow
+host state and use single-threaded types such as `Rc<RefCell<_>>`. The LSP
+adapter calls backend methods synchronously on the connection thread.
+
+If a server runs inside `std::thread::spawn`, create its
+`HostLanguageBackend` inside the spawned closure. Values captured by that
+closure still need to meet Rust's normal `Send + 'static` requirements. A
+custom backend that is moved or shared across threads should add the required
+bounds to its own type and synchronize shared state explicitly.
+
 ## Migrating from v0.12.1 to v0.13.0
 
 The changes below are included in v0.13.0. See the [changelog](../../CHANGELOG.md)
