@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-aster-language-example"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
  "langmeld-expression",
@@ -392,25 +392,25 @@ dependencies = [
 
 [[package]]
 name = "langmeld-core"
-version = "0.12.1"
+version = "0.13.0"
 
 [[package]]
 name = "langmeld-expression"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-language"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-lsp"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-project"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-schema-language-example"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -452,7 +452,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-toy-language-example"
-version = "0.12.1"
+version = "0.13.0"
 dependencies = [
  "clap",
  "langmeld-core",

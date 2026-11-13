@@ -19,7 +19,10 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
-## Unreleased API changes
+## Migrating from v0.12.1 to v0.13.0
+
+The changes below are included in v0.13.0. See the [changelog](../../CHANGELOG.md)
+for the complete release notes.
 
 ### Named result parts
 

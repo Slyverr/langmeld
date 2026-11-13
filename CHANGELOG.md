@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-13
+
 ### Added
 
 - Expose source snapshot, span, and UTF-8 offset validation, plus safe
