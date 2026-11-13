@@ -191,15 +191,45 @@ facts or distinct stages. The host chooses how parsing, analysis, and handler
 execution fit together; Langmeld does not impose an interpreter or compiler
 pipeline.
 
-A host may interpret its AST or IR using language-owned state and services, or
-compile it by translating it through a target-specific backend. Langmeld
-provides neither implementation nor a `langmeld build` command. The host
-chooses whether to use Langmeld's parsed constructs or its own typed AST/IR, and
-defines the semantics, code generation, and target. `cargo build` builds the
-Rust host executable, not programs written in the language that host
-implements. The [toy language example](../../examples/toy-language/README.md)
-and [Brainfuck example](../../examples/brainfuck/README.md) demonstrate
-interpreter paths.
+### Interpreters and runtimes
+
+An **interpreter** is an execution engine that runs a program representation
+directly, such as a Langmeld parse tree, a host-owned AST, or an IR. A
+**language runtime** is the state and services the program uses while running,
+such as values, memory, built-ins, or I/O. These are separate roles: an
+interpreter uses or manages runtime state, though a small host may implement
+both in one Rust type. A bytecode VM is an interpreter for bytecode. A native
+executable may include or link language-runtime support, such as a garbage
+collector or standard library, and still relies on operating-system services.
+
+### Compilers and targets
+
+A **compiler** translates a program representation into another form, such as
+bytecode, WebAssembly, or native code. Compiling and running the result are
+separate steps: bytecode needs a VM, WebAssembly needs a compatible engine, and
+native output needs linking and may depend on runtime libraries.
+
+Langmeld supplies no universal AST, IR, runtime, interpreter, compiler, or
+`langmeld build` command. The language host chooses whether to use Langmeld's
+parsed constructs or lower them into its own AST/IR, and owns the language's
+semantics, execution, code generation, and targets. A host can share its
+parser, analysis, and IR between an interpreter and compiler when that fits the
+language. `cargo build` builds the Rust host executable; it does not compile
+programs written in the language that host implements.
+
+### Examples
+
+These examples show distinct host-owned choices:
+
+- [`toy-language`](../../examples/toy-language/README.md) interprets
+  declaratively parsed constructs through Rust handlers and `RuntimeState`.
+- [Brainfuck](../../examples/brainfuck/README.md) uses a custom parser to build
+  a nested AST, then executes it with a bounded Rust runtime.
+- [Declarative Functions](../../examples/declarative-functions/README.md)
+  lowers a declarative grammar into a typed AST and runs analysis passes; it
+  does not add an interpreter or compiler.
+- [Aster](../../examples/aster-language/README.md) uses a custom parser, AST,
+  and semantic analysis, with no execution backend.
 
 For a complete runnable starter, see the generated project and
 [project workflow](../guides/project-workflow.md). For syntax composition, see
