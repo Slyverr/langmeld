@@ -196,6 +196,57 @@ fn reports_import_cycles_and_missing_imports_at_the_import_site() {
 }
 
 #[test]
+fn caps_nested_import_depth_and_reports_the_boundary_import() {
+    let root = DefinitionSource::new(
+        "root",
+        SourceFile::new(
+            "language/main.langmeld",
+            r#"language "Deep" {
+                import "module-0.langmeld";
+                construct "program" { syntax { literal "program"; } }
+            }"#,
+        ),
+    );
+    let mut resolver = Resolver::default();
+    for index in 0..MAX_DEFINITION_IMPORT_DEPTH - 1 {
+        let path = format!("module-{index}.langmeld");
+        let next_path = format!("module-{}.langmeld", index + 1);
+        let source = SourceFile::new(
+            format!("language/{path}"),
+            format!("import \"{next_path}\";"),
+        );
+        resolver
+            .0
+            .insert(path.clone(), DefinitionSource::new(path, source));
+    }
+
+    let result = parse_language_definition_project(root, &resolver);
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "LM-DEF-021")
+        .expect("an import beyond the configured depth should be diagnosed");
+    let location = diagnostic
+        .location
+        .as_ref()
+        .expect("the import-depth diagnostic should identify its source");
+
+    assert!(result.language.is_none());
+    assert_eq!(
+        diagnostic.message,
+        format!("maximum definition import depth ({MAX_DEFINITION_IMPORT_DEPTH}) exceeded")
+    );
+    assert_eq!(
+        location.source_name(),
+        format!(
+            "language/module-{}.langmeld",
+            MAX_DEFINITION_IMPORT_DEPTH - 2
+        )
+    );
+    assert!(location.span().start < location.span().end);
+}
+
+#[test]
 fn duplicate_imported_construct_diagnostic_points_to_later_declaration() {
     let root = DefinitionSource::new(
         "root",

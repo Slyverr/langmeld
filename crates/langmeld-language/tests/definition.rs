@@ -1,8 +1,8 @@
 use langmeld_core::{Diagnostic, Severity, SourceFile, Span};
 use langmeld_language::{
     CapturedValue, CompletionKind, DefinitionResolver, DefinitionResult, DefinitionSource,
-    complete_at, decode_definition_string, parse, parse_language_definition,
-    parse_language_definition_project, quote_definition_string,
+    MAX_DEFINITION_IMPORT_DEPTH, complete_at, decode_definition_string, parse,
+    parse_language_definition, parse_language_definition_project, quote_definition_string,
 };
 use std::collections::HashMap;
 
