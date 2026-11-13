@@ -327,10 +327,45 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{fs, path::PathBuf};
 
     #[test]
     fn duplicate_open_snapshots_for_one_project_key_return_none() {
+        let (_directory, backend, definition_path) = project_backend();
+        let uri = Url::from_file_path(definition_path)
+            .expect("definition path should convert to a file URI")
+            .to_string();
+        let sources = [
+            SourceFile::new(uri.clone(), "language \"Widget\" {}"),
+            SourceFile::new(uri, "language \"Other\" {}"),
+        ];
+
+        assert!(backend.analyze_workspace(&sources).is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_aliases_for_one_project_key_return_none() {
+        let (directory, backend, definition_path) = project_backend();
+        let alias_path = directory.path().join("language/alias.langmeld");
+        std::os::unix::fs::symlink(&definition_path, &alias_path)
+            .expect("definition alias should be created");
+        let canonical_uri = Url::from_file_path(&definition_path)
+            .expect("definition path should convert to a file URI")
+            .to_string();
+        let alias_uri = Url::from_file_path(alias_path)
+            .expect("alias path should convert to a file URI")
+            .to_string();
+        let sources = [
+            SourceFile::new(canonical_uri, "language \"Widget\" {}"),
+            SourceFile::new(alias_uri, "language \"Other\" {}"),
+        ];
+
+        assert_ne!(sources[0].name(), sources[1].name());
+        assert!(backend.analyze_workspace(&sources).is_none());
+    }
+
+    fn project_backend() -> (tempfile::TempDir, ProjectDefinitionBackend, PathBuf) {
         let directory = tempfile::tempdir().expect("temporary project should be created");
         let definition_path = directory.path().join("language/language.langmeld");
         fs::create_dir_all(
@@ -349,14 +384,6 @@ mod tests {
 
         let backend = ProjectDefinitionBackend::new(directory.path().join("langmeld.toml"))
             .expect("project backend should load");
-        let uri = Url::from_file_path(definition_path)
-            .expect("definition path should convert to a file URI")
-            .to_string();
-        let sources = [
-            SourceFile::new(uri.clone(), "language \"Widget\" {}"),
-            SourceFile::new(uri, "language \"Other\" {}"),
-        ];
-
-        assert!(backend.analyze_workspace(&sources).is_none());
+        (directory, backend, definition_path)
     }
 }
