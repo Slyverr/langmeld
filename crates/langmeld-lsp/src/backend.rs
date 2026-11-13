@@ -187,6 +187,10 @@ pub trait LanguageBackend: Send + Sync + 'static {
     fn did_change_watched_files(&self, _changes: &[lsp_types::FileEvent]) {}
 
     /// Parses and analyzes one immutable source snapshot.
+    ///
+    /// The returned document must retain `source`'s identity. If it does not,
+    /// the server emits `LM-LSP-002`, discards its diagnostics, and suppresses
+    /// editor queries for that result.
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document>;
 
     /// Analyzes a set of open source snapshots as one workspace revision.

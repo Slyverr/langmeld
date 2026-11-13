@@ -58,7 +58,7 @@ pub(crate) fn diagnostics_for<D>(
         .collect()
 }
 
-fn diagnostic_for(
+pub(crate) fn diagnostic_for(
     source: &SourceFile,
     diagnostic: &LangmeldDiagnostic,
     encoding: PositionEncoding,

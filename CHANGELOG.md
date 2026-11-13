@@ -40,6 +40,8 @@ API migration notes are in the
   to per-source analysis.
 - Diagnose invalid custom LSP workspace results before falling back to
   per-document analysis.
+- Diagnose custom single-document backend results tied to a different source
+  snapshot and suppress their stale editor data.
 - Filter import-path completions using the same portability and project-root
   checks as definition loading, and resolve candidates from the importer's
   canonical project key.

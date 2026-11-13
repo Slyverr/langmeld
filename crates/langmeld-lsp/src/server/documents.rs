@@ -9,7 +9,10 @@ use lsp_types::{
 use serde::de::DeserializeOwned;
 
 use crate::backend::BackendDocument;
-use crate::conversion::{byte_offset, diagnostics_for};
+use crate::conversion::{byte_offset, diagnostic_for, diagnostics_for};
+
+const WORKSPACE_RESULT_CODE: &str = "LM-LSP-001";
+const DOCUMENT_SOURCE_MISMATCH_CODE: &str = "LM-LSP-002";
 
 use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
 
@@ -98,7 +101,18 @@ impl<B: LanguageBackend> ServerState<B> {
         analysis: BackendDocument<B::Document>,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let diagnostics = diagnostics_for(source, &analysis, self.encoding);
+        let mut diagnostics = diagnostics_for(source, &analysis, self.encoding);
+        if analysis.source_identity() != source.identity() {
+            let mismatch = Diagnostic::error(
+                DOCUMENT_SOURCE_MISMATCH_CODE,
+                "host language backend returned a document for a different source snapshot; its diagnostics and editor queries were suppressed",
+                source,
+                Span::new(0, source.text().len()),
+            );
+            if let Some(diagnostic) = diagnostic_for(source, &mismatch, self.encoding) {
+                diagnostics.push(diagnostic);
+            }
+        }
         self.documents.insert(
             uri.clone(),
             OpenDocument {
@@ -174,7 +188,7 @@ impl<B: LanguageBackend> ServerState<B> {
                     let parts = self.backend.analyze(&source).into_parts();
                     let mut diagnostics = parts.diagnostics;
                     diagnostics.push(Diagnostic::error(
-                        "LM-LSP-001",
+                        WORKSPACE_RESULT_CODE,
                         message.clone(),
                         &source,
                         Span::new(0, source.text().len()),
