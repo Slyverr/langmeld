@@ -56,6 +56,11 @@ impl TextMateOptions {
 /// reproduce Langmeld parsing, infer semantic roles, or account for host-defined
 /// lexer rules. Configured line and block comments are emitted as TextMate
 /// comment patterns.
+///
+/// # Errors
+///
+/// Returns [`TextMateError`] when the scope name or a file type is invalid, or
+/// when the generated grammar cannot be serialized as JSON.
 pub fn generate(
     language: &LanguageSpec,
     options: &TextMateOptions,

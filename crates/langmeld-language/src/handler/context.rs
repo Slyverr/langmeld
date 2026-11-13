@@ -64,6 +64,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     ///
     /// The generated view checks the source snapshot, parse membership,
     /// construct name, and syntax variant before exposing typed fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the current construct does not
+    /// match the view's construct name, syntax variant, or captured fields.
     pub fn typed<T>(&self) -> Result<T, Diagnostic>
     where
         T: TypedConstruct<'source>,
@@ -102,6 +107,10 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     ///
     /// Use [`Self::fields`] when the grammar can capture the same field more
     /// than once.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when no capture has this name.
     pub fn field(&self, name: &str) -> Result<&'source CapturedField, Diagnostic> {
         self.construct
             .fields
@@ -140,6 +149,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// with this name.
     ///
     /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the capture is missing or its
+    /// range is not valid in the source snapshot.
     pub fn field_text(&self, name: &str) -> Result<&'source str, Diagnostic> {
         Ok(self.field_text_capture(name)?.text)
     }
@@ -148,6 +162,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// with this name.
     ///
     /// Use [`Self::fields`] and [`Self::captured_text`] for repeated captures.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the capture is missing or its
+    /// range is not valid in the source snapshot.
     pub fn field_text_capture(&self, name: &str) -> Result<CapturedText<'source>, Diagnostic> {
         let field = self.field(name)?;
 
@@ -158,6 +177,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     }
 
     /// Returns the exact source text covered by a captured field.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when `field`'s span is outside the
+    /// source snapshot or is not on UTF-8 boundaries.
     pub fn captured_text(&self, field: &CapturedField) -> Result<&'source str, Diagnostic> {
         self.source.slice(field.span).ok_or_else(|| {
             Diagnostic::error(
@@ -171,6 +195,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
 
     /// Returns the current construct's identifier capture or a source-located
     /// kind diagnostic.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the capture is missing or is
+    /// not an identifier.
     pub fn field_identifier(&self, name: &str) -> Result<&'source str, Diagnostic> {
         Ok(self.field_identifier_capture(name)?.text)
     }
@@ -180,6 +209,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Use this when language behavior needs both the identifier spelling and
     /// a precise location for name-resolution diagnostics. This does not
     /// resolve the identifier to a declaration.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the capture is missing or is
+    /// not an identifier.
     pub fn field_identifier_capture(
         &self,
         name: &str,
@@ -205,6 +239,11 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
     /// Handlers call this only when the language's semantics require child
     /// processing. For example, a conditional handler can dispatch its body
     /// only when the condition is true.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when a child has no registered
+    /// handler or a child handler reports an error.
     pub fn dispatch_children(&mut self) -> Result<HandlerControl<Signal>, Diagnostic> {
         self.handlers
             .dispatch_block_children(self.source, self.parsed, self.construct, self.state)

@@ -42,6 +42,12 @@ impl ProjectManifest {
     /// optional `rust_bindings` field accepts `dynamic` or `typed` and defaults
     /// to `dynamic`. Unknown fields are rejected so misspellings do not
     /// silently change project behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectManifestError`] when TOML is malformed, required
+    /// fields are missing or invalid, the format is unsupported, an unknown
+    /// field is present, or a configured path or binding mode is invalid.
     pub fn parse(source: &str) -> Result<Self, ProjectManifestError> {
         let document =
             toml::from_str::<toml::Value>(source).map_err(ProjectManifestError::Parse)?;
@@ -89,6 +95,11 @@ impl ProjectManifest {
 }
 
 /// Reads and validates `langmeld.toml` from a project root.
+///
+/// # Errors
+///
+/// Returns [`ProjectManifestError::Read`] when the file cannot be read, or
+/// another [`ProjectManifestError`] when its contents are invalid.
 pub fn read_project_manifest(
     project_root: impl AsRef<Path>,
 ) -> Result<ProjectManifest, ProjectManifestError> {
@@ -96,6 +107,11 @@ pub fn read_project_manifest(
 }
 
 /// Reads and validates a project manifest at an explicit path.
+///
+/// # Errors
+///
+/// Returns [`ProjectManifestError::Read`] when the file cannot be read, or
+/// another [`ProjectManifestError`] when its contents are invalid.
 pub fn read_project_manifest_file(
     path: impl AsRef<Path>,
 ) -> Result<ProjectManifest, ProjectManifestError> {

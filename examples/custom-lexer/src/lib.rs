@@ -77,6 +77,11 @@ impl Lexer for RawStringLexer {
 }
 
 /// Loads and validates the language declared in this example project.
+///
+/// # Errors
+///
+/// Returns an error when the project cannot be loaded, its definition is
+/// invalid, or loading does not produce a language specification.
 pub fn load_language(project_root: impl AsRef<Path>) -> Result<LanguageSpec, String> {
     let project = load_definition_project(project_root).map_err(|error| error.to_string())?;
     let langmeld_project::LoadedDefinitionProjectParts {

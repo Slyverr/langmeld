@@ -25,6 +25,11 @@ pub trait ConstructHandler<State, Signal = ()> {
     const CONSTRUCT: &'static str;
 
     /// Handles one parsed construct.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the construct cannot be
+    /// handled according to the language's semantics.
     fn handle(
         &self,
         context: &mut ConstructContext<'_, State, Signal>,
@@ -44,6 +49,11 @@ pub trait TypedConstructHandler<State, Signal = ()> {
     type View<'source>: TypedConstruct<'source>;
 
     /// Handles one parsed construct after creating its typed view.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when creating the typed view or
+    /// applying the language's semantics fails.
     fn handle(
         &self,
         context: &mut ConstructContext<'_, State, Signal>,
@@ -150,6 +160,12 @@ impl<'handlers, State, Signal> ConstructHandlerRegistry<'handlers, State, Signal
     /// Registers one handler, rejecting empty or duplicate construct names.
     ///
     /// The handler may borrow configuration that outlives this registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HandlerRegistrationError::EmptyConstructName`] for an empty
+    /// construct name or [`HandlerRegistrationError::DuplicateConstruct`]
+    /// when another handler is already registered under that name.
     pub fn register<Handler>(&mut self, handler: Handler) -> Result<(), HandlerRegistrationError>
     where
         Handler: ConstructHandler<State, Signal> + 'handlers,
@@ -163,6 +179,13 @@ impl<'handlers, State, Signal> ConstructHandlerRegistry<'handlers, State, Signal
     /// runs. If a runtime-loaded definition does not match the view's expected
     /// capture shape, dispatch returns its source-located diagnostic. The
     /// handler may borrow configuration that outlives this registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HandlerRegistrationError::EmptyConstructName`] for an empty
+    /// generated construct name or
+    /// [`HandlerRegistrationError::DuplicateConstruct`] when that name is
+    /// already registered.
     pub fn register_typed<Handler>(
         &mut self,
         handler: Handler,
@@ -229,6 +252,12 @@ impl<'handlers, State, Signal> ConstructHandlerRegistry<'handlers, State, Signal
     /// identity. Recovered constructs are dispatched even when
     /// the result has diagnostics; check [`ParseResult::is_valid`] first when
     /// execution should require a fully valid parse.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when `parsed` belongs to another
+    /// source snapshot, a construct has no registered handler, or a handler
+    /// reports an error.
     pub fn dispatch_parse_result(
         &self,
         source: &SourceFile,
@@ -248,6 +277,12 @@ impl<'handlers, State, Signal> ConstructHandlerRegistry<'handlers, State, Signal
     /// are checked by identity. Recovered children are dispatched
     /// even when the result has diagnostics; check [`ParseResult::is_valid`]
     /// first when execution should require a fully valid parse.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when `parsed` belongs to another
+    /// source snapshot, a child has no registered handler, or a handler
+    /// reports an error.
     pub fn dispatch_top_level_children(
         &self,
         source: &SourceFile,

@@ -24,6 +24,11 @@ pub struct DirectoryDefinitionResolver {
 
 impl DirectoryDefinitionResolver {
     /// Creates a resolver rooted at an existing directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::RootIo`] when the root cannot be resolved,
+    /// or [`ProjectLoadError::RootNotDirectory`] when it is not a directory.
     pub fn new(root: impl AsRef<Path>) -> Result<Self, ProjectLoadError> {
         let requested_root = root.as_ref();
         let root = requested_root
@@ -48,6 +53,13 @@ impl DirectoryDefinitionResolver {
     }
 
     /// Loads a project-relative root definition file.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::InvalidPath`] for an invalid path,
+    /// [`ProjectLoadError::OutsideRoot`] for a symlink or path that escapes the
+    /// project root, or [`ProjectLoadError::Read`] when the file cannot be
+    /// loaded as UTF-8 text.
     pub fn load(&self, relative_path: &str) -> Result<DefinitionSource, ProjectLoadError> {
         let key = normalize_source_key(relative_path)
             .map_err(|_| ProjectLoadError::InvalidPath(relative_path.to_owned()))?;
@@ -61,6 +73,13 @@ impl DirectoryDefinitionResolver {
     /// newly created definitions to participate in project analysis. Existing
     /// path components are canonicalized so symlinks outside the project root
     /// are rejected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::InvalidPath`] for an invalid or non-portable
+    /// path, [`ProjectLoadError::OutsideRoot`] when an existing path component
+    /// resolves outside the project, or [`ProjectLoadError::Read`] when an
+    /// existing path component cannot be inspected.
     pub fn key_for_path(&self, path: impl AsRef<Path>) -> Result<String, ProjectLoadError> {
         let requested = path.as_ref();
         let absolute = if requested.is_absolute() {

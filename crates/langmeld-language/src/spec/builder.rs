@@ -70,6 +70,11 @@ impl LanguageSpecBuilder {
     }
 
     /// Validates and creates the combined language grammar.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpecError`] when a construct, lexical rule, or configured
+    /// root construct is invalid or conflicts with another declaration.
     pub fn build(self) -> Result<LanguageSpec, SpecError> {
         let mut language = LanguageSpec::new(self.name, self.constructs)?
             .with_lexical_rules(self.lexical_rules)?;

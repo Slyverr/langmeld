@@ -74,6 +74,12 @@ impl Clone for SourceDatabase {
 
 impl SourceDatabase {
     /// Inserts a new named source at revision 1.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceDatabaseError::DuplicateName`] when the display name is
+    /// already present, or [`SourceDatabaseError::IdExhausted`] when no source
+    /// IDs remain.
     pub fn insert(
         &mut self,
         name: impl Into<String>,
@@ -106,6 +112,12 @@ impl SourceDatabase {
 
     /// Inserts a source or updates the snapshot with the same display name.
     /// An unchanged text leaves the revision unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceDatabaseError::IdExhausted`] when inserting a new source
+    /// would exceed the ID space, or [`SourceDatabaseError::RevisionExhausted`]
+    /// when updating an existing source would exceed its revision space.
     pub fn upsert(
         &mut self,
         name: impl Into<String>,
@@ -122,6 +134,12 @@ impl SourceDatabase {
     }
 
     /// Replaces a source's text and returns its revision.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SourceDatabaseError::UnknownSource`] when `id` is not in this
+    /// database, or [`SourceDatabaseError::RevisionExhausted`] when the source
+    /// revision cannot be advanced.
     pub fn update(
         &mut self,
         id: SourceId,

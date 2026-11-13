@@ -198,6 +198,12 @@ impl From<DefinitionProjectError> for LanguageSpecLoadError {
 /// Definition syntax and validation failures remain in the returned
 /// [`LoadedDefinitionProject::definition`] diagnostics, alongside their source
 /// snapshots, so callers can render them for their environment.
+///
+/// # Errors
+///
+/// Returns [`DefinitionProjectError::Manifest`] when the manifest cannot be
+/// read or validated, or [`DefinitionProjectError::Definition`] when the root
+/// definition or an imported source cannot be loaded.
 pub fn load_definition_project(
     project_root: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, DefinitionProjectError> {
@@ -211,6 +217,12 @@ pub fn load_definition_project(
 /// Use [`load_definition_project`] when the caller needs to inspect an invalid
 /// definition without treating its diagnostics as a load failure. This helper
 /// retains source snapshots on validation errors for diagnostic rendering.
+///
+/// # Errors
+///
+/// Returns [`LanguageSpecLoadError::Project`] when the manifest or definition
+/// sources cannot be loaded, or [`LanguageSpecLoadError::InvalidDefinition`]
+/// when parsing and validation do not produce a valid language.
 pub fn load_language_spec(
     project_root: impl AsRef<Path>,
 ) -> Result<LanguageSpec, LanguageSpecLoadError> {
@@ -239,6 +251,12 @@ pub fn load_language_spec(
 }
 
 /// Loads a definition project from a specified `langmeld.toml` path.
+///
+/// # Errors
+///
+/// Returns [`DefinitionProjectError::Manifest`] when the manifest cannot be
+/// read or validated, or [`DefinitionProjectError::Definition`] when the root
+/// definition or an imported source cannot be loaded.
 pub fn load_definition_project_from_manifest(
     manifest_path: impl AsRef<Path>,
 ) -> Result<LoadedDefinitionProject, DefinitionProjectError> {

@@ -62,6 +62,11 @@ struct PendingWorkspaceRegistration {
 }
 
 /// Runs the server over standard input and output.
+///
+/// # Errors
+///
+/// Returns an I/O or protocol error when the connection cannot be initialized
+/// or served, or when its I/O threads cannot be joined.
 pub fn run_stdio<B: LanguageBackend>(backend: B) -> Result<(), Box<dyn Error + Send + Sync>> {
     let (connection, io_threads) = Connection::stdio();
     run_connection(connection, backend)?;
@@ -71,6 +76,11 @@ pub fn run_stdio<B: LanguageBackend>(backend: B) -> Result<(), Box<dyn Error + S
 
 /// Runs the server over an LSP connection. The connection can be stdio, TCP,
 /// or in-memory for protocol tests.
+///
+/// # Errors
+///
+/// Returns a transport, JSON-RPC, or protocol error when initialization or
+/// message handling fails.
 pub fn run_connection<B: LanguageBackend>(
     connection: Connection,
     backend: B,

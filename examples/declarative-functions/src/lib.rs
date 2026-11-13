@@ -19,6 +19,12 @@ pub struct FunctionAnalysis {
     pub semantic: langmeld_language::AnalysisDocument<FunctionFacts>,
 }
 
+/// Loads and validates the function-language definition.
+///
+/// # Errors
+///
+/// Returns an error when the project or its definition cannot be loaded, or
+/// when the definition does not produce a valid language specification.
 pub fn load() -> Result<LanguageSpec, String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let project = load_definition_project(root).map_err(|error| error.to_string())?;
@@ -40,6 +46,13 @@ pub fn load() -> Result<LanguageSpec, String> {
         .ok_or_else(|| "validated definition did not produce a language".to_owned())
 }
 
+/// Parses, lowers, and analyzes one source document.
+///
+/// Parse and semantic findings are retained in the returned analysis.
+///
+/// # Errors
+///
+/// Returns an error when the project's language definition cannot be loaded.
 pub fn analyze(source: &SourceFile) -> Result<FunctionAnalysis, String> {
     let language = load()?;
     let generic = parse(source, &language);

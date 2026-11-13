@@ -53,6 +53,12 @@ impl Language {
     /// Diagnostics remain structured so the caller can choose how to display
     /// them. Output emitted before a handler fails is available in
     /// [`RunFailure::partial_output`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`RunFailure`] when parsing fails, the source has no program
+    /// root, or a construct handler reports an error. Output produced before
+    /// execution stops is retained in the failure.
     pub fn run(&self, source: &SourceFile) -> Result<RunReport, RunFailure> {
         let parsed = self.parse(source);
         let mut diagnostics = parsed.diagnostics().to_vec();
@@ -117,6 +123,11 @@ impl Language {
 }
 
 /// Loads and validates the WidgetScript definition.
+///
+/// # Errors
+///
+/// Returns a [`LanguageLoadError`] when the project manifest or language
+/// definition cannot be loaded or validated.
 pub fn load() -> Result<Language, LanguageLoadError> {
     load_from(Path::new(env!("CARGO_MANIFEST_DIR")))
 }
@@ -125,6 +136,11 @@ pub fn load() -> Result<Language, LanguageLoadError> {
 ///
 /// The directory must contain `langmeld.toml`; the manifest selects the root
 /// `.langmeld` definition.
+///
+/// # Errors
+///
+/// Returns a [`LanguageLoadError`] when the manifest or language definition
+/// cannot be loaded or validated.
 pub fn load_from(project_root: impl AsRef<Path>) -> Result<Language, LanguageLoadError> {
     let specification = load_language_spec(project_root)?;
 

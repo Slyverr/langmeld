@@ -77,6 +77,12 @@ pub struct ExpressionGrammar {
 
 impl ExpressionGrammar {
     /// Validates and creates an expression grammar.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GrammarError`] when an operator is empty, uses reserved
+    /// syntax, has zero precedence, or duplicates another operator with the
+    /// same fixity.
     pub fn new(operators: impl IntoIterator<Item = OperatorSpec>) -> Result<Self, GrammarError> {
         let operators: Vec<_> = operators.into_iter().collect();
         let mut fixities = HashSet::new();

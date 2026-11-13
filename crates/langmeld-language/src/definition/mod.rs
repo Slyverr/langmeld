@@ -93,6 +93,11 @@ pub trait DefinitionResolver {
     ///
     /// Implementations own filesystem access, path normalization, and any
     /// project-root restrictions.
+    ///
+    /// # Errors
+    ///
+    /// Returns the resolver's error when the import cannot be resolved or its
+    /// source cannot be loaded.
     fn resolve(&self, from_key: &str, import: &str) -> Result<DefinitionSource, Self::Error>;
 }
 

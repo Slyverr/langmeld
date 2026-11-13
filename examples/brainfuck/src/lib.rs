@@ -12,11 +12,21 @@ pub use ast::{Instruction, InstructionKind, Program};
 pub use parser::BrainfuckParser;
 
 /// Parses and executes one Brainfuck program with the default step limit.
+///
+/// # Errors
+///
+/// Returns formatted diagnostics when parsing fails or execution encounters a
+/// runtime error, including an exhausted instruction limit.
 pub fn run(source: &SourceFile, input: &[u8]) -> Result<Vec<u8>, String> {
     run_with_step_limit(source, input, runtime::DEFAULT_STEP_LIMIT)
 }
 
 /// Parses and executes one program with an explicit instruction budget.
+///
+/// # Errors
+///
+/// Returns formatted diagnostics when parsing fails or execution encounters a
+/// runtime error, including an exhausted `max_steps` budget.
 pub fn run_with_step_limit(
     source: &SourceFile,
     input: &[u8],
@@ -27,6 +37,11 @@ pub fn run_with_step_limit(
 }
 
 /// Parses and executes a program, reading each input byte when `,` runs.
+///
+/// # Errors
+///
+/// Returns formatted diagnostics when parsing fails, input reading fails, or
+/// execution encounters a runtime error or exhausts its default step limit.
 pub fn run_with_reader<R: Read>(source: &SourceFile, input: &mut R) -> Result<Vec<u8>, String> {
     run_with_reader_and_step_limit(source, input, runtime::DEFAULT_STEP_LIMIT)
 }

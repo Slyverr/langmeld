@@ -171,6 +171,13 @@ fn emit_scope_view(
 }
 
 fn emit_field_method(output: &mut String, field: &FieldShape) {
+    let documentation = match field.expected {
+        ExpectedCapture::Identifier => "Returns the captured identifier and its source range.",
+        ExpectedCapture::Token
+        | ExpectedCapture::Integer
+        | ExpectedCapture::String
+        | ExpectedCapture::Expression => "Returns the captured source text and its source range.",
+    };
     let text_access = |expected: &str| {
         format!(
             "__capture_text(self.source, self.construct, self.fields, {:?}, self.span, __ExpectedCapture::{expected})",
@@ -204,7 +211,13 @@ fn emit_field_method(output: &mut String, field: &FieldShape) {
     };
 
     output.push_str(&format!(
-        r#"        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
+        r#"        /// {documentation}
+        ///
+        /// # Errors
+        ///
+        /// Returns a source-located diagnostic if the capture is absent, has an
+        /// unexpected kind, or is incompatible with these generated bindings.
+        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
             {access}
         }}
 
@@ -214,21 +227,29 @@ fn emit_field_method(output: &mut String, field: &FieldShape) {
 }
 
 fn emit_group_method(output: &mut String, group: &GroupShape, group_type: &str) {
-    let (expected_kind, return_type, collection) = match group.kind {
+    let (expected_kind, return_type, collection, documentation) = match group.kind {
         GroupKind::Optional => (
             "Optional",
             format!("::core::option::Option<{group_type}<'source>>"),
             false,
+            "Returns the optional named group when it is present.",
         ),
         GroupKind::Repeated => (
             "Repeat",
             format!("::std::vec::Vec<{group_type}<'source>>"),
             true,
+            "Returns the captured occurrences of this repeated named group.",
         ),
     };
 
     output.push_str(&format!(
-        r#"        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
+        r#"        /// {documentation}
+        ///
+        /// # Errors
+        ///
+        /// Returns a source-located diagnostic if the captured group does not
+        /// match these generated bindings or contains an invalid source span.
+        pub fn {}(&self) -> ::core::result::Result<{return_type}, ::langmeld_core::Diagnostic> {{
             let group = __group(
                 self.source,
                 self.construct,

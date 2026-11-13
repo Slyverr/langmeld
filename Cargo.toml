@@ -51,3 +51,6 @@ url = "2.5.7"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+missing_errors_doc = "warn"

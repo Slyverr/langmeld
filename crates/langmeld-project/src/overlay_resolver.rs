@@ -19,6 +19,11 @@ pub struct OverlayDefinitionResolver {
 
 impl OverlayDefinitionResolver {
     /// Creates a resolver for a project directory and bundled or virtual sources.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ProjectLoadError`] when the project root cannot be resolved
+    /// or is not a directory.
     pub fn new(
         root: impl AsRef<Path>,
         overlay: InMemoryDefinitionResolver,
@@ -40,6 +45,11 @@ impl OverlayDefinitionResolver {
     }
 
     /// Loads the project root definition, preferring an overlay snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ProjectLoadError`] when the path is invalid or the matching
+    /// definition cannot be loaded from the overlay or project directory.
     pub fn load(&self, relative_path: &str) -> Result<DefinitionSource, ProjectLoadError> {
         match self.overlay.load(relative_path) {
             Ok(source) => Ok(source),
@@ -50,6 +60,12 @@ impl OverlayDefinitionResolver {
 
     /// Maps a filesystem path to a project key, including paths that do not
     /// exist yet.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ProjectLoadError`] when the path is invalid, resolves
+    /// outside the project root, or an existing path component cannot be
+    /// inspected.
     pub fn key_for_path(&self, path: impl AsRef<Path>) -> Result<String, ProjectLoadError> {
         self.directory.key_for_path(path)
     }

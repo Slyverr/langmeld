@@ -24,6 +24,11 @@ impl InMemoryDefinitionResolver {
     }
 
     /// Adds or replaces a source at a portable project-relative path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::InvalidPath`] when `key` is not a valid
+    /// portable project-relative path.
     pub fn insert(
         &mut self,
         key: &str,
@@ -35,6 +40,11 @@ impl InMemoryDefinitionResolver {
     }
 
     /// Loads an in-memory root definition by project-relative path.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::InvalidPath`] when `key` is invalid, or
+    /// [`ProjectLoadError::MissingDefinition`] when no source is stored there.
     pub fn load(&self, key: &str) -> Result<DefinitionSource, ProjectLoadError> {
         self.find_by_key(key)?
             .ok_or_else(|| ProjectLoadError::MissingDefinition(key.to_owned()))

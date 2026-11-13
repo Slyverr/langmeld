@@ -44,6 +44,12 @@ impl TreeSitterOptions {
 /// decimal integers, quoted strings, and grouped punctuation. It cannot infer
 /// host-defined lexer behavior, runtime semantics, or recovery policy; custom
 /// parser languages need a host-authored Tree-sitter grammar.
+///
+/// # Errors
+///
+/// Returns [`TreeSitterError`] when the grammar name is invalid, the language
+/// has no root constructs, or the declarative grammar uses expression captures
+/// or block comments that this exporter cannot represent.
 pub fn generate(
     language: &LanguageSpec,
     options: &TreeSitterOptions,

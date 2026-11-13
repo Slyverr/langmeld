@@ -37,6 +37,12 @@ pub(super) fn normalize_source_key(path: &str) -> Result<String, DefinitionPathE
 /// This performs the same portable-path and project-root checks used by the
 /// project resolvers without loading a file. It is useful to validate import
 /// paths before presenting them in editor tooling.
+///
+/// # Errors
+///
+/// Returns [`ProjectLoadError::InvalidPath`] for malformed or non-portable
+/// paths, or [`ProjectLoadError::OutsideRoot`] when resolving the import would
+/// escape the project root.
 pub fn resolve_import_key(from_key: &str, import: &str) -> Result<String, ProjectLoadError> {
     resolve_import_key_inner(from_key, import).map_err(|error| path_error(import, error))
 }

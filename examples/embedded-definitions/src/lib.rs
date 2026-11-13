@@ -8,6 +8,11 @@ const ROOT_KEY: &str = "language/main.langmeld";
 const PROGRAM: &str = "program { draw circle; note \"added by Rust\"; }";
 
 /// Loads a project definition with a Rust-embedded module and parses its sample.
+///
+/// # Errors
+///
+/// Returns an error when an embedded definition cannot be added or loaded, the
+/// combined grammar is invalid, or the sample program is invalid.
 pub fn parse_example() -> Result<ParseResult, String> {
     let mut resolver = InMemoryDefinitionResolver::new();
     for &(key, text) in geometry_language_extension_example::DEFINITION_SOURCES {

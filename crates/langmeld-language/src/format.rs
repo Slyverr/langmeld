@@ -31,6 +31,11 @@ impl Default for DefinitionFormatOptions {
 /// String tokens are preserved exactly. The current `.langmeld` grammar does not
 /// accept comments. Invalid or incomplete definitions return their parser
 /// diagnostics rather than a potentially destructive partial rewrite.
+///
+/// # Errors
+///
+/// Returns source-located diagnostics when parsing fails or the parsed
+/// definition cannot be formatted consistently with its validated grammar.
 pub fn format_language_definition(
     source: &SourceFile,
     options: DefinitionFormatOptions,

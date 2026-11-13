@@ -36,6 +36,12 @@ impl LanguageSpec {
     }
 
     /// Validates and creates a language grammar.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpecError`] when names or patterns are invalid, declarations
+    /// conflict or overlap, or a block refers to an unknown construct or
+    /// category.
     pub fn new(
         name: impl Into<String>,
         constructs: impl IntoIterator<Item = ConstructSpec>,
@@ -185,6 +191,11 @@ impl LanguageSpec {
     }
 
     /// Configures comment delimiters for the built-in lexer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpecError`] when a comment marker is invalid or duplicates
+    /// another comment start marker.
     pub fn with_lexical_rules(mut self, rules: LexicalRules) -> Result<Self, SpecError> {
         rules.validate()?;
         self.lexical_rules = rules;
@@ -204,6 +215,12 @@ impl LanguageSpec {
     /// [`ConstructSpec::block`]. With an explicit root list, parsing can
     /// recover from an unclosed block when it reaches a complete root
     /// construct that is not valid in that block.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SpecError::UnknownRootConstruct`] when a name is not declared,
+    /// or [`SpecError::DuplicateRootConstruct`] when a name appears more than
+    /// once.
     pub fn with_root_constructs(mut self, names: &[&str]) -> Result<Self, SpecError> {
         let mut root_constructs = vec![false; self.constructs.len()];
         for name in names {
