@@ -43,6 +43,8 @@ pub(crate) fn to_lsp_range(
     span: Span,
     encoding: PositionEncoding,
 ) -> Option<Range> {
+    source.text().get(span.start..span.end)?;
+
     let start = to_lsp_position(source, span.start, encoding)?;
     let end = to_lsp_position(source, span.end, encoding)?;
     Some(Range::new(start, end))

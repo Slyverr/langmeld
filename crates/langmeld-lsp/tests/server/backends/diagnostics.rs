@@ -22,6 +22,12 @@ impl LanguageBackend for MismatchedDiagnosticBackend {
                 source,
                 Span::new(0, source.text().len() + 1),
             ),
+            Diagnostic::error(
+                "REVERSED-RANGE",
+                "diagnostic with an inverted source range",
+                source,
+                Span::new(5, 1),
+            ),
             Diagnostic::spec_error("PROJECT", "project-level diagnostic"),
         ];
 
