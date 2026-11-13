@@ -170,6 +170,28 @@ Keep workspace crate versions aligned during development. Do not make a separate
 commit that bumps to the next version after a release; update release metadata
 only when that release's gate passes.
 
+Before a release, compare all distributable crate APIs against the latest
+release tag with `cargo-semver-checks`. Use `--release-type minor` for a `0.x`
+minor release and `--release-type patch` for a compatible patch release. Review
+the findings against the changelog, upgrade guide, and downstream consumer tests.
+The release-only tool is not a workspace dependency; make it available on
+`PATH` for the check. For example, from `develop` before a minor release:
+
+```sh
+cargo semver-checks \
+  --release-type minor \
+  --baseline-rev "$(git describe --tags --abbrev=0)" \
+  -p langmeld-core \
+  -p langmeld-expression \
+  -p langmeld-language \
+  -p langmeld-project \
+  -p langmeld-lsp \
+  -p langmeld-build \
+  -p langmeld-cli \
+  -p langmeld-textmate \
+  -p langmeld-tree-sitter
+```
+
 For a release, move entries to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh
 `Unreleased` section, and keep the Cargo workspace version, changelog, and Git
 tag aligned. Regenerate `Cargo.lock` with Cargo, then run the development
