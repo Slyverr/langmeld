@@ -43,6 +43,10 @@ language "Parity" {
         syntax "legacy" {
             literal "call";
             identifier "target";
+            one_or_more "suffixes" {
+                literal ".";
+                identifier "suffix";
+            }
         }
         completion function;
         implements "statement";
@@ -122,6 +126,10 @@ fn declarative_and_rust_frontends_build_the_same_language_specification() {
                 [
                     PatternPart::literal("call"),
                     PatternPart::identifier("target"),
+                    PatternPart::one_or_more_named(
+                        "suffixes",
+                        [PatternPart::literal("."), PatternPart::identifier("suffix")],
+                    ),
                 ],
             )
             .with_completion_kind(CompletionKind::Function)
