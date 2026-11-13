@@ -10,6 +10,7 @@ use crate::{
 
 const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
 const ANALYZER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-002";
+const WORKSPACE_ANALYZER_RESULT_CODE: &str = "LM-HOST-003";
 
 type SourceResolver = dyn Fn(&SourceLocation) -> Option<BackendSource> + Send + Sync;
 type WorkspaceSymbolProvider = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + Send + Sync;
@@ -85,6 +86,8 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 /// suppressed unless both validated results and the enclosing backend document
 /// belong to the requested source snapshot.
 /// Workspace analysis is available through [`Self::with_workspace_analyzer`].
+/// Workspace-analysis batches with an invalid result count or source identity
+/// are diagnosed and fall back to per-source analysis.
 /// Semantic tokens, document symbols, rename, formatting, and hover require a
 /// custom [`LanguageBackend`] implementation.
 pub struct HostLanguageBackend<P, A = NoAnalyzer>
@@ -194,15 +197,32 @@ where
         &self,
         sources: &[SourceFile],
         parsed: Vec<ParsedDocument<P::Tree>>,
+        workspace_diagnostic: Option<&str>,
     ) -> Vec<BackendDocument<HostDocument<P::Tree, A::Analysis>>> {
         sources
             .iter()
             .zip(parsed)
-            .map(|(source, parsed)| self.analyze_parsed(source, parsed))
+            .map(|(source, parsed)| {
+                let document = self.analyze_parsed(source, parsed);
+                let Some(message) = workspace_diagnostic else {
+                    return document;
+                };
+
+                let parts = document.into_parts();
+                let mut diagnostics = parts.diagnostics;
+                diagnostics.push(workspace_analysis_diagnostic(source, message));
+
+                BackendDocument::new(source, parts.state, diagnostics)
+            })
             .collect()
     }
 
     /// Adds semantic analysis across the currently open parsed documents.
+    ///
+    /// If the workspace analyzer returns a different number of results or
+    /// associates a result with the wrong source snapshot, the batch is
+    /// discarded, an `LM-HOST-003` diagnostic is added to each returned
+    /// document, and per-source analysis is used instead.
     #[must_use]
     pub fn with_workspace_analyzer<W>(mut self, analyzer: W) -> Self
     where
@@ -291,17 +311,31 @@ where
             .zip(sources)
             .any(|(parsed, source)| parsed.source_identity() != source.identity())
         {
-            return Some(self.analyze_individually(sources, parsed));
+            return Some(self.analyze_individually(sources, parsed, None));
         }
         let documents = sources.iter().zip(&parsed).collect::<Vec<_>>();
         let analyses = workspace_analyzer.analyze_workspace(&self.analyzer, &documents);
-        if analyses.len() != sources.len()
-            || analyses
+        let invalid_batch = if analyses.len() != sources.len() {
+            Some(format!(
+                "host workspace analyzer returned {} results for {} documents; batch results were discarded and per-source analysis was used",
+                analyses.len(),
+                sources.len(),
+            ))
+        } else {
+            analyses
                 .iter()
                 .zip(sources)
-                .any(|(analysis, source)| analysis.source_identity() != source.identity())
-        {
-            return Some(self.analyze_individually(sources, parsed));
+                .position(|(analysis, source)| analysis.source_identity() != source.identity())
+                .map(|index| {
+                    format!(
+                        "host workspace analyzer returned a result for a different source snapshot at document {}; batch results were discarded and per-source analysis was used",
+                        index + 1,
+                    )
+                })
+        };
+
+        if let Some(message) = invalid_batch {
+            return Some(self.analyze_individually(sources, parsed, Some(&message)));
         }
 
         Some(
@@ -422,6 +456,15 @@ fn source_identity_diagnostic(source: &SourceFile, code: &str, component: &str) 
     Diagnostic::error(
         code,
         format!("host {component} returned data for a different source snapshot"),
+        source,
+        Span::new(0, source.text().len()),
+    )
+}
+
+fn workspace_analysis_diagnostic(source: &SourceFile, message: &str) -> Diagnostic {
+    Diagnostic::error(
+        WORKSPACE_ANALYZER_RESULT_CODE,
+        message,
         source,
         Span::new(0, source.text().len()),
     )

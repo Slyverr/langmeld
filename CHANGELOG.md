@@ -36,6 +36,8 @@ API migration notes are in the
 
 - Keep the empty consumed span on a UTF-8 boundary when an expression range is
   invalid.
+- Diagnose invalid host workspace-analysis result batches before falling back
+  to per-source analysis.
 - Filter import-path completions using the same portability and project-root
   checks as definition loading, and resolve candidates from the importer's
   canonical project key.

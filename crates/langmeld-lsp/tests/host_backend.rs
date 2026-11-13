@@ -427,6 +427,12 @@ fn invalid_workspace_results_fall_back_to_per_source_analysis() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
+        assert!(
+            document
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "LM-HOST-003")
+        );
         assert_eq!(
             document
                 .state()
@@ -468,6 +474,12 @@ fn incomplete_workspace_results_fall_back_to_every_source() {
     assert_eq!(documents.len(), sources.len());
     for (document, source) in documents.iter().zip(&sources) {
         assert_eq!(document.source_identity(), source.identity());
+        assert!(
+            document
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.code == "LM-HOST-003")
+        );
         assert_eq!(
             document
                 .state()
