@@ -230,6 +230,10 @@ pub trait LanguageBackend: Send + Sync + 'static {
     fn capabilities(&self) -> BackendCapabilities;
 
     /// Returns completion candidates at a UTF-8 byte offset.
+    ///
+    /// The adapter omits candidates whose replacement span cannot be
+    /// represented as a single-line range in this source. Snippet candidates
+    /// are omitted when the client does not support snippets.
     fn complete(
         &self,
         _source: &SourceFile,
@@ -240,6 +244,10 @@ pub trait LanguageBackend: Send + Sync + 'static {
     }
 
     /// Returns declaration locations for a symbol at a UTF-8 byte offset.
+    ///
+    /// The adapter resolves locations against open document snapshots or
+    /// [`Self::source_for_location`]. Unavailable, stale, or malformed
+    /// locations are omitted individually.
     fn definition(
         &self,
         _source: &SourceFile,
@@ -250,6 +258,10 @@ pub trait LanguageBackend: Send + Sync + 'static {
     }
 
     /// Returns references for a symbol at a UTF-8 byte offset.
+    ///
+    /// The adapter resolves locations against open document snapshots or
+    /// [`Self::source_for_location`]. Unavailable, stale, or malformed
+    /// locations are omitted individually.
     fn references(
         &self,
         _source: &SourceFile,
