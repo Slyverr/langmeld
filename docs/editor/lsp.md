@@ -86,6 +86,15 @@ parser diagnostics. Select the analyzer at construction, then attach its
 workspace analyzer, completer, and navigator. `HostLanguageBackend` does not
 expose semantic tokens, document symbols, rename, formatting, or hover;
 implement those features with a custom `LanguageBackend`.
+
+Backend callbacks run synchronously on the thread calling `run_connection` or
+`run_stdio`. A `HostLanguageBackend`, its parser and analyzer, and its providers
+can therefore borrow local host state or use single-threaded types such as
+`Rc<RefCell<_>>`; Langmeld does not move them to worker threads. If the host
+starts the server inside `std::thread::spawn`, construct the backend inside that
+thread. Values captured by the thread still need Rust's usual `Send + 'static`
+bounds.
+
 A custom backend can implement `format_document` to return formatted text for a
 complete document. Langmeld passes through the editor's formatting options and
 returns one whole-document edit using the negotiated position encoding.
