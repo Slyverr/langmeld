@@ -176,7 +176,23 @@ Hosts return token names and UTF-8 byte spans; the adapter validates the legend,
 converts spans using the negotiated position encoding, and splits multiline
 spans into line-local tokens. Declarative grammars do not imply semantic roles.
 
-## Current limits
+## Diagnostics and current limits
+
+Each `BackendDocument` must belong to the source snapshot it analyzed and
+contain only diagnostics located in that snapshot. A custom `LanguageBackend`
+receives `LM-LSP-003` when its document diagnostics have missing, foreign, or
+malformed locations; `LM-LSP-002` when its single-document result belongs to a
+different snapshot; and `LM-LSP-001` when its workspace batch is invalid. The
+server suppresses invalid results and falls back to per-document analysis for
+an invalid workspace batch. `HostLanguageBackend` reports parser, analyzer,
+and workspace-analyzer source-contract failures as `LM-HOST-001`,
+`LM-HOST-002`, and `LM-HOST-003`, respectively. These codes indicate backend
+contract violations; they do not replace the language's own diagnostics.
+
+Project-level diagnostics without a source location cannot be published as
+text-document diagnostics. Attach a finding to a relevant source snapshot when
+possible or report it through a host-owned channel. Langmeld does not currently
+provide workspace-level diagnostic publication.
 
 The server accepts both full-document replacements and incremental ranged
 changes. It applies changes in order using the negotiated LSP position
@@ -184,5 +200,3 @@ encoding. Each change still produces a new source snapshot and runs analysis
 for that snapshot; this is not incremental parsing or semantic analysis.
 TextMate output is lexical only; it includes configured comments but does not
 infer undeclared comments, host lexer rules, or semantic classifications.
-Diagnostics without a source location or tied to
-another file are not published as diagnostics for the current document.
