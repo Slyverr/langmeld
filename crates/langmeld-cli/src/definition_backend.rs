@@ -134,7 +134,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
                             .diagnostics
                             .iter()
                             .filter(|diagnostic| match diagnostic.location.as_ref() {
-                                Some(location) => location.source_name() == source.name(),
+                                Some(location) => location.is_valid_for(source),
                                 None => key == &self.root_definition,
                             })
                             .cloned()
