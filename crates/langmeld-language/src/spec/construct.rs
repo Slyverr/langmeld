@@ -81,39 +81,33 @@ impl ConstructSpec {
     /// Adds a delimited block containing the named child constructs.
     #[must_use]
     pub fn block(
-        mut self,
+        self,
         open: impl Into<String>,
         close: impl Into<String>,
         constructs: &[&str],
     ) -> Self {
-        self.block = Some(BlockSpec {
-            open: open.into(),
-            close: close.into(),
-            constructs: constructs.iter().map(|name| (*name).to_owned()).collect(),
-            categories: Vec::new(),
-        });
-        self
+        self.block_names(
+            open,
+            close,
+            constructs.iter().map(|name| (*name).to_owned()),
+        )
     }
 
     /// Adds a delimited block that accepts named constructs and category members.
     #[must_use]
     pub fn block_with_categories(
-        mut self,
+        self,
         open: impl Into<String>,
         close: impl Into<String>,
         constructs: &[&str],
         categories: &[&str],
     ) -> Self {
-        self.block = Some(BlockSpec {
-            open: open.into(),
-            close: close.into(),
-            constructs: constructs.iter().map(|name| (*name).to_owned()).collect(),
-            categories: categories
-                .iter()
-                .map(|category| (*category).to_owned())
-                .collect(),
-        });
-        self
+        self.block_names_with_categories(
+            open,
+            close,
+            constructs.iter().map(|name| (*name).to_owned()),
+            categories.iter().map(|category| (*category).to_owned()),
+        )
     }
 
     /// Adds a delimited block from dynamically collected child names and categories.
@@ -137,18 +131,12 @@ impl ConstructSpec {
     /// Adds a delimited block from dynamically collected child names.
     #[must_use]
     pub fn block_names(
-        mut self,
+        self,
         open: impl Into<String>,
         close: impl Into<String>,
         constructs: impl IntoIterator<Item = String>,
     ) -> Self {
-        self.block = Some(BlockSpec {
-            open: open.into(),
-            close: close.into(),
-            constructs: constructs.into_iter().collect(),
-            categories: Vec::new(),
-        });
-        self
+        self.block_names_with_categories(open, close, constructs, std::iter::empty())
     }
 
     /// Returns this construct's name.
