@@ -24,6 +24,16 @@ struct BorrowedRecordPrefix<'prefix> {
     prefix: &'prefix str,
 }
 
+fn borrowed_record_handlers<'prefix>(
+    prefix: &'prefix str,
+) -> Result<ConstructHandlerRegistry<'prefix, Vec<String>>, HandlerRegistrationError> {
+    let mut handlers = ConstructHandlerRegistry::new();
+
+    handlers.register(BorrowedRecordPrefix { prefix })?;
+
+    Ok(handlers)
+}
+
 impl ConstructHandler<Vec<String>> for BorrowedRecordPrefix<'_> {
     const CONSTRUCT: &'static str = "record";
 
@@ -221,10 +231,8 @@ fn handler_registry_accepts_a_handler_borrowing_configuration() {
     let parsed = parse(&source, &language);
 
     let prefix = String::from("record");
-    let mut handlers = ConstructHandlerRegistry::new();
-    handlers
-        .register(BorrowedRecordPrefix { prefix: &prefix })
-        .expect("borrowed handler registration succeeds");
+    let handlers =
+        borrowed_record_handlers(&prefix).expect("borrowed handler registration succeeds");
 
     let mut state = Vec::new();
     handlers

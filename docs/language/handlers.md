@@ -110,7 +110,51 @@ used; they do not need to be `'static`. Keep mutable shared execution state in
 `State`, where handlers access it through the context. If a function returns a
 registry whose handlers borrow from `config`, name that lifetime in the return
 type as `ConstructHandlerRegistry<'config, State>`; local registry types are
-inferred.
+inferred. For example, a language can keep configuration separate from
+per-execution state and return a registry that borrows the configuration:
+
+```rust,ignore
+use langmeld_core::Diagnostic;
+use langmeld_language::{
+    ConstructContext, ConstructHandler, ConstructHandlerRegistry, HandlerControl,
+    HandlerRegistrationError,
+};
+
+struct PrefixHandler<'config> {
+    prefix: &'config str,
+}
+
+impl ConstructHandler<Vec<String>> for PrefixHandler<'_> {
+    const CONSTRUCT: &'static str = "greet";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<String>>,
+    ) -> Result<HandlerControl, Diagnostic> {
+        let name = context.field_identifier("name")?;
+
+        context
+            .state_mut()
+            .push(format!("{} {name}", self.prefix));
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
+fn greeting_handlers<'config>(
+    prefix: &'config str,
+) -> Result<ConstructHandlerRegistry<'config, Vec<String>>, HandlerRegistrationError> {
+    let mut handlers = ConstructHandlerRegistry::new();
+
+    handlers.register(PrefixHandler { prefix })?;
+
+    Ok(handlers)
+}
+```
+
+The handler retains the borrow as long as the registry lives, so the
+configuration does not need to be cloned. The integration test for borrowed
+handlers covers the same return-type pattern.
 
 Field names passed to these helpers are runtime lookups. Rust does not check
 them against the `.langmeld` definition at compile time, so a misspelled or
