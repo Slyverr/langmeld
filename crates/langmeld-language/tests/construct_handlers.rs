@@ -20,6 +20,26 @@ impl ConstructHandler<Vec<String>> for RecordIdentifier {
     }
 }
 
+struct BorrowedRecordPrefix<'prefix> {
+    prefix: &'prefix str,
+}
+
+impl ConstructHandler<Vec<String>> for BorrowedRecordPrefix<'_> {
+    const CONSTRUCT: &'static str = "record";
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<String>>,
+    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {
+        let identifier = context.field_identifier("value")?.to_owned();
+        let record = format!("{} {identifier}", self.prefix);
+
+        context.state_mut().push(record);
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
 struct RecordIdentifierLocation;
 
 impl ConstructHandler<Vec<(String, Span)>> for RecordIdentifierLocation {
@@ -192,6 +212,27 @@ fn dispatches_top_level_constructs_from_parse_result() -> Result<(), Box<dyn std
     assert_eq!(state, ["first", "second"]);
 
     Ok(())
+}
+
+#[test]
+fn handler_registry_accepts_a_handler_borrowing_configuration() {
+    let language = record_language();
+    let source = SourceFile::new("main.sample", "record first;");
+    let parsed = parse(&source, &language);
+
+    let prefix = String::from("record");
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers
+        .register(BorrowedRecordPrefix { prefix: &prefix })
+        .expect("borrowed handler registration succeeds");
+
+    let mut state = Vec::new();
+    handlers
+        .dispatch_parse_result(&source, &parsed, &mut state)
+        .expect("borrowed handler dispatches");
+
+    assert_eq!(state, ["record first"]);
+    assert_eq!(prefix, "record");
 }
 
 #[test]

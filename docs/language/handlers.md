@@ -105,6 +105,13 @@ language host's responsibility. Field helpers report missing fields, wrong
 capture kinds, and invalid spans as source-located diagnostics instead of
 requiring unchecked indexing.
 
+Registered handlers can borrow configuration for as long as the registry is
+used; they do not need to be `'static`. Keep mutable shared execution state in
+`State`, where handlers access it through the context. If a function returns a
+registry whose handlers borrow from `config`, name that lifetime in the return
+type as `ConstructHandlerRegistry<'config, State>`; local registry types are
+inferred.
+
 Field names passed to these helpers are runtime lookups. Rust does not check
 them against the `.langmeld` definition at compile time, so a misspelled or
 undeclared name is reported only when the handler accesses that field.

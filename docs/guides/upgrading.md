@@ -38,6 +38,17 @@ closure still need to meet Rust's normal `Send + 'static` requirements. A
 custom backend that is moved or shared across threads should add the required
 bounds to its own type and synchronize shared state explicitly.
 
+## Unreleased handler registry lifetime
+
+`ConstructHandlerRegistry` now has a leading lifetime parameter so registered
+dynamic and typed handlers can borrow configuration. In explicit type
+annotations, use `ConstructHandlerRegistry<'static, State>` for owned handlers,
+or name the borrow lifetime when a handler stores references. Local variables
+with inferred types usually need no change. A function that accepts
+`config: &'config Config` and returns
+`ConstructHandlerRegistry<'config, RuntimeState>` can register handlers that
+borrow from that configuration.
+
 ## Migrating from v0.12.1 to v0.13.0
 
 The changes below are included in v0.13.0. See the [changelog](../../CHANGELOG.md)

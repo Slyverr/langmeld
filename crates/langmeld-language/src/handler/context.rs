@@ -10,7 +10,7 @@ pub struct ConstructContext<'a, State, Signal = ()> {
     construct: &'a ParsedConstruct,
     source: &'a SourceFile,
     state: &'a mut State,
-    handlers: &'a ConstructHandlerRegistry<State, Signal>,
+    handlers: &'a ConstructHandlerRegistry<'a, State, Signal>,
 }
 
 /// An identifier captured from source, paired with its exact byte range.
@@ -43,7 +43,7 @@ impl<'source, State, Signal> ConstructContext<'source, State, Signal> {
         construct: &'source ParsedConstruct,
         source: &'source SourceFile,
         state: &'source mut State,
-        handlers: &'source ConstructHandlerRegistry<State, Signal>,
+        handlers: &'source ConstructHandlerRegistry<'source, State, Signal>,
     ) -> Self {
         Self {
             parsed,

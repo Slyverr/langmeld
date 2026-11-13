@@ -8,8 +8,9 @@ use langmeld_language::{ConstructHandlerRegistry, HandlerRegistrationError};
 
 use crate::runtime::RuntimeState;
 
-pub(super) fn registry() -> Result<ConstructHandlerRegistry<RuntimeState>, HandlerRegistrationError>
-{
+type HandlerRegistry = ConstructHandlerRegistry<'static, RuntimeState>;
+
+pub(super) fn registry() -> Result<HandlerRegistry, HandlerRegistrationError> {
     let mut handlers = ConstructHandlerRegistry::new();
 
     // <langmeld:begin registrations>

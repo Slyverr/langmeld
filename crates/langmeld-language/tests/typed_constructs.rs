@@ -56,6 +56,10 @@ struct BorrowedState<'state> {
 
 struct BorrowedGreetHandler;
 
+struct BorrowedConfigGreetHandler<'prefix> {
+    prefix: &'prefix str,
+}
+
 impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandler {
     type View<'source> = NameView<'source>;
 
@@ -66,6 +70,22 @@ impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandl
     ) -> Result<HandlerControl, Diagnostic> {
         let greeting = format!("{} {}", context.state().prefix, greet.name);
         context.state_mut().output.push(greeting);
+
+        Ok(HandlerControl::Continue)
+    }
+}
+
+impl TypedConstructHandler<Vec<String>> for BorrowedConfigGreetHandler<'_> {
+    type View<'source> = NameView<'source>;
+
+    fn handle(
+        &self,
+        context: &mut ConstructContext<'_, Vec<String>>,
+        greet: Self::View<'_>,
+    ) -> Result<HandlerControl, Diagnostic> {
+        let greeting = format!("{} {}", self.prefix, greet.name);
+
+        context.state_mut().push(greeting);
 
         Ok(HandlerControl::Continue)
     }
@@ -139,6 +159,27 @@ fn typed_handler_registry_creates_and_passes_the_registered_view() {
         .expect("typed capture access succeeds");
 
     assert_eq!(state, ["Ada"]);
+}
+
+#[test]
+fn typed_handler_registry_accepts_a_handler_borrowing_configuration() {
+    let language = greeting_language();
+    let source = SourceFile::new("greeting.txt", "hello Ada");
+    let parsed = parse(&source, &language);
+
+    let prefix = String::from("Welcome");
+    let mut handlers = ConstructHandlerRegistry::new();
+    handlers
+        .register_typed(BorrowedConfigGreetHandler { prefix: &prefix })
+        .expect("typed handler registration accepts borrowed configuration");
+
+    let mut state = Vec::new();
+    handlers
+        .dispatch_parse_result(&source, &parsed, &mut state)
+        .expect("typed captures are available during dispatch");
+
+    assert_eq!(state, ["Welcome Ada"]);
+    assert_eq!(prefix, "Welcome");
 }
 
 #[test]

@@ -11,6 +11,10 @@ API migration notes are in the
 
 ### Changed
 
+- **Breaking:** Add a handler lifetime to `ConstructHandlerRegistry` so
+  registered dynamic and typed handlers can borrow configuration. Explicit
+  type annotations need the leading lifetime; see the [unreleased migration
+  note](docs/guides/upgrading.md#unreleased-handler-registry-lifetime).
 - **Breaking:** Remove implicit `Send + Sync + 'static` bounds from LSP
   backends, retained document state, and attached providers. This allows
   borrowed and single-threaded host state. See the [unreleased migration

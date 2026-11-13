@@ -125,12 +125,14 @@ impl Error for HandlerRegistrationError {}
 ///
 /// Registration is explicit and deterministic. Each dispatch entry point
 /// states whether it visits a construct or its children; handlers decide
-/// whether and when nested children should be dispatched.
-pub struct ConstructHandlerRegistry<State, Signal = ()> {
-    handlers: HashMap<&'static str, Box<dyn ErasedConstructHandler<State, Signal>>>,
+/// whether and when nested children should be dispatched. Registered handlers
+/// may borrow configuration for as long as the registry is used. Put mutable,
+/// shared execution data in `State`.
+pub struct ConstructHandlerRegistry<'handlers, State, Signal = ()> {
+    handlers: HashMap<&'static str, Box<dyn ErasedConstructHandler<State, Signal> + 'handlers>>,
 }
 
-impl<State, Signal> Default for ConstructHandlerRegistry<State, Signal> {
+impl<'handlers, State, Signal> Default for ConstructHandlerRegistry<'handlers, State, Signal> {
     fn default() -> Self {
         Self {
             handlers: HashMap::new(),
@@ -138,7 +140,7 @@ impl<State, Signal> Default for ConstructHandlerRegistry<State, Signal> {
     }
 }
 
-impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
+impl<'handlers, State, Signal> ConstructHandlerRegistry<'handlers, State, Signal> {
     /// Creates an empty handler registry.
     #[must_use]
     pub fn new() -> Self {
@@ -146,9 +148,11 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     }
 
     /// Registers one handler, rejecting empty or duplicate construct names.
+    ///
+    /// The handler may borrow configuration that outlives this registry.
     pub fn register<Handler>(&mut self, handler: Handler) -> Result<(), HandlerRegistrationError>
     where
-        Handler: ConstructHandler<State, Signal> + 'static,
+        Handler: ConstructHandler<State, Signal> + 'handlers,
     {
         self.register_erased(Handler::CONSTRUCT, Box::new(HandlerAdapter(handler)))
     }
@@ -157,13 +161,14 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     ///
     /// The view is created for each dispatched construct before the handler
     /// runs. If a runtime-loaded definition does not match the view's expected
-    /// capture shape, dispatch returns its source-located diagnostic.
+    /// capture shape, dispatch returns its source-located diagnostic. The
+    /// handler may borrow configuration that outlives this registry.
     pub fn register_typed<Handler>(
         &mut self,
         handler: Handler,
     ) -> Result<(), HandlerRegistrationError>
     where
-        Handler: TypedConstructHandler<State, Signal> + 'static,
+        Handler: TypedConstructHandler<State, Signal> + 'handlers,
     {
         let name = typed_construct_name::<State, Signal, Handler>();
 
@@ -173,7 +178,7 @@ impl<State, Signal> ConstructHandlerRegistry<State, Signal> {
     fn register_erased(
         &mut self,
         name: &'static str,
-        handler: Box<dyn ErasedConstructHandler<State, Signal>>,
+        handler: Box<dyn ErasedConstructHandler<State, Signal> + 'handlers>,
     ) -> Result<(), HandlerRegistrationError> {
         if name.is_empty() {
             return Err(HandlerRegistrationError::EmptyConstructName);
