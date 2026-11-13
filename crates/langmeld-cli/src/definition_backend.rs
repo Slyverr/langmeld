@@ -240,9 +240,7 @@ impl LanguageBackend for ProjectDefinitionBackend {
 
     fn source_for_location(&self, location: &SourceLocation) -> Option<BackendSource> {
         let resolved = self.resolver.load(location.source_name()).ok()?;
-        if resolved.source().identity() != location.source_identity()
-            || resolved.source().name() != location.source_name()
-        {
+        if !location.is_valid_for(resolved.source()) {
             return None;
         }
         let path = self.root.join(location.source_name()).canonicalize().ok()?;

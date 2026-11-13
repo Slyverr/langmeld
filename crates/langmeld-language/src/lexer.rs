@@ -309,9 +309,7 @@ fn validate_lexer_diagnostics(source: &SourceFile, diagnostics: &mut Vec<Diagnos
         };
 
         let span = location.span();
-        let valid_location = location.source_name() == source.name()
-            && location.source_identity() == source.identity()
-            && source.is_valid_span(span);
+        let valid_location = location.is_valid_for(source);
         if valid_location {
             return true;
         }

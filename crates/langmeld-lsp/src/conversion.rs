@@ -90,7 +90,7 @@ pub(crate) fn diagnostic_for(
     encoding: PositionEncoding,
 ) -> Option<Diagnostic> {
     let location = diagnostic.location.as_ref()?;
-    if location.source_name() != source.name() || location.source_identity() != source.identity() {
+    if !location.is_valid_for(source) {
         return None;
     }
     let range = to_lsp_range(source, location.span(), encoding)?;
@@ -187,7 +187,7 @@ pub(crate) fn lsp_location(
     source: &SourceFile,
     encoding: PositionEncoding,
 ) -> Option<lsp_types::Location> {
-    if location.source_name() != source.name() || location.source_identity() != source.identity() {
+    if !location.is_valid_for(source) {
         return None;
     }
     let range = to_lsp_range(source, location.span(), encoding)?;

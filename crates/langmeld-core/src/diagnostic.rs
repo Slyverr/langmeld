@@ -70,6 +70,15 @@ impl SourceLocation {
         self.identity
     }
 
+    /// Returns whether this location belongs to `source` and has a valid span
+    /// in that snapshot.
+    #[must_use]
+    pub fn is_valid_for(&self, source: &SourceFile) -> bool {
+        self.source_name == source.name()
+            && self.identity == source.identity()
+            && source.is_valid_span(self.span)
+    }
+
     /// Returns the UTF-8 byte range in the associated source snapshot.
     #[must_use]
     pub const fn span(&self) -> Span {

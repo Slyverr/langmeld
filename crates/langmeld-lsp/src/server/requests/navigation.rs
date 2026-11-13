@@ -149,16 +149,14 @@ impl<B: LanguageBackend> ServerState<B> {
     ) -> Option<ResolvedLocationSource<'a>> {
         if let Some((uri, source)) = self.documents.iter().find_map(|(uri, document)| {
             let source = self.sources.get(document.source_id)?;
-            (source.name() == location.source_name()
-                && source.identity() == location.source_identity())
-            .then_some((uri, source))
+            location.is_valid_for(source).then_some((uri, source))
         }) {
             return Some(ResolvedLocationSource::Open { uri, source });
         }
 
         let target = self.backend.source_for_location(location)?;
-        (target.source().name() == location.source_name()
-            && target.source().identity() == location.source_identity())
-        .then_some(ResolvedLocationSource::External(target))
+        location
+            .is_valid_for(target.source())
+            .then_some(ResolvedLocationSource::External(target))
     }
 }

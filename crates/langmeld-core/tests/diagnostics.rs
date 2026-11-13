@@ -1,6 +1,22 @@
 use langmeld_core::{
-    Diagnostic, Severity, SourceDatabase, SourceFile, Span, format_diagnostics, has_errors,
+    Diagnostic, Severity, SourceDatabase, SourceFile, SourceLocation, Span, format_diagnostics,
+    has_errors,
 };
+
+#[test]
+fn source_location_validates_snapshot_identity_and_span() {
+    let source = SourceFile::new("main.lang", "aé");
+    let location = SourceLocation::new(&source, Span::new(1, 3));
+
+    assert!(location.is_valid_for(&source));
+    assert!(!SourceLocation::new(&source, Span::new(2, 3)).is_valid_for(&source));
+
+    let same_name = SourceFile::new("main.lang", "aé");
+    assert!(!location.is_valid_for(&same_name));
+
+    let different_name = SourceFile::new("other.lang", "aé");
+    assert!(!location.is_valid_for(&different_name));
+}
 
 #[test]
 fn constructs_source_and_project_diagnostics_at_every_severity() {

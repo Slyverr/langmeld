@@ -11,6 +11,7 @@ API migration notes are in the
 
 ### Added
 
+- Expose `SourceLocation::is_valid_for` to verify its source snapshot and span.
 - Expose `SourceFile::slice` to safely read text selected by a source span.
 - Expose `SourceFile::is_valid_offset` to validate an in-bounds UTF-8 boundary
   against a source snapshot.
