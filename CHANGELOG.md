@@ -11,79 +11,44 @@ API migration notes are in the
 
 ### Added
 
-- Expose `SourceLocation::is_valid_for` to verify its source snapshot and span.
-- Expose `SourceFile::slice` to safely read text selected by a source span.
-- Expose `SourceFile::is_valid_offset` to validate an in-bounds UTF-8 boundary
-  against a source snapshot.
-- Expose `SourceFile::is_valid_span` to check ordered, in-bounds UTF-8 ranges
-  against a source snapshot.
+- Expose source snapshot, span, and UTF-8 offset validation, plus safe
+  `SourceFile` slicing, for host and editor integrations.
 - Expose `langmeld_project::resolve_import_key` so editor integrations can
   validate import paths with the project's resolver rules.
-- Expose a `NAME` constant on generated typed construct views for concise,
-  compile-time references from Rust handlers.
 - Expose `construct_handler_names` so handler generators can share Langmeld's
   Rust module and handler-struct naming rules.
-- Add `TypedConstructHandler` and `register_typed` so generated construct views
-  provide handler dispatch identity and are passed directly to handlers,
-  independently of host-state and control-signal lifetimes.
-- Generate typed handler scaffolds that register through their typed construct
-  view instead of repeating a construct name and constructing the view again.
+- Expose `NAME` on generated construct views and add `TypedConstructHandler`
+  with `register_typed`; registration derives its identity from the view and
+  passes that validated view into the handler.
 
 ### Changed
 
-- **Breaking:** Return named parts structs from host parse, analysis, and LSP
-  backend document `into_parts()` methods instead of positional tuples.
-- **Breaking:** Return a named `LoadedDefinitionProjectParts` from
-  `into_parts()`, including watched paths alongside the other owned project
-  data.
-- **Breaking:** Return named `DefinitionSourceParts` from
-  `DefinitionSource::into_parts()` instead of positional tuple values.
+- **Breaking:** Replace tuple results from five public `into_parts()` methods
+  with named parts structs. Loaded-project parts also expose watched paths.
+  See the [migration guide](docs/guides/upgrading.md).
 - Match generated handler struct casing to generated typed construct views.
-- Generate starter diagnostic codes with a prefix derived from the new Cargo
-  package name instead of the generic `EXAMPLE` prefix.
-- Use Clap for optional source-file arguments in the runnable language examples,
-  giving them consistent help and argument validation.
+- Derive generated starter diagnostic-code prefixes from the Cargo package
+  name.
+- Use Clap consistently for optional source-file arguments in runnable
+  examples.
 
 ### Fixed
 
-- Fall back to per-document analysis when multiple open source URIs resolve to
-  the same project definition key.
-- Route project-definition LSP diagnostics to the matching source snapshot
-  instead of matching buffers by display name alone.
-- Suppress custom lexer diagnostics with missing, foreign, or invalid source
-  locations, and prevent them from hiding the parser's token-limit diagnostic.
-- Explain when distinct construct names collide on a generated Rust handler
-  module instead of reporting only that the handler path already exists.
-- Compare complete module-qualified handler registrations so distinct modules
-  can reuse the same Rust handler type name.
-- Keep the empty consumed span on a UTF-8 boundary when an expression range is
-  invalid.
-- Diagnose invalid host workspace-analysis result batches before falling back
-  to per-source analysis.
-- Diagnose invalid custom LSP workspace results before falling back to
-  per-document analysis.
-- Preserve source identities when an invalid workspace result falls back to
-  per-document analysis.
-- Diagnose custom single-document backend results tied to a different source
-  snapshot and suppress their stale editor data.
-- Report and suppress backend diagnostics with missing, invalid, or foreign
-  source locations instead of silently dropping them.
-- Filter import-path completions using the same portability and project-root
-  checks as definition loading, and resolve candidates from the importer's
-  canonical project key.
-- Keep formatted diagnostic columns consistent with editor positions for CRLF
-  line endings.
-- Escape all reserved Rust keywords when deriving handler module names from
-  construct names, including `become`, `box`, and `union`.
-- Reject existing handler paths, including dangling symlinks, with a consistent
-  already-exists diagnostic.
-- Correct the typed-bindings dependency example and document local crate
-  resolution before the current release line is published.
-- Fully qualify generated typed-binding support types so language constructs
-  can use names such as `Option`, `Result`, or `Diagnostic` without collisions.
-- Track requested and canonical definition paths plus scoped symlink watches so
-  Cargo regenerates typed bindings after in-project import changes without
-  recursively watching the project root.
+- Route project-definition diagnostics by source identity and span, detect
+  duplicate canonical keys in workspace overlays, and preserve source
+  identities when falling back to per-document analysis.
+- Validate custom parser, analyzer, lexer, and LSP results against their source
+  snapshots; report malformed or foreign diagnostics, and prevent custom lexer
+  findings from hiding the parser's token-limit diagnostic.
+- Keep expression spans on UTF-8 boundaries and diagnostic columns consistent
+  for CRLF input.
+- Apply definition-loader path rules to import completion and resolve
+  candidates from the importer's canonical project key.
+- Make handler-generation errors actionable for Rust-name collisions,
+  reserved keywords, and existing paths, including dangling symlinks.
+- Avoid generated typed-binding name collisions and rebuild when imported
+  definitions change through in-project symlinks; clarify local dependency
+  setup in the typed-bindings guide.
 
 ## [0.12.1] - 2026-11-12
 
