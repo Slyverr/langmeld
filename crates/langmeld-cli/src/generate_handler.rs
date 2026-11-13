@@ -72,7 +72,11 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
         .into());
     }
     let registry_source = fs::read_to_string(&registry_path)?;
-    if registry_source.contains(&format!("::{handler_name})?;")) {
+    let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
+    if registry_source
+        .lines()
+        .any(|line| line.trim() == registration_line)
+    {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!(
@@ -84,7 +88,6 @@ pub(crate) fn generate_handler(args: HandlerArgs) -> Result<(), Box<dyn Error>> 
     }
 
     let module_line = format!("mod {module_name};");
-    let registration_line = format!("handlers.register({module_name}::{handler_name})?;");
     let updated_registry =
         update_managed_section(&registry_source, MODULES_BEGIN, MODULES_END, &module_line)
             .and_then(|source| {

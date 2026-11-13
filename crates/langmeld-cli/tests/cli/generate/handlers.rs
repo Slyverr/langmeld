@@ -22,7 +22,7 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
     let statements = project.join("language/constructs/statements.langmeld");
     let mut source = fs::read_to_string(&statements).expect("constructs should be generated");
     source.push_str(
-        "\nconstruct \"trace\" { syntax { literal \"trace\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"move\" { syntax { literal \"move\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"bad/name\" { syntax { literal \"bad\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"foo-bar\" { syntax { literal \"foo\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"foo_bar\" { syntax { literal \"bar\"; literal \";\"; } implements \"statement\"; }\n",
+        "\nconstruct \"trace\" { syntax { literal \"trace\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"move\" { syntax { literal \"move\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"bad/name\" { syntax { literal \"bad\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"foo-bar\" { syntax { literal \"foo\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"foo_bar\" { syntax { literal \"bar\"; literal \";\"; } implements \"statement\"; }\n\nconstruct \"fooBar\" { syntax { literal \"camel\"; literal \";\"; } implements \"statement\"; }\n",
     );
     fs::write(&statements, source).expect("new constructs should be written");
 
@@ -143,6 +143,26 @@ fn generate_handler_adds_a_stub_and_managed_registration_without_overwriting() {
         "{}",
         String::from_utf8_lossy(&first_colliding_name.stderr)
     );
+
+    let same_handler_type = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+        .args([
+            "generate",
+            "handler",
+            "fooBar",
+            "--manifest-path",
+            manifest.to_str().expect("temporary path is UTF-8"),
+        ])
+        .output()
+        .expect("CLI should start");
+    assert!(
+        same_handler_type.status.success(),
+        "{}",
+        String::from_utf8_lossy(&same_handler_type.stderr)
+    );
+    assert!(project.join("src/constructs/foobar.rs").is_file());
+    let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
+        .expect("registry should contain both module-qualified handlers");
+    assert!(registry.contains("handlers.register(foobar::FooBarHandler)?;"));
 
     let second_colliding_name = Command::new(env!("CARGO_BIN_EXE_langmeld"))
         .args([

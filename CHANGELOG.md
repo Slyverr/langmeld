@@ -36,6 +36,8 @@ API migration notes are in the
 
 - Explain when distinct construct names collide on a generated Rust handler
   module instead of reporting only that the handler path already exists.
+- Compare complete module-qualified handler registrations so distinct modules
+  can reuse the same Rust handler type name.
 - Keep the empty consumed span on a UTF-8 boundary when an expression range is
   invalid.
 - Diagnose invalid host workspace-analysis result batches before falling back
