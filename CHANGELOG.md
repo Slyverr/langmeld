@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Fixed
+
+- Include `rustfmt` in the Nix package check environment so CLI integration
+  tests that format generated projects can pass during `nix build`.
+
 ## [0.14.0] - 2026-11-13
 
 ### Changed

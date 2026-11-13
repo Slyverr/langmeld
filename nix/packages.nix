@@ -9,6 +9,7 @@ let
     cargoLock.lockFile = "${source}/Cargo.lock";
     cargoBuildFlags = [ "--package" "langmeld-cli" ];
     cargoTestFlags = [ "--package" "langmeld-cli" ];
+    nativeCheckInputs = [ pkgs.rustfmt ];
 
     meta = {
       description = "Command-line tools for bootstrapping Langmeld language projects.";
