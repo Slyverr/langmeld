@@ -16,7 +16,6 @@ impl TypedConstructHandler<RuntimeState> for UpperHandler {
     ) -> Result<HandlerControl, langmeld_core::Diagnostic>
     where
         RuntimeState: 'source,
-        (): 'source,
     {
         let name = syntax.name()?;
         let value = context

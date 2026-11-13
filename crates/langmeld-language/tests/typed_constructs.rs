@@ -60,8 +60,7 @@ impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandl
     type View<'source>
         = NameView<'source>
     where
-        BorrowedState<'state>: 'source,
-        (): 'source;
+        BorrowedState<'state>: 'source;
 
     fn handle<'source>(
         &self,
@@ -70,7 +69,6 @@ impl<'state> TypedConstructHandler<BorrowedState<'state>> for BorrowedGreetHandl
     ) -> Result<HandlerControl, Diagnostic>
     where
         BorrowedState<'state>: 'source,
-        (): 'source,
     {
         let greeting = format!("{} {}", context.state().prefix, greet.name);
         context.state_mut().output.push(greeting);
@@ -89,7 +87,6 @@ impl TypedConstructHandler<Vec<String>> for GreetHandler {
     ) -> Result<HandlerControl, Diagnostic>
     where
         Vec<String>: 'source,
-        (): 'source,
     {
         context.state_mut().push(greet.name.to_owned());
 

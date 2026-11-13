@@ -85,7 +85,6 @@ impl TypedConstructHandler<RuntimeState> for PrintHandler {
     ) -> Result<HandlerControl, langmeld_core::Diagnostic>
     where
         RuntimeState: 'source,
-        (): 'source,
     {
         let name = print.name()?;
 

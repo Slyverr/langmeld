@@ -235,7 +235,7 @@ pub(crate) fn handler_signature(
 ) -> String {
     if typed_name.is_some() {
         format!(
-            "fn handle<'source>(\n        &self,\n        context: &mut ConstructContext<'source, {state_type}>,\n        {view_parameter}: Self::View<'source>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>\n    where\n        {state_type}: 'source,\n        (): 'source,\n    {{"
+            "fn handle<'source>(\n        &self,\n        context: &mut ConstructContext<'source, {state_type}>,\n        {view_parameter}: Self::View<'source>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>\n    where\n        {state_type}: 'source,\n    {{"
         )
     } else {
         format!(
