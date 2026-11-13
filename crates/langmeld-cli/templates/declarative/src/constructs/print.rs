@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, {{HANDLER_TRAIT}}, HandlerControl};
+use langmeld_language::{{HANDLER_IMPORTS}};
 
 use crate::runtime::RuntimeState;
 
@@ -7,7 +7,7 @@ pub(super) struct PrintHandler;
 impl {{HANDLER_TRAIT}}<RuntimeState> for PrintHandler {
     {{CONSTRUCT_DECLARATION}}
 
-    {{HANDLE_SIGNATURE}} {
+    {{HANDLE_SIGNATURE}}
         {{CAPTURE_ACCESS}}
         let value = context
             .state()

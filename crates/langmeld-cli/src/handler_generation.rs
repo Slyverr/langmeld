@@ -170,10 +170,11 @@ pub(crate) fn handler_template(
 ) -> String {
     let construct_declaration = construct_declaration(construct, typed_name);
     let handler_trait = handler_trait_name(typed_name);
+    let handler_imports = handler_imports(typed_name);
     let handle_signature = handler_signature(typed_name, "RuntimeState", "_syntax");
 
     format!(
-        r#"use langmeld_language::{{ConstructContext, {handler_trait}, HandlerControl}};
+        r#"use langmeld_language::{handler_imports};
 
 use crate::runtime::RuntimeState;
 
@@ -182,7 +183,7 @@ pub(super) struct {handler_name};
 impl {handler_trait}<RuntimeState> for {handler_name} {{
     {construct_declaration}
 
-    {handle_signature} {{
+    {handle_signature}
         Err(context.error_at(
             "LM-HANDLER-005",
             "implement this construct's language behavior",
@@ -219,6 +220,14 @@ pub(crate) fn handler_trait_name(typed_name: Option<&str>) -> &'static str {
     }
 }
 
+pub(crate) fn handler_imports(typed_name: Option<&str>) -> &'static str {
+    if typed_name.is_some() {
+        "{ConstructContext, HandlerControl, TypedConstructHandler}"
+    } else {
+        "{ConstructContext, ConstructHandler, HandlerControl}"
+    }
+}
+
 pub(crate) fn handler_signature(
     typed_name: Option<&str>,
     state_type: &str,
@@ -226,11 +235,11 @@ pub(crate) fn handler_signature(
 ) -> String {
     if typed_name.is_some() {
         format!(
-            "fn handle<'source>(\n        &self,\n        context: &mut ConstructContext<'source, {state_type}>,\n        {view_parameter}: Self::View<'source>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>\n    where\n        {state_type}: 'source,\n        (): 'source"
+            "fn handle<'source>(\n        &self,\n        context: &mut ConstructContext<'source, {state_type}>,\n        {view_parameter}: Self::View<'source>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>\n    where\n        {state_type}: 'source,\n        (): 'source,\n    {{"
         )
     } else {
         format!(
-            "fn handle(\n        &self,\n        context: &mut ConstructContext<'_, {state_type}>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic>"
+            "fn handle(\n        &self,\n        context: &mut ConstructContext<'_, {state_type}>,\n    ) -> Result<HandlerControl, langmeld_core::Diagnostic> {{"
         )
     }
 }

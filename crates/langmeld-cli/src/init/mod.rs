@@ -143,7 +143,9 @@ pub(crate) fn run(args: InitArgs) -> Result<(), Box<dyn Error>> {
         println!("Editor: run `langmeld lsp` from the project directory for syntax support.");
     }
     if typed_bindings {
-        println!("Typed captures: access declared fields through `context.typed::<...>()`.");
+        println!(
+            "Typed handlers receive generated construct views with compile-time checked captures."
+        );
     }
     if agent_guidance.agents_md {
         println!("Agent instructions: created `AGENTS.md`.");

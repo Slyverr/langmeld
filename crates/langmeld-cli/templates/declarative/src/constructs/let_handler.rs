@@ -1,4 +1,4 @@
-use langmeld_language::{ConstructContext, {{HANDLER_TRAIT}}, HandlerControl};
+use langmeld_language::{{HANDLER_IMPORTS}};
 
 use crate::runtime::RuntimeState;
 
@@ -9,7 +9,7 @@ pub(super) struct LetHandler;
 impl {{HANDLER_TRAIT}}<RuntimeState> for LetHandler {
     {{CONSTRUCT_DECLARATION}}
 
-    {{HANDLE_SIGNATURE}} {
+    {{HANDLE_SIGNATURE}}
         {{CAPTURE_ACCESS}}
         let value = decode_string(value.text)
             .map_err(|message| context.error_at(STRING_CODE, message, value.span))?;

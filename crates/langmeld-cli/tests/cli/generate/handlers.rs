@@ -423,4 +423,16 @@ fn generate_typed_handler_uses_the_generated_construct_identity() {
     let registry = fs::read_to_string(project.join("src/constructs/mod.rs"))
         .expect("typed registry should be updated");
     assert!(registry.contains("handlers.register_typed(trace::TraceHandler)?;"));
+
+    let cargo_fmt = Command::new("cargo")
+        .current_dir(&project)
+        .args(["fmt", "--", "--check"])
+        .output()
+        .expect("rustfmt should check the generated handler");
+    assert!(
+        cargo_fmt.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_fmt.stdout),
+        String::from_utf8_lossy(&cargo_fmt.stderr)
+    );
 }

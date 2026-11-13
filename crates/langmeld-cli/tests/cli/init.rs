@@ -145,6 +145,10 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(
+        String::from_utf8_lossy(&output.stdout)
+            .contains("Typed handlers receive generated construct views")
+    );
     let manifest = fs::read_to_string(project.join("langmeld.toml"))
         .expect("Langmeld manifest should be generated");
     assert_eq!(manifest, "format = 1\nrust_bindings = \"typed\"\n");
@@ -270,6 +274,18 @@ fn init_can_generate_typed_capture_bindings_for_declarative_projects() {
         check.status.success(),
         "{}",
         String::from_utf8_lossy(&check.stderr)
+    );
+
+    let cargo_fmt = Command::new("cargo")
+        .current_dir(&project)
+        .args(["fmt", "--", "--check"])
+        .output()
+        .expect("rustfmt should check generated handler sources");
+    assert!(
+        cargo_fmt.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&cargo_fmt.stdout),
+        String::from_utf8_lossy(&cargo_fmt.stderr)
     );
 
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");

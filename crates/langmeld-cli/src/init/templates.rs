@@ -3,7 +3,8 @@ use std::{io, path::Path};
 use langmeld_language::quote_definition_string;
 
 use crate::handler_generation::{
-    construct_declaration, handler_signature, handler_trait_name, registration_method,
+    construct_declaration, handler_imports, handler_signature, handler_trait_name,
+    registration_method,
 };
 
 use super::{AgentGuidance, Template, local_crates};
@@ -122,6 +123,10 @@ pub(super) fn project_files(
                     "src/constructs/let_handler.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/let_handler.rs")
                         .replace(
+                            "{{HANDLER_IMPORTS}}",
+                            handler_imports(typed_bindings.then_some("typed")),
+                        )
+                        .replace(
                             "{{HANDLER_TRAIT}}",
                             handler_trait_name(typed_bindings.then_some("typed")),
                         )
@@ -150,6 +155,10 @@ pub(super) fn project_files(
                 (
                     "src/constructs/print.rs".to_owned(),
                     include_str!("../../templates/declarative/src/constructs/print.rs")
+                        .replace(
+                            "{{HANDLER_IMPORTS}}",
+                            handler_imports(typed_bindings.then_some("typed")),
+                        )
                         .replace(
                             "{{HANDLER_TRAIT}}",
                             handler_trait_name(typed_bindings.then_some("typed")),
