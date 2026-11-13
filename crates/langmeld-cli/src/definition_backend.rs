@@ -79,11 +79,18 @@ impl LanguageBackend for ProjectDefinitionBackend {
             .iter()
             .map(|source| self.source_key(source))
             .collect::<Vec<_>>();
-        let open_sources = sources
-            .iter()
-            .zip(&keys)
-            .filter_map(|(source, key)| key.as_ref().map(|key| (key.clone(), source.clone())))
-            .collect::<BTreeMap<_, _>>();
+        let mut open_sources = BTreeMap::new();
+        for (source, key) in sources.iter().zip(&keys) {
+            let Some(key) = key else {
+                continue;
+            };
+
+            if open_sources.insert(key.clone(), source.clone()).is_some() {
+                // Canonical aliases cannot share one project-overlay snapshot safely.
+                self.clear_definition_index();
+                return None;
+            }
+        }
 
         let mut overlay = InMemoryDefinitionResolver::new();
         for (key, source) in &open_sources {
@@ -314,5 +321,42 @@ impl DefinitionResolver for OpenFileOverlayResolver<'_> {
             *loaded_source = source.clone();
         }
         Ok(DefinitionSource::new(resolved_key, source))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn duplicate_open_snapshots_for_one_project_key_return_none() {
+        let directory = tempfile::tempdir().expect("temporary project should be created");
+        let definition_path = directory.path().join("language/language.langmeld");
+        fs::create_dir_all(
+            definition_path
+                .parent()
+                .expect("definition should have a parent directory"),
+        )
+        .expect("definition directory should be created");
+        fs::write(
+            directory.path().join("langmeld.toml"),
+            "format = 1\ndefinition = \"language/language.langmeld\"\n",
+        )
+        .expect("manifest should be written");
+        fs::write(&definition_path, "language \"Widget\" {}")
+            .expect("root definition should be written");
+
+        let backend = ProjectDefinitionBackend::new(directory.path().join("langmeld.toml"))
+            .expect("project backend should load");
+        let uri = Url::from_file_path(definition_path)
+            .expect("definition path should convert to a file URI")
+            .to_string();
+        let sources = [
+            SourceFile::new(uri.clone(), "language \"Widget\" {}"),
+            SourceFile::new(uri, "language \"Other\" {}"),
+        ];
+
+        assert!(backend.analyze_workspace(&sources).is_none());
     }
 }

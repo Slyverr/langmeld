@@ -41,6 +41,8 @@ API migration notes are in the
 
 ### Fixed
 
+- Fall back to per-document analysis when multiple open source URIs resolve to
+  the same project definition key.
 - Route project-definition LSP diagnostics to the matching source snapshot
   instead of matching buffers by display name alone.
 - Suppress custom lexer diagnostics with missing, foreign, or invalid source
