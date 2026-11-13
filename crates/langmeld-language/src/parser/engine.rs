@@ -408,7 +408,7 @@ impl Parser<'_> {
 
 fn source_limit_span(source: &SourceFile, limit: usize) -> Span {
     let mut offset = limit.min(source.text().len());
-    while !source.text().is_char_boundary(offset) {
+    while !source.is_valid_offset(offset) {
         offset -= 1;
     }
     Span::new(offset, offset)

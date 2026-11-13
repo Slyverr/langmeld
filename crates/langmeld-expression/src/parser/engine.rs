@@ -401,7 +401,7 @@ fn source_limit_offset(source: &SourceFile, start: usize, limit: usize, end: usi
 
 fn source_boundary_at_or_before(source: &SourceFile, offset: usize) -> usize {
     let mut offset = offset.min(source.text().len());
-    while !source.text().is_char_boundary(offset) {
+    while !source.is_valid_offset(offset) {
         offset -= 1;
     }
     offset

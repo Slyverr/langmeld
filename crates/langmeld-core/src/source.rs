@@ -157,7 +157,7 @@ impl SourceFile {
     #[must_use]
     pub fn line_column(&self, offset: usize) -> (usize, usize) {
         let mut offset = offset.min(self.text.len());
-        while !self.text.is_char_boundary(offset) {
+        while !self.is_valid_offset(offset) {
             offset -= 1;
         }
         let mut line = 1;

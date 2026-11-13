@@ -373,19 +373,18 @@ pub(crate) fn validate_tokens(
 }
 
 fn nearest_source_boundary(source: &SourceFile, offset: usize) -> usize {
-    let text = source.text();
-    let offset = offset.min(text.len());
-    if text.is_char_boundary(offset) {
+    let offset = offset.min(source.text().len());
+    if source.is_valid_offset(offset) {
         return offset;
     }
 
     let mut previous = offset;
-    while !text.is_char_boundary(previous) {
+    while !source.is_valid_offset(previous) {
         previous -= 1;
     }
 
     let mut next = offset;
-    while !text.is_char_boundary(next) {
+    while !source.is_valid_offset(next) {
         next += 1;
     }
 
