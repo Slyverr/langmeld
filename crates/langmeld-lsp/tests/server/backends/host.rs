@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::json;
+use std::cell::Cell;
 
 struct DiagnosticAnalyzer;
 
@@ -46,6 +47,24 @@ impl LanguageCompleter<DiagnosticParser> for DiagnosticCompleter {
             "suggestion",
             Span::new(7, source.text().len()),
         )]
+    }
+}
+
+struct BorrowedDiagnosticCompleter<'calls>(&'calls Cell<usize>);
+
+impl LanguageCompleter<DiagnosticParser> for BorrowedDiagnosticCompleter<'_> {
+    type Analysis = usize;
+
+    fn complete(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<bool>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        self.0.set(self.0.get() + 1);
+
+        DiagnosticCompleter.complete(source, parsed, analysis, offset)
     }
 }
 
@@ -123,12 +142,16 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
+        let completion_calls = Cell::new(0);
         let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
-            .with_completer(DiagnosticCompleter)
+            .with_completer(BorrowedDiagnosticCompleter(&completion_calls))
             .with_navigator(DiagnosticNavigator);
         let result = run_connection(server_connection, backend);
         server_sender
-            .send(result.map_err(|error| error.to_string()))
+            .send((
+                result.map_err(|error| error.to_string()),
+                completion_calls.get(),
+            ))
             .unwrap();
     });
 
@@ -180,10 +203,11 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
-    server_receiver
+    let (server_result, completion_calls) = server_receiver
         .recv_timeout(Duration::from_secs(2))
-        .expect("server thread should finish")
-        .expect("server should shut down cleanly");
+        .expect("server thread should finish");
+    server_result.expect("server should shut down cleanly");
+    assert_eq!(completion_calls, 1);
 }
 
 #[test]
