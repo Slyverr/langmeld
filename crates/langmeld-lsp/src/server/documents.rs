@@ -117,7 +117,7 @@ impl<B: LanguageBackend> ServerState<B> {
             }
         }
 
-        if analysis.source_identity() != source.identity() {
+        if !analysis.matches_source(source) {
             let mismatch = Diagnostic::error(
                 DOCUMENT_SOURCE_MISMATCH_CODE,
                 "host language backend returned a document for a different source snapshot; its diagnostics and editor queries were suppressed",
@@ -188,7 +188,7 @@ impl<B: LanguageBackend> ServerState<B> {
                     .iter()
                     .zip(&entries)
                     .position(|(analysis, (_, _, _, source))| {
-                        analysis.source_identity() != source.identity()
+                        !analysis.matches_source(source)
                     })
                     .map(|index| {
                         format!(

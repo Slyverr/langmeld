@@ -53,7 +53,7 @@ pub(crate) fn diagnostics_for<D>(
     document: &BackendDocument<D>,
     encoding: PositionEncoding,
 ) -> ConvertedDiagnostics {
-    if document.source_identity() != source.identity() {
+    if !document.matches_source(source) {
         return ConvertedDiagnostics {
             diagnostics: Vec::new(),
             invalid_locations: false,

@@ -87,6 +87,12 @@ impl<T> BackendDocument<T> {
         self.source
     }
 
+    /// Returns whether this document belongs to the supplied source snapshot.
+    #[must_use]
+    pub(crate) fn matches_source(&self, source: &SourceFile) -> bool {
+        self.source == source.identity()
+    }
+
     /// Returns the host-owned document state associated with this source.
     #[must_use]
     pub const fn state(&self) -> &T {

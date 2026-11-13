@@ -13,7 +13,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let uri = params.text_document_position_params.text_document.uri;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return Some(Vec::new());
         }
         let offset = byte_offset(source, position, self.encoding)?;
@@ -31,7 +31,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let uri = params.text_document_position.text_document.uri;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return Some(Vec::new());
         }
         let offset = byte_offset(source, position, self.encoding)?;
@@ -54,7 +54,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let uri = params.text_document_position.text_document.uri;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return None;
         }
         let offset = byte_offset(source, position, self.encoding)?;

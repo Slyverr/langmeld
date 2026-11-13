@@ -18,7 +18,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let position = params.text_document_position.position;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return Some(Vec::new());
         }
         let offset = byte_offset(source, position, self.encoding)?;
@@ -37,7 +37,7 @@ impl<B: LanguageBackend> ServerState<B> {
     ) -> Option<lsp_types::SemanticTokens> {
         let document = self.documents.get(&params.text_document.uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return Some(lsp_types::SemanticTokens {
                 result_id: None,
                 data: Vec::new(),
@@ -57,7 +57,7 @@ impl<B: LanguageBackend> ServerState<B> {
     ) -> Option<Vec<TextEdit>> {
         let document = self.documents.get(&params.text_document.uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return Some(Vec::new());
         }
         let Some(text) = self
@@ -85,7 +85,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let uri = params.text_document_position_params.text_document.uri;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return None;
         }
         let offset = byte_offset(source, position, self.encoding)?;
@@ -100,7 +100,7 @@ impl<B: LanguageBackend> ServerState<B> {
         let uri = params.text_document.uri;
         let document = self.documents.get(&uri)?;
         let source = self.sources.get(document.source_id)?;
-        if document.analysis.source_identity() != source.identity() {
+        if !document.analysis.matches_source(source) {
             return None;
         }
         crate::document_symbol::convert(
