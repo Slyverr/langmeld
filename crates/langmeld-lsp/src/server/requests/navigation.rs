@@ -71,11 +71,7 @@ impl<B: LanguageBackend> ServerState<B> {
             let target_uri = target.uri();
             let target_source = target.source();
             let span = location.span();
-            if span.is_empty()
-                || span.end > target_source.text().len()
-                || !target_source.text().is_char_boundary(span.start)
-                || !target_source.text().is_char_boundary(span.end)
-            {
+            if span.is_empty() {
                 return None;
             }
             let range = to_lsp_range(target_source, span, self.encoding)?;

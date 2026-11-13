@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use langmeld_core::{PositionEncoding, SourceFile, Span};
 use lsp_types::{SemanticToken as LspSemanticToken, SemanticTokens};
 
+use crate::conversion::has_valid_source_span;
+
 /// Names advertised to an editor for host-provided semantic tokens.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SemanticTokenLegend {
@@ -107,11 +109,7 @@ pub(crate) fn encode(
         let Some(&token_type) = token_types.get(token.token_type.as_str()) else {
             continue;
         };
-        if token.span.is_empty()
-            || token.span.end > source.text().len()
-            || !source.text().is_char_boundary(token.span.start)
-            || !source.text().is_char_boundary(token.span.end)
-        {
+        if token.span.is_empty() || !has_valid_source_span(source, token.span) {
             continue;
         }
         let mut modifier_bits = 0_u32;

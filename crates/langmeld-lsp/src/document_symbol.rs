@@ -138,8 +138,8 @@ fn convert_symbol(
     parent: Option<Span>,
 ) -> Option<DocumentSymbol> {
     if symbol.name.is_empty()
-        || !valid_span(source, symbol.range)
-        || !valid_span(source, symbol.selection_range)
+        || symbol.range.is_empty()
+        || symbol.selection_range.is_empty()
         || !contains(symbol.range, symbol.selection_range)
         || parent.is_some_and(|parent| !contains(parent, symbol.range))
     {
@@ -227,13 +227,6 @@ fn flatten(
             flatten(children, uri, Some(&symbol.name), output);
         }
     }
-}
-
-fn valid_span(source: &SourceFile, span: Span) -> bool {
-    !span.is_empty()
-        && span.end <= source.text().len()
-        && source.text().is_char_boundary(span.start)
-        && source.text().is_char_boundary(span.end)
 }
 
 fn contains(parent: Span, child: Span) -> bool {
