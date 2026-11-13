@@ -27,8 +27,16 @@ cargo run \
   --config 'patch.crates-io.langmeld-tree-sitter.path="crates/langmeld-tree-sitter"'
 ```
 
-Nix users can use `nix develop` for the Rust linker and Node.js development
-tools, and `nix build` to build the `langmeld` CLI package.
+Nix users can build and run the packaged CLI, or enter the development shell:
+
+```sh
+nix build --no-link .#langmeld
+nix run .#langmeld -- --help
+nix develop
+```
+
+The development shell provides the Rust linker and Node.js tools used by the
+grammar-export checks.
 
 The generated TextMate grammar is also tokenized with VS Code's TextMate
 engine. This check requires Node.js 22:
