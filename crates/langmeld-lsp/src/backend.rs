@@ -21,7 +21,9 @@ pub struct BackendDocument<T> {
     source: SourceIdentity,
     /// Host-owned parse tree, analysis state, or combined document data.
     state: T,
-    /// Findings to publish for this document.
+    /// Findings to publish for this document. Source-located findings must
+    /// refer to this source snapshot; unlocated findings cannot be published
+    /// as text-document diagnostics.
     diagnostics: Vec<Diagnostic>,
 }
 

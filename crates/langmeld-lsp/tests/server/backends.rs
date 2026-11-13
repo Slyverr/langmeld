@@ -18,6 +18,8 @@ impl LanguageParser for DiagnosticParser {
 
 #[path = "backends/declarative.rs"]
 mod declarative;
+#[path = "backends/diagnostics.rs"]
+mod diagnostics;
 #[path = "backends/host.rs"]
 mod host;
 #[path = "backends/source_identity.rs"]

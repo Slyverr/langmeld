@@ -9,6 +9,11 @@ use lsp_types::{
 
 use crate::backend::BackendDocument;
 
+pub(crate) struct ConvertedDiagnostics {
+    pub diagnostics: Vec<Diagnostic>,
+    pub invalid_locations: bool,
+}
+
 pub(crate) fn byte_offset(
     source: &SourceFile,
     position: Position,
@@ -47,15 +52,31 @@ pub(crate) fn diagnostics_for<D>(
     source: &SourceFile,
     document: &BackendDocument<D>,
     encoding: PositionEncoding,
-) -> Vec<Diagnostic> {
+) -> ConvertedDiagnostics {
     if document.source_identity() != source.identity() {
-        return Vec::new();
+        return ConvertedDiagnostics {
+            diagnostics: Vec::new(),
+            invalid_locations: false,
+        };
     }
-    document
-        .diagnostics()
-        .iter()
-        .filter_map(|diagnostic| diagnostic_for(source, diagnostic, encoding))
-        .collect()
+
+    let mut converted = ConvertedDiagnostics {
+        diagnostics: Vec::new(),
+        invalid_locations: false,
+    };
+    for finding in document.diagnostics() {
+        if finding.location.is_none() {
+            continue;
+        }
+
+        if let Some(diagnostic) = diagnostic_for(source, finding, encoding) {
+            converted.diagnostics.push(diagnostic);
+        } else {
+            converted.invalid_locations = true;
+        }
+    }
+
+    converted
 }
 
 pub(crate) fn diagnostic_for(

@@ -13,6 +13,7 @@ use crate::conversion::{byte_offset, diagnostic_for, diagnostics_for};
 
 const WORKSPACE_RESULT_CODE: &str = "LM-LSP-001";
 const DOCUMENT_SOURCE_MISMATCH_CODE: &str = "LM-LSP-002";
+const DIAGNOSTIC_LOCATION_CODE: &str = "LM-LSP-003";
 
 use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
 
@@ -101,7 +102,21 @@ impl<B: LanguageBackend> ServerState<B> {
         analysis: BackendDocument<B::Document>,
         connection: &Connection,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let mut diagnostics = diagnostics_for(source, &analysis, self.encoding);
+        let converted = diagnostics_for(source, &analysis, self.encoding);
+        let mut diagnostics = converted.diagnostics;
+
+        if converted.invalid_locations {
+            let invalid_locations = Diagnostic::error(
+                DIAGNOSTIC_LOCATION_CODE,
+                "host language backend returned diagnostics with foreign or invalid source locations; those diagnostics were suppressed",
+                source,
+                Span::new(0, source.text().len()),
+            );
+            if let Some(diagnostic) = diagnostic_for(source, &invalid_locations, self.encoding) {
+                diagnostics.push(diagnostic);
+            }
+        }
+
         if analysis.source_identity() != source.identity() {
             let mismatch = Diagnostic::error(
                 DOCUMENT_SOURCE_MISMATCH_CODE,
