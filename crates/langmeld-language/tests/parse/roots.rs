@@ -197,6 +197,41 @@ fn root_recovery_keeps_a_root_construct_allowed_as_a_block_child() {
 }
 
 #[test]
+fn fallback_child_does_not_hide_a_later_root_during_recovery() {
+    let grammar = LanguageSpec::new(
+        "RootRecoveryWithFallback",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["unknown"],
+            ),
+            ConstructSpec::new("config", [PatternPart::literal("config")]),
+            ConstructSpec::new("unknown", [PatternPart::token("text")])
+                .implements(&["unknown_child"])
+                .fallback(),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["program", "config"])
+    .unwrap();
+    let source = SourceFile::new("main", "program { config");
+
+    let result = parse(&source, &grammar);
+
+    assert_eq!(
+        result
+            .constructs()
+            .iter()
+            .map(|construct| construct.name.as_str())
+            .collect::<Vec<_>>(),
+        ["program", "config"]
+    );
+    assert_eq!(result.diagnostics().len(), 1, "{:?}", result.diagnostics());
+    assert_eq!(result.diagnostics()[0].code, "LM-PARSE-004");
+}
+
+#[test]
 fn resumes_at_a_root_after_a_malformed_block_child() {
     let grammar = LanguageSpec::new(
         "RootRecovery",

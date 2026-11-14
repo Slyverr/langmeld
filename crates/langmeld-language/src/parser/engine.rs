@@ -8,7 +8,7 @@ mod recovery;
 
 use super::model::{ParseContext, ParsedConstruct};
 use super::pattern::{
-    MatchAttempt, any_construct_matches, describe_pattern, match_sequence_with_closer,
+    MatchAttempt, any_regular_construct_matches, describe_pattern, match_sequence_with_closer,
 };
 use super::{MAX_NESTING_DEPTH, ParseLimits, ParseResult};
 
@@ -242,7 +242,7 @@ impl Parser<'_> {
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
                 let resume_at_construct = if attempt.end < self.tokens.len() {
-                    let child_matches = match any_construct_matches(
+                    let child_matches = match any_regular_construct_matches(
                         allowed,
                         &self.tokens,
                         attempt.end,

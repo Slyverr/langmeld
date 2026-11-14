@@ -15,7 +15,7 @@ pub(super) struct MatchAttempt<'a> {
     pub(super) expected: Option<&'a PatternPart>,
 }
 
-pub(super) fn any_construct_matches(
+pub(super) fn any_regular_construct_matches(
     constructs: &[&crate::ConstructSpec],
     tokens: &[LexedToken],
     start: usize,
@@ -25,6 +25,10 @@ pub(super) fn any_construct_matches(
         return Ok(false);
     };
     for construct in constructs {
+        if construct.is_fallback() {
+            continue;
+        }
+
         for pattern in construct.variants() {
             if !pattern_may_start_with(pattern, token) {
                 continue;

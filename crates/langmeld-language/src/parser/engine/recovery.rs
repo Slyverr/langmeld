@@ -1,6 +1,6 @@
 use langmeld_core::{Diagnostic, Span};
 
-use super::super::pattern::any_construct_matches;
+use super::super::pattern::any_regular_construct_matches;
 use super::Parser;
 use crate::ConstructSpec;
 
@@ -18,7 +18,7 @@ impl Parser<'_> {
             return false;
         }
 
-        let root_matches = match any_construct_matches(
+        let root_matches = match any_regular_construct_matches(
             &self.root_constructs,
             &self.tokens,
             position,
@@ -34,7 +34,7 @@ impl Parser<'_> {
             return false;
         }
 
-        let child_matches = match any_construct_matches(
+        let child_matches = match any_regular_construct_matches(
             allowed,
             &self.tokens,
             position,
