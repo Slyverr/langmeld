@@ -69,7 +69,15 @@ For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new_with_analyzer(parser, analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and
 `with_navigator` to expose host completion, definition, and reference
-callbacks. Add `with_workspace_analyzer` when semantics depend on more than one
+callbacks. Add `with_formatter`, `with_hover_provider`,
+`with_semantic_tokens_provider`, `with_document_symbol_provider`,
+`with_code_action_provider`, and `with_rename_provider` to attach the other
+common editor features without implementing `LanguageBackend` directly.
+Attach `with_prepare_rename_provider` alongside `with_rename_provider` when
+the language can validate a rename target and provide its current name. The
+server advertises only attached features. These callbacks receive the
+source-matched `HostDocument`, which exposes the validated parse and analysis
+results when available. Add `with_workspace_analyzer` when semantics depend on more than one
 open document; the provider receives the per-source analyzer and each source
 with its parsed tree, and must return one source-bound analysis result for each
 input. For a valid batch, its results replace the per-source analyzer's
@@ -83,9 +91,9 @@ for a workspace pass;
 implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
 parser diagnostics. Select the analyzer at construction, then attach its
-workspace analyzer, completer, and navigator. `HostLanguageBackend` does not
-expose semantic tokens, document symbols, rename, formatting, or hover;
-implement those features with a custom `LanguageBackend`.
+workspace analyzer, completer, navigator, and editor-feature providers.
+Implement `LanguageBackend` directly when the host needs additional protocol
+or workspace behavior beyond these providers.
 
 Backend callbacks run synchronously on the thread calling `run_connection` or
 `run_stdio`. A `HostLanguageBackend`, its parser and analyzer, and its providers

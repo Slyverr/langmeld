@@ -26,8 +26,12 @@ Hosts return document outline entries with UTF-8 byte ranges; the adapter
 validates and converts them, and selects nested or flat output to match the
 client. `HostLanguageBackend` connects the existing
 `LanguageParser` and optional `LanguageAnalyzer` contracts to parser and
-semantic diagnostics, and can attach host completion and navigation
-providers. Other editor queries remain host-owned.
+semantic diagnostics. Its builder can attach host callbacks for completion,
+navigation, formatting, hover, semantic tokens, document symbols, code actions,
+and rename. The server advertises only the callbacks that are attached, and
+each callback receives the source-matched `HostDocument`. Hosts that need
+additional protocol or workspace behavior can still implement
+`LanguageBackend` directly.
 
 For semantics that span several open documents, attach a
 `LanguageWorkspaceAnalyzer` with `HostLanguageBackend::with_workspace_analyzer`.

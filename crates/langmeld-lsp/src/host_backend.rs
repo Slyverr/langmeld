@@ -3,9 +3,12 @@ use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument, complete_with, definition_at, references_at,
 };
+use lsp_types::{CodeActionParams, FormattingOptions};
 
 use crate::{
-    BackendCapabilities, BackendDocument, BackendSource, LanguageBackend, WorkspaceSymbolInfo,
+    BackendCapabilities, BackendDocument, BackendSource, CodeActionInfo, DocumentSymbolInfo,
+    HoverInfo, LanguageBackend, RenamePreparation, SemanticToken, SemanticTokenLegend,
+    WorkspaceSymbolInfo,
 };
 
 const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
@@ -15,6 +18,20 @@ const WORKSPACE_ANALYZER_RESULT_CODE: &str = "LM-HOST-003";
 type SourceResolver<'backend> = dyn Fn(&SourceLocation) -> Option<BackendSource> + 'backend;
 type WorkspaceSymbolProvider<'backend> = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + 'backend;
 type DocumentCloseHandler<'backend> = dyn Fn(&SourceFile) + 'backend;
+type Formatter<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, &FormattingOptions) -> Option<String>
+    + 'backend;
+type HoverProvider<'backend, Tree, Analysis> =
+    dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, usize) -> Option<HoverInfo> + 'backend;
+type SemanticTokenProvider<'backend, Tree, Analysis> =
+    dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>) -> Vec<SemanticToken> + 'backend;
+type DocumentSymbolProvider<'backend, Tree, Analysis> =
+    dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>) -> Vec<DocumentSymbolInfo> + 'backend;
+type CodeActionProvider<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, &CodeActionParams, Span) -> Vec<CodeActionInfo>
+    + 'backend;
+type RenameProvider<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, usize, &str) -> Option<Vec<SourceLocation>>
+    + 'backend;
+type PrepareRenameProvider<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, usize) -> Option<RenamePreparation>
+    + 'backend;
 
 /// Validated parse and analysis results produced by a [`HostLanguageBackend`].
 /// Results tied to another source snapshot are discarded and exposed as `None`.
@@ -90,8 +107,10 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 /// are diagnosed and fall back to per-source analysis.
 /// The backend and its providers may borrow single-threaded host state; this
 /// adapter invokes them synchronously on the LSP connection thread.
-/// Semantic tokens, document symbols, rename, formatting, and hover require a
-/// custom [`LanguageBackend`] implementation.
+/// Optional providers attach formatting, hover, semantic tokens, document
+/// symbols, code actions, and rename without implementing [`LanguageBackend`]
+/// directly. Hosts that need additional protocol or workspace behavior can
+/// still implement [`LanguageBackend`] themselves.
 pub struct HostLanguageBackend<'backend, P, A = NoAnalyzer>
 where
     P: LanguageParser + 'backend,
@@ -105,6 +124,14 @@ where
     source_resolver: Option<Box<SourceResolver<'backend>>>,
     workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider<'backend>>>,
     document_close_handler: Option<Box<DocumentCloseHandler<'backend>>>,
+    formatter: Option<Box<Formatter<'backend, P::Tree, A::Analysis>>>,
+    hover_provider: Option<Box<HoverProvider<'backend, P::Tree, A::Analysis>>>,
+    semantic_token_legend: Option<SemanticTokenLegend>,
+    semantic_token_provider: Option<Box<SemanticTokenProvider<'backend, P::Tree, A::Analysis>>>,
+    document_symbol_provider: Option<Box<DocumentSymbolProvider<'backend, P::Tree, A::Analysis>>>,
+    code_action_provider: Option<Box<CodeActionProvider<'backend, P::Tree, A::Analysis>>>,
+    rename_provider: Option<Box<RenameProvider<'backend, P::Tree, A::Analysis>>>,
+    prepare_rename_provider: Option<Box<PrepareRenameProvider<'backend, P::Tree, A::Analysis>>>,
 }
 
 impl<'backend, P> HostLanguageBackend<'backend, P, NoAnalyzer>
@@ -123,6 +150,14 @@ where
             source_resolver: None,
             workspace_symbol_provider: None,
             document_close_handler: None,
+            formatter: None,
+            hover_provider: None,
+            semantic_token_legend: None,
+            semantic_token_provider: None,
+            document_symbol_provider: None,
+            code_action_provider: None,
+            rename_provider: None,
+            prepare_rename_provider: None,
         }
     }
 }
@@ -148,6 +183,14 @@ where
             source_resolver: None,
             workspace_symbol_provider: None,
             document_close_handler: None,
+            formatter: None,
+            hover_provider: None,
+            semantic_token_legend: None,
+            semantic_token_provider: None,
+            document_symbol_provider: None,
+            code_action_provider: None,
+            rename_provider: None,
+            prepare_rename_provider: None,
         }
     }
 
@@ -284,6 +327,110 @@ where
         self.document_close_handler = Some(Box::new(handler));
         self
     }
+
+    /// Adds host-defined formatting using the retained parse and analysis results.
+    #[must_use]
+    pub fn with_formatter(
+        mut self,
+        formatter: impl Fn(
+            &SourceFile,
+            &HostDocument<P::Tree, A::Analysis>,
+            &FormattingOptions,
+        ) -> Option<String>
+        + 'backend,
+    ) -> Self {
+        self.formatter = Some(Box::new(formatter));
+        self
+    }
+
+    /// Adds host-defined hover information using the retained parse and analysis results.
+    #[must_use]
+    pub fn with_hover_provider(
+        mut self,
+        provider: impl Fn(&SourceFile, &HostDocument<P::Tree, A::Analysis>, usize) -> Option<HoverInfo>
+        + 'backend,
+    ) -> Self {
+        self.hover_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Adds host-classified semantic tokens and the legend advertised to editors.
+    #[must_use]
+    pub fn with_semantic_tokens_provider(
+        mut self,
+        legend: SemanticTokenLegend,
+        provider: impl Fn(&SourceFile, &HostDocument<P::Tree, A::Analysis>) -> Vec<SemanticToken>
+        + 'backend,
+    ) -> Self {
+        self.semantic_token_legend = Some(legend);
+        self.semantic_token_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Adds document outline symbols using the retained parse and analysis results.
+    #[must_use]
+    pub fn with_document_symbol_provider(
+        mut self,
+        provider: impl Fn(&SourceFile, &HostDocument<P::Tree, A::Analysis>) -> Vec<DocumentSymbolInfo>
+        + 'backend,
+    ) -> Self {
+        self.document_symbol_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Adds code actions using the retained parse and analysis results.
+    #[must_use]
+    pub fn with_code_action_provider(
+        mut self,
+        provider: impl Fn(
+            &SourceFile,
+            &HostDocument<P::Tree, A::Analysis>,
+            &CodeActionParams,
+            Span,
+        ) -> Vec<CodeActionInfo>
+        + 'backend,
+    ) -> Self {
+        self.code_action_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Adds symbol rename edits using the retained parse and analysis results.
+    #[must_use]
+    pub fn with_rename_provider(
+        mut self,
+        provider: impl Fn(
+            &SourceFile,
+            &HostDocument<P::Tree, A::Analysis>,
+            usize,
+            &str,
+        ) -> Option<Vec<SourceLocation>>
+        + 'backend,
+    ) -> Self {
+        self.rename_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Adds validation and selection information before a rename request.
+    #[must_use]
+    pub fn with_prepare_rename_provider(
+        mut self,
+        provider: impl Fn(
+            &SourceFile,
+            &HostDocument<P::Tree, A::Analysis>,
+            usize,
+        ) -> Option<RenamePreparation>
+        + 'backend,
+    ) -> Self {
+        self.prepare_rename_provider = Some(Box::new(provider));
+        self
+    }
+
+    fn host_document<'document>(
+        source: &SourceFile,
+        document: &'document BackendDocument<HostDocument<P::Tree, A::Analysis>>,
+    ) -> Option<&'document HostDocument<P::Tree, A::Analysis>> {
+        document.matches_source(source).then(|| document.state())
+    }
 }
 
 impl<'backend, P, A> LanguageBackend for HostLanguageBackend<'backend, P, A>
@@ -368,8 +515,15 @@ where
             completion: self.completer.is_some(),
             definition: self.navigator.is_some(),
             references: self.navigator.is_some(),
+            semantic_tokens: self.semantic_token_provider.is_some(),
+            formatting: self.formatter.is_some(),
+            hover: self.hover_provider.is_some(),
+            code_actions: self.code_action_provider.is_some(),
+            rename: self.rename_provider.is_some(),
+            prepare_rename: self.rename_provider.is_some()
+                && self.prepare_rename_provider.is_some(),
+            document_symbols: self.document_symbol_provider.is_some(),
             workspace_symbols: self.workspace_symbol_provider.is_some(),
-            ..BackendCapabilities::default()
         }
     }
 
@@ -449,6 +603,105 @@ where
         self.workspace_symbol_provider
             .as_ref()
             .map_or_else(Vec::new, |provider| provider(query))
+    }
+
+    fn semantic_token_legend(&self) -> SemanticTokenLegend {
+        self.semantic_token_legend.clone().unwrap_or_default()
+    }
+
+    fn semantic_tokens(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+    ) -> Vec<SemanticToken> {
+        let Some(host_document) = Self::host_document(source, document) else {
+            return Vec::new();
+        };
+
+        self.semantic_token_provider
+            .as_ref()
+            .map_or_else(Vec::new, |provider| provider(source, host_document))
+    }
+
+    fn format_document(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        options: &FormattingOptions,
+    ) -> Option<String> {
+        let host_document = Self::host_document(source, document)?;
+        let formatter = self.formatter.as_ref()?;
+
+        formatter(source, host_document, options)
+    }
+
+    fn hover(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Option<HoverInfo> {
+        let host_document = Self::host_document(source, document)?;
+        let provider = self.hover_provider.as_ref()?;
+
+        provider(source, host_document, offset)
+    }
+
+    fn code_actions(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        params: &CodeActionParams,
+        range: Span,
+    ) -> Vec<CodeActionInfo> {
+        let Some(host_document) = Self::host_document(source, document) else {
+            return Vec::new();
+        };
+
+        self.code_action_provider
+            .as_ref()
+            .map_or_else(Vec::new, |provider| {
+                provider(source, host_document, params, range)
+            })
+    }
+
+    fn rename(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        new_name: &str,
+    ) -> Option<Vec<SourceLocation>> {
+        let host_document = Self::host_document(source, document)?;
+        let provider = self.rename_provider.as_ref()?;
+
+        provider(source, host_document, offset, new_name)
+    }
+
+    fn prepare_rename(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Option<RenamePreparation> {
+        let host_document = Self::host_document(source, document)?;
+        let provider = self.prepare_rename_provider.as_ref()?;
+
+        provider(source, host_document, offset)
+    }
+
+    fn document_symbols(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+    ) -> Vec<DocumentSymbolInfo> {
+        let Some(host_document) = Self::host_document(source, document) else {
+            return Vec::new();
+        };
+
+        self.document_symbol_provider
+            .as_ref()
+            .map_or_else(Vec::new, |provider| provider(source, host_document))
     }
 }
 
