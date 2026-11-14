@@ -2,8 +2,8 @@ use langmeld_core::PositionEncoding;
 use lsp_types::{
     CompletionOptions, InitializeParams, MarkupContent, MarkupKind, PositionEncodingKind,
     SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 
 use crate::{
@@ -56,8 +56,12 @@ pub(super) fn server_capabilities(
             PositionEncoding::Utf16 => PositionEncodingKind::UTF16,
             PositionEncoding::Utf32 => PositionEncodingKind::UTF32,
         }),
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(
-            TextDocumentSyncKind::INCREMENTAL,
+        text_document_sync: Some(TextDocumentSyncCapability::Options(
+            TextDocumentSyncOptions {
+                open_close: Some(true),
+                change: Some(TextDocumentSyncKind::INCREMENTAL),
+                ..TextDocumentSyncOptions::default()
+            },
         )),
         completion_provider: backend.completion.then(CompletionOptions::default),
         definition_provider: backend.definition.then_some(lsp_types::OneOf::Left(true)),

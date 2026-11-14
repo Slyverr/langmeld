@@ -38,7 +38,11 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     );
     let initialized = receive_response(&client);
     assert_eq!(initialized["capabilities"]["positionEncoding"], "utf-16");
-    assert_eq!(initialized["capabilities"]["textDocumentSync"], 2);
+    assert_eq!(
+        initialized["capabilities"]["textDocumentSync"]["openClose"],
+        true
+    );
+    assert_eq!(initialized["capabilities"]["textDocumentSync"]["change"], 2);
     assert!(initialized["capabilities"].get("workspace").is_none());
     assert!(initialized["capabilities"]["completionProvider"].is_object());
     assert_eq!(initialized["capabilities"]["definitionProvider"], true);
