@@ -212,10 +212,11 @@ construct "unknown_property" {
 }
 ```
 
-Regular constructs always take precedence over fallback constructs. Overlapping
-fallback constructs remain ambiguous, and fallback constructs are omitted from
-grammar-based completion suggestions. The host still owns the meaning and
-diagnostics for the captured syntax.
+Regular constructs always take precedence over fallback constructs. When
+fallback constructs overlap, the parser selects the one consuming the most
+tokens; equal-length matches are diagnosed as ambiguous. Fallback constructs
+are omitted from grammar-based completion suggestions. The host still owns the
+meaning and diagnostics for the captured syntax.
 
 ## Completion kinds
 

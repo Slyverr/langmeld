@@ -7,7 +7,9 @@ use crate::{LanguageSpec, PatternPart};
 mod recovery;
 
 use super::model::{ParseContext, ParsedConstruct};
-use super::pattern::{MatchAttempt, any_construct_matches, describe_pattern, match_sequence};
+use super::pattern::{
+    MatchAttempt, any_construct_matches, describe_pattern, match_sequence_with_closer,
+};
 use super::{MAX_NESTING_DEPTH, ParseLimits, ParseResult};
 
 pub(super) fn parse_with_lexer_internal(
@@ -128,7 +130,7 @@ impl Parser<'_> {
             if close.is_some() && self.should_resume_at_root(allowed) {
                 break;
             }
-            if let Some(child) = self.parse_one(allowed, depth) {
+            if let Some(child) = self.parse_one(allowed, depth, close) {
                 children.push(child);
             }
         }
@@ -156,6 +158,7 @@ impl Parser<'_> {
         &mut self,
         allowed: &[&crate::ConstructSpec],
         depth: usize,
+        close: Option<&str>,
     ) -> Option<ParsedConstruct> {
         let start_index = self.cursor;
         let mut best_partial: Option<(&crate::ConstructSpec, usize, MatchAttempt<'_>)> = None;
@@ -163,11 +166,12 @@ impl Parser<'_> {
         let mut fallback_matches = Vec::new();
         for spec in allowed {
             for (variant, pattern) in spec.variants().iter().enumerate() {
-                let attempt = match match_sequence(
+                let attempt = match match_sequence_with_closer(
                     pattern,
                     &self.tokens,
                     self.cursor,
                     &mut self.pattern_steps_remaining,
+                    close,
                 ) {
                     Ok(attempt) => attempt,
                     Err(()) => {
@@ -195,8 +199,23 @@ impl Parser<'_> {
             }
         }
 
-        let ambiguous =
-            regular_matches.len() > 1 || (regular_matches.is_empty() && fallback_matches.len() > 1);
+        let longest_fallback = fallback_matches
+            .iter()
+            .map(|(_, _, attempt)| attempt.end)
+            .max();
+        fallback_matches.retain(|(_, _, attempt)| Some(attempt.end) == longest_fallback);
+
+        let fixed_regular_prefix = regular_matches.is_empty()
+            && self.tokens.get(start_index).is_some_and(|token| {
+                allowed
+                    .iter()
+                    .filter(|construct| !construct.is_fallback())
+                    .flat_map(|construct| construct.variants())
+                    .any(|pattern| pattern_starts_with_fixed_token(pattern, token))
+            });
+
+        let ambiguous = regular_matches.len() > 1
+            || (regular_matches.is_empty() && !fixed_regular_prefix && fallback_matches.len() > 1);
         if ambiguous {
             self.completion_blocked = false;
             let token = &self.tokens[self.cursor];
@@ -210,7 +229,16 @@ impl Parser<'_> {
             return None;
         }
 
-        let matched = regular_matches.pop().or_else(|| fallback_matches.pop());
+        let partial_fallback_makes_more_progress = best_partial
+            .as_ref()
+            .is_some_and(|(_, _, partial)| partial.end > longest_fallback.unwrap_or(start_index));
+        let matched = regular_matches.pop().or_else(|| {
+            if fixed_regular_prefix || partial_fallback_makes_more_progress {
+                None
+            } else {
+                fallback_matches.pop()
+            }
+        });
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
                 let resume_at_construct = if attempt.end < self.tokens.len() {
@@ -272,7 +300,12 @@ impl Parser<'_> {
                     self.source,
                     span,
                 ));
-                self.cursor = if resume_at_construct {
+                let stopped_at_block_closer = close.is_some_and(|closer| {
+                    self.tokens
+                        .get(attempt.end)
+                        .is_some_and(|token| token.text == closer)
+                });
+                self.cursor = if resume_at_construct || stopped_at_block_closer {
                     attempt.end
                 } else {
                     (attempt.end + usize::from(attempt.end < self.tokens.len()))
@@ -411,6 +444,36 @@ impl Parser<'_> {
             children,
         })
     }
+}
+
+fn pattern_starts_with_fixed_token(pattern: &[PatternPart], token: &LexedToken) -> bool {
+    for part in pattern {
+        match part {
+            PatternPart::Literal(literal) => {
+                return token.kind != crate::TokenKind::Invalid && token.text == *literal;
+            }
+            PatternPart::Choice { values, .. } => {
+                return token.kind != crate::TokenKind::Invalid
+                    && values.iter().any(|value| value == &token.text);
+            }
+            PatternPart::Optional { parts, .. } => {
+                if pattern_starts_with_fixed_token(parts, token) {
+                    return true;
+                }
+            }
+            PatternPart::Repeat { parts, minimum, .. } => {
+                if pattern_starts_with_fixed_token(parts, token) {
+                    return true;
+                }
+                if *minimum == crate::RepeatMinimum::One {
+                    return false;
+                }
+            }
+            PatternPart::Field { .. } | PatternPart::Expression { .. } => return false,
+        }
+    }
+
+    false
 }
 
 fn source_limit_span(source: &SourceFile, limit: usize) -> Span {

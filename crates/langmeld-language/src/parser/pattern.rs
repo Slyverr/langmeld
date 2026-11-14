@@ -74,6 +74,16 @@ pub(super) fn match_sequence<'a>(
     start: usize,
     remaining_steps: &mut usize,
 ) -> Result<MatchAttempt<'a>, ()> {
+    match_sequence_with_closer(pattern, tokens, start, remaining_steps, None)
+}
+
+pub(super) fn match_sequence_with_closer<'a>(
+    pattern: &'a [PatternPart],
+    tokens: &[LexedToken],
+    start: usize,
+    remaining_steps: &mut usize,
+    closer: Option<&str>,
+) -> Result<MatchAttempt<'a>, ()> {
     let mut fields = Vec::new();
     let mut groups = Vec::new();
     let mut cursor = start;
@@ -84,10 +94,11 @@ pub(super) fn match_sequence<'a>(
         *remaining_steps -= 1;
         match part {
             PatternPart::Literal(literal) => {
-                if tokens
-                    .get(cursor)
-                    .is_some_and(|token| token.kind != TokenKind::Invalid && token.text == *literal)
-                {
+                if tokens.get(cursor).is_some_and(|token| {
+                    token.kind != TokenKind::Invalid
+                        && token.text == *literal
+                        && closer != Some(token.text.as_str())
+                }) {
                     cursor += 1;
                 } else {
                     return Ok(MatchAttempt {
@@ -100,10 +111,9 @@ pub(super) fn match_sequence<'a>(
                 }
             }
             PatternPart::Field { name, kind } => {
-                let Some(token) = tokens
-                    .get(cursor)
-                    .filter(|token| accepts(*kind, token.kind))
-                else {
+                let Some(token) = tokens.get(cursor).filter(|token| {
+                    accepts(*kind, token.kind) && closer != Some(token.text.as_str())
+                }) else {
                     return Ok(MatchAttempt {
                         fields,
                         groups,
@@ -130,6 +140,7 @@ pub(super) fn match_sequence<'a>(
             PatternPart::Choice { name, values, .. } => {
                 let Some(token) = tokens.get(cursor).filter(|token| {
                     token.kind != TokenKind::Invalid
+                        && closer != Some(token.text.as_str())
                         && values.iter().any(|value| value == &token.text)
                 }) else {
                     return Ok(MatchAttempt {
@@ -151,7 +162,9 @@ pub(super) fn match_sequence<'a>(
                 cursor += 1;
             }
             PatternPart::Expression { name, terminator } => {
-                let Some(end) = expression_end(tokens, cursor, terminator, remaining_steps)? else {
+                let Some(end) =
+                    expression_end(tokens, cursor, terminator, remaining_steps, closer)?
+                else {
                     return Ok(MatchAttempt {
                         fields,
                         groups,
@@ -177,7 +190,8 @@ pub(super) fn match_sequence<'a>(
                 cursor = end + 1;
             }
             PatternPart::Optional { name, parts } => {
-                let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
+                let attempt =
+                    match_sequence_with_closer(parts, tokens, cursor, remaining_steps, closer)?;
                 if attempt.complete {
                     let field_start = fields.len();
                     let field_end = field_start + attempt.fields.len();
@@ -218,7 +232,8 @@ pub(super) fn match_sequence<'a>(
                 let mut repetitions = 0;
                 let mut occurrences = Vec::new();
                 loop {
-                    let attempt = match_sequence(parts, tokens, cursor, remaining_steps)?;
+                    let attempt =
+                        match_sequence_with_closer(parts, tokens, cursor, remaining_steps, closer)?;
                     if attempt.complete && attempt.end > cursor {
                         let field_start = fields.len();
                         let field_end = field_start + attempt.fields.len();
@@ -328,6 +343,7 @@ fn expression_end(
     start: usize,
     terminator: &str,
     remaining_steps: &mut usize,
+    closer: Option<&str>,
 ) -> Result<Option<usize>, ()> {
     let mut closing = Vec::new();
     let mut cursor = start;
@@ -337,6 +353,9 @@ fn expression_end(
         }
         *remaining_steps -= 1;
         if closing.is_empty() && token.kind != TokenKind::Invalid && token.text == terminator {
+            return Ok(Some(cursor));
+        }
+        if closing.is_empty() && closer == Some(token.text.as_str()) {
             return Ok(Some(cursor));
         }
         match token.text.as_str() {

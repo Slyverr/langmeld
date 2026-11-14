@@ -170,8 +170,7 @@ impl LanguageSpec {
                         let overlaps = !validation::has_group(left_pattern)
                             && !validation::has_group(right_pattern)
                             && validation::patterns_overlap(left_pattern, right_pattern);
-                        let one_is_fallback = left.fallback ^ right.fallback;
-                        if overlaps && !one_is_fallback {
+                        if overlaps && !left.fallback && !right.fallback {
                             return Err(SpecError::AmbiguousConstructs(
                                 left.name.clone(),
                                 right.name.clone(),
