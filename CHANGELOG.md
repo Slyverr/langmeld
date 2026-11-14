@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Reconcile dynamically registered file watchers when workspace folders or
+  backend workspace state changes.
 - Support lower-priority fallback constructs in Rust and `.langmeld`
   definitions for host-specific handling of otherwise unknown syntax.
 - Support optional delimited construct blocks in Rust and `.langmeld`

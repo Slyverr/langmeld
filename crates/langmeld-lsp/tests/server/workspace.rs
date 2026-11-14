@@ -85,12 +85,17 @@ fn forwards_initial_workspace_context_and_folder_changes_to_opted_in_backends() 
 struct WorkspaceLifecycleBackend {
     configuration: Arc<Mutex<Vec<Value>>>,
     file_changes: Arc<Mutex<Vec<Vec<lsp_types::FileEvent>>>>,
+    folders: Arc<Mutex<Vec<lsp_types::WorkspaceFolder>>>,
     relative_watchers: bool,
     workspace_revision: Arc<AtomicUsize>,
 }
 
 impl LanguageBackend for WorkspaceLifecycleBackend {
     type Document = ();
+
+    fn initialize_workspace(&self, workspace: &BackendWorkspace) {
+        *self.folders.lock().unwrap() = workspace.workspace_folders.clone().unwrap_or_default();
+    }
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         let revision = self.workspace_revision.load(Ordering::Relaxed);
@@ -106,7 +111,21 @@ impl LanguageBackend for WorkspaceLifecycleBackend {
         )
     }
 
-    fn did_change_workspace_folders(&self, _event: &lsp_types::WorkspaceFoldersChangeEvent) {
+    fn did_change_workspace_folders(&self, event: &lsp_types::WorkspaceFoldersChangeEvent) {
+        let mut folders = self.folders.lock().unwrap();
+        folders.retain(|folder| {
+            event
+                .removed
+                .iter()
+                .all(|removed| removed.uri != folder.uri)
+        });
+
+        for folder in &event.added {
+            if !folders.iter().any(|current| current.uri == folder.uri) {
+                folders.push(folder.clone());
+            }
+        }
+
         self.workspace_revision.fetch_add(1, Ordering::Relaxed);
     }
 
@@ -115,28 +134,44 @@ impl LanguageBackend for WorkspaceLifecycleBackend {
     }
 
     fn workspace_capabilities(&self) -> BackendWorkspaceCapabilities {
-        let glob_pattern = if self.relative_watchers {
-            lsp_types::GlobPattern::Relative(lsp_types::RelativePattern {
-                base_uri: lsp_types::OneOf::Left(lsp_types::WorkspaceFolder {
+        let watched_files = if self.relative_watchers {
+            let mut folders = self.folders.lock().unwrap().clone();
+            if folders.is_empty() {
+                folders.push(lsp_types::WorkspaceFolder {
                     uri: "file:///workspace".parse().unwrap(),
                     name: "workspace".into(),
-                }),
-                pattern: "**/*.langmeld".into(),
-            })
+                });
+            }
+
+            folders
+                .into_iter()
+                .map(|folder| lsp_types::FileSystemWatcher {
+                    glob_pattern: lsp_types::GlobPattern::Relative(lsp_types::RelativePattern {
+                        base_uri: lsp_types::OneOf::Left(folder),
+                        pattern: "**/*.langmeld".into(),
+                    }),
+                    kind: Some(
+                        lsp_types::WatchKind::Create
+                            | lsp_types::WatchKind::Change
+                            | lsp_types::WatchKind::Delete,
+                    ),
+                })
+                .collect()
         } else {
-            lsp_types::GlobPattern::String("**/*.langmeld".into())
-        };
-        BackendWorkspaceCapabilities {
-            workspace_folders: true,
-            configuration_changes: true,
-            watched_files: vec![lsp_types::FileSystemWatcher {
-                glob_pattern,
+            vec![lsp_types::FileSystemWatcher {
+                glob_pattern: lsp_types::GlobPattern::String("**/*.langmeld".into()),
                 kind: Some(
                     lsp_types::WatchKind::Create
                         | lsp_types::WatchKind::Change
                         | lsp_types::WatchKind::Delete,
                 ),
-            }],
+            }]
+        };
+
+        BackendWorkspaceCapabilities {
+            workspace_folders: true,
+            configuration_changes: true,
+            watched_files,
         }
     }
 
@@ -340,6 +375,140 @@ fn skips_relative_watcher_registration_when_client_does_not_support_it() {
             Value::Null,
         )))
         .unwrap();
+    send_request(&client, 2, "shutdown", Value::Null);
+    assert!(receive_response(&client).is_null());
+    send_notification(&client, "exit", Value::Null);
+    server_thread.join().unwrap();
+    server_receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("server thread should finish")
+        .expect("server should shut down cleanly");
+}
+
+#[test]
+fn updates_relative_file_watcher_registration_after_workspace_folder_changes() {
+    let (server_connection, client) = Connection::memory();
+    let (server_sender, server_receiver) = mpsc::channel();
+    let backend = WorkspaceLifecycleBackend {
+        relative_watchers: true,
+        ..WorkspaceLifecycleBackend::default()
+    };
+    let server_thread = thread::spawn(move || {
+        let result = run_connection(server_connection, backend);
+        server_sender
+            .send(result.map_err(|error| error.to_string()))
+            .unwrap();
+    });
+
+    send_request(
+        &client,
+        1,
+        "initialize",
+        json!({
+            "workspaceFolders": [
+                { "uri": "file:///workspace", "name": "workspace" }
+            ],
+            "capabilities": {
+                "workspace": {
+                    "workspaceFolders": true,
+                    "didChangeWatchedFiles": {
+                        "dynamicRegistration": true,
+                        "relativePatternSupport": true
+                    }
+                }
+            }
+        }),
+    );
+    receive_response(&client);
+    send_notification(&client, "initialized", json!({}));
+
+    let initial_registration = match receive(&client) {
+        Message::Request(request) => request,
+        message => panic!("expected watcher registration request, got {message:?}"),
+    };
+    assert_eq!(initial_registration.method, "client/registerCapability");
+    let initial_watcher_registration_id = initial_registration.params["registrations"][0]["id"]
+        .as_str()
+        .expect("watcher registration should have an id")
+        .to_owned();
+    assert_eq!(
+        initial_registration.params["registrations"][0]["registerOptions"]["watchers"][0]["globPattern"]
+            ["baseUri"]["uri"],
+        "file:///workspace"
+    );
+    client
+        .sender
+        .send(Message::Response(lsp_server::Response::new_ok(
+            initial_registration.id,
+            Value::Null,
+        )))
+        .unwrap();
+
+    send_notification(
+        &client,
+        "workspace/didChangeWorkspaceFolders",
+        json!({
+            "event": {
+                "added": [
+                    { "uri": "file:///replacement", "name": "replacement" }
+                ],
+                "removed": [
+                    { "uri": "file:///workspace", "name": "workspace" }
+                ]
+            }
+        }),
+    );
+
+    let unregistration = match receive(&client) {
+        Message::Request(request) => request,
+        message => panic!("expected watcher unregistration request, got {message:?}"),
+    };
+    assert_eq!(unregistration.method, "client/unregisterCapability");
+    assert_eq!(
+        unregistration.params["unregisterations"][0]["id"],
+        initial_watcher_registration_id
+    );
+
+    send_notification(
+        &client,
+        "workspace/didChangeWorkspaceFolders",
+        json!({
+            "event": {
+                "added": [
+                    { "uri": "file:///latest", "name": "latest" }
+                ],
+                "removed": [
+                    { "uri": "file:///replacement", "name": "replacement" }
+                ]
+            }
+        }),
+    );
+    client
+        .sender
+        .send(Message::Response(lsp_server::Response::new_ok(
+            unregistration.id,
+            Value::Null,
+        )))
+        .unwrap();
+
+    let replacement_registration = match receive(&client) {
+        Message::Request(request) => request,
+        message => panic!("expected replacement watcher registration, got {message:?}"),
+    };
+    assert_eq!(replacement_registration.method, "client/registerCapability");
+    assert_eq!(
+        replacement_registration.params["registrations"][0]["registerOptions"]["watchers"][0]["globPattern"]
+            ["baseUri"]["uri"],
+        "file:///latest"
+    );
+    client
+        .sender
+        .send(Message::Response(lsp_server::Response::new_ok(
+            replacement_registration.id,
+            Value::Null,
+        )))
+        .unwrap();
+
     send_request(&client, 2, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);

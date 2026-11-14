@@ -64,7 +64,10 @@ each accepted workspace event, Langmeld reanalyzes open documents and republishe
 their diagnostics. The initial workspace context reports whether the client
 supports relative watcher patterns. If the backend requests any relative
 pattern from a client that does not support them, Langmeld skips that
-file-watcher registration.
+file-watcher registration. After workspace-folder, configuration, or watched
+file callbacks, Langmeld asks the backend for its current watcher patterns and
+updates the client registration if they changed. Hosts can therefore return
+root-specific relative patterns after workspace-folder changes.
 For hosts that already implement `LanguageParser` and `LanguageAnalyzer`,
 `HostLanguageBackend::new_with_analyzer(parser, analyzer)` combines their
 parse and semantic diagnostics for LSP. Add `with_completer` and

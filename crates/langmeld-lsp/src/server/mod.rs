@@ -55,10 +55,39 @@ enum WorkspaceRefreshTrigger {
 
 const WORKSPACE_REGISTRATION_REQUEST_ID: &str = "langmeld-workspace-registration";
 
-#[derive(Clone, Copy)]
-struct PendingWorkspaceRegistration {
-    configuration_changes: bool,
-    watched_files: bool,
+#[derive(Clone)]
+struct WatcherRegistration {
+    id: String,
+    watchers: Vec<lsp_types::FileSystemWatcher>,
+}
+
+enum PendingWorkspaceRegistration {
+    Initialize {
+        request_id: RequestId,
+        configuration_changes: bool,
+        watcher_registration: Option<WatcherRegistration>,
+        workspace_revision: u64,
+    },
+    UnregisterWatchers {
+        request_id: RequestId,
+        registration: WatcherRegistration,
+        workspace_revision: u64,
+    },
+    RegisterWatchers {
+        request_id: RequestId,
+        registration: WatcherRegistration,
+        workspace_revision: u64,
+    },
+}
+
+impl PendingWorkspaceRegistration {
+    fn request_id(&self) -> &RequestId {
+        match self {
+            Self::Initialize { request_id, .. }
+            | Self::UnregisterWatchers { request_id, .. }
+            | Self::RegisterWatchers { request_id, .. } => request_id,
+        }
+    }
 }
 
 /// Runs the server over standard input and output.
@@ -169,9 +198,12 @@ pub fn run_connection<B: LanguageBackend>(
         client_supports_configuration_registration,
         client_supports_file_watcher_registration,
         client_supports_relative_file_watcher_patterns,
+        workspace_revision: 0,
+        next_workspace_request_id: 0,
+        next_watcher_registration_id: 0,
         pending_workspace_registration: None,
         configuration_registered: false,
-        watched_files_registered: false,
+        registered_watcher_registration: None,
         semantic_legend,
         supports_markdown_hover,
         supports_hierarchical_document_symbols,
@@ -219,6 +251,7 @@ pub fn run_connection<B: LanguageBackend>(
                     )
                 {
                     server.backend.did_change_workspace_folders(&params.event);
+                    server.refresh_watched_file_registration(&connection)?;
                     server.refresh_workspace(
                         None,
                         WorkspaceRefreshTrigger::WorkspaceChanged,
@@ -231,18 +264,20 @@ pub fn run_connection<B: LanguageBackend>(
                     )
                 {
                     server.backend.did_change_configuration(&params.settings);
+                    server.refresh_watched_file_registration(&connection)?;
                     server.refresh_workspace(
                         None,
                         WorkspaceRefreshTrigger::WorkspaceChanged,
                         &connection,
                     )?;
-                } else if server.watched_files_registered
+                } else if server.registered_watcher_registration.is_some()
                     && let Some(params) = parse_notification::<DidChangeWatchedFilesParams>(
                         &notification,
                         "workspace/didChangeWatchedFiles",
                     )
                 {
                     server.backend.did_change_watched_files(&params.changes);
+                    server.refresh_watched_file_registration(&connection)?;
                     server.refresh_workspace(
                         None,
                         WorkspaceRefreshTrigger::WorkspaceChanged,
@@ -251,16 +286,11 @@ pub fn run_connection<B: LanguageBackend>(
                 }
             }
             Message::Response(response) => {
-                let Some(pending) = server.pending_workspace_registration else {
-                    continue;
-                };
-                if response.id == RequestId::from(WORKSPACE_REGISTRATION_REQUEST_ID.to_owned()) {
-                    server.pending_workspace_registration = None;
-                    if response.response_result.is_ok() {
-                        server.configuration_registered = pending.configuration_changes;
-                        server.watched_files_registered = pending.watched_files;
-                    }
-                }
+                server.handle_workspace_response(
+                    response.id,
+                    response.response_result.is_ok(),
+                    &connection,
+                )?;
             }
         }
     }
@@ -275,9 +305,12 @@ struct ServerState<B: LanguageBackend> {
     client_supports_configuration_registration: bool,
     client_supports_file_watcher_registration: bool,
     client_supports_relative_file_watcher_patterns: bool,
+    workspace_revision: u64,
+    next_workspace_request_id: u64,
+    next_watcher_registration_id: u64,
     pending_workspace_registration: Option<PendingWorkspaceRegistration>,
     configuration_registered: bool,
-    watched_files_registered: bool,
+    registered_watcher_registration: Option<WatcherRegistration>,
     semantic_legend: SemanticTokenLegend,
     supports_markdown_hover: bool,
     supports_hierarchical_document_symbols: bool,

@@ -266,6 +266,10 @@ pub trait LanguageBackend {
     fn did_change_workspace_folders(&self, _event: &WorkspaceFoldersChangeEvent) {}
 
     /// Reports which workspace lifecycle events the backend can handle.
+    ///
+    /// The server re-reads `watched_files` after workspace-folder, configuration,
+    /// and watched-file callbacks. Return patterns for the backend's current
+    /// workspace state so registrations can follow root changes.
     fn workspace_capabilities(&self) -> BackendWorkspaceCapabilities {
         BackendWorkspaceCapabilities::default()
     }
