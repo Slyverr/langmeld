@@ -36,6 +36,8 @@ fn language() -> LanguageSpec {
 mod blocks;
 #[path = "parse/core.rs"]
 mod core;
+#[path = "parse/fallback.rs"]
+mod fallback;
 #[path = "parse/lexing.rs"]
 mod lexing;
 #[path = "parse/limits.rs"]

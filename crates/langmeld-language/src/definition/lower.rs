@@ -180,6 +180,21 @@ pub(super) fn lower_construct(
         return None;
     }
 
+    let fallback_nodes = node
+        .children
+        .iter()
+        .filter(|child| child.name == "fallback")
+        .collect::<Vec<_>>();
+    if fallback_nodes.len() > 1 {
+        diagnostics.push(Diagnostic::error(
+            "LM-DEF-036",
+            format!("construct `{name}` may declare `fallback` only once"),
+            source,
+            fallback_nodes[1].span,
+        ));
+        return None;
+    }
+
     let block_nodes: Vec<_> = node
         .children
         .iter()
@@ -203,6 +218,9 @@ pub(super) fn lower_construct(
     }
     if let Some(kind) = completion_kind {
         construct = construct.with_completion_kind(kind);
+    }
+    if !fallback_nodes.is_empty() {
+        construct = construct.fallback();
     }
     for (variant_name, pattern) in variants {
         construct = if let Some(variant_name) = variant_name {

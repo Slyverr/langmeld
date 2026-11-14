@@ -274,6 +274,9 @@ fn push_context_candidates(
         else {
             continue;
         };
+        if construct.is_fallback() {
+            continue;
+        }
         for pattern in construct.variants() {
             let mut literals = Vec::new();
             collect_first_literals(pattern, &mut literals);

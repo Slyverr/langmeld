@@ -52,6 +52,8 @@ language "Toy" {
 
 #[path = "definition/choices.rs"]
 mod choices;
+#[path = "definition/fallback.rs"]
+mod fallback;
 #[path = "definition/imports.rs"]
 mod imports;
 #[path = "definition/lexing.rs"]

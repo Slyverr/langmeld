@@ -15,6 +15,8 @@ pub struct ConstructSpec {
     pub(crate) categories: Vec<String>,
     /// Optional semantic kind for construct-start completion candidates.
     pub(crate) completion_kind: Option<CompletionKind>,
+    /// Whether this construct is a lower-priority match for otherwise unknown syntax.
+    pub(crate) fallback: bool,
     /// Optional delimited child-construct body.
     pub(crate) block: Option<BlockSpec>,
 }
@@ -29,6 +31,7 @@ impl ConstructSpec {
             variant_names: vec![None],
             categories: Vec::new(),
             completion_kind: None,
+            fallback: false,
             block: None,
         }
     }
@@ -48,6 +51,16 @@ impl ConstructSpec {
     #[must_use]
     pub fn with_completion_kind(mut self, kind: CompletionKind) -> Self {
         self.completion_kind = Some(kind);
+        self
+    }
+
+    /// Uses this construct only when no regular construct matches the same input.
+    ///
+    /// Fallback constructs let a language retain otherwise unrecognized syntax
+    /// as a typed parse node so its host can issue a domain-specific diagnostic.
+    #[must_use]
+    pub fn fallback(mut self) -> Self {
+        self.fallback = true;
         self
     }
 
@@ -218,6 +231,12 @@ impl ConstructSpec {
     #[must_use]
     pub fn completion_kind(&self) -> Option<CompletionKind> {
         self.completion_kind
+    }
+
+    /// Returns whether this construct is matched only after regular constructs.
+    #[must_use]
+    pub const fn is_fallback(&self) -> bool {
+        self.fallback
     }
 
     /// Returns all syntax alternatives in declaration order.

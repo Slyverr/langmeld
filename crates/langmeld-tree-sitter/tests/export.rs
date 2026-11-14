@@ -189,3 +189,22 @@ fn exports_optional_blocks_as_optional_delimited_sequences() {
 
     assert!(output.contains("optional(seq(\"{\", repeat($.construct_1_print), \"}\"))"));
 }
+
+#[test]
+fn exports_fallback_constructs_with_lower_precedence() {
+    let grammar = LanguageSpec::new(
+        "Fallback",
+        [
+            ConstructSpec::new("known", [PatternPart::literal("item")]),
+            ConstructSpec::new("unknown", [PatternPart::literal("item")]).fallback(),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["known", "unknown"])
+    .unwrap();
+
+    let output = generate(&grammar, &TreeSitterOptions::new("fallback")).unwrap();
+
+    assert!(output.contains("construct_0_known: $ => \"item\""));
+    assert!(output.contains("construct_1_unknown: $ => prec(-1, \"item\")"));
+}

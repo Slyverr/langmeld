@@ -159,8 +159,8 @@ impl Parser<'_> {
     ) -> Option<ParsedConstruct> {
         let start_index = self.cursor;
         let mut best_partial: Option<(&crate::ConstructSpec, usize, MatchAttempt<'_>)> = None;
-        let mut matched = None;
-        let mut ambiguous = false;
+        let mut regular_matches = Vec::new();
+        let mut fallback_matches = Vec::new();
         for spec in allowed {
             for (variant, pattern) in spec.variants().iter().enumerate() {
                 let attempt = match match_sequence(
@@ -176,26 +176,27 @@ impl Parser<'_> {
                     }
                 };
                 if attempt.complete {
-                    if matched.is_some() {
-                        ambiguous = true;
-                        break;
+                    if spec.is_fallback() {
+                        fallback_matches.push((*spec, variant, attempt));
+                    } else {
+                        regular_matches.push((*spec, variant, attempt));
                     }
-                    matched = Some((*spec, variant, attempt));
                     continue;
                 }
-                if attempt.end > self.cursor
-                    && best_partial
-                        .as_ref()
-                        .is_none_or(|(_, _, best)| attempt.end > best.end)
-                {
+                let is_better_partial = best_partial.as_ref().is_none_or(|(best_spec, _, best)| {
+                    attempt.end > best.end
+                        || (attempt.end == best.end
+                            && best_spec.is_fallback()
+                            && !spec.is_fallback())
+                });
+                if attempt.end > self.cursor && is_better_partial {
                     best_partial = Some((*spec, variant, attempt));
                 }
             }
-            if ambiguous {
-                break;
-            }
         }
 
+        let ambiguous =
+            regular_matches.len() > 1 || (regular_matches.is_empty() && fallback_matches.len() > 1);
         if ambiguous {
             self.completion_blocked = false;
             let token = &self.tokens[self.cursor];
@@ -209,6 +210,7 @@ impl Parser<'_> {
             return None;
         }
 
+        let matched = regular_matches.pop().or_else(|| fallback_matches.pop());
         let Some((spec, variant, attempt)) = matched else {
             if let Some((spec, _, attempt)) = best_partial {
                 let resume_at_construct = if attempt.end < self.tokens.len() {

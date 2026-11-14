@@ -66,7 +66,12 @@ pub(super) fn construct_expression(
             Ok(sequence_strings(&parts))
         })
         .collect::<Result<Vec<_>, TreeSitterError>>()?;
-    Ok(choice(&variants))
+    let expression = choice(&variants);
+    if construct.is_fallback() {
+        Ok(format!("prec(-1, {expression})"))
+    } else {
+        Ok(expression)
+    }
 }
 
 fn sequence(parts: &[PatternPart], construct: &str) -> Result<String, TreeSitterError> {

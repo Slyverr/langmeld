@@ -195,6 +195,28 @@ the current scope begins, the parser reports the missing syntax and resumes at
 that construct. For example, a missing statement terminator does not consume
 the next statement's first token.
 
+### Fallback constructs
+
+Mark a construct `fallback;` when it should parse only if no regular construct
+matches the same input. This is useful for retaining unknown declarations or
+properties as parse nodes so the host can report a language-specific diagnostic:
+
+```langmeld
+construct "unknown_property" {
+    syntax {
+        identifier "name";
+        literal ":";
+        token "value";
+    }
+    fallback;
+}
+```
+
+Regular constructs always take precedence over fallback constructs. Overlapping
+fallback constructs remain ambiguous, and fallback constructs are omitted from
+grammar-based completion suggestions. The host still owns the meaning and
+diagnostics for the captured syntax.
+
 ## Completion kinds
 
 Construct-start suggestions have no assumed semantic kind because a leading

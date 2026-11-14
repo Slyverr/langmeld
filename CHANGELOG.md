@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Support lower-priority fallback constructs in Rust and `.langmeld`
+  definitions for host-specific handling of otherwise unknown syntax.
 - Support optional delimited construct blocks in Rust and `.langmeld`
   definitions, preserve block-presence spans, and export optional blocks to
   Tree-sitter grammars.

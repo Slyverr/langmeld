@@ -453,6 +453,7 @@ fn definition_grammar_completions_follow_root_and_nested_scopes() {
             "optional_block",
             "implements",
             "completion",
+            "fallback",
             "}",
         ]
     );

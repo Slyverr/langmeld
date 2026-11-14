@@ -84,7 +84,12 @@ pub(super) fn definition_grammar() -> &'static LanguageSpec {
                         "optional_block",
                         "implements",
                         "completion",
+                        "fallback",
                     ],
+                ),
+                ConstructSpec::new(
+                    "fallback",
+                    [PatternPart::literal("fallback"), PatternPart::literal(";")],
                 ),
                 ConstructSpec::new(
                     "completion",
