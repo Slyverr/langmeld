@@ -84,6 +84,9 @@ pub(super) fn server_capabilities(
             })
         }),
         document_formatting_provider: backend.formatting.then_some(lsp_types::OneOf::Left(true)),
+        code_action_provider: backend
+            .code_actions
+            .then_some(lsp_types::CodeActionProviderCapability::Simple(true)),
         hover_provider: backend
             .hover
             .then_some(lsp_types::HoverProviderCapability::Simple(true)),

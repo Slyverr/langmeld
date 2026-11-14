@@ -57,6 +57,7 @@ impl LanguageBackend for Backend {
             semantic_tokens: true,
             formatting: true,
             hover: true,
+            code_actions: false,
             rename: true,
             document_symbols: true,
             workspace_symbols: true,

@@ -16,6 +16,8 @@ impl LanguageParser for DiagnosticParser {
     }
 }
 
+#[path = "backends/code_actions.rs"]
+mod code_actions;
 #[path = "backends/declarative.rs"]
 mod declarative;
 #[path = "backends/diagnostics.rs"]

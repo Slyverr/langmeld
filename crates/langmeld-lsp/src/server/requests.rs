@@ -1,8 +1,8 @@
 use lsp_server::{ErrorCode, Request, Response};
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentFormattingParams, DocumentSymbolParams,
-    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, ReferenceParams, RenameParams,
-    SemanticTokensParams, WorkspaceSymbolParams,
+    CodeActionParams, CompletionParams, CompletionResponse, DocumentFormattingParams,
+    DocumentSymbolParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    ReferenceParams, RenameParams, SemanticTokensParams, WorkspaceSymbolParams,
 };
 use serde_json::{Value, json};
 
@@ -42,6 +42,10 @@ impl<B: LanguageBackend> ServerState<B> {
             "textDocument/hover" if self.capabilities.hover => {
                 serde_json::from_value::<HoverParams>(request.params)
                     .map(|params| self.hover(params).map(|hover| json!(hover)))
+            }
+            "textDocument/codeAction" if self.capabilities.code_actions => {
+                serde_json::from_value::<CodeActionParams>(request.params)
+                    .map(|params| self.code_actions(params).map(|actions| json!(actions)))
             }
             "textDocument/rename" if self.capabilities.rename => {
                 serde_json::from_value::<RenameParams>(request.params)

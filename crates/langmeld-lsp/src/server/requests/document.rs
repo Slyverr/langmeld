@@ -5,11 +5,35 @@ use crate::{
     semantic::encode,
 };
 use lsp_types::{
-    CompletionParams, DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
-    HoverParams, SemanticTokensParams, TextEdit,
+    CodeActionParams, CompletionParams, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, HoverParams, SemanticTokensParams, TextEdit,
 };
 
 impl<B: LanguageBackend> ServerState<B> {
+    pub(super) fn code_actions(
+        &self,
+        params: CodeActionParams,
+    ) -> Option<Vec<lsp_types::CodeActionOrCommand>> {
+        let document = self.documents.get(&params.text_document.uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if !document.analysis.matches_source(source) {
+            return Some(Vec::new());
+        }
+
+        let start = byte_offset(source, params.range.start, self.encoding)?;
+        let end = byte_offset(source, params.range.end, self.encoding)?;
+        if start > end {
+            return Some(Vec::new());
+        }
+
+        Some(self.backend.code_actions(
+            source,
+            &document.analysis,
+            &params,
+            langmeld_core::Span::new(start, end),
+        ))
+    }
+
     pub(super) fn completion(
         &self,
         params: CompletionParams,

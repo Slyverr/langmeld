@@ -3,7 +3,8 @@ use std::sync::Arc;
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::CompletionCandidate;
 use lsp_types::{
-    FileSystemWatcher, FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent,
+    CodeActionOrCommand, CodeActionParams, FileSystemWatcher, FormattingOptions, Uri,
+    WorkspaceFolder, WorkspaceFoldersChangeEvent,
 };
 use serde_json::Value;
 
@@ -133,6 +134,8 @@ pub struct BackendCapabilities {
     pub formatting: bool,
     /// The backend provides hover information.
     pub hover: bool,
+    /// The backend provides code actions.
+    pub code_actions: bool,
     /// The backend provides symbol rename edits.
     pub rename: bool,
     /// The backend provides document outline symbols.
@@ -333,6 +336,21 @@ pub trait LanguageBackend {
         _offset: usize,
     ) -> Option<HoverInfo> {
         None
+    }
+
+    /// Returns host-defined code actions for the requested source range.
+    ///
+    /// `range` uses UTF-8 byte offsets, regardless of the position encoding
+    /// negotiated with the editor. Actions are returned as LSP values because
+    /// their edits may span multiple files or include client commands.
+    fn code_actions(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _params: &CodeActionParams,
+        _range: langmeld_core::Span,
+    ) -> Vec<CodeActionOrCommand> {
+        Vec::new()
     }
 
     /// Resolves every source span to replace when renaming the symbol at an
