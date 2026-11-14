@@ -3,8 +3,8 @@ use std::sync::Arc;
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::CompletionCandidate;
 use lsp_types::{
-    CodeActionOrCommand, CodeActionParams, FileSystemWatcher, FormattingOptions, Uri,
-    WorkspaceFolder, WorkspaceFoldersChangeEvent,
+    CodeActionKind, CodeActionParams, Command, Diagnostic as LspDiagnostic, FileSystemWatcher,
+    FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent,
 };
 use serde_json::Value;
 
@@ -153,6 +153,58 @@ pub struct RenamePreparation {
     pub range: langmeld_core::Span,
     /// Name shown by the editor as the current selection.
     pub placeholder: String,
+}
+
+/// One source-based edit included in a host code action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CodeActionEdit {
+    /// Source snapshot and byte range to replace.
+    pub location: SourceLocation,
+    /// Text to insert at the selected range.
+    pub new_text: String,
+}
+
+impl CodeActionEdit {
+    /// Creates an edit tied to a validated source location.
+    #[must_use]
+    pub fn new(location: SourceLocation, new_text: impl Into<String>) -> Self {
+        Self {
+            location,
+            new_text: new_text.into(),
+        }
+    }
+}
+
+/// A language-specific action whose source edits are converted by Langmeld.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CodeActionInfo {
+    /// Editor-visible action title.
+    pub title: String,
+    /// Optional LSP action category.
+    pub kind: Option<CodeActionKind>,
+    /// Diagnostics this action resolves, using the client's negotiated positions.
+    pub diagnostics: Vec<LspDiagnostic>,
+    /// Source-based edits to apply atomically.
+    pub edits: Vec<CodeActionEdit>,
+    /// Optional client command to run after applying edits.
+    pub command: Option<Command>,
+    /// Whether this action is the preferred quick fix.
+    pub is_preferred: bool,
+}
+
+impl CodeActionInfo {
+    /// Creates a code action with no edits or command.
+    #[must_use]
+    pub fn new(title: impl Into<String>) -> Self {
+        Self {
+            title: title.into(),
+            kind: None,
+            diagnostics: Vec::new(),
+            edits: Vec::new(),
+            command: None,
+            is_preferred: false,
+        }
+    }
 }
 
 impl RenamePreparation {
@@ -362,16 +414,16 @@ pub trait LanguageBackend {
 
     /// Returns host-defined code actions for the requested source range.
     ///
-    /// `range` uses UTF-8 byte offsets, regardless of the position encoding
-    /// negotiated with the editor. Actions are returned as LSP values because
-    /// their edits may span multiple files or include client commands.
+    /// `range` and edit locations use UTF-8 byte offsets, regardless of the
+    /// position encoding negotiated with the editor. Langmeld validates and
+    /// converts every edit before returning an action.
     fn code_actions(
         &self,
         _source: &SourceFile,
         _document: &BackendDocument<Self::Document>,
         _params: &CodeActionParams,
         _range: langmeld_core::Span,
-    ) -> Vec<CodeActionOrCommand> {
+    ) -> Vec<CodeActionInfo> {
         Vec::new()
     }
 

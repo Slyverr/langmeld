@@ -12,10 +12,10 @@ mod semantic;
 mod server;
 mod workspace_symbol;
 
-pub use backend::RenamePreparation;
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
-    BackendWorkspaceCapabilities, LanguageBackend,
+    BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, LanguageBackend,
+    RenamePreparation,
 };
 pub use declarative_backend::DeclarativeBackend;
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};

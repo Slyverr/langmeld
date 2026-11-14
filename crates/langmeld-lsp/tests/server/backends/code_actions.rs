@@ -1,5 +1,5 @@
 use super::*;
-use lsp_types::{CodeActionOrCommand, Command};
+use lsp_types::Command;
 use serde_json::json;
 
 struct CodeActionsBackend;
@@ -22,17 +22,24 @@ impl LanguageBackend for CodeActionsBackend {
 
     fn code_actions(
         &self,
-        _source: &SourceFile,
+        source: &SourceFile,
         _document: &BackendDocument<Self::Document>,
         _params: &lsp_types::CodeActionParams,
         range: Span,
-    ) -> Vec<CodeActionOrCommand> {
+    ) -> Vec<CodeActionInfo> {
         assert_eq!(range, Span::new(4, 8));
-        vec![CodeActionOrCommand::Command(Command::new(
-            "UTF-8 byte span received".to_owned(),
+        let mut action = CodeActionInfo::new("UTF-8 byte span received");
+        action.kind = Some(lsp_types::CodeActionKind::QUICKFIX);
+        action.edits.push(CodeActionEdit::new(
+            SourceLocation::new(source, range),
+            "good",
+        ));
+        action.command = Some(Command::new(
+            "Run command".to_owned(),
             "langmeld.test".to_owned(),
             None,
-        ))]
+        ));
+        vec![action]
     }
 
     fn prepare_rename(
@@ -96,8 +103,16 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
         }),
     );
     let actions = receive_response(&client);
-    assert_eq!(actions[0]["command"], "langmeld.test");
+    assert_eq!(actions[0]["command"]["command"], "langmeld.test");
     assert_eq!(actions[0]["title"], "UTF-8 byte span received");
+    assert_eq!(
+        actions[0]["edit"]["changes"][uri][0]["range"]["start"]["character"],
+        2
+    );
+    assert_eq!(
+        actions[0]["edit"]["changes"][uri][0]["range"]["end"]["character"],
+        6
+    );
 
     send_request(
         &client,

@@ -143,7 +143,7 @@ impl<B: LanguageBackend> ServerState<B> {
         )
     }
 
-    fn resolve_location_source<'a>(
+    pub(super) fn resolve_location_source<'a>(
         &'a self,
         location: &langmeld_core::SourceLocation,
     ) -> Option<ResolvedLocationSource<'a>> {
