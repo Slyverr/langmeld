@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Support optional delimited construct blocks in Rust and `.langmeld`
+  definitions, preserve block-presence spans, and export optional blocks to
+  Tree-sitter grammars.
+
 ### Fixed
 
 - Include `rustfmt` in the Nix package check environment so CLI integration

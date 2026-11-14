@@ -54,6 +54,25 @@ the root. A construct that also parses as a valid child remains a child. The
 `root` directive belongs in the root language file; its name can refer to a
 construct declared in an imported file.
 
+Blocks are required by default. Use `optional_block` when a construct may end
+after its syntax pattern or continue with a delimited body:
+
+```langmeld
+construct "move" {
+    syntax {
+        literal "move";
+        identifier "token";
+    }
+
+    optional_block "{" "}" {
+        allow "move_duration";
+        allow "highlight_property";
+    }
+}
+```
+
+The parser records whether the block was present, including an empty block.
+
 ## Parsed syntax tree
 
 The declarative parser returns both its `ParsedConstruct` hierarchy and a

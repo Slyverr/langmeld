@@ -183,7 +183,7 @@ pub(super) fn lower_construct(
     let block_nodes: Vec<_> = node
         .children
         .iter()
-        .filter(|child| child.name == "block")
+        .filter(|child| matches!(child.name.as_str(), "block" | "optional_block"))
         .collect();
     if block_nodes.len() > 1 {
         diagnostics.push(Diagnostic::error(
@@ -278,7 +278,11 @@ pub(super) fn lower_construct(
                 ));
             }
         }
-        construct = construct.block_names_with_categories(open, close, children, categories);
+        construct = if block.name == "optional_block" {
+            construct.optional_block_names_with_categories(open, close, children, categories)
+        } else {
+            construct.block_names_with_categories(open, close, children, categories)
+        };
     }
     Some(construct)
 }

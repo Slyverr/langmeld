@@ -167,3 +167,25 @@ fn exports_finite_choice_fields_as_named_token_alternatives() {
 
     assert!(output.contains("seq(\"move\", field(\"direction\", choice(\"left\", \"right\")))"));
 }
+
+#[test]
+fn exports_optional_blocks_as_optional_delimited_sequences() {
+    let grammar = LanguageSpec::new(
+        "Optional block",
+        [
+            ConstructSpec::new("move", [PatternPart::literal("move")]).optional_block(
+                "{",
+                "}",
+                &["print"],
+            ),
+            ConstructSpec::new("print", [PatternPart::literal("print")]),
+        ],
+    )
+    .unwrap()
+    .with_root_constructs(&["move"])
+    .unwrap();
+
+    let output = generate(&grammar, &TreeSitterOptions::new("optional_block")).unwrap();
+
+    assert!(output.contains("optional(seq(\"{\", repeat($.construct_1_print), \"}\"))"));
+}

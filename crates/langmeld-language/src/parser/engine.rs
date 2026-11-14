@@ -311,30 +311,30 @@ impl Parser<'_> {
         self.cursor = attempt.end;
         let start = self.tokens[start_index].span.start;
         let mut end = self.tokens[self.cursor - 1].span.end;
+        let mut block_span = None;
         let mut children = Vec::new();
         if let Some(block) = &spec.block {
-            let Some(opening) = self.tokens.get(self.cursor) else {
-                self.missing_block_open(spec, block.open.as_str());
+            if self
+                .tokens
+                .get(self.cursor)
+                .is_none_or(|opening| opening.text != block.open)
+            {
+                if !block.optional {
+                    self.missing_block_open(spec, block.open.as_str());
+                }
                 return Some(ParsedConstruct {
                     name: spec.name.clone(),
                     variant,
                     span: Span::new(start, end),
-                    fields: attempt.fields,
-                    capture_groups: attempt.groups,
-                    children,
-                });
-            };
-            if opening.text != block.open {
-                self.missing_block_open(spec, block.open.as_str());
-                return Some(ParsedConstruct {
-                    name: spec.name.clone(),
-                    variant,
-                    span: Span::new(start, end),
+                    block_span,
                     fields: attempt.fields,
                     capture_groups: attempt.groups,
                     children,
                 });
             }
+
+            let opening = &self.tokens[self.cursor];
+            let block_start = opening.span.start;
             let opening_end = opening.span.end;
             let max_nesting_depth = self.limits.max_nesting_depth.min(MAX_NESTING_DEPTH);
             if depth >= max_nesting_depth {
@@ -351,6 +351,7 @@ impl Parser<'_> {
                     .tokens
                     .get(self.cursor.saturating_sub(1))
                     .map_or(self.source.text().len(), |token| token.span.end);
+                block_span = Some(Span::new(block_start, end));
             } else {
                 self.cursor += 1;
                 let allowed = block
@@ -369,12 +370,14 @@ impl Parser<'_> {
                         .tokens
                         .get(self.cursor.saturating_sub(1))
                         .map_or(end, |token| token.span.end);
+                    block_span = Some(Span::new(block_start, end));
                 } else if let Some(closing) = self
                     .tokens
                     .get(self.cursor)
                     .filter(|token| token.text == block.close)
                 {
                     end = closing.span.end;
+                    block_span = Some(Span::new(block_start, end));
                     self.cursor += 1;
                     self.completion_blocked = false;
                 } else {
@@ -386,6 +389,7 @@ impl Parser<'_> {
                         || Span::new(end, end),
                         |token| Span::new(token.span.start, token.span.start),
                     );
+                    block_span = Some(Span::new(block_start, end));
                     self.diagnostics.push(Diagnostic::error(
                         "LM-PARSE-004",
                         format!("expected closing token `{}`", block.close),
@@ -399,6 +403,7 @@ impl Parser<'_> {
             name: spec.name.clone(),
             variant,
             span: Span::new(start, end),
+            block_span,
             fields: attempt.fields,
             capture_groups: attempt.groups,
             children,

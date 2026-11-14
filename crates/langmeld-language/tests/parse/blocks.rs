@@ -100,6 +100,54 @@ fn reports_missing_block_closer_at_end_of_source() {
 }
 
 #[test]
+fn optional_blocks_can_be_omitted_or_parsed_when_present() {
+    let grammar = LanguageSpec::new(
+        "Optional block",
+        [
+            ConstructSpec::new(
+                "move",
+                [
+                    PatternPart::literal("move"),
+                    PatternPart::identifier("target"),
+                ],
+            )
+            .optional_block("{", "}", &["print"]),
+            ConstructSpec::new(
+                "print",
+                [
+                    PatternPart::literal("print"),
+                    PatternPart::identifier("value"),
+                ],
+            ),
+        ],
+    )
+    .unwrap();
+
+    let without_block = parse(&SourceFile::new("main", "move item print done"), &grammar);
+    assert!(without_block.diagnostics().is_empty());
+    assert_eq!(without_block.constructs().len(), 2);
+    assert_eq!(without_block.constructs()[0].name, "move");
+    assert_eq!(without_block.constructs()[0].block_span, None);
+    assert!(without_block.constructs()[0].children.is_empty());
+
+    let with_block = parse(
+        &SourceFile::new("main", "move item { print done }"),
+        &grammar,
+    );
+    assert!(with_block.diagnostics().is_empty());
+    let movement = &with_block.constructs()[0];
+    assert_eq!(movement.name, "move");
+    assert!(movement.block_span.is_some());
+    assert_eq!(movement.children.len(), 1);
+    assert_eq!(movement.children[0].name, "print");
+
+    let empty_block = parse(&SourceFile::new("main", "move item {}"), &grammar);
+    assert!(empty_block.diagnostics().is_empty());
+    assert!(empty_block.constructs()[0].block_span.is_some());
+    assert!(empty_block.constructs()[0].children.is_empty());
+}
+
+#[test]
 fn block_child_names_must_resolve_to_language_constructs() {
     let grammar = ConstructSpec::new("program", [PatternPart::literal("program")]).block(
         "{",

@@ -75,7 +75,17 @@ pub(super) fn definition_grammar() -> &'static LanguageSpec {
                         PatternPart::string("name"),
                     ],
                 )
-                .block("{", "}", &["syntax", "block", "implements", "completion"]),
+                .block(
+                    "{",
+                    "}",
+                    &[
+                        "syntax",
+                        "block",
+                        "optional_block",
+                        "implements",
+                        "completion",
+                    ],
+                ),
                 ConstructSpec::new(
                     "completion",
                     [
@@ -104,6 +114,15 @@ pub(super) fn definition_grammar() -> &'static LanguageSpec {
                     "block",
                     [
                         PatternPart::literal("block"),
+                        PatternPart::string("open"),
+                        PatternPart::string("close"),
+                    ],
+                )
+                .block("{", "}", &["allow", "allow_category"]),
+                ConstructSpec::new(
+                    "optional_block",
+                    [
+                        PatternPart::literal("optional_block"),
                         PatternPart::string("open"),
                         PatternPart::string("close"),
                     ],

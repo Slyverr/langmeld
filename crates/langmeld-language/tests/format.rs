@@ -34,6 +34,25 @@ fn formats_nested_definition_blocks_and_is_idempotent() {
 }
 
 #[test]
+fn formats_optional_block_declarations_and_is_idempotent() {
+    let source = SourceFile::new(
+        "language.langmeld",
+        r#"language "Optional" { construct "move" { syntax { literal "move"; } optional_block "{" "}" { allow "property"; } } construct "property" { syntax { literal "property"; } } }"#,
+    );
+    let formatted = format_language_definition(&source, DefinitionFormatOptions::default())
+        .expect("valid optional block definition should format");
+
+    assert!(formatted.contains("optional_block \"{\" \"}\" {"));
+
+    let formatted_source = SourceFile::new("language.langmeld", formatted);
+    assert_eq!(
+        format_language_definition(&formatted_source, DefinitionFormatOptions::default())
+            .expect("formatted definition should remain valid"),
+        formatted_source.text()
+    );
+}
+
+#[test]
 fn uses_editor_indentation_options() {
     let source = SourceFile::new(
         "language.langmeld",

@@ -113,17 +113,80 @@ impl ConstructSpec {
     /// Adds a delimited block from dynamically collected child names and categories.
     #[must_use]
     pub fn block_names_with_categories(
+        self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: impl IntoIterator<Item = String>,
+        categories: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.set_block(open, close, constructs, categories, false)
+    }
+
+    /// Adds a delimited block that may be omitted and accepts named child constructs and categories.
+    #[must_use]
+    pub fn optional_block_with_categories(
+        self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: &[&str],
+        categories: &[&str],
+    ) -> Self {
+        self.optional_block_names_with_categories(
+            open,
+            close,
+            constructs.iter().map(|name| (*name).to_owned()),
+            categories.iter().map(|category| (*category).to_owned()),
+        )
+    }
+
+    /// Adds a delimited block that may be omitted and accepts named child constructs.
+    #[must_use]
+    pub fn optional_block(
+        self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: &[&str],
+    ) -> Self {
+        self.optional_block_with_categories(open, close, constructs, &[])
+    }
+
+    /// Adds an optional delimited block from dynamically collected child names and categories.
+    #[must_use]
+    pub fn optional_block_names_with_categories(
+        self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: impl IntoIterator<Item = String>,
+        categories: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.set_block(open, close, constructs, categories, true)
+    }
+
+    /// Adds an optional delimited block from dynamically collected child names.
+    #[must_use]
+    pub fn optional_block_names(
+        self,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        constructs: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.optional_block_names_with_categories(open, close, constructs, std::iter::empty())
+    }
+
+    fn set_block(
         mut self,
         open: impl Into<String>,
         close: impl Into<String>,
         constructs: impl IntoIterator<Item = String>,
         categories: impl IntoIterator<Item = String>,
+        optional: bool,
     ) -> Self {
         self.block = Some(BlockSpec {
             open: open.into(),
             close: close.into(),
             constructs: constructs.into_iter().collect(),
             categories: categories.into_iter().collect(),
+            optional,
         });
         self
     }
@@ -193,6 +256,8 @@ pub struct BlockSpec {
     pub(crate) constructs: Vec<String>,
     /// Categories expanded into child constructs when the language is built.
     pub(crate) categories: Vec<String>,
+    /// Whether the complete delimited block may be omitted.
+    pub(crate) optional: bool,
 }
 
 impl BlockSpec {
@@ -218,5 +283,11 @@ impl BlockSpec {
     #[must_use]
     pub fn categories(&self) -> &[String] {
         &self.categories
+    }
+
+    /// Returns whether this block may be omitted from a construct.
+    #[must_use]
+    pub const fn is_optional(&self) -> bool {
+        self.optional
     }
 }

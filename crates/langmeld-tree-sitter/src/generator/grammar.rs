@@ -41,7 +41,7 @@ pub(super) fn construct_expression(
         .map(|pattern| {
             let mut parts = vec![sequence(pattern, construct.name())?];
             if let Some(block) = construct.block_spec() {
-                parts.push(js_string(block.open()));
+                let mut block_parts = vec![js_string(block.open())];
                 let children = block
                     .constructs()
                     .iter()
@@ -54,9 +54,14 @@ pub(super) fn construct_expression(
                     })
                     .collect::<Vec<_>>();
                 if !children.is_empty() {
-                    parts.push(format!("repeat({})", choice(&children)));
+                    block_parts.push(format!("repeat({})", choice(&children)));
                 }
-                parts.push(js_string(block.close()));
+                block_parts.push(js_string(block.close()));
+                if block.is_optional() {
+                    parts.push(format!("optional({})", sequence_strings(&block_parts)));
+                } else {
+                    parts.extend(block_parts);
+                }
             }
             Ok(sequence_strings(&parts))
         })

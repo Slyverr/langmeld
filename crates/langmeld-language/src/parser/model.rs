@@ -48,6 +48,8 @@ pub struct ParsedConstruct {
     pub variant: usize,
     /// Complete source range consumed by the construct.
     pub span: Span,
+    /// Source range of the block delimiters and contents, when a block was present.
+    pub block_span: Option<Span>,
     /// Values captured by named fields.
     pub fields: Vec<CapturedField>,
     /// Optional and repeated capture groups from the selected syntax variant.
