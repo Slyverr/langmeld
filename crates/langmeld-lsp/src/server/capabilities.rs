@@ -90,7 +90,16 @@ pub(super) fn server_capabilities(
         hover_provider: backend
             .hover
             .then_some(lsp_types::HoverProviderCapability::Simple(true)),
-        rename_provider: backend.rename.then_some(lsp_types::OneOf::Left(true)),
+        rename_provider: backend.rename.then(|| {
+            if backend.prepare_rename {
+                lsp_types::OneOf::Right(lsp_types::RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })
+            } else {
+                lsp_types::OneOf::Left(true)
+            }
+        }),
         document_symbol_provider: backend
             .document_symbols
             .then_some(lsp_types::OneOf::Left(true)),

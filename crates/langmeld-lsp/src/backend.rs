@@ -138,10 +138,32 @@ pub struct BackendCapabilities {
     pub code_actions: bool,
     /// The backend provides symbol rename edits.
     pub rename: bool,
+    /// The backend can validate a symbol and provide a selection range before rename.
+    pub prepare_rename: bool,
     /// The backend provides document outline symbols.
     pub document_symbols: bool,
     /// The backend searches project-wide symbols.
     pub workspace_symbols: bool,
+}
+
+/// A host-validated symbol selection returned before a rename request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RenamePreparation {
+    /// UTF-8 byte range occupied by the selected symbol.
+    pub range: langmeld_core::Span,
+    /// Name shown by the editor as the current selection.
+    pub placeholder: String,
+}
+
+impl RenamePreparation {
+    /// Creates a rename selection from a source range and its current name.
+    #[must_use]
+    pub fn new(range: langmeld_core::Span, placeholder: impl Into<String>) -> Self {
+        Self {
+            range,
+            placeholder: placeholder.into(),
+        }
+    }
 }
 
 /// Workspace lifecycle events a backend wants to receive from the editor.
@@ -368,6 +390,16 @@ pub trait LanguageBackend {
         _offset: usize,
         _new_name: &str,
     ) -> Option<Vec<SourceLocation>> {
+        None
+    }
+
+    /// Validates and selects the symbol under an editor position before rename.
+    fn prepare_rename(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        _offset: usize,
+    ) -> Option<RenamePreparation> {
         None
     }
 

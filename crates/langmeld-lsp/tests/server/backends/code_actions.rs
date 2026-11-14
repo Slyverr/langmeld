@@ -14,6 +14,8 @@ impl LanguageBackend for CodeActionsBackend {
     fn capabilities(&self) -> BackendCapabilities {
         BackendCapabilities {
             code_actions: true,
+            rename: true,
+            prepare_rename: true,
             ..BackendCapabilities::default()
         }
     }
@@ -32,6 +34,16 @@ impl LanguageBackend for CodeActionsBackend {
             None,
         ))]
     }
+
+    fn prepare_rename(
+        &self,
+        _source: &SourceFile,
+        _document: &BackendDocument<Self::Document>,
+        offset: usize,
+    ) -> Option<RenamePreparation> {
+        assert_eq!(offset, 4);
+        Some(RenamePreparation::new(Span::new(4, 8), "name"))
+    }
 }
 
 #[test]
@@ -48,6 +60,10 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
     send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
     let initialize = receive_response(&client);
     assert_eq!(initialize["capabilities"]["codeActionProvider"], true);
+    assert_eq!(
+        initialize["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
     send_notification(&client, "initialized", json!({}));
 
     let uri = "file:///code-actions.lang";
@@ -83,7 +99,21 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
     assert_eq!(actions[0]["command"], "langmeld.test");
     assert_eq!(actions[0]["title"], "UTF-8 byte span received");
 
-    send_request(&client, 3, "shutdown", Value::Null);
+    send_request(
+        &client,
+        3,
+        "textDocument/prepareRename",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 2 }
+        }),
+    );
+    let selection = receive_response(&client);
+    assert_eq!(selection["placeholder"], "name");
+    assert_eq!(selection["range"]["start"]["character"], 2);
+    assert_eq!(selection["range"]["end"]["character"], 6);
+
+    send_request(&client, 4, "shutdown", Value::Null);
     let _ = receive_response(&client);
     send_notification(&client, "exit", Value::Null);
     drop(client);

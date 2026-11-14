@@ -6,10 +6,33 @@ use crate::{
 };
 use lsp_types::{
     CodeActionParams, CompletionParams, DocumentFormattingParams, DocumentSymbolParams,
-    DocumentSymbolResponse, HoverParams, SemanticTokensParams, TextEdit,
+    DocumentSymbolResponse, HoverParams, PrepareRenameResponse, SemanticTokensParams,
+    TextDocumentPositionParams, TextEdit,
 };
 
 impl<B: LanguageBackend> ServerState<B> {
+    pub(super) fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Option<PrepareRenameResponse> {
+        let document = self.documents.get(&params.text_document.uri)?;
+        let source = self.sources.get(document.source_id)?;
+        if !document.analysis.matches_source(source) {
+            return None;
+        }
+
+        let offset = byte_offset(source, params.position, self.encoding)?;
+        let target = self
+            .backend
+            .prepare_rename(source, &document.analysis, offset)?;
+        let range = to_lsp_range(source, target.range, self.encoding)?;
+
+        Some(PrepareRenameResponse::RangeWithPlaceholder {
+            range,
+            placeholder: target.placeholder,
+        })
+    }
+
     pub(super) fn code_actions(
         &self,
         params: CodeActionParams,

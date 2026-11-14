@@ -18,8 +18,8 @@ use langmeld_language::{
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind,
-    HostLanguageBackend, HoverInfo, LanguageBackend, LanguageDefinitionBackend, SemanticToken,
-    SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
+    HostLanguageBackend, HoverInfo, LanguageBackend, LanguageDefinitionBackend, RenamePreparation,
+    SemanticToken, SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::Uri;
@@ -59,6 +59,7 @@ impl LanguageBackend for Backend {
             hover: true,
             code_actions: false,
             rename: true,
+            prepare_rename: false,
             document_symbols: true,
             workspace_symbols: true,
         }

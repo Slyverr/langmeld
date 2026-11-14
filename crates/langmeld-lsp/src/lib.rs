@@ -12,6 +12,7 @@ mod semantic;
 mod server;
 mod workspace_symbol;
 
+pub use backend::RenamePreparation;
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, LanguageBackend,
