@@ -45,6 +45,42 @@ pub struct ParseResultParts {
     pub resource_limited: bool,
 }
 
+/// A construct borrowed from a parse result together with its source identity.
+///
+/// Construct references are created by [`ParseResult::construct_refs`] and
+/// [`Self::children`]. They let typed views validate the source snapshot
+/// without searching the parse tree for each construct.
+#[derive(Clone, Copy, Debug)]
+pub struct ParsedConstructRef<'parsed> {
+    source: SourceIdentity,
+    construct: &'parsed ParsedConstruct,
+}
+
+impl<'parsed> ParsedConstructRef<'parsed> {
+    fn new(source: SourceIdentity, construct: &'parsed ParsedConstruct) -> Self {
+        Self { source, construct }
+    }
+
+    /// Returns the parsed construct borrowed by this reference.
+    #[must_use]
+    pub const fn construct(self) -> &'parsed ParsedConstruct {
+        self.construct
+    }
+
+    /// Returns the direct child constructs with this parse result's identity.
+    #[must_use]
+    pub fn children(self) -> impl ExactSizeIterator<Item = Self> + 'parsed {
+        self.construct
+            .children
+            .iter()
+            .map(move |construct| Self::new(self.source, construct))
+    }
+
+    pub(crate) const fn source_identity(self) -> SourceIdentity {
+        self.source
+    }
+}
+
 impl ParseResult {
     /// Returns the identity and revision of the parsed source snapshot.
     #[must_use]
@@ -56,6 +92,17 @@ impl ParseResult {
     #[must_use]
     pub fn constructs(&self) -> &[ParsedConstruct] {
         &self.constructs
+    }
+
+    /// Returns top-level constructs as source-bound references.
+    ///
+    /// Use [`ParsedConstructRef::children`] to walk nested constructs while
+    /// retaining the identity that ties each node to this result's source.
+    #[must_use]
+    pub fn construct_refs(&self) -> impl ExactSizeIterator<Item = ParsedConstructRef<'_>> {
+        self.constructs
+            .iter()
+            .map(move |construct| ParsedConstructRef::new(self.source, construct))
     }
 
     /// Returns whether `construct` is borrowed from this parse result.

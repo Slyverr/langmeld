@@ -1,6 +1,6 @@
 use langmeld_core::{Diagnostic, SourceFile, Span};
 
-use crate::{ParseResult, ParsedConstruct};
+use crate::{ParseResult, ParsedConstruct, ParsedConstructRef};
 
 /// A generated typed view over one parsed construct.
 ///
@@ -37,14 +37,40 @@ pub trait TypedConstruct<'source>: Sized {
                 Span::default(),
             ));
         }
-        if construct.name != Self::CONSTRUCT {
+
+        validate_construct_name::<Self>(source, construct)?;
+
+        Self::from_validated_construct(source, construct)
+    }
+
+    /// Creates a typed view from a construct reference yielded by a parse
+    /// result, checking its source identity without searching the tree.
+    ///
+    /// This is useful when walking many constructs: [`Self::from_construct`]
+    /// also checks parse-result membership, which requires searching the tree.
+    /// A [`ParsedConstructRef`] can only be obtained by iterating a parse
+    /// result's constructs or a parent's children.
+    ///
+    /// # Errors
+    ///
+    /// Returns a source-located diagnostic when the source snapshot or
+    /// construct name does not match this view, or when its captures do not
+    /// match the generated view.
+    fn from_construct_ref(
+        source: &'source SourceFile,
+        construct: ParsedConstructRef<'source>,
+    ) -> Result<Self, Diagnostic> {
+        if construct.source_identity() != source.identity() {
             return Err(Diagnostic::error(
                 "LM-TYPED-001",
-                format!("expected construct `{}`", Self::CONSTRUCT),
+                "construct reference belongs to a different source snapshot",
                 source,
-                construct.span,
+                Span::default(),
             ));
         }
+
+        let construct = construct.construct();
+        validate_construct_name::<Self>(source, construct)?;
 
         Self::from_validated_construct(source, construct)
     }
@@ -52,10 +78,27 @@ pub trait TypedConstruct<'source>: Sized {
     /// Creates the view after [`Self::from_construct`] validates its inputs.
     ///
     /// This method is an implementation hook for generated bindings. Callers
-    /// should use [`Self::from_construct`] or [`ConstructContext::typed`](crate::ConstructContext::typed).
+    /// should use [`Self::from_construct`], [`Self::from_construct_ref`], or
+    /// [`ConstructContext::typed`](crate::ConstructContext::typed).
     #[doc(hidden)]
     fn from_validated_construct(
         source: &'source SourceFile,
         construct: &'source ParsedConstruct,
     ) -> Result<Self, Diagnostic>;
+}
+
+fn validate_construct_name<'source, T: TypedConstruct<'source>>(
+    source: &'source SourceFile,
+    construct: &ParsedConstruct,
+) -> Result<(), Diagnostic> {
+    if construct.name != T::CONSTRUCT {
+        return Err(Diagnostic::error(
+            "LM-TYPED-001",
+            format!("expected construct `{}`", T::CONSTRUCT),
+            source,
+            construct.span,
+        ));
+    }
+
+    Ok(())
 }

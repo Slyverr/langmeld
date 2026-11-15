@@ -41,8 +41,8 @@ pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{
     CaptureGroup, CaptureGroupKind, CaptureGroupOccurrence, CapturedField, CapturedValue,
-    ParseLimits, ParseResult, ParseResultParts, ParsedConstruct, parse, parse_with_lexer,
-    parse_with_lexer_and_limits, parse_with_limits,
+    ParseLimits, ParseResult, ParseResultParts, ParsedConstruct, ParsedConstructRef, parse,
+    parse_with_lexer, parse_with_lexer_and_limits, parse_with_limits,
 };
 pub use spec::{
     BlockSpec, ConstructSpec, FieldKind, LanguageSpec, LanguageSpecBuilder, LexicalRules,

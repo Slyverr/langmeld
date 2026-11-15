@@ -6,6 +6,7 @@ use langmeld_language::{
     TypedConstructHandler, parse,
 };
 
+#[derive(Debug)]
 struct NameView<'source> {
     name: &'source str,
 }
@@ -159,6 +160,60 @@ fn typed_handler_registry_creates_and_passes_the_registered_view() {
         .expect("typed capture access succeeds");
 
     assert_eq!(state, ["Ada"]);
+}
+
+#[test]
+fn typed_view_accepts_source_bound_nested_construct_references() {
+    let language = LanguageSpec::new(
+        "Greeting",
+        [
+            ConstructSpec::new("program", [PatternPart::literal("program")]).block(
+                "{",
+                "}",
+                &["greet"],
+            ),
+            ConstructSpec::new(
+                "greet",
+                [
+                    PatternPart::literal("hello"),
+                    PatternPart::identifier("name"),
+                ],
+            ),
+        ],
+    )
+    .expect("the block grammar is valid");
+    let source = SourceFile::new("greeting.txt", "program { hello Ada }");
+    let parsed = parse(&source, &language);
+    let program = parsed
+        .construct_refs()
+        .next()
+        .expect("program construct should parse");
+    let greet = program
+        .children()
+        .next()
+        .expect("nested greeting should parse");
+
+    let view = NameView::from_construct_ref(&source, greet)
+        .expect("source-bound nested references should create typed views");
+
+    assert_eq!(view.name, "Ada");
+}
+
+#[test]
+fn typed_view_rejects_a_construct_reference_from_another_source_snapshot() {
+    let language = greeting_language();
+    let source = SourceFile::new("greeting.txt", "hello Ada");
+    let other_source = SourceFile::new("greeting.txt", "hello Ada");
+    let parsed = parse(&source, &language);
+    let construct = parsed
+        .construct_refs()
+        .next()
+        .expect("greeting should parse");
+
+    let diagnostic = NameView::from_construct_ref(&other_source, construct)
+        .expect_err("source identity mismatch should be rejected");
+
+    assert_eq!(diagnostic.code, "LM-TYPED-001");
 }
 
 #[test]
