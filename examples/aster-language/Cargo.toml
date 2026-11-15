@@ -14,7 +14,6 @@ langmeld-language.workspace = true
 langmeld-lsp.workspace = true
 
 [dev-dependencies]
-lsp-server.workspace = true
 serde_json.workspace = true
 
 [lints]

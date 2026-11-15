@@ -1,8 +1,10 @@
 use std::{sync::mpsc, thread, time::Duration};
 
 use langmeld_aster_language_example::AsterBackend;
-use langmeld_lsp::run_connection;
-use lsp_server::{Connection, Message, Notification, Request, RequestId};
+use langmeld_lsp::{
+    lsp_server::{Connection, Message, Notification, Request, RequestId},
+    run_connection,
+};
 use serde_json::{Value, json};
 
 fn send_request(connection: &Connection, id: i32, method: &str, params: Value) {

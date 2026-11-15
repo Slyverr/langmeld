@@ -15,6 +15,8 @@ use langmeld_language::{
     ConstructSpec, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageSpec, LanguageWorkspaceAnalyzer, ParsedDocument, PatternPart,
 };
+use langmeld_lsp::lsp_server::{Connection, Message, Notification, Request, RequestId};
+use langmeld_lsp::lsp_types::Uri;
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, DeclarativeBackend,
@@ -22,8 +24,6 @@ use langmeld_lsp::{
     LanguageDefinitionBackend, LanguageServerInfo, RenamePreparation, SemanticToken,
     SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
 };
-use lsp_server::{Connection, Message, Notification, Request, RequestId};
-use lsp_types::Uri;
 use serde_json::Value;
 
 #[derive(Default)]
@@ -172,7 +172,7 @@ impl LanguageBackend for Backend {
         &self,
         source: &SourceFile,
         _document: &BackendDocument<String>,
-        options: &lsp_types::FormattingOptions,
+        options: &langmeld_lsp::lsp_types::FormattingOptions,
     ) -> Option<String> {
         let indentation = if options.insert_spaces {
             " ".repeat(options.tab_size as usize)
@@ -346,7 +346,7 @@ fn receive_diagnostics(connection: &Connection) -> Value {
 #[derive(Clone, Default)]
 struct WorkspaceBackend {
     initialized: Arc<Mutex<Option<BackendWorkspace>>>,
-    changes: Arc<Mutex<Vec<lsp_types::WorkspaceFoldersChangeEvent>>>,
+    changes: Arc<Mutex<Vec<langmeld_lsp::lsp_types::WorkspaceFoldersChangeEvent>>>,
 }
 
 impl LanguageBackend for WorkspaceBackend {
@@ -356,7 +356,10 @@ impl LanguageBackend for WorkspaceBackend {
         *self.initialized.lock().unwrap() = Some(workspace.clone());
     }
 
-    fn did_change_workspace_folders(&self, event: &lsp_types::WorkspaceFoldersChangeEvent) {
+    fn did_change_workspace_folders(
+        &self,
+        event: &langmeld_lsp::lsp_types::WorkspaceFoldersChangeEvent,
+    ) {
         self.changes.lock().unwrap().push(event.clone());
     }
 

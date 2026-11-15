@@ -371,7 +371,6 @@ dependencies = [
  "langmeld-expression",
  "langmeld-language",
  "langmeld-lsp",
- "lsp-server",
  "serde_json",
 ]
 

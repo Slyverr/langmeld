@@ -33,6 +33,11 @@ each callback receives the source-matched `HostDocument`. Hosts that need
 additional protocol or workspace behavior can still implement
 `LanguageBackend` directly.
 
+The crate re-exports its protocol and transport dependencies as
+`langmeld_lsp::lsp_types` and `langmeld_lsp::lsp_server`. Consumers can name
+callback types and embed the server without adding separate direct dependencies
+on those crates.
+
 For semantics that span several open documents, attach a
 `LanguageWorkspaceAnalyzer` with `HostLanguageBackend::with_workspace_analyzer`.
 The adapter validates that results map to the corresponding source snapshots

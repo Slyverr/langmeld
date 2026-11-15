@@ -12,6 +12,11 @@ mod semantic;
 mod server;
 mod workspace_symbol;
 
+/// LSP transport types used when embedding the server.
+pub use lsp_server;
+/// LSP protocol types used by backend contracts and providers.
+pub use lsp_types;
+
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, LanguageBackend,

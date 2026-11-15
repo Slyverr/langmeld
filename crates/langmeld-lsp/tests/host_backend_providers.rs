@@ -1,11 +1,11 @@
 use langmeld_core::{SourceFile, SourceLocation, Span};
 use langmeld_language::{LanguageParser, ParsedDocument};
+use langmeld_lsp::lsp_types::{CodeActionParams, FormattingOptions};
 use langmeld_lsp::{
     BackendDocument, CodeActionEdit, CodeActionInfo, DocumentSymbolInfo, DocumentSymbolKind,
     HostLanguageBackend, HoverContent, HoverInfo, LanguageBackend, RenamePreparation,
     SemanticToken, SemanticTokenLegend,
 };
-use lsp_types::{CodeActionParams, FormattingOptions};
 
 struct Parser;
 
