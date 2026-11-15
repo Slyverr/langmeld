@@ -34,8 +34,9 @@ API migration notes are in the
 
 ### Changed
 
-- **Breaking:** Forward the deprecated LSP `rootPath` through `BackendWorkspace`.
-  Downstream struct literals must initialize `root_path` or use a default update.
+- **Breaking:** Add `root_path` to `BackendWorkspace`, `code_actions` and
+  `prepare_rename` to `BackendCapabilities`, and `block_span` to
+  `ParsedConstruct`. Update complete struct literals; see the upgrading guide.
 
 ### Fixed
 

@@ -39,6 +39,38 @@ This lets backends retain compatibility with clients that provide `rootPath`
 without `rootUri` or workspace folders. Prefer `root_uri` or
 `workspace_folders` when available.
 
+### LSP capability literals
+
+`BackendCapabilities` adds `code_actions` and `prepare_rename`. If you construct
+the struct directly, initialize the new fields or use a default update. Set
+these to `true` only when the backend implements the matching request:
+
+```rust,ignore
+let capabilities = BackendCapabilities {
+    code_actions: true,
+    prepare_rename: true,
+    ..BackendCapabilities::default()
+};
+```
+
+### Parsed construct literals
+
+`ParsedConstruct` adds `block_span`, which records the source range of a
+present delimited block. When constructing a value directly, use `None` when
+the construct has no block or provide the block's span:
+
+```rust,ignore
+let construct = ParsedConstruct {
+    name: "statement".to_owned(),
+    variant: 0,
+    span,
+    block_span: None,
+    fields,
+    capture_groups,
+    children,
+};
+```
+
 ## Migrating from v0.13.0 to v0.14.0
 
 The changes below are included in v0.14.0. See the
