@@ -11,8 +11,8 @@ use crate::SayParser;
 /// Returns an I/O or protocol error when the server cannot be initialized or
 /// served.
 pub fn run_stdio_server() -> Result<(), Box<dyn Error + Send + Sync>> {
-    let server_info = LanguageServerInfo::new(env!("CARGO_PKG_NAME"))
-        .with_version(env!("CARGO_PKG_VERSION"));
+    let server_info = LanguageServerInfo::new(env!("CARGO_PKG_NAME"));
+    let server_info = server_info.with_version(env!("CARGO_PKG_VERSION"));
     let backend = HostLanguageBackend::new(SayParser).with_server_info(server_info);
 
     run_stdio(backend)

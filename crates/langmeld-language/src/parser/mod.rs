@@ -68,7 +68,6 @@ impl<'parsed> ParsedConstructRef<'parsed> {
     }
 
     /// Returns the direct child constructs with this parse result's identity.
-    #[must_use]
     pub fn children(self) -> impl ExactSizeIterator<Item = Self> + 'parsed {
         self.construct
             .children
@@ -98,7 +97,6 @@ impl ParseResult {
     ///
     /// Use [`ParsedConstructRef::children`] to walk nested constructs while
     /// retaining the identity that ties each node to this result's source.
-    #[must_use]
     pub fn construct_refs(&self) -> impl ExactSizeIterator<Item = ParsedConstructRef<'_>> {
         self.constructs
             .iter()
