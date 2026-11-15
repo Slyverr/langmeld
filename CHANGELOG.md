@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Keep custom-parser LSP backend setup in `src/lsp.rs`, with a thin binary entry
+  point, matching declarative project structure.
 - Demonstrate declarative syntax with Rust-owned analysis and a project-local
   language server in the `declarative-functions` example.
 - Generate a project-local `language-lsp` target for declarative language

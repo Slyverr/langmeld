@@ -30,7 +30,8 @@ cargo run --bin language-lsp
 
 It publishes parser diagnostics from the host parser. Add host analysis,
 completion, and navigation by implementing Langmeld's corresponding traits
-and attaching them to `HostLanguageBackend` in `src/bin/language-lsp.rs`.
+and attaching them to `HostLanguageBackend` in `src/lsp.rs`. The binary in
+`src/bin/language-lsp.rs` only starts that server.
 
 ## License
 

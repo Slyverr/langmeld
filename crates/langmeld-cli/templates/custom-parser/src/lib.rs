@@ -1,3 +1,5 @@
+pub mod lsp;
+
 use langmeld_core::{Diagnostic, SourceFile, Span};
 use langmeld_language::{LanguageParser, ParsedDocument};
 

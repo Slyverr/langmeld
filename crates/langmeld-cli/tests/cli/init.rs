@@ -663,6 +663,7 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("cargo run --bin language-lsp"));
     assert!(project.join("Cargo.toml").is_file());
     assert!(project.join("src/lib.rs").is_file());
+    assert!(project.join("src/lsp.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("src/bin/language-lsp.rs").is_file());
     assert!(project.join("tests/parser.rs").is_file());
@@ -688,5 +689,11 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     assert!(binary.contains("fs::read_to_string"));
     let lsp = fs::read_to_string(project.join("src/bin/language-lsp.rs"))
         .expect("language server entry point should be generated");
-    assert!(lsp.contains("HostLanguageBackend::new(SayParser)"));
+    assert!(lsp.contains("use language::lsp::run_stdio_server;"));
+    assert!(lsp.contains("run_stdio_server()"));
+    let lsp_module = fs::read_to_string(project.join("src/lsp.rs"))
+        .expect("language server backend should be generated");
+    assert!(lsp_module.contains("HostLanguageBackend::new(SayParser)"));
+    assert!(parser.contains("pub mod lsp;"));
+    assert!(readme.contains("src/lsp.rs"));
 }

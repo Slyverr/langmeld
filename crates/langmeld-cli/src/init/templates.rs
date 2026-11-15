@@ -238,6 +238,10 @@ pub(super) fn project_files(
                         .replace("{{LANGUAGE_NAME}}", &format!("{language_name:?}")),
                 ),
                 (
+                    "src/lsp.rs".to_owned(),
+                    include_str!("../../templates/custom-parser/src/lsp.rs").to_owned(),
+                ),
+                (
                     "src/bin/language-lsp.rs".to_owned(),
                     include_str!("../../templates/custom-parser/src/bin/language-lsp.rs")
                         .to_owned(),

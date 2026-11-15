@@ -1,8 +1,7 @@
 use std::error::Error;
 
-use langmeld_lsp::{HostLanguageBackend, run_stdio};
-use language::SayParser;
+use language::lsp::run_stdio_server;
 
 fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
-    run_stdio(HostLanguageBackend::new(SayParser))
+    run_stdio_server()
 }
