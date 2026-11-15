@@ -15,7 +15,7 @@ mod workspace_symbol;
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, LanguageBackend,
-    RenamePreparation,
+    LanguageServerInfo, RenamePreparation,
 };
 pub use declarative_backend::DeclarativeBackend;
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};

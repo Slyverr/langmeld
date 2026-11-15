@@ -146,6 +146,49 @@ pub struct BackendCapabilities {
     pub workspace_symbols: bool,
 }
 
+/// The name and version an LSP client should display for a server.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LanguageServerInfo {
+    name: String,
+    version: Option<String>,
+}
+
+impl LanguageServerInfo {
+    /// Creates server metadata with no version.
+    #[must_use]
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            version: None,
+        }
+    }
+
+    /// Sets the version displayed by the client.
+    #[must_use]
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Returns the name displayed by the client.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the optional version displayed by the client.
+    #[must_use]
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
+}
+
+impl Default for LanguageServerInfo {
+    fn default() -> Self {
+        Self::new("langmeld").with_version(env!("CARGO_PKG_VERSION"))
+    }
+}
+
 /// A host-validated symbol selection returned before a rename request.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RenamePreparation {
@@ -257,6 +300,11 @@ pub struct BackendWorkspace {
 pub trait LanguageBackend {
     /// Backend-owned state retained for an open document.
     type Document;
+
+    /// Identifies this server to the editor. The default identifies Langmeld.
+    fn server_info(&self) -> LanguageServerInfo {
+        LanguageServerInfo::default()
+    }
 
     /// Receives the editor's initial workspace context before initialization
     /// completes. Hosts may use it to prepare project indexes or configuration.

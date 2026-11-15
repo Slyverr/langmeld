@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use langmeld_lsp::{HostLanguageBackend, run_stdio};
+use langmeld_lsp::{HostLanguageBackend, LanguageServerInfo, run_stdio};
 
 use crate::SayParser;
 
@@ -11,5 +11,9 @@ use crate::SayParser;
 /// Returns an I/O or protocol error when the server cannot be initialized or
 /// served.
 pub fn run_stdio_server() -> Result<(), Box<dyn Error + Send + Sync>> {
-    run_stdio(HostLanguageBackend::new(SayParser))
+    let server_info = LanguageServerInfo::new(env!("CARGO_PKG_NAME"))
+        .with_version(env!("CARGO_PKG_VERSION"));
+    let backend = HostLanguageBackend::new(SayParser).with_server_info(server_info);
+
+    run_stdio(backend)
 }

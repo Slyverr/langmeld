@@ -19,8 +19,8 @@ use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
     BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, DeclarativeBackend,
     DocumentSymbolInfo, DocumentSymbolKind, HostLanguageBackend, HoverInfo, LanguageBackend,
-    LanguageDefinitionBackend, RenamePreparation, SemanticToken, SemanticTokenLegend,
-    WorkspaceSymbolInfo, run_connection,
+    LanguageDefinitionBackend, LanguageServerInfo, RenamePreparation, SemanticToken,
+    SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
 };
 use lsp_server::{Connection, Message, Notification, Request, RequestId};
 use lsp_types::Uri;
@@ -382,5 +382,7 @@ mod backends;
 mod documents;
 #[path = "server/lifecycle.rs"]
 mod lifecycle;
+#[path = "server/server_info.rs"]
+mod server_info;
 #[path = "server/workspace.rs"]
 mod workspace;

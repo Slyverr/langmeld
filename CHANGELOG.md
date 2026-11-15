@@ -11,6 +11,7 @@ API migration notes are in the
 
 ### Added
 
+- Allow language servers to report their own name and version to editors.
 - Keep custom-parser LSP backend setup in `src/lsp.rs`, with a thin binary entry
   point, matching declarative project structure.
 - Demonstrate declarative syntax with Rust-owned analysis and a project-local

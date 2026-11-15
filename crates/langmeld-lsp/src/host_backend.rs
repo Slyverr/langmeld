@@ -7,8 +7,8 @@ use lsp_types::{CodeActionParams, FormattingOptions};
 
 use crate::{
     BackendCapabilities, BackendDocument, BackendSource, CodeActionInfo, DocumentSymbolInfo,
-    HoverInfo, LanguageBackend, RenamePreparation, SemanticToken, SemanticTokenLegend,
-    WorkspaceSymbolInfo,
+    HoverInfo, LanguageBackend, LanguageServerInfo, RenamePreparation, SemanticToken,
+    SemanticTokenLegend, WorkspaceSymbolInfo,
 };
 
 const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
@@ -132,6 +132,7 @@ where
     code_action_provider: Option<Box<CodeActionProvider<'backend, P::Tree, A::Analysis>>>,
     rename_provider: Option<Box<RenameProvider<'backend, P::Tree, A::Analysis>>>,
     prepare_rename_provider: Option<Box<PrepareRenameProvider<'backend, P::Tree, A::Analysis>>>,
+    server_info: LanguageServerInfo,
 }
 
 impl<'backend, P> HostLanguageBackend<'backend, P, NoAnalyzer>
@@ -158,6 +159,7 @@ where
             code_action_provider: None,
             rename_provider: None,
             prepare_rename_provider: None,
+            server_info: LanguageServerInfo::default(),
         }
     }
 }
@@ -167,6 +169,13 @@ where
     P: LanguageParser + 'backend,
     A: LanguageAnalyzer<P> + 'backend,
 {
+    /// Sets the name and version shown by the editor for this server.
+    #[must_use]
+    pub fn with_server_info(mut self, server_info: LanguageServerInfo) -> Self {
+        self.server_info = server_info;
+        self
+    }
+
     /// Creates a backend with host-defined semantic analysis.
     ///
     /// Choose the analyzer before attaching completion, navigation, or
@@ -191,6 +200,7 @@ where
             code_action_provider: None,
             rename_provider: None,
             prepare_rename_provider: None,
+            server_info: LanguageServerInfo::default(),
         }
     }
 
@@ -439,6 +449,10 @@ where
     A: LanguageAnalyzer<P> + 'backend,
 {
     type Document = HostDocument<P::Tree, A::Analysis>;
+
+    fn server_info(&self) -> LanguageServerInfo {
+        self.server_info.clone()
+    }
 
     fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
         self.analyze_parsed(source, self.parser.parse(source))

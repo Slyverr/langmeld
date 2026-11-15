@@ -175,6 +175,7 @@ pub fn run_connection<B: LanguageBackend>(
     }
     backend.initialize_workspace(&workspace);
     let workspace_capabilities = backend.workspace_capabilities();
+    let server_info = backend.server_info();
     let result = InitializeResult {
         capabilities: server_capabilities(
             capabilities,
@@ -184,8 +185,8 @@ pub fn run_connection<B: LanguageBackend>(
             client_supports_workspace_folders,
         ),
         server_info: Some(ServerInfo {
-            name: "langmeld".into(),
-            version: Some(env!("CARGO_PKG_VERSION").into()),
+            name: server_info.name().to_owned(),
+            version: server_info.version().map(str::to_owned),
         }),
     };
     connection.initialize_finish(initialize_id, serde_json::to_value(result)?)?;

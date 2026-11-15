@@ -97,6 +97,11 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(readme.contains("src/constructs/"));
     assert!(readme.contains("cargo run --bin language-lsp"));
     assert!(readme.contains("src/lsp.rs"));
+    let lsp = fs::read_to_string(project.join("src/lsp.rs"))
+        .expect("language server backend should be generated");
+    assert!(lsp.contains("LanguageServerInfo::new(env!(\"CARGO_PKG_NAME\"))"));
+    assert!(lsp.contains("DeclarativeBackend::new"));
+    assert!(lsp.contains("with_server_info(server_info)"));
     assert!(readme.contains("langmeld generate construct repeat"));
     assert!(readme.contains("generated handler reports a diagnostic"));
     assert!(!readme.contains("{{TYPED_BINDINGS_GUIDANCE}}"));
@@ -694,6 +699,8 @@ fn init_can_scaffold_a_host_owned_rust_parser() {
     let lsp_module = fs::read_to_string(project.join("src/lsp.rs"))
         .expect("language server backend should be generated");
     assert!(lsp_module.contains("HostLanguageBackend::new(SayParser)"));
+    assert!(lsp_module.contains("LanguageServerInfo::new(env!(\"CARGO_PKG_NAME\"))"));
+    assert!(lsp_module.contains("with_server_info(server_info)"));
     assert!(parser.contains("pub mod lsp;"));
     assert!(readme.contains("src/lsp.rs"));
 }
