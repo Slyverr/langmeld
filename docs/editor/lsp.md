@@ -1,15 +1,17 @@
 # Language Server Protocol
 
-`langmeld-lsp` provides a Language Server Protocol adapter for Langmeld
-languages. It supports full-document replacements and incremental ranged
-changes, diagnostics, completion, go-to-definition, references, host-owned
-rename, hover, document symbols, and semantic tokens. It also supports
-host-provided full-document formatting and advertises only operations enabled
-by the backend.
+`langmeld-lsp` is Langmeld's shared Language Server Protocol engine for
+declarative languages and Rust-hosted backends. It supports full-document
+replacements and incremental ranged changes, diagnostics, completion,
+go-to-definition, references, host-owned rename, hover, document symbols, and
+semantic tokens. It also supports host-provided full-document formatting and
+advertises only operations enabled by the backend.
 
-`langmeld-lsp` is a protocol-adapter library; each language does not need a
-separate package for its backend. A language project's backend can live beside
-its parser and runtime, with a binary target that calls
+Language authors implement `LanguageBackend` in their own language crate,
+beside the parser, semantics, and runtime. That crate depends on `langmeld-lsp`
+for protocol dispatch, source synchronization, and conversion of language
+results into LSP responses. A separate language-server crate is not required:
+the language package can expose a binary target that calls
 `langmeld_lsp::run_stdio`. `langmeld init` generates `src/lsp.rs` and
 `src/bin/language-lsp.rs` in the same package.
 The declarative starter begins with grammar-based diagnostics and completion;

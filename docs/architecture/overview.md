@@ -15,15 +15,15 @@ semantics, execution, and any custom syntax or behavior it needs.
 | `langmeld-project` | Project manifests and modular definition loading through directory, in-memory, and overlay resolvers. |
 | `langmeld-build` | Build-script support that generates typed Rust views from a project's validated `.langmeld` definition. |
 | `langmeld-expression` | Optional configurable expression grammar, parser, and host-defined type and evaluation hooks. |
-| `langmeld-lsp` | LSP protocol adapter for declarative languages and Rust-hosted backends. |
+| `langmeld-lsp` | Shared LSP protocol engine; language-specific backends live in the language project's Rust crate. |
 | `langmeld-textmate` | TextMate grammar export for compatible declarative grammars. |
 | `langmeld-tree-sitter` | Tree-sitter grammar source export for the supported declarative subset. |
 | `langmeld-cli` | User-facing project commands that compose project loading, validation, formatting, editor services, and grammar export. |
 
 The crates are independently usable where their APIs permit. For example,
 applications can use an in-memory definition resolver without the CLI's
-filesystem workflow, and a host can embed the LSP adapter without running the
-Langmeld executable.
+filesystem workflow, and a language project can embed the LSP engine without
+running the Langmeld executable or moving its backend into another crate.
 
 `langmeld-build` is an optional build dependency. Its output is written under
 Cargo's `OUT_DIR`; language projects keep a stable `include!` module in source
