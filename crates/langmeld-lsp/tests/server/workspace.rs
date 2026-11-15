@@ -19,6 +19,7 @@ fn forwards_initial_workspace_context_and_folder_changes_to_opted_in_backends() 
         1,
         "initialize",
         json!({
+            "rootPath": "/workspace",
             "rootUri": "file:///workspace",
             "workspaceFolders": [
                 { "uri": "file:///workspace", "name": "workspace" }
@@ -40,6 +41,7 @@ fn forwards_initial_workspace_context_and_folder_changes_to_opted_in_backends() 
         true
     );
     let context = observed.initialized.lock().unwrap().clone().unwrap();
+    assert_eq!(context.root_path, Some("/workspace".into()));
     assert_eq!(context.root_uri.unwrap().as_str(), "file:///workspace");
     assert_eq!(context.workspace_folders.as_ref().unwrap().len(), 1);
     assert_eq!(

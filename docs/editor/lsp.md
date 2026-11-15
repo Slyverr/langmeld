@@ -66,9 +66,11 @@ result per source in the same order. This lets a host include unsaved imports
 and refresh diagnostics together. The default leaves per-document analysis
 unchanged. `LanguageBackend::did_close` receives the last snapshot when a
 document closes, allowing hosts to remove it from workspace indexes.
-`initialize_workspace` receives the client's root URI, initial workspace
-folders, folder-support flag, and initialization options before the server
-finishes initialization. Return `BackendWorkspaceCapabilities` from
+`initialize_workspace` receives the client's root URI, deprecated `rootPath`
+when supplied, initial workspace folders, folder-support flag, and
+initialization options before the server finishes initialization. Prefer the
+root URI or workspace folders when available. Return
+`BackendWorkspaceCapabilities` from
 `workspace_capabilities` to opt into workspace lifecycle events. Set
 `workspace_folders` when the backend handles folder changes; the server then
 advertises workspace-folder support and forwards

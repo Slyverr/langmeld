@@ -19,6 +19,26 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
+## Unreleased migration notes
+
+### LSP workspace initialization
+
+`BackendWorkspace` now exposes a client's deprecated `rootPath` as
+`root_path: Option<PathBuf>`. Code that constructs this public struct with a
+complete literal must initialize the new field; prefer a default update when
+appropriate:
+
+```rust,ignore
+let workspace = BackendWorkspace {
+    root_uri,
+    ..BackendWorkspace::default()
+};
+```
+
+This lets backends retain compatibility with clients that provide `rootPath`
+without `rootUri` or workspace folders. Prefer `root_uri` or
+`workspace_folders` when available.
+
 ## Migrating from v0.13.0 to v0.14.0
 
 The changes below are included in v0.14.0. See the

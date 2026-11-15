@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
 use langmeld_language::CompletionCandidate;
@@ -278,6 +278,9 @@ pub struct BackendWorkspaceCapabilities {
 /// Workspace information supplied by the editor during LSP initialization.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BackendWorkspace {
+    /// Deprecated filesystem path supplied by older clients when `root_uri`
+    /// is absent. Prefer [`Self::root_uri`] when it is available.
+    pub root_path: Option<PathBuf>,
     /// Legacy root URI supplied by clients that do not send workspace folders.
     pub root_uri: Option<Uri>,
     /// Initial workspace folders. Use `supports_workspace_folders` to distinguish

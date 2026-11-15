@@ -139,9 +139,18 @@ pub fn run_connection<B: LanguageBackend>(
         .unwrap_or(false);
     #[expect(
         deprecated,
+        reason = "rootPath remains part of the legacy LSP initialize contract"
+    )]
+    let root_path = initialize_params
+        .root_path
+        .as_deref()
+        .map(std::path::PathBuf::from);
+    #[expect(
+        deprecated,
         reason = "rootUri remains part of the LSP initialize compatibility contract"
     )]
     let workspace = BackendWorkspace {
+        root_path,
         root_uri: initialize_params.root_uri.clone(),
         workspace_folders: initialize_params.workspace_folders.clone(),
         supports_workspace_folders: client_supports_workspace_folders,
