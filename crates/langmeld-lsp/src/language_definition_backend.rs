@@ -8,6 +8,7 @@ use lsp_types::FormattingOptions;
 
 use crate::{
     backend::{BackendCapabilities, BackendDocument, LanguageBackend},
+    completion_triggers::infer_completion_trigger_characters,
     document_symbol::{DocumentSymbolInfo, DocumentSymbolKind},
 };
 
@@ -32,6 +33,10 @@ impl LanguageBackend for LanguageDefinitionBackend {
             document_symbols: true,
             ..BackendCapabilities::default()
         }
+    }
+
+    fn completion_trigger_characters(&self) -> Vec<String> {
+        infer_completion_trigger_characters(language_definition_grammar())
     }
 
     fn complete(

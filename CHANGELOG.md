@@ -11,9 +11,9 @@ API migration notes are in the
 
 ### Added
 
-- Infer LSP completion trigger characters from declarative grammars, and let
-  Rust backends configure their own triggers. Triggers are advertised only when
-  completion is enabled.
+- Infer LSP completion trigger characters from declarative grammars, including
+  Langmeld's built-in definition editor, and let Rust backends configure their
+  own. Triggers are advertised only when completion is enabled.
 - Pass optional editor completion trigger context to host completers so they can
   distinguish explicit requests from typed-character and incomplete-list
   requests.

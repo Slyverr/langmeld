@@ -24,6 +24,8 @@ mod declarative;
 mod diagnostics;
 #[path = "backends/host.rs"]
 mod host;
+#[path = "backends/language_definition.rs"]
+mod language_definition;
 #[path = "backends/source_identity.rs"]
 mod source_identity;
 #[path = "backends/workspace.rs"]

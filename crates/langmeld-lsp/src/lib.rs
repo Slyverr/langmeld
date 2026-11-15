@@ -2,6 +2,7 @@
 #![deny(missing_docs)]
 
 mod backend;
+mod completion_triggers;
 mod conversion;
 mod declarative_backend;
 mod document_symbol;

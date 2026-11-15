@@ -36,7 +36,8 @@ definition grammar. This mode publishes parser diagnostics, context-aware
 syntax completions for root declarations and nested construct syntax, a
 document outline for language, construct, and import declarations, and
 formatting edits that honor the editor's indentation options. Formatting is
-available only for syntactically valid files. This mode does not run
+available only for syntactically valid files. Completion trigger characters
+are inferred from the built-in grammar. This mode does not run
 definition-level semantic checks without a project manifest. When a manifest is
 available in the working directory or passed with `--manifest-path`, the
 backend validates the complete imported definition graph using all open
