@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Re-export LSP protocol and transport types from `langmeld-lsp` for host
+  integrations.
 - Register and execute host-defined LSP commands, including commands returned
   by code actions.
 - Allow language servers to report their own name and version to editors.
