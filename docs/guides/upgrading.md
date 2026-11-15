@@ -19,7 +19,7 @@ loadable. The diagnostic plumbing can carry and display warnings:
 severity, and `langmeld-build` forwards warning diagnostics to Cargo. There is
 no automatic migration command.
 
-## Unreleased migration notes
+## Migrating from v0.14.0 to v0.15.0
 
 ### LSP workspace initialization
 
