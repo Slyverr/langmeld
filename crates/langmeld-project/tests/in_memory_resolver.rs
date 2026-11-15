@@ -182,6 +182,34 @@ fn replaces_updated_snapshots_and_keeps_sources_sorted_by_key() {
 }
 
 #[test]
+fn creates_source_snapshots_from_path_and_text_pairs() {
+    let resolver = InMemoryDefinitionResolver::from_source_texts(&[
+        ("z.langmeld", "first"),
+        ("a.langmeld", "other"),
+        ("z.langmeld", "replacement"),
+    ])
+    .unwrap();
+
+    let sources = resolver.sources();
+
+    assert_eq!(
+        sources
+            .iter()
+            .map(|source| (source.name(), source.text()))
+            .collect::<Vec<_>>(),
+        [("a.langmeld", "other"), ("z.langmeld", "replacement")]
+    );
+}
+
+#[test]
+fn rejects_nonportable_keys_when_creating_from_source_texts() {
+    assert!(matches!(
+        InMemoryDefinitionResolver::from_source_texts(&[("../outside.langmeld", "")]),
+        Err(ProjectLoadError::InvalidPath(_))
+    ));
+}
+
+#[test]
 fn imported_definition_diagnostics_keep_the_embedded_source_name() {
     let mut resolver = InMemoryDefinitionResolver::new();
     resolver

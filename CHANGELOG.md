@@ -14,6 +14,8 @@ API migration notes are in the
 - Generate compile-time source entries for the root and imported `.langmeld`
   files independently of typed bindings, so hosts can load definition projects
   without runtime filesystem access.
+- Build an in-memory definition resolver directly from generated path and
+  source-text pairs.
 
 ## [0.16.0] - 2026-11-15
 

@@ -75,12 +75,7 @@ use langmeld_core::SourceFile;
 use langmeld_project::InMemoryDefinitionResolver;
 
 fn embedded_resolver() -> Result<InMemoryDefinitionResolver, Box<dyn std::error::Error>> {
-    let mut resolver = InMemoryDefinitionResolver::new();
-    for &(path, text) in LANGMELD_SOURCES {
-        resolver.insert(path, SourceFile::new(path, text))?;
-    }
-
-    Ok(resolver)
+    Ok(InMemoryDefinitionResolver::from_source_texts(LANGMELD_SOURCES)?)
 }
 ```
 

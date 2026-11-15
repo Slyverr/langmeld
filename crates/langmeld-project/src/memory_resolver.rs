@@ -23,6 +23,27 @@ impl InMemoryDefinitionResolver {
         Self::default()
     }
 
+    /// Creates an in-memory source collection from project-relative paths and
+    /// source text pairs.
+    ///
+    /// Paths use the same portability rules as [`Self::insert`]. Repeated
+    /// paths replace the earlier source, matching sequential calls to
+    /// `insert`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ProjectLoadError::InvalidPath`] when a path is not a valid
+    /// portable project-relative path.
+    pub fn from_source_texts(sources: &[(&str, &str)]) -> Result<Self, ProjectLoadError> {
+        let mut resolver = Self::new();
+
+        for &(key, text) in sources {
+            resolver.insert(key, SourceFile::new(key, text))?;
+        }
+
+        Ok(resolver)
+    }
+
     /// Adds or replaces a source at a portable project-relative path.
     ///
     /// # Errors

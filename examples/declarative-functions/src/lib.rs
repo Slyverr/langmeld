@@ -27,12 +27,8 @@ pub struct FunctionAnalysis {
 /// Returns an error when the project or its definition cannot be loaded, or
 /// when the definition does not produce a valid language specification.
 pub fn load() -> Result<LanguageSpec, String> {
-    let mut resolver = InMemoryDefinitionResolver::new();
-    for &(path, text) in generated::LANGMELD_SOURCES {
-        resolver
-            .insert(path, SourceFile::new(path, text))
-            .map_err(|error| error.to_string())?;
-    }
+    let resolver = InMemoryDefinitionResolver::from_source_texts(generated::LANGMELD_SOURCES)
+        .map_err(|error| error.to_string())?;
 
     let root = resolver
         .load("language/main.langmeld")

@@ -102,15 +102,9 @@ fn verify_named_result_parts() {
 }
 
 fn verify_in_memory_language_project() {
-    let mut resolver = InMemoryDefinitionResolver::new();
-
     assert_eq!(LANGMELD_SOURCES.len(), 3);
-
-    for &(key, text) in LANGMELD_SOURCES {
-        resolver
-            .insert(key, SourceFile::new(key, text))
-            .expect("embedded definition paths should be valid");
-    }
+    let resolver = InMemoryDefinitionResolver::from_source_texts(LANGMELD_SOURCES)
+        .expect("embedded definition paths should be valid");
 
     let root = resolver
         .load("language/main.langmeld")

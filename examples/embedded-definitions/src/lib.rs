@@ -14,12 +14,10 @@ const PROGRAM: &str = "program { draw circle; note \"added by Rust\"; }";
 /// Returns an error when an embedded definition cannot be added or loaded, the
 /// combined grammar is invalid, or the sample program is invalid.
 pub fn parse_example() -> Result<ParseResult, String> {
-    let mut resolver = InMemoryDefinitionResolver::new();
-    for &(key, text) in geometry_language_extension_example::DEFINITION_SOURCES {
-        resolver
-            .insert(key, SourceFile::new(key, text))
-            .map_err(|error| error.to_string())?;
-    }
+    let resolver = InMemoryDefinitionResolver::from_source_texts(
+        geometry_language_extension_example::DEFINITION_SOURCES,
+    )
+    .map_err(|error| error.to_string())?;
     let project_root = env!("CARGO_MANIFEST_DIR");
     let resolver = OverlayDefinitionResolver::new(project_root, resolver)
         .map_err(|error| error.to_string())?;
