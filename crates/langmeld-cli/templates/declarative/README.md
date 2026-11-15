@@ -57,11 +57,20 @@ cargo run --bin language-lsp
 
 It uses the project's grammar for parse diagnostics and grammar-based
 completions. The backend lives in `src/lsp.rs`, in the same package as the
-language implementation. Replace `DeclarativeBackend` there with a custom
-`LanguageBackend` when the language needs semantic editor features; Langmeld
-cannot infer those rules from syntax or construct handlers. The installed
-Langmeld CLI also provides `langmeld lsp` for zero-setup, grammar-based support
-and `langmeld lsp --definitions` for editing `.langmeld` files.
+language implementation. The installed Langmeld CLI also provides
+`langmeld lsp` for zero-setup, grammar-based support and
+`langmeld lsp --definitions` for editing `.langmeld` files.
+
+When the language needs Rust-defined semantic features, use
+`HostLanguageBackend`: implement `LanguageParser` and `LanguageAnalyzer`, then
+attach only the editor providers the language supports. If grammar-based
+completions should remain available, attach a `LanguageCompleter` that calls
+`complete_at` with the loaded `LanguageSpec`; semantic rules are not inferred
+from syntax or construct handlers. Langmeld's `declarative-functions` example
+shows this combined path. Implement `LanguageBackend` directly when the host
+needs persistent project indexes, unopened-file analysis, or custom workspace
+lifecycle behavior. This lower level does not add arbitrary LSP methods; see
+the Langmeld LSP guide before choosing it.
 
 ## License
 
