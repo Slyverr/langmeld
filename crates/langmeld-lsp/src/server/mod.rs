@@ -175,6 +175,17 @@ pub fn run_connection<B: LanguageBackend>(
     }
     backend.initialize_workspace(&workspace);
     let workspace_capabilities = backend.workspace_capabilities();
+    let mut execute_command_ids = backend.execute_command_ids();
+    if execute_command_ids.iter().any(String::is_empty) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "LSP command identifiers must not be empty",
+        )
+        .into());
+    }
+    execute_command_ids.sort();
+    execute_command_ids.dedup();
+
     let server_info = backend.server_info();
     let result = InitializeResult {
         capabilities: server_capabilities(
@@ -183,6 +194,7 @@ pub fn run_connection<B: LanguageBackend>(
             encoding,
             &semantic_legend,
             client_supports_workspace_folders,
+            &execute_command_ids,
         ),
         server_info: Some(ServerInfo {
             name: server_info.name().to_owned(),
@@ -194,6 +206,7 @@ pub fn run_connection<B: LanguageBackend>(
     let mut server = ServerState {
         backend,
         capabilities,
+        execute_command_ids,
         workspace_capabilities,
         client_supports_workspace_folders,
         client_supports_configuration_registration,
@@ -301,6 +314,7 @@ pub fn run_connection<B: LanguageBackend>(
 struct ServerState<B: LanguageBackend> {
     backend: B,
     capabilities: BackendCapabilities,
+    execute_command_ids: Vec<String>,
     workspace_capabilities: BackendWorkspaceCapabilities,
     client_supports_workspace_folders: bool,
     client_supports_configuration_registration: bool,

@@ -63,6 +63,9 @@ fn backend_with_providers() -> HostLanguageBackend<'static, Parser> {
 
             vec![action]
         })
+        .with_execute_command("langmeld.test", |arguments| {
+            Ok(Some(serde_json::json!({ "arguments": arguments })))
+        })
         .with_rename_provider(|source, document, _, _| {
             document.parsed()?;
 
@@ -124,6 +127,16 @@ fn attached_providers_enable_capabilities_and_receive_validated_documents() {
             .code_actions(&source, &document, &code_action_params(), Span::new(0, 4))
             .len(),
         1
+    );
+    assert_eq!(
+        backend.execute_command_ids(),
+        vec!["langmeld.test".to_owned()]
+    );
+    assert_eq!(
+        backend
+            .execute_command("langmeld.test", &[serde_json::json!("argument")])
+            .unwrap(),
+        Some(serde_json::json!({ "arguments": ["argument"] }))
     );
     assert_eq!(
         backend.rename(&source, &document, 0, "item").unwrap().len(),

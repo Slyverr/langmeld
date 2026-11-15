@@ -229,7 +229,10 @@ pub struct CodeActionInfo {
     pub diagnostics: Vec<LspDiagnostic>,
     /// Source-based edits to apply atomically.
     pub edits: Vec<CodeActionEdit>,
-    /// Optional client command to run after applying edits.
+    /// Optional server command to run after applying edits.
+    ///
+    /// The command identifier must be returned by
+    /// [`LanguageBackend::execute_command_ids`].
     pub command: Option<Command>,
     /// Whether this action is the preferred quick fix.
     pub is_preferred: bool,
@@ -528,5 +531,29 @@ pub trait LanguageBackend {
     /// resolved safely.
     fn workspace_symbols(&self, _query: &str) -> Vec<WorkspaceSymbolInfo> {
         Vec::new()
+    }
+
+    /// Returns command identifiers this backend can execute.
+    ///
+    /// Langmeld advertises these through `executeCommandProvider` and rejects
+    /// `workspace/executeCommand` requests for identifiers not listed here.
+    fn execute_command_ids(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Executes a command registered by [`Self::execute_command_ids`].
+    ///
+    /// Return an error message when execution fails. The server sends it to the
+    /// client as a JSON-RPC internal error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the command cannot be completed.
+    fn execute_command(
+        &self,
+        command: &str,
+        _arguments: &[Value],
+    ) -> Result<Option<Value>, String> {
+        Err(format!("unsupported command `{command}`"))
     }
 }

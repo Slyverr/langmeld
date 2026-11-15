@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Register and execute host-defined LSP commands, including commands returned
+  by code actions.
 - Allow language servers to report their own name and version to editors.
 - Keep custom-parser LSP backend setup in `src/lsp.rs`, with a thin binary entry
   point, matching declarative project structure.

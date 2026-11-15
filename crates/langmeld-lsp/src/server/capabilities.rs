@@ -1,8 +1,8 @@
 use langmeld_core::PositionEncoding;
 use lsp_types::{
-    CompletionOptions, InitializeParams, MarkupContent, MarkupKind, PositionEncodingKind,
-    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    CompletionOptions, ExecuteCommandOptions, InitializeParams, MarkupContent, MarkupKind,
+    PositionEncodingKind, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 
@@ -49,6 +49,7 @@ pub(super) fn server_capabilities(
     encoding: PositionEncoding,
     semantic_legend: &SemanticTokenLegend,
     client_supports_workspace_folders: bool,
+    execute_command_ids: &[String],
 ) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(match encoding {
@@ -110,6 +111,12 @@ pub(super) fn server_capabilities(
         workspace_symbol_provider: backend
             .workspace_symbols
             .then_some(lsp_types::OneOf::Left(true)),
+        execute_command_provider: (!execute_command_ids.is_empty()).then(|| {
+            ExecuteCommandOptions {
+                commands: execute_command_ids.to_vec(),
+                ..ExecuteCommandOptions::default()
+            }
+        }),
         workspace: workspace_folders.then(|| WorkspaceServerCapabilities {
             workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                 supported: Some(true),

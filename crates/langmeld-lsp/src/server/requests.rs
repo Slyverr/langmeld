@@ -1,8 +1,8 @@
 use lsp_server::{ErrorCode, Request, Response};
 use lsp_types::{
     CodeActionParams, CompletionParams, CompletionResponse, DocumentFormattingParams,
-    DocumentSymbolParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
-    ReferenceParams, RenameParams, SemanticTokensParams, TextDocumentPositionParams,
+    DocumentSymbolParams, ExecuteCommandParams, GotoDefinitionParams, GotoDefinitionResponse,
+    HoverParams, ReferenceParams, RenameParams, SemanticTokensParams, TextDocumentPositionParams,
     WorkspaceSymbolParams,
 };
 use serde_json::{Value, json};
@@ -15,6 +15,40 @@ mod navigation;
 impl<B: LanguageBackend> ServerState<B> {
     pub(super) fn request(&self, request: Request) -> Response {
         let id = request.id.clone();
+
+        if request.method == "workspace/executeCommand" {
+            let params = match serde_json::from_value::<ExecuteCommandParams>(request.params) {
+                Ok(params) => params,
+                Err(error) => {
+                    return Response::new_err(
+                        id,
+                        ErrorCode::InvalidParams as i32,
+                        error.to_string(),
+                    );
+                }
+            };
+
+            if !self
+                .execute_command_ids
+                .iter()
+                .any(|command| command == &params.command)
+            {
+                return Response::new_err(
+                    id,
+                    ErrorCode::InvalidParams as i32,
+                    format!("unsupported command `{}`", params.command),
+                );
+            }
+
+            return match self
+                .backend
+                .execute_command(&params.command, &params.arguments)
+            {
+                Ok(result) => Response::new_ok(id, json!(result)),
+                Err(error) => Response::new_err(id, ErrorCode::InternalError as i32, error),
+            };
+        }
+
         let result = match request.method.as_str() {
             "textDocument/completion" if self.capabilities.completion => {
                 serde_json::from_value::<CompletionParams>(request.params).map(|params| {

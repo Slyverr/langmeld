@@ -1,9 +1,12 @@
+use std::collections::BTreeMap;
+
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
     AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
     LanguageWorkspaceAnalyzer, ParsedDocument, complete_with, definition_at, references_at,
 };
 use lsp_types::{CodeActionParams, FormattingOptions};
+use serde_json::Value;
 
 use crate::{
     BackendCapabilities, BackendDocument, BackendSource, CodeActionInfo, DocumentSymbolInfo,
@@ -32,6 +35,7 @@ type RenameProvider<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocumen
     + 'backend;
 type PrepareRenameProvider<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, usize) -> Option<RenamePreparation>
     + 'backend;
+type ExecuteCommandHandler<'backend> = dyn Fn(&[Value]) -> Result<Option<Value>, String> + 'backend;
 
 /// Validated parse and analysis results produced by a [`HostLanguageBackend`].
 /// Results tied to another source snapshot are discarded and exposed as `None`.
@@ -109,8 +113,9 @@ impl<P: LanguageParser> LanguageAnalyzer<P> for NoAnalyzer {
 /// adapter invokes them synchronously on the LSP connection thread.
 /// Optional providers attach formatting, hover, semantic tokens, document
 /// symbols, code actions, and rename without implementing [`LanguageBackend`]
-/// directly. Hosts that need additional protocol or workspace behavior can
-/// still implement [`LanguageBackend`] themselves.
+/// directly. Server commands can be registered with
+/// [`Self::with_execute_command`]. Hosts that need additional protocol or
+/// workspace behavior can still implement [`LanguageBackend`] themselves.
 pub struct HostLanguageBackend<'backend, P, A = NoAnalyzer>
 where
     P: LanguageParser + 'backend,
@@ -132,6 +137,7 @@ where
     code_action_provider: Option<Box<CodeActionProvider<'backend, P::Tree, A::Analysis>>>,
     rename_provider: Option<Box<RenameProvider<'backend, P::Tree, A::Analysis>>>,
     prepare_rename_provider: Option<Box<PrepareRenameProvider<'backend, P::Tree, A::Analysis>>>,
+    execute_command_handlers: BTreeMap<String, Box<ExecuteCommandHandler<'backend>>>,
     server_info: LanguageServerInfo,
 }
 
@@ -159,6 +165,7 @@ where
             code_action_provider: None,
             rename_provider: None,
             prepare_rename_provider: None,
+            execute_command_handlers: BTreeMap::new(),
             server_info: LanguageServerInfo::default(),
         }
     }
@@ -200,6 +207,7 @@ where
             code_action_provider: None,
             rename_provider: None,
             prepare_rename_provider: None,
+            execute_command_handlers: BTreeMap::new(),
             server_info: LanguageServerInfo::default(),
         }
     }
@@ -432,6 +440,22 @@ where
         + 'backend,
     ) -> Self {
         self.prepare_rename_provider = Some(Box::new(provider));
+        self
+    }
+
+    /// Registers a server command that can be invoked by code actions or
+    /// `workspace/executeCommand` requests.
+    ///
+    /// Registered command identifiers are advertised automatically. Registering
+    /// the same identifier again replaces its previous handler.
+    #[must_use]
+    pub fn with_execute_command(
+        mut self,
+        command: impl Into<String>,
+        handler: impl Fn(&[Value]) -> Result<Option<Value>, String> + 'backend,
+    ) -> Self {
+        self.execute_command_handlers
+            .insert(command.into(), Box::new(handler));
         self
     }
 
@@ -716,6 +740,16 @@ where
         self.document_symbol_provider
             .as_ref()
             .map_or_else(Vec::new, |provider| provider(source, host_document))
+    }
+
+    fn execute_command_ids(&self) -> Vec<String> {
+        self.execute_command_handlers.keys().cloned().collect()
+    }
+
+    fn execute_command(&self, command: &str, arguments: &[Value]) -> Result<Option<Value>, String> {
+        self.execute_command_handlers
+            .get(command)
+            .ok_or_else(|| format!("unsupported command `{command}`"))?(arguments)
     }
 }
 

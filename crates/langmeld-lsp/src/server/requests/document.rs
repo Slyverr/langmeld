@@ -61,6 +61,15 @@ impl<B: LanguageBackend> ServerState<B> {
             actions
                 .into_iter()
                 .filter_map(|action| {
+                    if action.command.as_ref().is_some_and(|command| {
+                        !self
+                            .execute_command_ids
+                            .iter()
+                            .any(|registered| registered == &command.command)
+                    }) {
+                        return None;
+                    }
+
                     let mut edits_by_uri: HashMap<String, Vec<(langmeld_core::Span, TextEdit)>> =
                         HashMap::new();
 

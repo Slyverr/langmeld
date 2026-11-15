@@ -20,6 +20,20 @@ impl LanguageBackend for CodeActionsBackend {
         }
     }
 
+    fn execute_command_ids(&self) -> Vec<String> {
+        vec!["langmeld.test".to_owned()]
+    }
+
+    fn execute_command(
+        &self,
+        command: &str,
+        arguments: &[serde_json::Value],
+    ) -> Result<Option<serde_json::Value>, String> {
+        assert_eq!(command, "langmeld.test");
+
+        Ok(Some(json!({ "arguments": arguments })))
+    }
+
     fn code_actions(
         &self,
         source: &SourceFile,
@@ -39,7 +53,22 @@ impl LanguageBackend for CodeActionsBackend {
             "langmeld.test".to_owned(),
             None,
         ));
-        vec![action]
+
+        let mut command_only = CodeActionInfo::new("command only");
+        command_only.command = Some(Command::new(
+            "Run command".to_owned(),
+            "langmeld.test".to_owned(),
+            None,
+        ));
+
+        let mut unregistered = CodeActionInfo::new("unregistered command");
+        unregistered.command = Some(Command::new(
+            "Run invalid command".to_owned(),
+            "langmeld.unregistered".to_owned(),
+            None,
+        ));
+
+        vec![action, command_only, unregistered]
     }
 
     fn prepare_rename(
@@ -67,6 +96,10 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
     send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
     let initialize = receive_response(&client);
     assert_eq!(initialize["capabilities"]["codeActionProvider"], true);
+    assert_eq!(
+        initialize["capabilities"]["executeCommandProvider"]["commands"],
+        json!(["langmeld.test"])
+    );
     assert_eq!(
         initialize["capabilities"]["renameProvider"]["prepareProvider"],
         true
@@ -103,6 +136,7 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
         }),
     );
     let actions = receive_response(&client);
+    assert_eq!(actions.as_array().unwrap().len(), 2);
     assert_eq!(actions[0]["command"]["command"], "langmeld.test");
     assert_eq!(actions[0]["title"], "UTF-8 byte span received");
     assert_eq!(
@@ -113,10 +147,40 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
         actions[0]["edit"]["changes"][uri][0]["range"]["end"]["character"],
         6
     );
+    assert_eq!(actions[1]["command"], "langmeld.test");
 
     send_request(
         &client,
         3,
+        "workspace/executeCommand",
+        json!({
+            "command": "langmeld.test",
+            "arguments": ["argument"]
+        }),
+    );
+    let command_result = receive_response(&client);
+    assert_eq!(command_result["arguments"], json!(["argument"]));
+
+    send_request(
+        &client,
+        4,
+        "workspace/executeCommand",
+        json!({ "command": "langmeld.unregistered" }),
+    );
+    let unknown_command = match receive(&client) {
+        Message::Response(response) => response
+            .response_result
+            .expect_err("unregistered commands should return an error"),
+        message => panic!("expected response, got {message:?}"),
+    };
+    assert_eq!(
+        unknown_command.code,
+        lsp_server::ErrorCode::InvalidParams as i32
+    );
+
+    send_request(
+        &client,
+        5,
         "textDocument/prepareRename",
         json!({
             "textDocument": { "uri": uri },
@@ -128,7 +192,7 @@ fn code_action_callback_receives_validated_utf8_byte_range() {
     assert_eq!(selection["range"]["start"]["character"], 2);
     assert_eq!(selection["range"]["end"]["character"], 6);
 
-    send_request(&client, 4, "shutdown", Value::Null);
+    send_request(&client, 6, "shutdown", Value::Null);
     let _ = receive_response(&client);
     send_notification(&client, "exit", Value::Null);
     drop(client);

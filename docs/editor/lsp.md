@@ -4,8 +4,9 @@
 declarative languages and Rust-hosted backends. It supports full-document
 replacements and incremental ranged changes, diagnostics, completion,
 go-to-definition, references, host-owned rename, hover, document symbols, and
-semantic tokens. It also supports host-provided full-document formatting and
-advertises only operations enabled by the backend.
+semantic tokens. It also supports host-provided full-document formatting,
+registered server commands, and advertises only operations enabled by the
+backend.
 
 Language authors implement `LanguageBackend` in their own language crate,
 beside the parser, semantics, and runtime. That crate depends on `langmeld-lsp`
@@ -95,6 +96,11 @@ callbacks. Add `with_formatter`, `with_hover_provider`,
 `with_semantic_tokens_provider`, `with_document_symbol_provider`,
 `with_code_action_provider`, and `with_rename_provider` to attach the other
 common editor features without implementing `LanguageBackend` directly.
+Register server commands with `with_execute_command`; Langmeld advertises those
+identifiers and routes `workspace/executeCommand` to the matching callback. A
+`CodeActionInfo.command` must use a registered identifier, and actions with
+unregistered commands are omitted. The callback receives JSON arguments and
+returns an optional JSON result or an error message.
 Attach `with_prepare_rename_provider` alongside `with_rename_provider` when
 the language can validate a rename target and provide its current name. The
 server advertises only attached features. These callbacks receive the
@@ -116,10 +122,11 @@ parser diagnostics. Select the analyzer at construction, then attach its
 workspace analyzer, completer, navigator, and editor-feature providers.
 Implement `LanguageBackend` directly when the host needs finer control over the
 supported requests, workspace lifecycle, or retained state. The adapter
-currently dispatches a fixed set of LSP methods; implementing `LanguageBackend`
-does not add new request or notification methods. Supporting an unimplemented
-method currently requires extending Langmeld's adapter or running a
-host-owned LSP server.
+supports registered `workspace/executeCommand` commands, but otherwise
+dispatches a fixed set of LSP methods; implementing `LanguageBackend` does not
+add arbitrary request or notification methods. Supporting another method
+currently requires extending Langmeld's adapter or running a host-owned LSP
+server.
 
 Backend callbacks run synchronously on the thread calling `run_connection` or
 `run_stdio`. A `HostLanguageBackend`, its parser and analyzer, and its providers
