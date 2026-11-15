@@ -66,6 +66,29 @@ impl LanguageCompleter<DiagnosticParser> for BorrowedDiagnosticCompleter<'_> {
 
         DiagnosticCompleter.complete(source, parsed, analysis, offset)
     }
+
+    fn complete_with_context(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<bool>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        offset: usize,
+        context: Option<&langmeld_language::CompletionRequestContext>,
+    ) -> Vec<CompletionCandidate> {
+        let mut candidates = self.complete(source, parsed, analysis, offset);
+
+        if let Some(context) = context {
+            for candidate in &mut candidates {
+                candidate.detail = Some(format!(
+                    "{:?}:{}",
+                    context.trigger_kind(),
+                    context.trigger_character().unwrap_or_default()
+                ));
+            }
+        }
+
+        candidates
+    }
 }
 
 struct DiagnosticNavigator;
@@ -184,6 +207,19 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     send_request(
         &client,
         3,
+        "textDocument/completion",
+        json!({
+            "textDocument": {"uri": "file:///host.test"},
+            "position": {"line": 0, "character": 10},
+            "context": {"triggerKind": 2, "triggerCharacter": "."}
+        }),
+    );
+    let completion = receive_response(&client);
+    assert_eq!(completion[0]["detail"], "TriggerCharacter:.");
+
+    send_request(
+        &client,
+        4,
         "textDocument/definition",
         json!({"textDocument":{"uri":"file:///host.test"},"position":{"line":0,"character":10}}),
     );
@@ -192,14 +228,14 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
 
     send_request(
         &client,
-        4,
+        5,
         "textDocument/references",
         json!({"textDocument":{"uri":"file:///host.test"},"position":{"line":0,"character":10},"context":{"includeDeclaration":true}}),
     );
     let references = receive_response(&client);
     assert_eq!(references.as_array().unwrap().len(), 1);
 
-    send_request(&client, 5, "shutdown", Value::Null);
+    send_request(&client, 6, "shutdown", Value::Null);
     assert!(receive_response(&client).is_null());
     send_notification(&client, "exit", Value::Null);
     server_thread.join().unwrap();
@@ -207,7 +243,7 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
         .recv_timeout(Duration::from_secs(2))
         .expect("server thread should finish");
     server_result.expect("server should shut down cleanly");
-    assert_eq!(completion_calls, 1);
+    assert_eq!(completion_calls, 2);
 }
 
 #[test]

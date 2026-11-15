@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation};
-use langmeld_language::CompletionCandidate;
+use langmeld_language::{CompletionCandidate, CompletionRequestContext};
 use lsp_types::{
     CodeActionKind, CodeActionParams, Command, Diagnostic as LspDiagnostic, FileSystemWatcher,
     FormattingOptions, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent,
@@ -431,6 +431,19 @@ pub trait LanguageBackend {
         _offset: usize,
     ) -> Vec<CompletionCandidate> {
         Vec::new()
+    }
+
+    /// Returns candidates with optional editor trigger information.
+    ///
+    /// The default preserves [`Self::complete`] for existing backends.
+    fn complete_with_context(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        _context: Option<&CompletionRequestContext>,
+    ) -> Vec<CompletionCandidate> {
+        self.complete(source, document, offset)
     }
 
     /// Returns declaration locations for a symbol at a UTF-8 byte offset.

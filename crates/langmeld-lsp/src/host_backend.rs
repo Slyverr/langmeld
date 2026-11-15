@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, Span};
 use langmeld_language::{
-    AnalysisDocument, LanguageAnalyzer, LanguageCompleter, LanguageNavigator, LanguageParser,
-    LanguageWorkspaceAnalyzer, ParsedDocument, complete_with, definition_at, references_at,
+    AnalysisDocument, CompletionRequestContext, LanguageAnalyzer, LanguageCompleter,
+    LanguageNavigator, LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
+    complete_with_request_context, definition_at, references_at,
 };
 use lsp_types::{CodeActionParams, FormattingOptions};
 use serde_json::Value;
@@ -602,6 +603,16 @@ where
         document: &BackendDocument<Self::Document>,
         offset: usize,
     ) -> Vec<langmeld_language::CompletionCandidate> {
+        self.complete_with_context(source, document, offset, None)
+    }
+
+    fn complete_with_context(
+        &self,
+        source: &SourceFile,
+        document: &BackendDocument<Self::Document>,
+        offset: usize,
+        context: Option<&CompletionRequestContext>,
+    ) -> Vec<langmeld_language::CompletionCandidate> {
         let Some((parsed, analysis)) = document
             .state()
             .results_for(document.source_identity(), source)
@@ -610,7 +621,14 @@ where
         };
 
         self.completer.as_ref().map_or_else(Vec::new, |completer| {
-            complete_with::<P, _>(source, parsed, Some(analysis), offset, completer.as_ref())
+            complete_with_request_context::<P, _>(
+                source,
+                parsed,
+                Some(analysis),
+                offset,
+                context,
+                completer.as_ref(),
+            )
         })
     }
 

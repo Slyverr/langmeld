@@ -17,8 +17,9 @@ mod typed;
 
 pub use analysis::{AnalysisContext, AnalysisInput, LanguagePass};
 pub use completion::{
-    CompletionCandidate, CompletionInsertTextFormat, complete_at, complete_at_with_lexer,
-    complete_with,
+    CompletionCandidate, CompletionInsertTextFormat, CompletionRequestContext,
+    CompletionTriggerKind, complete_at, complete_at_with_lexer, complete_with,
+    complete_with_request_context,
 };
 pub use completion_kind::CompletionKind;
 pub use definition::{

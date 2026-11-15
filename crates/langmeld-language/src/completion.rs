@@ -8,6 +8,49 @@ use crate::{
     ParsedDocument, PatternPart, RepeatMinimum,
 };
 
+/// How an editor requested a completion list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CompletionTriggerKind {
+    /// The user explicitly invoked completion.
+    Invoked,
+    /// Completion followed a configured trigger character.
+    TriggerCharacter,
+    /// The editor is recomputing an incomplete completion list.
+    TriggerForIncompleteCompletions,
+    /// The editor supplied an unrecognized trigger kind.
+    Other,
+}
+
+/// Optional editor context for one completion request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompletionRequestContext {
+    trigger_kind: CompletionTriggerKind,
+    trigger_character: Option<String>,
+}
+
+impl CompletionRequestContext {
+    /// Creates a completion request context.
+    #[must_use]
+    pub fn new(trigger_kind: CompletionTriggerKind, trigger_character: Option<String>) -> Self {
+        Self {
+            trigger_kind,
+            trigger_character,
+        }
+    }
+
+    /// Returns how the editor requested this completion list.
+    #[must_use]
+    pub const fn trigger_kind(&self) -> CompletionTriggerKind {
+        self.trigger_kind
+    }
+
+    /// Returns the character that triggered completion, when supplied.
+    #[must_use]
+    pub fn trigger_character(&self) -> Option<&str> {
+        self.trigger_character.as_deref()
+    }
+}
+
 /// How an editor should interpret a completion candidate's inserted text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CompletionInsertTextFormat {
@@ -108,6 +151,27 @@ where
     P: LanguageParser,
     C: LanguageCompleter<P> + ?Sized,
 {
+    complete_with_request_context(source, parsed, analysis, offset, None, completer)
+}
+
+/// Requests host-defined completions with the editor context for this request.
+///
+/// Source identity, offset, and replacement-span validation are identical to
+/// [`complete_with`]. If `context` is absent, the editor did not provide a
+/// trigger reason.
+#[must_use]
+pub fn complete_with_request_context<P, C>(
+    source: &SourceFile,
+    parsed: &ParsedDocument<P::Tree>,
+    analysis: Option<&AnalysisDocument<C::Analysis>>,
+    offset: usize,
+    context: Option<&CompletionRequestContext>,
+    completer: &C,
+) -> Vec<CompletionCandidate>
+where
+    P: LanguageParser,
+    C: LanguageCompleter<P> + ?Sized,
+{
     if !source.is_valid_offset(offset)
         || parsed.source_identity() != source.identity()
         || analysis.is_some_and(|analysis| analysis.source_identity() != source.identity())
@@ -116,7 +180,7 @@ where
     }
 
     completer
-        .complete(source, parsed, analysis, offset)
+        .complete_with_context(source, parsed, analysis, offset, context)
         .into_iter()
         .filter(|candidate| source.is_valid_span(candidate.replace))
         .collect()

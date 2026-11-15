@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Pass optional editor completion trigger context to host completers so they can
+  distinguish explicit requests from typed-character and incomplete-list
+  requests.
+
 ### Changed
 
 - Leave license metadata and license files out of generated language projects

@@ -4,6 +4,7 @@ use crate::{
     conversion::{byte_offset, completion_items, to_lsp_range},
     semantic::encode,
 };
+use langmeld_language::{CompletionRequestContext, CompletionTriggerKind};
 use lsp_types::{
     CodeAction, CodeActionOrCommand, CodeActionParams, CompletionParams, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, HoverParams, PrepareRenameResponse,
@@ -143,7 +144,28 @@ impl<B: LanguageBackend> ServerState<B> {
             return Some(Vec::new());
         }
         let offset = byte_offset(source, position, self.encoding)?;
-        let candidates = self.backend.complete(source, &document.analysis, offset);
+        let context = params.context.map(|context| {
+            let trigger_kind = if context.trigger_kind == lsp_types::CompletionTriggerKind::INVOKED
+            {
+                CompletionTriggerKind::Invoked
+            } else if context.trigger_kind == lsp_types::CompletionTriggerKind::TRIGGER_CHARACTER {
+                CompletionTriggerKind::TriggerCharacter
+            } else if context.trigger_kind
+                == lsp_types::CompletionTriggerKind::TRIGGER_FOR_INCOMPLETE_COMPLETIONS
+            {
+                CompletionTriggerKind::TriggerForIncompleteCompletions
+            } else {
+                CompletionTriggerKind::Other
+            };
+
+            CompletionRequestContext::new(trigger_kind, context.trigger_character)
+        });
+        let candidates = self.backend.complete_with_context(
+            source,
+            &document.analysis,
+            offset,
+            context.as_ref(),
+        );
         Some(completion_items(
             source,
             candidates,

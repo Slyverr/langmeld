@@ -98,6 +98,12 @@ callbacks. Add `with_formatter`, `with_hover_provider`,
 `with_semantic_tokens_provider`, `with_document_symbol_provider`,
 `with_code_action_provider`, and `with_rename_provider` to attach the other
 common editor features without implementing `LanguageBackend` directly.
+Completers can override `LanguageCompleter::complete_with_context` to receive
+the optional `CompletionRequestContext`, including whether the editor invoked
+completion, typed a trigger character, or is refreshing an incomplete list.
+The context is absent when the client omits it. Existing `complete` methods
+remain the fallback, and hosts still decide which candidates fit the current
+syntax and semantic scope.
 Register server commands with `with_execute_command`; Langmeld advertises those
 identifiers and routes `workspace/executeCommand` to the matching callback. A
 `CodeActionInfo.command` must use a registered identifier, and actions with

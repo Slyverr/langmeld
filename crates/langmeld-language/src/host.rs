@@ -2,7 +2,7 @@
 
 use langmeld_core::{Diagnostic, SourceFile, SourceIdentity, SourceLocation, has_errors};
 
-use crate::CompletionCandidate;
+use crate::{CompletionCandidate, CompletionRequestContext};
 
 /// A host parser's tree and findings for one immutable source snapshot.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -214,6 +214,22 @@ pub trait LanguageCompleter<P: LanguageParser> {
         analysis: Option<&AnalysisDocument<Self::Analysis>>,
         offset: usize,
     ) -> Vec<CompletionCandidate>;
+
+    /// Returns candidates with optional editor trigger information.
+    ///
+    /// Existing completers can implement only [`Self::complete`]; this
+    /// default preserves that behavior. Override this method when completion
+    /// differs between explicit and automatic requests.
+    fn complete_with_context(
+        &self,
+        source: &SourceFile,
+        parsed: &ParsedDocument<P::Tree>,
+        analysis: Option<&AnalysisDocument<Self::Analysis>>,
+        offset: usize,
+        _context: Option<&CompletionRequestContext>,
+    ) -> Vec<CompletionCandidate> {
+        self.complete(source, parsed, analysis, offset)
+    }
 }
 
 /// Host-defined symbol navigation for a parser-owned syntax tree.
