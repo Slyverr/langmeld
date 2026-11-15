@@ -305,7 +305,7 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
         }),
     );
     let completion = receive_response(&client);
-    assert_eq!(completion.as_array().unwrap().len(), 3);
+    assert_eq!(completion.as_array().unwrap().len(), 4);
     assert!(
         completion
             .as_array()
@@ -326,6 +326,9 @@ fn serves_diagnostics_completion_navigation_and_incremental_document_changes() {
     assert_eq!(completion[2]["kind"], 15);
     assert_eq!(completion[2]["insertTextFormat"], 1);
     assert_eq!(completion[2]["textEdit"]["newText"], "template");
+    assert_eq!(completion[3]["label"], "Good variable");
+    assert_eq!(completion[3]["detail"], "Different meaning");
+    assert_eq!(completion[3]["textEdit"]["newText"], "good");
     assert_eq!(completion[0]["textEdit"]["range"]["start"]["character"], 2);
     assert_eq!(completion[0]["textEdit"]["range"]["end"]["character"], 5);
 

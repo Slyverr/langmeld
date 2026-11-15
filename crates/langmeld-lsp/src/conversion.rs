@@ -114,41 +114,48 @@ pub(crate) fn completion_items(
     encoding: PositionEncoding,
     supports_snippets: bool,
 ) -> Vec<CompletionItem> {
-    candidates
-        .into_iter()
-        .filter_map(|candidate| {
-            if candidate.insert_text_format == CompletionInsertTextFormat::Snippet
-                && !supports_snippets
-            {
-                return None;
-            }
+    let mut items = Vec::new();
 
-            let range = to_lsp_range(source, candidate.replace, encoding)?;
-            if range.start.line != range.end.line {
-                return None;
-            }
-            let insert_text_format = match candidate.insert_text_format {
-                CompletionInsertTextFormat::PlainText => InsertTextFormat::PLAIN_TEXT,
-                CompletionInsertTextFormat::Snippet => InsertTextFormat::SNIPPET,
-            };
-            let label = candidate.label.unwrap_or_else(|| candidate.text.clone());
-            let filter_text = candidate
-                .filter_text
-                .unwrap_or_else(|| candidate.text.clone());
-            Some(CompletionItem {
-                label,
-                kind: candidate.kind.map(to_lsp_completion_kind),
-                detail: candidate.detail,
-                filter_text: Some(filter_text),
-                insert_text_format: Some(insert_text_format),
-                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-                    range,
-                    new_text: candidate.text,
-                })),
-                ..CompletionItem::default()
-            })
-        })
-        .collect()
+    for candidate in candidates {
+        if candidate.insert_text_format == CompletionInsertTextFormat::Snippet && !supports_snippets
+        {
+            continue;
+        }
+
+        let Some(range) = to_lsp_range(source, candidate.replace, encoding) else {
+            continue;
+        };
+        if range.start.line != range.end.line {
+            continue;
+        }
+
+        let insert_text_format = match candidate.insert_text_format {
+            CompletionInsertTextFormat::PlainText => InsertTextFormat::PLAIN_TEXT,
+            CompletionInsertTextFormat::Snippet => InsertTextFormat::SNIPPET,
+        };
+        let label = candidate.label.unwrap_or_else(|| candidate.text.clone());
+        let filter_text = candidate
+            .filter_text
+            .unwrap_or_else(|| candidate.text.clone());
+        let item = CompletionItem {
+            label,
+            kind: candidate.kind.map(to_lsp_completion_kind),
+            detail: candidate.detail,
+            filter_text: Some(filter_text),
+            insert_text_format: Some(insert_text_format),
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range,
+                new_text: candidate.text,
+            })),
+            ..CompletionItem::default()
+        };
+
+        if !items.contains(&item) {
+            items.push(item);
+        }
+    }
+
+    items
 }
 
 fn to_lsp_completion_kind(kind: CompletionKind) -> CompletionItemKind {

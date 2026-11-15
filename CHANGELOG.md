@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove duplicate LSP completion items while preserving candidates with
+  distinct editor metadata.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added

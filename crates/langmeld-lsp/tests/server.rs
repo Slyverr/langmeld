@@ -74,10 +74,13 @@ impl LanguageBackend for Backend {
     ) -> Vec<CompletionCandidate> {
         assert_eq!(document.state(), source.text());
         assert_eq!(offset, "😀".len());
+        let good = CompletionCandidate::new("good", Span::new("😀".len(), source.text().len()))
+            .with_label("Good value")
+            .with_detail("Suggested item");
+
         vec![
-            CompletionCandidate::new("good", Span::new("😀".len(), source.text().len()))
-                .with_label("Good value")
-                .with_detail("Suggested item"),
+            good.clone(),
+            good,
             CompletionCandidate::new("great", Span::new("😀".len(), source.text().len()))
                 .with_label("Great value")
                 .with_kind(CompletionKind::Struct)
@@ -85,6 +88,9 @@ impl LanguageBackend for Backend {
             CompletionCandidate::new("template", Span::new("😀".len(), source.text().len()))
                 .with_label("Snippet category")
                 .with_kind(CompletionKind::Snippet),
+            CompletionCandidate::new("good", Span::new("😀".len(), source.text().len()))
+                .with_label("Good variable")
+                .with_detail("Different meaning"),
             CompletionCandidate::new(
                 "call(${1:argument})$0",
                 Span::new("😀".len(), source.text().len()),
