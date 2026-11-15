@@ -1,8 +1,9 @@
 use langmeld_core::{Diagnostic, Severity, SourceDatabase, SourceFile, Span};
 use langmeld_language::{
-    CaptureGroupKind, CapturedValue, ConstructSpec, DefaultLexer, LanguageSpec, LexOutput,
-    LexedToken, Lexer, LexicalRules, ParseLimits, PatternPart, TokenKind, parse, parse_with_lexer,
-    parse_with_lexer_and_limits, parse_with_limits,
+    CaptureGroupKind, CapturedValue, ConstructSpec, DefaultLexer, ExtensibleLexer, LanguageSpec,
+    LexOutput, LexedToken, Lexer, LexerExtension, LexicalMatch, LexicalRules, ParseLimits,
+    PatternPart, TokenKind, parse, parse_with_lexer, parse_with_lexer_and_limits,
+    parse_with_limits,
 };
 
 fn language() -> LanguageSpec {
@@ -38,6 +39,8 @@ mod blocks;
 mod core;
 #[path = "parse/fallback.rs"]
 mod fallback;
+#[path = "parse/lexical_extensions.rs"]
+mod lexical_extensions;
 #[path = "parse/lexing.rs"]
 mod lexing;
 #[path = "parse/limits.rs"]

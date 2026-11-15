@@ -1,10 +1,10 @@
 # Custom lexer
 
-This example combines a modular `.langmeld` grammar with a Rust lexer for raw
-strings. The grammar declares its line-comment marker in
-`language/language.langmeld`, and the lexer reads that rule from the loaded
-`LanguageSpec`; Rust supplies only the tokenization that the built-in lexer
-does not support.
+This example combines a modular `.langmeld` grammar with a Rust extension for
+raw strings. Langmeld's built-in lexer handles identifiers, punctuation,
+whitespace, and the line-comment marker declared in
+`language/language.langmeld`; Rust supplies only the tokenization the default
+lexer does not support.
 
 Run it from the workspace root:
 
@@ -14,6 +14,7 @@ cargo run -p langmeld-custom-lexer-example --locked -- path/to/program.rawsay
 cargo test -p langmeld-custom-lexer-example --locked
 ```
 
-The custom lexer owns tokenization and applies the grammar's comment rule. The
-generic parser still validates token spans and matches them against the
-declarative grammar.
+`RawStringExtension` is composed with `ExtensibleLexer`, so ordinary tokens,
+declared comments, and token limits continue to use the built-in behavior.
+Implement `Lexer` directly when a language needs to replace the scanning
+model, such as Brainfuck's command-only lexer.

@@ -376,6 +376,14 @@ and use valid UTF-8 ranges; malformed findings are suppressed and reported as
 implementations, which own their parsing behavior and must choose their own
 resource policy.
 
+For a few custom token forms, use `ExtensibleLexer` with one or more
+`LexerExtension` implementations. Extensions run in registration order after
+whitespace and configured comments are skipped; the first one returning a
+token wins, and the built-in lexer handles unmatched input. The shared lexer
+validates each extension token before advancing and applies the configured
+token limit. Implement `Lexer` directly when the language needs to replace
+comment handling, emit trivia, or use a different scanning model.
+
 The expression parser defaults to a 4 MiB selected-range limit, 250,000 tokens,
 and 128 levels of expression-tree depth. Configure these limits when creating
 the parser:

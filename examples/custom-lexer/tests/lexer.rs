@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use langmeld_core::{SourceFile, Span};
-use langmeld_custom_lexer_example::{RawStringLexer, load_language};
-use langmeld_language::{CapturedValue, parse_with_lexer};
+use langmeld_custom_lexer_example::{RawStringExtension, load_language};
+use langmeld_language::{CapturedValue, ExtensibleLexer, parse_with_lexer};
 
 #[test]
 fn combines_a_langmeld_grammar_with_a_host_lexer() {
@@ -13,7 +13,7 @@ fn combines_a_langmeld_grammar_with_a_host_lexer() {
         "say r#\"comments // inside the string stay text\"#; # ignored\n",
     );
 
-    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let lexer = ExtensibleLexer::new(language.lexical_rules()).with_extension(&RawStringExtension);
     let parsed = parse_with_lexer(&source, &language, &lexer);
 
     assert!(
@@ -34,7 +34,7 @@ fn reports_an_unterminated_raw_string_at_its_source_span() {
         .expect("the example definition should load");
     let source = SourceFile::new("broken.rawsay", "say r#\"missing terminator");
 
-    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let lexer = ExtensibleLexer::new(language.lexical_rules()).with_extension(&RawStringExtension);
     let parsed = parse_with_lexer(&source, &language, &lexer);
 
     let diagnostic = parsed

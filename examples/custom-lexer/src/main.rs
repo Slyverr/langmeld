@@ -2,8 +2,8 @@ use std::{fs, path::Path, path::PathBuf};
 
 use clap::Parser;
 use langmeld_core::{SourceFile, format_diagnostics};
-use langmeld_custom_lexer_example::{RawStringLexer, load_language};
-use langmeld_language::{CapturedValue, parse_with_lexer};
+use langmeld_custom_lexer_example::{RawStringExtension, load_language};
+use langmeld_language::{CapturedValue, ExtensibleLexer, parse_with_lexer};
 
 #[derive(Debug, Parser)]
 #[command(version, about = "Inspect a raw-string example program.")]
@@ -37,7 +37,7 @@ fn run() -> Result<(), String> {
     };
 
     let source = SourceFile::new(source_name, source_text);
-    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let lexer = ExtensibleLexer::new(language.lexical_rules()).with_extension(&RawStringExtension);
     let parsed = parse_with_lexer(&source, &language, &lexer);
 
     if !parsed.diagnostics().is_empty() {

@@ -1,91 +1,43 @@
 use std::path::Path;
 
 use langmeld_core::{Diagnostic, SourceFile, Span, format_diagnostics};
-use langmeld_language::{LanguageSpec, LexOutput, LexedToken, Lexer, TokenKind};
+use langmeld_language::{LanguageSpec, LexedToken, LexerExtension, LexicalMatch, TokenKind};
 use langmeld_project::load_definition_project;
 
-/// Lexer for the example's raw string syntax and declared line comments.
-#[derive(Clone, Copy, Debug)]
-pub struct RawStringLexer<'rules> {
-    line_comments: &'rules [String],
-}
+/// Adds raw-string tokens to Langmeld's built-in lexer.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RawStringExtension;
 
-impl<'rules> RawStringLexer<'rules> {
-    pub const fn new(line_comments: &'rules [String]) -> Self {
-        Self { line_comments }
-    }
-}
-
-impl Lexer for RawStringLexer<'_> {
-    fn lex(&self, source: &SourceFile) -> LexOutput {
-        let mut tokens = Vec::new();
-        let mut diagnostics = Vec::new();
-        let bytes = source.text().as_bytes();
-        let mut cursor = 0;
-
-        while cursor < bytes.len() {
-            if bytes[cursor].is_ascii_whitespace() {
-                cursor += 1;
-                continue;
-            }
-            if self
-                .line_comments
-                .iter()
-                .any(|marker| bytes[cursor..].starts_with(marker.as_bytes()))
-            {
-                while cursor < bytes.len() && !matches!(bytes[cursor], b'\n' | b'\r') {
-                    cursor += 1;
-                }
-                continue;
-            }
-
-            let start = cursor;
-            let kind = if bytes[cursor..].starts_with(b"r#\"") {
-                cursor += 3;
-                if let Some(relative_end) = bytes[cursor..]
-                    .windows(2)
-                    .position(|window| window == b"\"#")
-                {
-                    cursor += relative_end + 2;
-                    TokenKind::String
-                } else {
-                    cursor = bytes.len();
-                    diagnostics.push(Diagnostic::error(
-                        "RAW-LEX-001",
-                        "unterminated raw string literal",
-                        source,
-                        Span::new(start, cursor),
-                    ));
-                    TokenKind::Invalid
-                }
-            } else if bytes[cursor].is_ascii_alphabetic() || bytes[cursor] == b'_' {
-                cursor += 1;
-                while cursor < bytes.len()
-                    && (bytes[cursor].is_ascii_alphanumeric() || bytes[cursor] == b'_')
-                {
-                    cursor += 1;
-                }
-                TokenKind::Identifier
-            } else {
-                let character = source.text()[cursor..]
-                    .chars()
-                    .next()
-                    .expect("cursor is before the end of the source");
-                cursor += character.len_utf8();
-                TokenKind::Punctuation
-            };
-
-            tokens.push(LexedToken {
-                text: source.text()[start..cursor].to_owned(),
-                kind,
-                span: Span::new(start, cursor),
-            });
+impl LexerExtension for RawStringExtension {
+    fn lex_token(&self, source: &SourceFile, offset: usize) -> Option<LexicalMatch> {
+        let text = source.text();
+        if !text.get(offset..)?.starts_with("r#\"") {
+            return None;
         }
 
-        LexOutput {
-            tokens,
-            diagnostics,
+        let content_start = offset + 3;
+        let (end, kind) = match text[content_start..].find("\"#") {
+            Some(relative_end) => (content_start + relative_end + 2, TokenKind::String),
+            None => (text.len(), TokenKind::Invalid),
+        };
+        let span = Span::new(offset, end);
+        let token = LexedToken {
+            text: text[offset..end].to_owned(),
+            kind,
+            span,
+        };
+        let mut matched = LexicalMatch::new(token);
+
+        if kind == TokenKind::Invalid {
+            matched.diagnostics.push(Diagnostic::error(
+                "RAW-LEX-001",
+                "unterminated raw string literal",
+                source,
+                span,
+            ));
         }
+
+        Some(matched)
     }
 }
 

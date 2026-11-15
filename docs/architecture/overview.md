@@ -95,7 +95,8 @@ leaving formatting policy and semantic meaning to the language author.
 
 - Use `.langmeld` for ordered token patterns, captures, alternatives, and
   delimited child blocks.
-- Provide a custom lexer when the built-in token categories do not fit.
+- Extend the built-in lexer for a few custom token forms, or provide a full
+  `Lexer` implementation when the language needs a different scanning model.
 - Use `langmeld-expression` when its configurable expression model fits, or
   parse expression captures in host code.
 - Implement `LanguageParser` for a different grammar strategy or a

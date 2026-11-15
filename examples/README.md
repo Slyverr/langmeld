@@ -22,7 +22,7 @@ language host.
 | Example | What it demonstrates |
 | --- | --- |
 | [`declarative-functions`](declarative-functions) | Parameterized declarations with generated typed views, embedded definitions, ordered host analysis, and a same-package LSP backend |
-| [`custom-lexer`](custom-lexer) | A custom lexer while retaining the generic `.langmeld` parser |
+| [`custom-lexer`](custom-lexer) | A custom token extension while retaining Langmeld's default lexer and `.langmeld` parser |
 | [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | A consumer combining local definitions, a crate-provided extension, and a Rust-authored construct |
 
 Each example focuses on a distinct authoring path or framework capability.

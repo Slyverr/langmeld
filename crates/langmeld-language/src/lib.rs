@@ -37,7 +37,10 @@ pub use host::{
     LanguageNavigator, LanguageParser, LanguageWorkspaceAnalyzer, ParsedDocument,
     ParsedDocumentParts,
 };
-pub use lexer::{DefaultLexer, LexOutput, LexedToken, Lexer, TokenKind};
+pub use lexer::{
+    DefaultLexer, ExtensibleLexer, LexOutput, LexedToken, Lexer, LexerExtension, LexicalMatch,
+    TokenKind,
+};
 pub use navigation::{definition_at, references_at};
 pub use parser::MAX_NESTING_DEPTH;
 pub use parser::{

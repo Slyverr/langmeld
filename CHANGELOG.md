@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Add `ExtensibleLexer` and `LexerExtension` for custom token forms that reuse
+  Langmeld's whitespace, comment, fallback-token, and token-limit handling.
 - Infer LSP completion trigger characters from declarative grammars, including
   Langmeld's built-in definition editor, and let Rust backends configure their
   own. Triggers are advertised only when completion is enabled.

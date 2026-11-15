@@ -45,6 +45,82 @@ pub struct LexOutput {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// One token recognized by a [`LexerExtension`], with any findings it produced.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LexicalMatch {
+    /// The source-bound token recognized at the requested offset.
+    pub token: LexedToken,
+    /// Findings associated with this token.
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+impl LexicalMatch {
+    /// Creates a token match without additional lexical diagnostics.
+    #[must_use]
+    pub fn new(token: LexedToken) -> Self {
+        Self {
+            token,
+            diagnostics: Vec::new(),
+        }
+    }
+}
+
+/// A token recognizer that can extend Langmeld's built-in lexer.
+///
+/// Return `None` to let the next extension or the built-in lexer handle the
+/// input. Return a token beginning at `offset` to claim it. The first matching
+/// extension wins. Extensions are called after whitespace and configured
+/// comments have been skipped; use [`Lexer`] directly when a language needs to
+/// replace that behavior or emit trivia tokens.
+pub trait LexerExtension {
+    /// Attempts to recognize one token beginning at a UTF-8 byte offset.
+    ///
+    /// A returned token must cover a non-empty, valid source range beginning
+    /// exactly at `offset`, and its text must match that range. The composed
+    /// lexer validates this before advancing. Diagnostics must be located in
+    /// the supplied source snapshot.
+    fn lex_token(&self, source: &SourceFile, offset: usize) -> Option<LexicalMatch>;
+}
+
+/// The built-in lexer with ordered host-provided token recognizers.
+///
+/// Extensions can handle syntax such as raw strings or language-specific
+/// identifiers while Langmeld retains whitespace and comment handling,
+/// default tokenization, source validation, and token limits. Use [`Lexer`]
+/// directly when a language needs a fully custom scanning model.
+pub struct ExtensibleLexer<'rules, 'extensions> {
+    rules: &'rules LexicalRules,
+    extensions: Vec<&'extensions dyn LexerExtension>,
+}
+
+impl<'rules, 'extensions> ExtensibleLexer<'rules, 'extensions> {
+    /// Creates a lexer that uses the supplied comment rules and default tokens.
+    #[must_use]
+    pub fn new(rules: &'rules LexicalRules) -> Self {
+        Self {
+            rules,
+            extensions: Vec::new(),
+        }
+    }
+
+    /// Adds a token recognizer. Extensions are checked in insertion order.
+    #[must_use]
+    pub fn with_extension(mut self, extension: &'extensions dyn LexerExtension) -> Self {
+        self.extensions.push(extension);
+        self
+    }
+}
+
+impl Lexer for ExtensibleLexer<'_, '_> {
+    fn lex(&self, source: &SourceFile) -> LexOutput {
+        lex_with_extensions(source, DEFAULT_MAX_TOKENS, self.rules, &self.extensions)
+    }
+
+    fn lex_with_token_limit(&self, source: &SourceFile, max_tokens: usize) -> LexOutput {
+        lex_with_extensions(source, max_tokens, self.rules, &self.extensions)
+    }
+}
+
 /// Host-provided lexical behavior for the generic Langmeld parser.
 pub trait Lexer {
     /// Lexes the supplied immutable source snapshot.
@@ -92,6 +168,15 @@ impl Lexer for ConfiguredLexer<'_> {
 }
 
 fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> LexOutput {
+    lex_with_extensions(source, max_tokens, rules, &[])
+}
+
+fn lex_with_extensions(
+    source: &SourceFile,
+    max_tokens: usize,
+    rules: &LexicalRules,
+    extensions: &[&dyn LexerExtension],
+) -> LexOutput {
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
     let mut chars = source.text().char_indices().peekable();
@@ -135,6 +220,33 @@ fn lex_default(source: &SourceFile, max_tokens: usize, rules: &LexicalRules) -> 
                 Span::new(start, start + character.len_utf8()),
             ));
             break;
+        }
+        if let Some(extension_match) = extensions
+            .iter()
+            .find_map(|extension| extension.lex_token(source, start))
+        {
+            let token = extension_match.token;
+            let valid_match = token.span.start == start
+                && token.span.start < token.span.end
+                && source.is_valid_span(token.span)
+                && source.slice(token.span) == Some(token.text.as_str());
+            if !valid_match {
+                diagnostics.push(Diagnostic::error(
+                    "LM-LEX-002",
+                    "lexer extension emitted a token with an invalid source range or text",
+                    source,
+                    Span::new(start, start + character.len_utf8()),
+                ));
+                break;
+            }
+
+            let end = token.span.end;
+            tokens.push(token);
+            diagnostics.extend(extension_match.diagnostics);
+            while chars.peek().is_some_and(|(byte, _)| *byte < end) {
+                chars.next();
+            }
+            continue;
         }
         if character == '"' {
             let mut escaped = false;
