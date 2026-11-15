@@ -11,6 +11,7 @@ use langmeld_language::{
     DefinitionResolver, DefinitionSource, DefinitionSourceParts, ParseResult,
     language_definition_grammar, parse, parse_language_definition_project,
 };
+use langmeld_lsp::lsp_types;
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceCapabilities,
     DocumentSymbolInfo, LanguageBackend, LanguageDefinitionBackend,

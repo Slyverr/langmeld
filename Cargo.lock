@@ -406,7 +406,6 @@ dependencies = [
  "langmeld-project",
  "langmeld-textmate",
  "langmeld-tree-sitter",
- "lsp-types",
  "serde_json",
  "tempfile",
  "url",
