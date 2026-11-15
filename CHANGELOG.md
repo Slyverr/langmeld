@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-15
+
 ### Added
 
 - Publish source-bound diagnostics for closed workspace files through optional

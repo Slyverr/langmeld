@@ -22,7 +22,7 @@ Add `langmeld-build` as a build dependency:
 
 ```toml
 [build-dependencies]
-langmeld-build = "0.14"
+langmeld-build = "0.16"
 ```
 
 Keep this on the same Langmeld release line as `langmeld-core`,
