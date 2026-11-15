@@ -105,7 +105,7 @@ fn generate_project_outputs(outputs: ProjectOutputs) -> Result<(), BuildError> {
     }
 
     if !matches!(outputs, ProjectOutputs::TypedBindings) {
-        let generated = embedded_sources(project.sources());
+        let generated = embedded_sources(&project.manifest().definition, project.sources());
         write_output(&output_dir, "langmeld_sources.rs", generated)?;
     }
 
@@ -120,10 +120,12 @@ fn write_output(output_dir: &Path, file_name: &str, contents: String) -> Result<
     })
 }
 
-fn embedded_sources(sources: &[SourceFile]) -> String {
-    let mut generated = String::from(
-        "/// Root and imported Langmeld project sources embedded at compile time.\n\
-         pub const LANGMELD_SOURCES: &[(&str, &str)] = &[\n",
+fn embedded_sources(root_key: &str, sources: &[SourceFile]) -> String {
+    let mut generated = format!(
+        "/// Project-relative key of the root Langmeld definition.\n\
+         pub const LANGMELD_ROOT_KEY: &str = {root_key:?};\n\n\
+         /// Root and imported Langmeld project sources embedded at compile time.\n\
+         pub const LANGMELD_SOURCES: &[(&str, &str)] = &[\n"
     );
 
     for source in sources {
@@ -172,22 +174,25 @@ mod tests {
     }
 
     #[test]
-    fn embeds_project_sources_with_stable_relative_names() {
+    fn embeds_manifest_root_key_and_stable_relative_source_names() {
         let sources = [
-            SourceFile::new("language/main.langmeld", "language \"Example\" {}"),
+            SourceFile::new("definitions/root.langmeld", "language \"Example\" {}"),
             SourceFile::new(
-                "language/constructs/print.langmeld",
+                "definitions/constructs/print.langmeld",
                 "construct \"print\" {}",
             ),
         ];
 
         assert_eq!(
-            embedded_sources(&sources),
+            embedded_sources("definitions/root.langmeld", &sources),
             concat!(
+                "/// Project-relative key of the root Langmeld definition.\n",
+                "pub const LANGMELD_ROOT_KEY: &str = \"definitions/root.langmeld\";\n",
+                "\n",
                 "/// Root and imported Langmeld project sources embedded at compile time.\n",
                 "pub const LANGMELD_SOURCES: &[(&str, &str)] = &[\n",
-                "    (\"language/main.langmeld\", include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/\", \"language/main.langmeld\"))),\n",
-                "    (\"language/constructs/print.langmeld\", include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/\", \"language/constructs/print.langmeld\"))),\n",
+                "    (\"definitions/root.langmeld\", include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/\", \"definitions/root.langmeld\"))),\n",
+                "    (\"definitions/constructs/print.langmeld\", include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/\", \"definitions/constructs/print.langmeld\"))),\n",
                 "];\n",
             )
         );

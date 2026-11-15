@@ -16,6 +16,8 @@ API migration notes are in the
   without runtime filesystem access.
 - Build an in-memory definition resolver directly from generated path and
   source-text pairs.
+- Load a validated language specification directly from an embedded source
+  table and retain formatted diagnostics when the definition is invalid.
 
 ## [0.16.0] - 2026-11-15
 

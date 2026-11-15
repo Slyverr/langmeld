@@ -2,7 +2,7 @@ mod common;
 
 use langmeld_project::{
     LanguageSpecLoadError, load_definition_project, load_definition_project_from_manifest,
-    load_language_spec,
+    load_language_spec, load_language_spec_from_sources,
 };
 
 use common::TestDirectory;
@@ -150,6 +150,60 @@ fn loads_a_valid_language_specification() {
     let specification = load_language_spec(project.path()).unwrap();
 
     assert_eq!(specification.name(), "Example");
+}
+
+#[test]
+fn loads_a_language_specification_from_embedded_sources() {
+    let specification = load_language_spec_from_sources(
+        "definitions/root.langmeld",
+        &[
+            (
+                "definitions/root.langmeld",
+                r#"language "Embedded" { import "constructs/item.langmeld"; root "item"; }"#,
+            ),
+            (
+                "definitions/constructs/item.langmeld",
+                r#"construct "item" { syntax { literal "item"; } }"#,
+            ),
+        ],
+    )
+    .unwrap();
+
+    assert_eq!(specification.name(), "Embedded");
+}
+
+#[test]
+fn embedded_language_errors_retain_imported_diagnostics_for_display() {
+    let error = load_language_spec_from_sources(
+        "definitions/root.langmeld",
+        &[
+            (
+                "definitions/root.langmeld",
+                r#"language "Embedded" { import "constructs/item.langmeld"; root "item"; }"#,
+            ),
+            (
+                "definitions/constructs/item.langmeld",
+                r#"construct "item" {}"#,
+            ),
+        ],
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        &error,
+        LanguageSpecLoadError::InvalidDefinition { .. }
+    ));
+    assert_eq!(error.sources().len(), 2);
+    assert!(error.diagnostics().iter().any(|diagnostic| {
+        diagnostic.location.as_ref().is_some_and(|location| {
+            location.source_name() == "definitions/constructs/item.langmeld"
+        })
+    }));
+    assert!(
+        error
+            .to_string()
+            .contains("definitions/constructs/item.langmeld")
+    );
 }
 
 #[test]

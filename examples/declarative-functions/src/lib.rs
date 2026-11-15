@@ -9,8 +9,8 @@ pub mod generated {
 }
 
 use langmeld_core::{Diagnostic, SourceFile};
-use langmeld_language::{LanguageSpec, ParsedDocument, parse, parse_language_definition_project};
-use langmeld_project::InMemoryDefinitionResolver;
+use langmeld_language::{LanguageSpec, ParsedDocument, parse};
+use langmeld_project::load_language_spec_from_sources;
 
 pub use analysis::{FunctionFacts, FunctionSignature};
 pub use ast::{CallSite, Function, Parameter, Program};
@@ -27,25 +27,8 @@ pub struct FunctionAnalysis {
 /// Returns an error when the project or its definition cannot be loaded, or
 /// when the definition does not produce a valid language specification.
 pub fn load() -> Result<LanguageSpec, String> {
-    let resolver = InMemoryDefinitionResolver::from_source_texts(generated::LANGMELD_SOURCES)
-        .map_err(|error| error.to_string())?;
-
-    let root = resolver
-        .load("language/main.langmeld")
-        .map_err(|error| error.to_string())?;
-    let sources = resolver.sources();
-    let definition = parse_language_definition_project(root, &resolver);
-
-    if !definition.is_valid() {
-        return Err(langmeld_core::format_diagnostics(
-            &sources,
-            &definition.diagnostics,
-        ));
-    }
-
-    definition
-        .language
-        .ok_or_else(|| "validated definition did not produce a language".to_owned())
+    load_language_spec_from_sources(generated::LANGMELD_ROOT_KEY, generated::LANGMELD_SOURCES)
+        .map_err(|error| error.to_string())
 }
 
 /// Parses, lowers, and analyzes one source document.

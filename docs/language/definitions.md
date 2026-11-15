@@ -459,9 +459,12 @@ let sources = resolver.sources();
 ```
 
 When `langmeld-build` generated a `LANGMELD_SOURCES` table, load it directly
-with `InMemoryDefinitionResolver::from_source_texts(LANGMELD_SOURCES)`. Use
-`insert` when sources are added or replaced individually, or when their
-`SourceFile` names differ from their import keys.
+with `load_language_spec_from_sources(LANGMELD_ROOT_KEY, LANGMELD_SOURCES)` if
+the host only needs a validated grammar. Use
+`InMemoryDefinitionResolver::from_source_texts(LANGMELD_SOURCES)` when it needs
+the resolver for parsing definitions itself; use `insert` when sources are
+added or replaced individually, or when their `SourceFile` names differ from
+their import keys.
 
 To keep the project root and local constructs on disk while adding crate-bundled
 definitions, use `OverlayDefinitionResolver`. It checks the in-memory sources

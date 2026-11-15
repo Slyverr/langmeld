@@ -19,7 +19,7 @@ pub use definition_paths::resolve_import_key;
 pub use definition_project::{
     DefinitionProjectError, LanguageSpecLoadError, LoadedDefinitionProject,
     LoadedDefinitionProjectParts, load_definition_project, load_definition_project_from_manifest,
-    load_language_spec,
+    load_language_spec, load_language_spec_from_sources,
 };
 pub use directory_resolver::DirectoryDefinitionResolver;
 pub use error::ProjectLoadError;

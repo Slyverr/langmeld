@@ -4,7 +4,7 @@ use langmeld_language::{
     AnalysisDocument, AnalysisDocumentParts, CapturedValue, ParsedDocument, ParsedDocumentParts,
     parse, parse_language_definition_project,
 };
-use langmeld_project::{DirectoryDefinitionResolver, InMemoryDefinitionResolver};
+use langmeld_project::{DirectoryDefinitionResolver, load_language_spec_from_sources};
 use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 use std::path::Path;
@@ -103,17 +103,8 @@ fn verify_named_result_parts() {
 
 fn verify_in_memory_language_project() {
     assert_eq!(LANGMELD_SOURCES.len(), 3);
-    let resolver = InMemoryDefinitionResolver::from_source_texts(LANGMELD_SOURCES)
-        .expect("embedded definition paths should be valid");
-
-    let root = resolver
-        .load("language/main.langmeld")
-        .expect("embedded root definition should load");
-    let definition = parse_language_definition_project(root, &resolver);
-
-    assert!(definition.is_valid(), "{:?}", definition.diagnostics);
-
-    let language = definition.language.expect("valid embedded language");
+    let language = load_language_spec_from_sources(LANGMELD_ROOT_KEY, LANGMELD_SOURCES)
+        .expect("embedded language definition should load");
     let source = SourceFile::new("main.mini", "program { let answer = 42; draw answer; }");
     let parsed = parse(&source, &language);
 
