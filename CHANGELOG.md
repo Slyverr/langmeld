@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Publish source-bound diagnostics for closed workspace files through optional
+  backend callbacks, clear stale findings, and preserve versioned diagnostics
+  for open buffers.
+
 ### Fixed
 
 - Remove duplicate LSP completion items while preserving candidates with

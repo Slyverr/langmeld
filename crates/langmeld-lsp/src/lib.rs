@@ -19,8 +19,8 @@ pub use lsp_types;
 
 pub use backend::{
     BackendCapabilities, BackendDocument, BackendDocumentParts, BackendSource, BackendWorkspace,
-    BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, LanguageBackend,
-    LanguageServerInfo, RenamePreparation,
+    BackendWorkspaceCapabilities, BackendWorkspaceDiagnostics, CodeActionEdit, CodeActionInfo,
+    LanguageBackend, LanguageServerInfo, RenamePreparation,
 };
 pub use declarative_backend::DeclarativeBackend;
 pub use document_symbol::{DocumentSymbolInfo, DocumentSymbolKind};

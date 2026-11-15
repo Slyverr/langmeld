@@ -73,6 +73,36 @@ impl BackendSource {
     }
 }
 
+/// Source-bound diagnostics for a workspace file that is not open in the editor.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BackendWorkspaceDiagnostics {
+    source: BackendSource,
+    diagnostics: Vec<Diagnostic>,
+}
+
+impl BackendWorkspaceDiagnostics {
+    /// Associates workspace diagnostics with their immutable source snapshot.
+    #[must_use]
+    pub fn new(source: BackendSource, diagnostics: Vec<Diagnostic>) -> Self {
+        Self {
+            source,
+            diagnostics,
+        }
+    }
+
+    /// Returns the source URI and snapshot for these diagnostics.
+    #[must_use]
+    pub const fn source(&self) -> &BackendSource {
+        &self.source
+    }
+
+    /// Returns the source-located findings for this workspace file.
+    #[must_use]
+    pub fn diagnostics(&self) -> &[Diagnostic] {
+        &self.diagnostics
+    }
+}
+
 impl<T> BackendDocument<T> {
     /// Associates host state and diagnostics with the supplied source snapshot.
     #[must_use]
@@ -356,6 +386,25 @@ pub trait LanguageBackend {
         &self,
         _sources: &[SourceFile],
     ) -> Option<Vec<BackendDocument<Self::Document>>> {
+        None
+    }
+
+    /// Returns diagnostics for workspace files that are not currently open.
+    ///
+    /// The server calls this after initialization and document or workspace
+    /// refreshes, passing the exact snapshots for all open documents. Return
+    /// `Some` with the complete set of closed files that currently have
+    /// findings. Each report must pair its URI with the snapshot used to
+    /// create its diagnostics.
+    /// Reports for open document URIs are ignored so their versioned document
+    /// diagnostics remain authoritative. Files previously reported but omitted
+    /// from a successful result have their diagnostics cleared. Return `None`
+    /// when analysis is unavailable; the server keeps the last published
+    /// workspace findings. The default publishes no workspace diagnostics.
+    fn workspace_diagnostics(
+        &self,
+        _open_sources: &[SourceFile],
+    ) -> Option<Vec<BackendWorkspaceDiagnostics>> {
         None
     }
 

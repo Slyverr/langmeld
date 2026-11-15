@@ -234,7 +234,10 @@ pub fn run_connection<B: LanguageBackend>(
         encoding,
         sources: SourceDatabase::default(),
         documents: HashMap::new(),
+        workspace_diagnostic_uris: HashMap::new(),
     };
+    server.publish_workspace_diagnostics(&[], &connection)?;
+
     // initialize_finish consumes the client's `initialized` notification.
     server.register_workspace_capabilities(&connection)?;
     loop {
@@ -342,6 +345,7 @@ struct ServerState<B: LanguageBackend> {
     encoding: PositionEncoding,
     sources: SourceDatabase,
     documents: HashMap<Uri, OpenDocument<B::Document>>,
+    workspace_diagnostic_uris: HashMap<String, Uri>,
 }
 
 mod capabilities;

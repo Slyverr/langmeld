@@ -64,11 +64,27 @@ pub(crate) fn diagnostics_for<D>(
         };
     }
 
+    convert_diagnostics(source, document.diagnostics(), encoding)
+}
+
+pub(crate) fn diagnostics_for_source(
+    source: &SourceFile,
+    findings: &[LangmeldDiagnostic],
+    encoding: PositionEncoding,
+) -> ConvertedDiagnostics {
+    convert_diagnostics(source, findings, encoding)
+}
+
+fn convert_diagnostics(
+    source: &SourceFile,
+    findings: &[LangmeldDiagnostic],
+    encoding: PositionEncoding,
+) -> ConvertedDiagnostics {
     let mut converted = ConvertedDiagnostics {
         diagnostics: Vec::new(),
         has_unpublishable_diagnostics: false,
     };
-    for finding in document.diagnostics() {
+    for finding in findings {
         if finding.location.is_none() {
             converted.has_unpublishable_diagnostics = true;
             continue;

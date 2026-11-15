@@ -9,9 +9,9 @@ use lsp_types::{CodeActionParams, FormattingOptions};
 use serde_json::Value;
 
 use crate::{
-    BackendCapabilities, BackendDocument, BackendSource, CodeActionInfo, DocumentSymbolInfo,
-    HoverInfo, LanguageBackend, LanguageServerInfo, RenamePreparation, SemanticToken,
-    SemanticTokenLegend, WorkspaceSymbolInfo,
+    BackendCapabilities, BackendDocument, BackendSource, BackendWorkspaceDiagnostics,
+    CodeActionInfo, DocumentSymbolInfo, HoverInfo, LanguageBackend, LanguageServerInfo,
+    RenamePreparation, SemanticToken, SemanticTokenLegend, WorkspaceSymbolInfo,
 };
 
 const PARSER_SOURCE_MISMATCH_CODE: &str = "LM-HOST-001";
@@ -20,6 +20,8 @@ const WORKSPACE_ANALYZER_RESULT_CODE: &str = "LM-HOST-003";
 
 type SourceResolver<'backend> = dyn Fn(&SourceLocation) -> Option<BackendSource> + 'backend;
 type WorkspaceSymbolProvider<'backend> = dyn Fn(&str) -> Vec<WorkspaceSymbolInfo> + 'backend;
+type WorkspaceDiagnosticsProvider<'backend> =
+    dyn Fn(&[SourceFile]) -> Option<Vec<BackendWorkspaceDiagnostics>> + 'backend;
 type DocumentCloseHandler<'backend> = dyn Fn(&SourceFile) + 'backend;
 type Formatter<'backend, Tree, Analysis> = dyn Fn(&SourceFile, &HostDocument<Tree, Analysis>, &FormattingOptions) -> Option<String>
     + 'backend;
@@ -128,6 +130,7 @@ where
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + 'backend>>,
     source_resolver: Option<Box<SourceResolver<'backend>>>,
     workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider<'backend>>>,
+    workspace_diagnostics_provider: Option<Box<WorkspaceDiagnosticsProvider<'backend>>>,
     document_close_handler: Option<Box<DocumentCloseHandler<'backend>>>,
     formatter: Option<Box<Formatter<'backend, P::Tree, A::Analysis>>>,
     hover_provider: Option<Box<HoverProvider<'backend, P::Tree, A::Analysis>>>,
@@ -156,6 +159,7 @@ where
             navigator: None,
             source_resolver: None,
             workspace_symbol_provider: None,
+            workspace_diagnostics_provider: None,
             document_close_handler: None,
             formatter: None,
             hover_provider: None,
@@ -198,6 +202,7 @@ where
             navigator: None,
             source_resolver: None,
             workspace_symbol_provider: None,
+            workspace_diagnostics_provider: None,
             document_close_handler: None,
             formatter: None,
             hover_provider: None,
@@ -295,6 +300,23 @@ where
         W: LanguageWorkspaceAnalyzer<P, A> + 'backend,
     {
         self.workspace_analyzer = Some(Box::new(analyzer));
+        self
+    }
+
+    /// Adds a provider for source-located diagnostics in closed workspace files.
+    ///
+    /// The callback runs after initialization and document or workspace
+    /// refreshes. It receives the current snapshots for open documents so it
+    /// can analyze unsaved edits alongside closed files. Return `Some` with
+    /// the complete findings set after a successful analysis; files omitted
+    /// from it have stale findings cleared. Return `None` when analysis is
+    /// unavailable so existing findings remain.
+    #[must_use]
+    pub fn with_workspace_diagnostics(
+        mut self,
+        provider: impl Fn(&[SourceFile]) -> Option<Vec<BackendWorkspaceDiagnostics>> + 'backend,
+    ) -> Self {
+        self.workspace_diagnostics_provider = Some(Box::new(provider));
         self
     }
 
@@ -546,6 +568,15 @@ where
                 })
                 .collect(),
         )
+    }
+
+    fn workspace_diagnostics(
+        &self,
+        open_sources: &[SourceFile],
+    ) -> Option<Vec<BackendWorkspaceDiagnostics>> {
+        self.workspace_diagnostics_provider
+            .as_ref()
+            .and_then(|provider| provider(open_sources))
     }
 
     fn capabilities(&self) -> BackendCapabilities {

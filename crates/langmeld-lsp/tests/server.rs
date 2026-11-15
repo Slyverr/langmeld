@@ -19,10 +19,10 @@ use langmeld_lsp::lsp_server::{Connection, Message, Notification, Request, Reque
 use langmeld_lsp::lsp_types::Uri;
 use langmeld_lsp::{
     BackendCapabilities, BackendDocument, BackendSource, BackendWorkspace,
-    BackendWorkspaceCapabilities, CodeActionEdit, CodeActionInfo, DeclarativeBackend,
-    DocumentSymbolInfo, DocumentSymbolKind, HostLanguageBackend, HoverInfo, LanguageBackend,
-    LanguageDefinitionBackend, LanguageServerInfo, RenamePreparation, SemanticToken,
-    SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
+    BackendWorkspaceCapabilities, BackendWorkspaceDiagnostics, CodeActionEdit, CodeActionInfo,
+    DeclarativeBackend, DocumentSymbolInfo, DocumentSymbolKind, HostLanguageBackend, HoverInfo,
+    LanguageBackend, LanguageDefinitionBackend, LanguageServerInfo, RenamePreparation,
+    SemanticToken, SemanticTokenLegend, WorkspaceSymbolInfo, run_connection,
 };
 use serde_json::Value;
 

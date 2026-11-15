@@ -249,10 +249,24 @@ and workspace-analyzer source-contract failures as `LM-HOST-001`,
 `LM-HOST-002`, and `LM-HOST-003`, respectively. These codes indicate backend
 contract violations; they do not replace the language's own diagnostics.
 
+For findings in closed project files, implement
+`LanguageBackend::workspace_diagnostics` or use
+`HostLanguageBackend::with_workspace_diagnostics`. Return
+`BackendWorkspaceDiagnostics` reports that pair a `BackendSource` URI and
+snapshot with that file's source-located findings. The callback runs at
+initialization and after document or workspace refreshes. It receives the
+current open-document snapshots so hosts can include unsaved edits in project
+analysis. Return `Some` with the complete set of closed files that currently
+have findings; when a previously reported URI is omitted, Langmeld publishes
+an empty result to clear its stale diagnostics. Return `None` if analysis is
+unavailable so prior findings are preserved. Reports for open URIs are ignored
+so their versioned document diagnostics remain authoritative. Conflicting
+snapshots for one URI are suppressed and reported as `LM-LSP-004`.
+
 Project-level diagnostics without a source location cannot be published as
 text-document diagnostics. Attach a finding to a relevant source snapshot when
-possible or report it through a host-owned channel. Langmeld does not currently
-provide workspace-level diagnostic publication.
+possible or report it through a host-owned channel. A backend should not return
+diagnostics for clean files; omitting a URI clears any previous publication.
 
 The server accepts both full-document replacements and incremental ranged
 changes. It applies changes in order using the negotiated LSP position

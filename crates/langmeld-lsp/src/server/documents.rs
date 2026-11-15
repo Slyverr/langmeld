@@ -1,6 +1,9 @@
-use std::error::Error;
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+};
 
-use langmeld_core::{Diagnostic, PositionEncoding, SourceFile, SourceId, Span};
+use langmeld_core::{Diagnostic, PositionEncoding, SourceFile, SourceId, SourceIdentity, Span};
 use lsp_server::{Connection, Message, Notification};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
@@ -10,11 +13,12 @@ use serde::de::DeserializeOwned;
 
 use super::{LanguageBackend, OpenDocument, ServerState, WorkspaceRefreshTrigger};
 use crate::backend::BackendDocument;
-use crate::conversion::{byte_offset, diagnostic_for, diagnostics_for};
+use crate::conversion::{byte_offset, diagnostic_for, diagnostics_for, diagnostics_for_source};
 
 const WORKSPACE_RESULT_CODE: &str = "LM-LSP-001";
 const DOCUMENT_SOURCE_MISMATCH_CODE: &str = "LM-LSP-002";
 const DIAGNOSTIC_LOCATION_CODE: &str = "LM-LSP-003";
+const WORKSPACE_SOURCE_MISMATCH_CODE: &str = "LM-LSP-004";
 
 struct WorkspaceEntry {
     uri: Uri,
@@ -238,37 +242,146 @@ impl<B: LanguageBackend> ServerState<B> {
                     self.publish_analysis(entry, analysis, None, connection)?;
                 }
             }
-
-            return Ok(());
-        }
-
-        let Some((uri, source_id, version)) = updated else {
-            if !matches!(trigger, WorkspaceRefreshTrigger::WorkspaceChanged) {
-                return Ok(());
-            }
+        } else if let Some((uri, source_id, version)) = updated {
+            let source = self
+                .sources
+                .get(source_id)
+                .expect("upserted document source exists")
+                .clone();
+            let analysis = self.backend.analyze(&source);
+            self.publish_analysis(
+                WorkspaceEntry {
+                    uri,
+                    source_id,
+                    version,
+                    source,
+                },
+                analysis,
+                None,
+                connection,
+            )?;
+        } else if matches!(trigger, WorkspaceRefreshTrigger::WorkspaceChanged) {
             for entry in entries {
                 let analysis = self.backend.analyze(&entry.source);
                 self.publish_analysis(entry, analysis, None, connection)?;
             }
+        }
+
+        self.publish_workspace_diagnostics(&sources, connection)
+    }
+
+    pub(super) fn publish_workspace_diagnostics(
+        &mut self,
+        open_sources: &[SourceFile],
+        connection: &Connection,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let open_uris = self
+            .documents
+            .keys()
+            .map(|uri| uri.as_str().to_owned())
+            .collect::<HashSet<_>>();
+
+        self.workspace_diagnostic_uris
+            .retain(|uri_key, _| !open_uris.contains(uri_key));
+
+        let mut source_identities = HashMap::<String, SourceIdentity>::new();
+        let mut diagnostics_by_uri = HashMap::<String, (Uri, Vec<lsp_types::Diagnostic>)>::new();
+        let mut conflicting_uris = HashSet::new();
+
+        let Some(reports) = self.backend.workspace_diagnostics(open_sources) else {
             return Ok(());
         };
-        let source = self
-            .sources
-            .get(source_id)
-            .expect("upserted document source exists")
-            .clone();
-        let analysis = self.backend.analyze(&source);
-        self.publish_analysis(
-            WorkspaceEntry {
-                uri,
-                source_id,
-                version,
-                source,
-            },
-            analysis,
-            None,
-            connection,
-        )
+
+        for report in reports {
+            let external_source = report.source();
+            let uri = external_source.uri().clone();
+            let uri_key = uri.as_str().to_owned();
+            let source = external_source.source();
+
+            if open_uris.contains(&uri_key) || conflicting_uris.contains(&uri_key) {
+                continue;
+            }
+
+            if source_identities
+                .get(&uri_key)
+                .is_some_and(|identity| *identity != source.identity())
+            {
+                let conflict = Diagnostic::error(
+                    WORKSPACE_SOURCE_MISMATCH_CODE,
+                    "host language backend returned multiple source snapshots for one workspace diagnostic URI; those findings were suppressed",
+                    source,
+                    Span::new(0, source.text().len()),
+                );
+                let diagnostic = diagnostic_for(source, &conflict, self.encoding)
+                    .expect("the full source span is a valid diagnostic location");
+                diagnostics_by_uri.insert(uri_key.clone(), (uri, vec![diagnostic]));
+                conflicting_uris.insert(uri_key);
+                continue;
+            }
+
+            source_identities
+                .entry(uri_key.clone())
+                .or_insert_with(|| source.identity());
+
+            let converted = diagnostics_for_source(source, report.diagnostics(), self.encoding);
+            let mut diagnostics = converted.diagnostics;
+            if converted.has_unpublishable_diagnostics {
+                let invalid_locations = Diagnostic::error(
+                    DIAGNOSTIC_LOCATION_CODE,
+                    "host language backend returned workspace diagnostics with missing, foreign, or invalid source locations; those diagnostics were suppressed",
+                    source,
+                    Span::new(0, source.text().len()),
+                );
+                if let Some(diagnostic) = diagnostic_for(source, &invalid_locations, self.encoding)
+                {
+                    diagnostics.push(diagnostic);
+                }
+            }
+
+            let published = &mut diagnostics_by_uri
+                .entry(uri_key)
+                .or_insert_with(|| (uri, Vec::new()))
+                .1;
+            for diagnostic in diagnostics {
+                if !published.contains(&diagnostic) {
+                    published.push(diagnostic);
+                }
+            }
+        }
+
+        let mut current_uris = HashMap::new();
+        let mut publications = diagnostics_by_uri
+            .into_iter()
+            .filter_map(|(uri_key, (uri, diagnostics))| {
+                if diagnostics.is_empty() {
+                    return None;
+                }
+
+                current_uris.insert(uri_key, uri.clone());
+                Some((uri, diagnostics))
+            })
+            .collect::<Vec<_>>();
+        publications.sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
+
+        for (uri, diagnostics) in publications {
+            publish_diagnostics(connection, uri, None, diagnostics)?;
+        }
+
+        let mut stale_uris = self
+            .workspace_diagnostic_uris
+            .iter()
+            .filter(|(uri_key, _)| {
+                !current_uris.contains_key(*uri_key) && !open_uris.contains(*uri_key)
+            })
+            .map(|(_, uri)| uri.clone())
+            .collect::<Vec<_>>();
+        stale_uris.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+        for uri in stale_uris {
+            publish_diagnostics(connection, uri, None, Vec::new())?;
+        }
+
+        self.workspace_diagnostic_uris = current_uris;
+        Ok(())
     }
 }
 
