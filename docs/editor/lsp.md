@@ -105,8 +105,12 @@ implement `LanguageBackend` directly when the host needs persistent parse
 caches, unopened files, or finer control. The parser-only form publishes
 parser diagnostics. Select the analyzer at construction, then attach its
 workspace analyzer, completer, navigator, and editor-feature providers.
-Implement `LanguageBackend` directly when the host needs additional protocol
-or workspace behavior beyond these providers.
+Implement `LanguageBackend` directly when the host needs finer control over the
+supported requests, workspace lifecycle, or retained state. The adapter
+currently dispatches a fixed set of LSP methods; implementing `LanguageBackend`
+does not add new request or notification methods. Supporting an unimplemented
+method currently requires extending Langmeld's adapter or running a
+host-owned LSP server.
 
 Backend callbacks run synchronously on the thread calling `run_connection` or
 `run_stdio`. A `HostLanguageBackend`, its parser and analyzer, and its providers
