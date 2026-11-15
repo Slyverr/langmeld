@@ -1,6 +1,8 @@
 mod analysis;
 mod ast;
 
+pub mod lsp;
+
 pub mod generated {
     include!(concat!(env!("OUT_DIR"), "/langmeld_bindings.rs"));
 }

@@ -16,6 +16,17 @@ views, keeping each parameter's name and type together.
 The generated bindings are included from the stable source module in
 `src/lib.rs`. The generated file is build output and should not be checked in.
 
+The project-local language server is in the same package. Run it with:
+
+```sh
+cargo run -p langmeld-declarative-functions-example --bin functionflow-lsp --locked
+```
+
+`src/lsp.rs` adapts the declarative parser, typed AST lowering, and ordered
+analysis passes to `HostLanguageBackend`. The server publishes both syntax and
+host semantic diagnostics, with grammar-based completion. It does not add a
+separate language-server package or infer the function rules from `.langmeld`.
+
 Run the valid sample or analyze a source file:
 
 ```sh

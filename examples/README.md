@@ -21,7 +21,7 @@ language host.
 
 | Example | What it demonstrates |
 | --- | --- |
-| [`declarative-functions`](declarative-functions) | Parameterized declarations with the generic parser and host-owned analysis |
+| [`declarative-functions`](declarative-functions) | Parameterized declarations with typed lowering, ordered host analysis, and a same-package LSP backend |
 | [`custom-lexer`](custom-lexer) | A custom lexer while retaining the generic `.langmeld` parser |
 | [`embedded-definitions`](embedded-definitions) and [`geometry-extension`](geometry-extension) | A consumer combining local definitions, a crate-provided extension, and a Rust-authored construct |
 

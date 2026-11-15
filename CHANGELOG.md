@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Demonstrate declarative syntax with Rust-owned analysis and a project-local
+  language server in the `declarative-functions` example.
 - Generate a project-local `language-lsp` target for declarative language
   projects, alongside the existing custom-parser target.
 - Reconcile dynamically registered file watchers when workspace folders or
