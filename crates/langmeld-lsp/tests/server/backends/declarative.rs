@@ -29,10 +29,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
-        let result = run_connection(
-            server_connection,
-            DeclarativeBackend::new(language).with_completion_trigger_characters([";"]),
-        );
+        let result = run_connection(server_connection, DeclarativeBackend::new(language));
         server_sender
             .send(result.map_err(|error| error.to_string()))
             .unwrap();
@@ -42,7 +39,7 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     let initialized = receive_response(&client);
     assert_eq!(
         initialized["capabilities"]["completionProvider"]["triggerCharacters"],
-        json!([";"])
+        json!([";", "{", "}"])
     );
     assert!(initialized["capabilities"]["definitionProvider"].is_null());
     assert!(initialized["capabilities"]["semanticTokensProvider"].is_null());
@@ -164,4 +161,40 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
         .recv_timeout(Duration::from_secs(2))
         .expect("server thread should finish")
         .expect("server should shut down cleanly");
+}
+
+#[test]
+fn declarative_backend_infers_trigger_characters_from_nested_patterns() {
+    let language = LanguageSpec::new(
+        "Demo",
+        [ConstructSpec::new(
+            "statement",
+            [
+                PatternPart::literal("set"),
+                PatternPart::optional([PatternPart::literal("@")]),
+                PatternPart::zero_or_more([PatternPart::literal("%")]),
+                PatternPart::choice("mode", ["+", "-"]),
+                PatternPart::expression("value", ";"),
+            ],
+        )
+        .block("(", ")", &[])],
+    )
+    .expect("valid test grammar");
+    let backend = DeclarativeBackend::new(language);
+
+    assert_eq!(
+        backend.completion_trigger_characters(),
+        vec![
+            "%".to_owned(),
+            "(".to_owned(),
+            ")".to_owned(),
+            "+".to_owned(),
+            "-".to_owned(),
+            ";".to_owned(),
+            "@".to_owned(),
+        ]
+    );
+
+    let overridden = backend.with_completion_trigger_characters(["?"]);
+    assert_eq!(overridden.completion_trigger_characters(), ["?".to_owned()]);
 }
