@@ -168,7 +168,8 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
         let completion_calls = Cell::new(0);
         let backend = HostLanguageBackend::new_with_analyzer(DiagnosticParser, DiagnosticAnalyzer)
             .with_completer(BorrowedDiagnosticCompleter(&completion_calls))
-            .with_navigator(DiagnosticNavigator);
+            .with_navigator(DiagnosticNavigator)
+            .with_completion_trigger_characters([":", ".", ":"]);
         let result = run_connection(server_connection, backend);
         server_sender
             .send((
@@ -179,7 +180,11 @@ fn host_language_backend_connects_parser_analysis_and_editor_queries() {
     });
 
     send_request(&client, 1, "initialize", json!({"capabilities": {}}));
-    receive_response(&client);
+    let initialized = receive_response(&client);
+    assert_eq!(
+        initialized["capabilities"]["completionProvider"]["triggerCharacters"],
+        json!([".", ":"])
+    );
     send_notification(&client, "initialized", json!({}));
     send_notification(
         &client,

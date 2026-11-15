@@ -128,6 +128,7 @@ where
     analyzer: A,
     workspace_analyzer: Option<Box<dyn LanguageWorkspaceAnalyzer<P, A> + 'backend>>,
     completer: Option<Box<dyn LanguageCompleter<P, Analysis = A::Analysis> + 'backend>>,
+    completion_trigger_characters: Vec<String>,
     navigator: Option<Box<dyn LanguageNavigator<P, Analysis = A::Analysis> + 'backend>>,
     source_resolver: Option<Box<SourceResolver<'backend>>>,
     workspace_symbol_provider: Option<Box<WorkspaceSymbolProvider<'backend>>>,
@@ -157,6 +158,7 @@ where
             analyzer: NoAnalyzer,
             workspace_analyzer: None,
             completer: None,
+            completion_trigger_characters: Vec::new(),
             navigator: None,
             source_resolver: None,
             workspace_symbol_provider: None,
@@ -200,6 +202,7 @@ where
             analyzer,
             workspace_analyzer: None,
             completer: None,
+            completion_trigger_characters: Vec::new(),
             navigator: None,
             source_resolver: None,
             workspace_symbol_provider: None,
@@ -328,6 +331,21 @@ where
         C: LanguageCompleter<P, Analysis = A::Analysis> + 'backend,
     {
         self.completer = Some(Box::new(completer));
+        self
+    }
+
+    /// Configures characters that should trigger automatic completion.
+    ///
+    /// The server advertises these strings through LSP
+    /// `completionProvider.triggerCharacters`. The list is ignored when no
+    /// completer is attached.
+    #[must_use]
+    pub fn with_completion_trigger_characters<I, S>(mut self, characters: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.completion_trigger_characters = characters.into_iter().map(Into::into).collect();
         self
     }
 
@@ -595,6 +613,10 @@ where
             document_symbols: self.document_symbol_provider.is_some(),
             workspace_symbols: self.workspace_symbol_provider.is_some(),
         }
+    }
+
+    fn completion_trigger_characters(&self) -> Vec<String> {
+        self.completion_trigger_characters.clone()
     }
 
     fn complete(

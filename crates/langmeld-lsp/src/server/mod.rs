@@ -172,6 +172,24 @@ pub fn run_connection<B: LanguageBackend>(
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
     let capabilities = backend.capabilities();
+    let mut completion_trigger_characters = if capabilities.completion {
+        backend.completion_trigger_characters()
+    } else {
+        Vec::new()
+    };
+    if completion_trigger_characters
+        .iter()
+        .any(|character| character.is_empty())
+    {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "LSP completion trigger characters must not be empty strings",
+        )
+        .into());
+    }
+    completion_trigger_characters.sort();
+    completion_trigger_characters.dedup();
+
     let semantic_legend = if capabilities.semantic_tokens {
         backend.semantic_token_legend()
     } else {
@@ -199,6 +217,7 @@ pub fn run_connection<B: LanguageBackend>(
     let result = InitializeResult {
         capabilities: server_capabilities(
             capabilities,
+            &completion_trigger_characters,
             workspace_capabilities.workspace_folders,
             encoding,
             &semantic_legend,

@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Let Rust backends configure LSP completion trigger characters, advertised
+  only when completion is enabled.
 - Pass optional editor completion trigger context to host completers so they can
   distinguish explicit requests from typed-character and incomplete-list
   requests.

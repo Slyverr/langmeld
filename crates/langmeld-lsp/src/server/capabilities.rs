@@ -45,6 +45,7 @@ pub(super) fn supports_completion_snippets(params: &InitializeParams) -> bool {
 
 pub(super) fn server_capabilities(
     backend: BackendCapabilities,
+    completion_trigger_characters: &[String],
     workspace_folders: bool,
     encoding: PositionEncoding,
     semantic_legend: &SemanticTokenLegend,
@@ -64,7 +65,11 @@ pub(super) fn server_capabilities(
                 ..TextDocumentSyncOptions::default()
             },
         )),
-        completion_provider: backend.completion.then(CompletionOptions::default),
+        completion_provider: backend.completion.then(|| CompletionOptions {
+            trigger_characters: (!completion_trigger_characters.is_empty())
+                .then(|| completion_trigger_characters.to_vec()),
+            ..CompletionOptions::default()
+        }),
         definition_provider: backend.definition.then_some(lsp_types::OneOf::Left(true)),
         references_provider: backend.references.then_some(lsp_types::OneOf::Left(true)),
         semantic_tokens_provider: backend.semantic_tokens.then(|| {

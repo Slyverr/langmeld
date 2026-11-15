@@ -419,6 +419,15 @@ pub trait LanguageBackend {
     /// actually has.
     fn capabilities(&self) -> BackendCapabilities;
 
+    /// Returns characters that should trigger completion requests.
+    ///
+    /// The server advertises these strings as LSP completion trigger
+    /// characters only when completion is enabled. Empty strings are rejected
+    /// during initialization. Identifier characters do not need to be listed.
+    fn completion_trigger_characters(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Returns completion candidates at a UTF-8 byte offset.
     ///
     /// The adapter omits candidates whose replacement span cannot be

@@ -106,6 +106,41 @@ fn rejects_invalid_semantic_token_legends_during_initialization() {
     assert!(error.to_string().contains("declared more than once"));
 }
 
+struct InvalidCompletionTriggerBackend;
+
+impl LanguageBackend for InvalidCompletionTriggerBackend {
+    type Document = ();
+
+    fn analyze(&self, source: &SourceFile) -> BackendDocument<Self::Document> {
+        BackendDocument::new(source, (), Vec::new())
+    }
+
+    fn capabilities(&self) -> BackendCapabilities {
+        BackendCapabilities {
+            completion: true,
+            ..BackendCapabilities::default()
+        }
+    }
+
+    fn completion_trigger_characters(&self) -> Vec<String> {
+        vec![String::new()]
+    }
+}
+
+#[test]
+fn rejects_empty_completion_trigger_characters_during_initialization() {
+    let (server_connection, client) = Connection::memory();
+    let server_thread =
+        thread::spawn(move || run_connection(server_connection, InvalidCompletionTriggerBackend));
+
+    send_request(&client, 1, "initialize", json!({ "capabilities": {} }));
+    let error = server_thread
+        .join()
+        .expect("server thread should finish")
+        .expect_err("empty completion trigger characters should prevent initialization");
+    assert!(error.to_string().contains("must not be empty strings"));
+}
+
 #[test]
 fn does_not_return_markdown_hover_when_client_did_not_advertise_it() {
     let (server_connection, client) = Connection::memory();

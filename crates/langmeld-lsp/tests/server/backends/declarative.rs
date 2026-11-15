@@ -29,7 +29,10 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
     let (server_connection, client) = Connection::memory();
     let (server_sender, server_receiver) = mpsc::channel();
     let server_thread = thread::spawn(move || {
-        let result = run_connection(server_connection, DeclarativeBackend::new(language));
+        let result = run_connection(
+            server_connection,
+            DeclarativeBackend::new(language).with_completion_trigger_characters([";"]),
+        );
         server_sender
             .send(result.map_err(|error| error.to_string()))
             .unwrap();
@@ -37,7 +40,10 @@ fn declarative_backend_provides_scoped_completion_over_lsp() {
 
     send_request(&client, 1, "initialize", json!({"capabilities": {}}));
     let initialized = receive_response(&client);
-    assert!(initialized["capabilities"]["completionProvider"].is_object());
+    assert_eq!(
+        initialized["capabilities"]["completionProvider"]["triggerCharacters"],
+        json!([";"])
+    );
     assert!(initialized["capabilities"]["definitionProvider"].is_null());
     assert!(initialized["capabilities"]["semanticTokensProvider"].is_null());
     assert!(initialized["capabilities"]["documentFormattingProvider"].is_null());

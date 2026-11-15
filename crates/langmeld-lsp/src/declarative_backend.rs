@@ -8,6 +8,7 @@ use crate::backend::{BackendCapabilities, BackendDocument, LanguageBackend, Lang
 pub struct DeclarativeBackend {
     language: LanguageSpec,
     server_info: LanguageServerInfo,
+    completion_trigger_characters: Vec<String>,
 }
 
 impl DeclarativeBackend {
@@ -17,6 +18,7 @@ impl DeclarativeBackend {
         Self {
             language,
             server_info: LanguageServerInfo::default(),
+            completion_trigger_characters: Vec::new(),
         }
     }
 
@@ -24,6 +26,20 @@ impl DeclarativeBackend {
     #[must_use]
     pub fn with_server_info(mut self, server_info: LanguageServerInfo) -> Self {
         self.server_info = server_info;
+        self
+    }
+
+    /// Configures characters that should trigger automatic completion.
+    ///
+    /// The server advertises these strings through LSP
+    /// `completionProvider.triggerCharacters`.
+    #[must_use]
+    pub fn with_completion_trigger_characters<I, S>(mut self, characters: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.completion_trigger_characters = characters.into_iter().map(Into::into).collect();
         self
     }
 }
@@ -47,6 +63,10 @@ impl LanguageBackend for DeclarativeBackend {
             completion: true,
             ..BackendCapabilities::default()
         }
+    }
+
+    fn completion_trigger_characters(&self) -> Vec<String> {
+        self.completion_trigger_characters.clone()
     }
 
     fn complete(

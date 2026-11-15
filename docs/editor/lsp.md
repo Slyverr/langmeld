@@ -103,7 +103,13 @@ the optional `CompletionRequestContext`, including whether the editor invoked
 completion, typed a trigger character, or is refreshing an incomplete list.
 The context is absent when the client omits it. Existing `complete` methods
 remain the fallback, and hosts still decide which candidates fit the current
-syntax and semantic scope.
+syntax and semantic scope. Configure special trigger characters with
+`HostLanguageBackend::with_completion_trigger_characters`; custom
+`LanguageBackend` implementations can override
+`completion_trigger_characters`. Langmeld advertises these through
+`completionProvider.triggerCharacters` only when completion is enabled. Normal
+identifier characters are triggered by editors automatically and should not be
+listed.
 Register server commands with `with_execute_command`; Langmeld advertises those
 identifiers and routes `workspace/executeCommand` to the matching callback. A
 `CodeActionInfo.command` must use a registered identifier, and actions with
