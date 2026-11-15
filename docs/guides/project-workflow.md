@@ -123,13 +123,14 @@ Both templates include a language-server target in the same Cargo package.
 For declarative projects, `src/lsp.rs` starts with grammar-based diagnostics and
 completions; add host analysis and providers there when the language needs
 semantic editor features. The custom parser template creates a library in
-`src/lib.rs`, a demonstration binary in `src/main.rs`, a stdio LSP binary in
-`src/bin/language-lsp.rs`, and an integration test in `tests/parser.rs`. Its
-`SayParser` implements `LanguageParser` directly, demonstrating a host-owned
-syntax and parse tree without `.langmeld` files or a Langmeld manifest. The LSP
-binary publishes parser diagnostics through `HostLanguageBackend`; add host
-analysis, completion, or navigation providers there as needed. Both generated
-CLIs parse a built-in sample with `cargo run` or a source file with
+`src/lib.rs`, a demonstration binary in `src/main.rs`, an LSP backend in
+`src/lsp.rs`, a thin stdio LSP binary in `src/bin/language-lsp.rs`, and an
+integration test in `tests/parser.rs`. Its `SayParser` implements
+`LanguageParser` directly, demonstrating a host-owned syntax and parse tree
+without `.langmeld` files or a Langmeld manifest. The backend publishes parser
+diagnostics through `HostLanguageBackend`; add host analysis, completion, or
+navigation providers in `src/lsp.rs`. Both generated CLIs parse a built-in
+sample with `cargo run` or a source file with
 `cargo run -- path/to/source`. Use `cargo test` to run the generated integration
 tests.
 
