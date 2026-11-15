@@ -9,11 +9,6 @@ API migration notes are in the
 
 ## [Unreleased]
 
-### Changed
-
-- **Breaking:** Forward the deprecated LSP `rootPath` through `BackendWorkspace`.
-  Downstream struct literals must initialize `root_path` or use a default update.
-
 ### Added
 
 - Re-export LSP protocol and transport types from `langmeld-lsp` for host
@@ -34,6 +29,11 @@ API migration notes are in the
 - Support optional delimited construct blocks in Rust and `.langmeld`
   definitions, preserve block-presence spans, and export optional blocks to
   Tree-sitter grammars.
+
+### Changed
+
+- **Breaking:** Forward the deprecated LSP `rootPath` through `BackendWorkspace`.
+  Downstream struct literals must initialize `root_path` or use a default update.
 
 ### Fixed
 
