@@ -7,6 +7,16 @@ rename, hover, document symbols, and semantic tokens. It also supports
 host-provided full-document formatting and advertises only operations enabled
 by the backend.
 
+`langmeld-lsp` is a protocol-adapter library; each language does not need a
+separate package for its backend. A language project's backend can live beside
+its parser and runtime, with a binary target that calls
+`langmeld_lsp::run_stdio`. `langmeld init` generates `src/lsp.rs` and
+`src/bin/language-lsp.rs` in the same package.
+The declarative starter begins with grammar-based diagnostics and completion;
+replace `DeclarativeBackend` with a host backend when the language needs
+semantic features. The `langmeld lsp` CLI command remains a convenient
+grammar-based server that does not run project-specific Rust behavior.
+
 ## Declarative languages
 
 `DeclarativeBackend` accepts a validated `LanguageSpec`. It parses open source

@@ -49,11 +49,19 @@ verify the Rust behavior.
 
 ## Editor support
 
-With the Langmeld CLI installed, run `langmeld lsp` from this project directory
-for syntax diagnostics and grammar-based completions. These features come from
-the language definition; host-specific semantic checks and runtime behavior
-are not inferred. Run `langmeld lsp --definitions` to get editor support while
-editing `.langmeld` files.
+Run the server target in this project with:
+
+```sh
+cargo run --bin language-lsp
+```
+
+It uses the project's grammar for parse diagnostics and grammar-based
+completions. The backend lives in `src/lsp.rs`, in the same package as the
+language implementation. Replace `DeclarativeBackend` there with a custom
+`LanguageBackend` when the language needs semantic editor features; Langmeld
+cannot infer those rules from syntax or construct handlers. The installed
+Langmeld CLI also provides `langmeld lsp` for zero-setup, grammar-based support
+and `langmeld lsp --definitions` for editing `.langmeld` files.
 
 ## License
 

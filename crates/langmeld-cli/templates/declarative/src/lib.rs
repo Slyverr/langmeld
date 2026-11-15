@@ -1,6 +1,8 @@
 mod constructs;
 mod runtime;
 
+pub mod lsp;
+
 use std::path::Path;
 
 use langmeld_core::{Diagnostic, SourceFile, Span};

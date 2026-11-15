@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Generate a project-local `language-lsp` target for declarative language
+  projects, alongside the existing custom-parser target.
 - Reconcile dynamically registered file watchers when workspace folders or
   backend workspace state changes.
 - Support lower-priority fallback constructs in Rust and `.langmeld`

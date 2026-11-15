@@ -21,7 +21,7 @@ pub(super) fn project_files(
     let diagnostic_prefix = package_name.to_ascii_uppercase();
     let dependencies = match template {
         Template::Declarative => format!(
-            "clap = {{ version = \"4.6\", features = [\"derive\"] }}\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-project = \"{version}\"\n"
+            "clap = {{ version = \"4.6\", features = [\"derive\"] }}\nlangmeld-core = \"{version}\"\nlangmeld-language = \"{version}\"\nlangmeld-lsp = \"{version}\"\nlangmeld-project = \"{version}\"\n"
         ),
         Template::CustomParser => {
             if typed_bindings {
@@ -102,6 +102,15 @@ pub(super) fn project_files(
                 (
                     "src/lib.rs".to_owned(),
                     library,
+                ),
+                (
+                    "src/lsp.rs".to_owned(),
+                    include_str!("../../templates/declarative/src/lsp.rs").to_owned(),
+                ),
+                (
+                    "src/bin/language-lsp.rs".to_owned(),
+                    include_str!("../../templates/declarative/src/bin/language-lsp.rs")
+                        .to_owned(),
                 ),
                 (
                     "src/main.rs".to_owned(),

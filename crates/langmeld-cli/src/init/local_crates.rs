@@ -9,10 +9,16 @@ const WORKSPACE_CRATES: &[&str] = &[
     "langmeld-lsp",
     "langmeld-build",
 ];
-const DECLARATIVE_CRATES: &[&str] = &["langmeld-core", "langmeld-language", "langmeld-project"];
+const DECLARATIVE_CRATES: &[&str] = &[
+    "langmeld-core",
+    "langmeld-language",
+    "langmeld-lsp",
+    "langmeld-project",
+];
 const TYPED_DECLARATIVE_CRATES: &[&str] = &[
     "langmeld-core",
     "langmeld-language",
+    "langmeld-lsp",
     "langmeld-project",
     "langmeld-build",
 ];

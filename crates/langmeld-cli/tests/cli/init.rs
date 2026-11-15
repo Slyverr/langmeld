@@ -36,7 +36,7 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("langmeld lsp`"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("cargo run --bin language-lsp`"));
     assert!(project.join("Cargo.toml").is_file());
     assert_eq!(
         fs::read_to_string(project.join("LICENSE-MIT")).unwrap(),
@@ -49,6 +49,8 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(project.join("langmeld.toml").is_file());
     assert!(!project.join(".cargo/config.toml").exists());
     assert!(project.join("src/lib.rs").is_file());
+    assert!(project.join("src/lsp.rs").is_file());
+    assert!(project.join("src/bin/language-lsp.rs").is_file());
     assert!(project.join("src/main.rs").is_file());
     assert!(project.join("src/runtime.rs").is_file());
     assert!(project.join("src/constructs/mod.rs").is_file());
@@ -88,10 +90,13 @@ fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     assert!(manifest.contains("[workspace]"));
     assert!(manifest.contains("license = \"MIT OR Apache-2.0\""));
     assert!(manifest.contains("clap = { version = \"4.6\", features = [\"derive\"] }"));
+    assert!(manifest.contains("langmeld-lsp = "));
     let readme = fs::read_to_string(project.join("README.md")).expect("README should be generated");
     assert!(readme.contains("## License"));
     assert!(readme.contains("language/main.langmeld"));
     assert!(readme.contains("src/constructs/"));
+    assert!(readme.contains("cargo run --bin language-lsp"));
+    assert!(readme.contains("src/lsp.rs"));
     assert!(readme.contains("langmeld generate construct repeat"));
     assert!(readme.contains("generated handler reports a diagnostic"));
     assert!(!readme.contains("{{TYPED_BINDINGS_GUIDANCE}}"));
@@ -348,7 +353,13 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
         (
             "declarative",
             None,
-            ["langmeld-core", "langmeld-language", "langmeld-project"].as_slice(),
+            [
+                "langmeld-core",
+                "langmeld-language",
+                "langmeld-lsp",
+                "langmeld-project",
+            ]
+            .as_slice(),
             false,
             Some("runs_a_program_from_the_project_definition"),
         ),
@@ -358,6 +369,7 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             [
                 "langmeld-core",
                 "langmeld-language",
+                "langmeld-lsp",
                 "langmeld-project",
                 "langmeld-build",
             ]

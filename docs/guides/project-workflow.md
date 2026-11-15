@@ -59,13 +59,16 @@ my-language/
 ├── langmeld.toml
 ├── README.md
 ├── src/
+│   ├── bin/
+│   │   └── language-lsp.rs
+│   ├── constructs/
+│   │   ├── mod.rs
+│   │   ├── let_handler.rs
+│   │   └── print.rs
 │   ├── lib.rs
+│   ├── lsp.rs
 │   ├── main.rs
-│   ├── runtime.rs
-│   └── constructs/
-│       ├── mod.rs
-│       ├── let_handler.rs
-│       └── print.rs
+│   └── runtime.rs
 ├── tests/
 │   └── language.rs
 └── language/
@@ -116,15 +119,19 @@ example, `langmeld generate construct function --literal fn` creates a stable
 To add behavior for syntax that is already declared, use
 `langmeld generate handler <name>`.
 
-The custom parser template creates a library in `src/lib.rs`, a demonstration
-binary in `src/main.rs`, a stdio LSP binary in `src/bin/language-lsp.rs`, and
-an integration test in `tests/parser.rs`. Its `SayParser` implements
-`LanguageParser` directly, demonstrating a host-owned syntax and parse tree
-without `.langmeld` files or a Langmeld manifest. The LSP binary publishes parser
-diagnostics through `HostLanguageBackend`; add host analysis, completion, or
-navigation providers there as needed. Both generated CLIs parse a built-in
-sample with `cargo run` or a source file with `cargo run -- path/to/source`.
-Use `cargo test` to run the generated integration tests.
+Both templates include a language-server target in the same Cargo package.
+For declarative projects, `src/lsp.rs` starts with grammar-based diagnostics and
+completions; add host analysis and providers there when the language needs
+semantic editor features. The custom parser template creates a library in
+`src/lib.rs`, a demonstration binary in `src/main.rs`, a stdio LSP binary in
+`src/bin/language-lsp.rs`, and an integration test in `tests/parser.rs`. Its
+`SayParser` implements `LanguageParser` directly, demonstrating a host-owned
+syntax and parse tree without `.langmeld` files or a Langmeld manifest. The LSP
+binary publishes parser diagnostics through `HostLanguageBackend`; add host
+analysis, completion, or navigation providers there as needed. Both generated
+CLIs parse a built-in sample with `cargo run` or a source file with
+`cargo run -- path/to/source`. Use `cargo test` to run the generated integration
+tests.
 
 `langmeld.toml` points to the root `.langmeld` file and has a format version:
 
@@ -192,11 +199,12 @@ running it elsewhere. Pass a file path to format one standalone definition.
 Use `--check` in CI to verify formatting without changing files; project mode
 validates the import graph before formatting any file. Set indentation with
 `--tab-width 2` or use `--tabs`.
-For declarative projects, `langmeld lsp` starts an editor server that publishes
-parse diagnostics and grammar-scoped syntax completions. Run
-`langmeld lsp --definitions` to get parser diagnostics and contextual syntax
-completion while editing `.langmeld` files. It automatically uses `langmeld.toml` in
-the current directory when present, or accepts an explicit `--manifest-path`
+For declarative projects, `cargo run --bin language-lsp` starts the
+project-local server, which publishes parse diagnostics and grammar-scoped
+syntax completions. `langmeld lsp` remains the zero-setup grammar server, while
+`langmeld lsp --definitions` provides contextual support for editing
+`.langmeld` files. Definition mode automatically uses `langmeld.toml` in the
+current directory when present, or accepts an explicit `--manifest-path`
 to validate the imported project graph against all open project file buffers.
 In manifest mode, it also suggests composed construct and category names in
 definition reference fields, and local `.langmeld` files and folders in import
