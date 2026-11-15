@@ -4,10 +4,19 @@ use langmeld_core::{Diagnostic, SourceFile, Span, format_diagnostics};
 use langmeld_language::{LanguageSpec, LexOutput, LexedToken, Lexer, TokenKind};
 use langmeld_project::load_definition_project;
 
-/// Lexer for the example's raw string syntax and line comments.
-pub struct RawStringLexer;
+/// Lexer for the example's raw string syntax and declared line comments.
+#[derive(Clone, Copy, Debug)]
+pub struct RawStringLexer<'rules> {
+    line_comments: &'rules [String],
+}
 
-impl Lexer for RawStringLexer {
+impl<'rules> RawStringLexer<'rules> {
+    pub const fn new(line_comments: &'rules [String]) -> Self {
+        Self { line_comments }
+    }
+}
+
+impl Lexer for RawStringLexer<'_> {
     fn lex(&self, source: &SourceFile) -> LexOutput {
         let mut tokens = Vec::new();
         let mut diagnostics = Vec::new();
@@ -19,7 +28,11 @@ impl Lexer for RawStringLexer {
                 cursor += 1;
                 continue;
             }
-            if bytes[cursor..].starts_with(b"//") {
+            if self
+                .line_comments
+                .iter()
+                .any(|marker| bytes[cursor..].starts_with(marker.as_bytes()))
+            {
                 while cursor < bytes.len() && !matches!(bytes[cursor], b'\n' | b'\r') {
                     cursor += 1;
                 }

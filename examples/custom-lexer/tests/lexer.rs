@@ -10,10 +10,11 @@ fn combines_a_langmeld_grammar_with_a_host_lexer() {
         .expect("the example definition should load");
     let source = SourceFile::new(
         "main.rawsay",
-        "say r#\"comments // inside the string stay text\"#; // ignored\n",
+        "say r#\"comments // inside the string stay text\"#; # ignored\n",
     );
 
-    let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
+    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let parsed = parse_with_lexer(&source, &language, &lexer);
 
     assert!(
         parsed.diagnostics().is_empty(),
@@ -33,7 +34,8 @@ fn reports_an_unterminated_raw_string_at_its_source_span() {
         .expect("the example definition should load");
     let source = SourceFile::new("broken.rawsay", "say r#\"missing terminator");
 
-    let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
+    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let parsed = parse_with_lexer(&source, &language, &lexer);
 
     let diagnostic = parsed
         .diagnostics()

@@ -32,12 +32,13 @@ fn run() -> Result<(), String> {
         }
         None => (
             "<sample>".to_owned(),
-            "say r#\"comments // inside the string stay text\"#; // this is a comment\n".to_owned(),
+            "say r#\"comments // inside the string stay text\"#; # this is a comment\n".to_owned(),
         ),
     };
 
     let source = SourceFile::new(source_name, source_text);
-    let parsed = parse_with_lexer(&source, &language, &RawStringLexer);
+    let lexer = RawStringLexer::new(language.lexical_rules().line_comments());
+    let parsed = parse_with_lexer(&source, &language, &lexer);
 
     if !parsed.diagnostics().is_empty() {
         let formatted = format_diagnostics(std::slice::from_ref(&source), parsed.diagnostics());
