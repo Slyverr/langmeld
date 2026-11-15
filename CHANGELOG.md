@@ -11,6 +11,8 @@ API migration notes are in the
 
 ### Added
 
+- Provide source-bound references to parsed constructs so typed views can
+  validate source ownership without searching the parse tree again.
 - Re-export LSP protocol and transport types from `langmeld-lsp` for host
   integrations.
 - Register and execute host-defined LSP commands, including commands returned
