@@ -54,8 +54,6 @@ The declarative template creates this project layout:
 my-language/
 ├── Cargo.toml
 ├── .gitignore
-├── LICENSE-MIT
-├── LICENSE-APACHE
 ├── langmeld.toml
 ├── README.md
 ├── src/
@@ -166,9 +164,9 @@ names, control characters, and components ending in a dot or space on every
 host.
 
 The generated Cargo package is a standalone workspace. The initializer writes
-into an existing directory but refuses to overwrite any generated file. Its
-dual-license files match the manifest. It does not generate editor
-configuration or build artifacts.
+into an existing directory but refuses to overwrite any generated file. It
+does not select a license or generate license files, editor configuration, or
+build artifacts; choose a license before sharing or publishing the project.
 
 To install the CLI from a Langmeld source checkout, run this from the repository
 root:

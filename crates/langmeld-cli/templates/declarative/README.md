@@ -74,5 +74,6 @@ the Langmeld LSP guide before choosing it.
 
 ## License
 
-Licensed under either the MIT License or Apache License 2.0, at your option.
-See `LICENSE-MIT` and `LICENSE-APACHE` for details.
+The initializer does not choose a license for this project. Add the SPDX
+expression to `Cargo.toml` and include the corresponding license text before
+sharing or publishing it.

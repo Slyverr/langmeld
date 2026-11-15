@@ -42,7 +42,7 @@ pub(super) fn project_files(
     };
     let library = "\n[lib]\nname = \"language\"\n";
     let manifest = format!(
-        "[package]\nname = {package_name:?}\ndefault-run = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\nlicense = \"MIT OR Apache-2.0\"\n{library}\n[dependencies]\n{dependencies}{build_dependencies}\n[workspace]\n"
+        "[package]\nname = {package_name:?}\ndefault-run = {package_name:?}\nversion = \"0.1.0\"\nedition = \"2024\"\nrust-version = \"1.88\"\n{library}\n[dependencies]\n{dependencies}{build_dependencies}\n[workspace]\n"
     );
     let gitignore = if local_crate_root.is_some() {
         "/target/\n/.cargo/config.toml\n"
@@ -52,14 +52,6 @@ pub(super) fn project_files(
     let mut files = vec![
         ("Cargo.toml".to_owned(), manifest),
         (".gitignore".to_owned(), gitignore.to_owned()),
-        (
-            "LICENSE-MIT".to_owned(),
-            include_str!("../../templates/LICENSE-MIT").to_owned(),
-        ),
-        (
-            "LICENSE-APACHE".to_owned(),
-            include_str!("../../templates/LICENSE-APACHE").to_owned(),
-        ),
     ];
 
     if let Some(root) = local_crate_root {

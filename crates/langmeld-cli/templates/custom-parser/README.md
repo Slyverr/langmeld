@@ -35,5 +35,6 @@ and attaching them to `HostLanguageBackend` in `src/lsp.rs`. The binary in
 
 ## License
 
-Licensed under either the MIT License or Apache License 2.0; choose either
-license. Replace the copyright placeholder in `LICENSE-MIT` before distributing.
+The initializer does not choose a license for this project. Add the SPDX
+expression to `Cargo.toml` and include the corresponding license text before
+sharing or publishing it.

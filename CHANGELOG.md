@@ -9,6 +9,11 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Changed
+
+- Leave license metadata and license files out of generated language projects
+  so `langmeld init` does not choose legal terms for authors.
+
 ## [0.17.0] - 2026-11-15
 
 ### Added
