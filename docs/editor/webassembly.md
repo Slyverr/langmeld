@@ -18,8 +18,13 @@ works without enabling typed Rust bindings:
 
 ```toml
 [build-dependencies]
-langmeld-build = "0.16"
+langmeld-build = "0.17"
 ```
+
+Keep this dependency on the same Langmeld release line as the other framework
+crates. If that line is not available from crates.io yet, initialize from a
+Langmeld source checkout and use `--local-crates`; see the
+[project workflow](../guides/project-workflow.md#create-a-project).
 
 Then use this `build.rs`:
 
