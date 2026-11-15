@@ -582,6 +582,34 @@ fn init_uses_local_crate_overrides_for_supported_templates() {
                     .contains("implement this construct's language behavior")
             );
         }
+
+        if project_name == "custom-parser" {
+            let default_run = run_generated_cli(&project, &workspace_root, None);
+            assert!(
+                default_run.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&default_run.stdout),
+                String::from_utf8_lossy(&default_run.stderr)
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&default_run.stdout),
+                "Hello from a custom parser!\nParsed 1 statement(s) for ExampleLanguage.\n"
+            );
+
+            fs::write(project.join("example.say"), "say From file\n")
+                .expect("custom parser source should be written");
+            let file_run = run_generated_cli(&project, &workspace_root, Some("example.say"));
+            assert!(
+                file_run.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&file_run.stdout),
+                String::from_utf8_lossy(&file_run.stderr)
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&file_run.stdout),
+                "From file\nParsed 1 statement(s) for ExampleLanguage.\n"
+            );
+        }
     }
 }
 
