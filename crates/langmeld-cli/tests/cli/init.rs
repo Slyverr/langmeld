@@ -533,6 +533,54 @@ fn init_uses_local_crate_overrides_for_supported_templates() {
                 String::from_utf8_lossy(&file_run.stderr)
             );
             assert_eq!(String::from_utf8_lossy(&file_run.stdout), "From file\n");
+
+            let generated = Command::new(env!("CARGO_BIN_EXE_langmeld"))
+                .current_dir(&project)
+                .args(["generate", "construct", "repeat"])
+                .output()
+                .expect("construct generator should start");
+            assert!(
+                generated.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&generated.stdout),
+                String::from_utf8_lossy(&generated.stderr)
+            );
+
+            let generated_check = Command::new("cargo")
+                .current_dir(&project)
+                .args([
+                    "check",
+                    "--offline",
+                    "--locked",
+                    "--manifest-path",
+                    "Cargo.toml",
+                    "--target-dir",
+                ])
+                .arg(shared_target_dir(&workspace_root))
+                .output()
+                .expect("generated construct should compile");
+            assert!(
+                generated_check.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&generated_check.stdout),
+                String::from_utf8_lossy(&generated_check.stderr)
+            );
+
+            fs::write(project.join("unimplemented.widget"), "program { repeat }\n")
+                .expect("generated construct source should be written");
+            let unimplemented_run =
+                run_generated_cli(&project, &workspace_root, Some("unimplemented.widget"));
+            assert!(
+                !unimplemented_run.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&unimplemented_run.stdout),
+                String::from_utf8_lossy(&unimplemented_run.stderr)
+            );
+            assert!(String::from_utf8_lossy(&unimplemented_run.stderr).contains("LM-HANDLER-005"));
+            assert!(
+                String::from_utf8_lossy(&unimplemented_run.stderr)
+                    .contains("implement this construct's language behavior")
+            );
         }
     }
 }
