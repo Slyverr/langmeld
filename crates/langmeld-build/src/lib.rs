@@ -9,4 +9,6 @@ pub use codegen::{
     ConstructHandlerNames, construct_handler_names, construct_type_name, generate_bindings,
 };
 pub use error::BuildError;
-pub use project::generate_project;
+pub use project::{
+    generate_embedded_sources, generate_project, generate_project_with_embedded_sources,
+};

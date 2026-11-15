@@ -13,7 +13,7 @@ semantics, execution, and any custom syntax or behavior it needs.
 | `langmeld-core` | Source snapshots and identities, byte spans, and structured diagnostics. |
 | `langmeld-language` | Language grammar model, `.langmeld` frontend and validation, built-in lexer and parser, construct-handler dispatch, ordered analysis passes, and host parser, analysis, completion, and navigation contracts. |
 | `langmeld-project` | Project manifests and modular definition loading through directory, in-memory, and overlay resolvers. |
-| `langmeld-build` | Build-script support that generates typed Rust views from a project's validated `.langmeld` definition. |
+| `langmeld-build` | Build-script support that generates typed Rust views and embeds validated project definitions as Rust source entries. |
 | `langmeld-expression` | Optional configurable expression grammar, parser, and host-defined type and evaluation hooks. |
 | `langmeld-lsp` | Shared LSP protocol engine; language-specific backends live in the language project's Rust crate. |
 | `langmeld-textmate` | TextMate grammar export for compatible declarative grammars. |
@@ -26,8 +26,9 @@ filesystem workflow, and a language project can embed the LSP engine without
 running the Langmeld executable or moving its backend into another crate.
 
 `langmeld-build` is an optional build dependency. Its output is written under
-Cargo's `OUT_DIR`; language projects keep a stable `include!` module in source
-control and do not check in generated bindings.
+Cargo's `OUT_DIR`; language projects keep stable `include!` modules in source
+control and do not check in generated files. Hosts without runtime filesystem
+access can embed the root definition and its imports at build time.
 
 ## Language authoring paths
 

@@ -12,3 +12,6 @@ langmeld-language = "0.16.0"
 langmeld-project = "0.16.0"
 langmeld-textmate = "0.16.0"
 langmeld-tree-sitter = "0.16.0"
+
+[build-dependencies]
+langmeld-build = "0.16.0"

@@ -9,6 +9,12 @@ API migration notes are in the
 
 ## [Unreleased]
 
+### Added
+
+- Generate compile-time source entries for the root and imported `.langmeld`
+  files independently of typed bindings, so hosts can load definition projects
+  without runtime filesystem access.
+
 ## [0.16.0] - 2026-11-15
 
 ### Added

@@ -9,6 +9,8 @@ use langmeld_textmate::{TextMateOptions, generate as generate_textmate};
 use langmeld_tree_sitter::{TreeSitterOptions, generate as generate_tree_sitter};
 use std::path::Path;
 
+include!(concat!(env!("OUT_DIR"), "/langmeld_sources.rs"));
+
 fn main() {
     verify_in_memory_language_project();
     verify_named_result_parts();
@@ -101,22 +103,10 @@ fn verify_named_result_parts() {
 
 fn verify_in_memory_language_project() {
     let mut resolver = InMemoryDefinitionResolver::new();
-    let sources = [
-        (
-            "language/main.langmeld",
-            include_str!("../language/main.langmeld"),
-        ),
-        (
-            "language/constructs/statements.langmeld",
-            include_str!("../language/constructs/statements.langmeld"),
-        ),
-        (
-            "language/constructs/draw.langmeld",
-            include_str!("../language/constructs/draw.langmeld"),
-        ),
-    ];
 
-    for (key, text) in sources {
+    assert_eq!(LANGMELD_SOURCES.len(), 3);
+
+    for &(key, text) in LANGMELD_SOURCES {
         resolver
             .insert(key, SourceFile::new(key, text))
             .expect("embedded definition paths should be valid");

@@ -2,7 +2,7 @@ use std::{error::Error, fmt, io, path::PathBuf};
 
 use langmeld_project::DefinitionProjectError;
 
-/// Failure while loading a Langmeld project or generating Rust bindings.
+/// Failure while loading a Langmeld project or generating Rust outputs.
 #[derive(Debug)]
 pub enum BuildError {
     /// Cargo did not provide a required build-script environment variable.
@@ -13,7 +13,7 @@ pub enum BuildError {
     InvalidDefinition(String),
     /// The language grammar cannot be represented by generated Rust bindings.
     UnsupportedGrammar(String),
-    /// Generated bindings could not be written to Cargo's output directory.
+    /// Generated Rust output could not be written to Cargo's output directory.
     WriteOutput {
         /// Path of the generated file.
         path: PathBuf,
@@ -38,7 +38,7 @@ impl fmt::Display for BuildError {
             Self::UnsupportedGrammar(message) => formatter.write_str(message),
             Self::WriteOutput { path, source } => write!(
                 formatter,
-                "cannot write generated bindings to `{}`: {source}",
+                "cannot write generated Rust output to `{}`: {source}",
                 path.display()
             ),
         }

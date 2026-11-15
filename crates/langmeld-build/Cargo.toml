@@ -1,6 +1,6 @@
 [package]
 name = "langmeld-build"
-description = "Build-time typed Rust bindings for Langmeld language projects."
+description = "Build-time source embedding and typed Rust bindings for Langmeld projects."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

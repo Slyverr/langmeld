@@ -5,13 +5,12 @@ pub mod lsp;
 
 pub mod generated {
     include!(concat!(env!("OUT_DIR"), "/langmeld_bindings.rs"));
+    include!(concat!(env!("OUT_DIR"), "/langmeld_sources.rs"));
 }
 
-use std::path::Path;
-
 use langmeld_core::{Diagnostic, SourceFile};
-use langmeld_language::{LanguageSpec, ParsedDocument, parse};
-use langmeld_project::load_definition_project;
+use langmeld_language::{LanguageSpec, ParsedDocument, parse, parse_language_definition_project};
+use langmeld_project::InMemoryDefinitionResolver;
 
 pub use analysis::{FunctionFacts, FunctionSignature};
 pub use ast::{CallSite, Function, Parameter, Program};
@@ -28,13 +27,18 @@ pub struct FunctionAnalysis {
 /// Returns an error when the project or its definition cannot be loaded, or
 /// when the definition does not produce a valid language specification.
 pub fn load() -> Result<LanguageSpec, String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let project = load_definition_project(root).map_err(|error| error.to_string())?;
-    let langmeld_project::LoadedDefinitionProjectParts {
-        definition,
-        sources,
-        ..
-    } = project.into_parts();
+    let mut resolver = InMemoryDefinitionResolver::new();
+    for &(path, text) in generated::LANGMELD_SOURCES {
+        resolver
+            .insert(path, SourceFile::new(path, text))
+            .map_err(|error| error.to_string())?;
+    }
+
+    let root = resolver
+        .load("language/main.langmeld")
+        .map_err(|error| error.to_string())?;
+    let sources = resolver.sources();
+    let definition = parse_language_definition_project(root, &resolver);
 
     if !definition.is_valid() {
         return Err(langmeld_core::format_diagnostics(

@@ -1,7 +1,6 @@
 use langmeld_core::SourceFile;
 use langmeld_declarative_functions_example::{analyze, diagnostics, generated::constructs};
 use langmeld_language::{TypedConstruct, parse};
-use langmeld_project::load_language_spec;
 
 #[test]
 fn accepts_parameterized_functions_and_forward_calls() {
@@ -101,8 +100,8 @@ fn rejects_trailing_commas_in_function_parameters() {
 #[test]
 fn generated_views_reject_mismatched_sources_and_parse_results() {
     let source = SourceFile::new("typed.functionflow", "program { fn main() -> i32 {} }");
-    let language = load_language_spec(env!("CARGO_MANIFEST_DIR"))
-        .expect("the checked-in definition project should load");
+    let language = langmeld_declarative_functions_example::load()
+        .expect("the embedded language definition should load");
     let parsed = parse(&source, &language);
     let function = &parsed.constructs()[0].children[0];
     let view = constructs::Function::from_construct(&source, &parsed, function)
