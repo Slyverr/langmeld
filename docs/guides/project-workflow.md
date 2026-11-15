@@ -19,8 +19,9 @@ registry dependencies. Scripts can opt in with `--local-crates`. This option
 requires a matching Langmeld source checkout and is useful before its crates
 are published. The ignored Cargo config contains absolute paths into that
 checkout, so the generated project depends on the checkout staying at that
-location. Choose no when the project should build independently, or remove
-`.cargo/config.toml` when you switch to published crates.
+location. Keep local crates enabled while the generated dependency version is
+unpublished. Choose no once that version is available from crates.io, or remove
+`.cargo/config.toml` when switching to published crates.
 
 To skip prompts for the declarative template:
 
