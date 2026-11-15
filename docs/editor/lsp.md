@@ -219,6 +219,11 @@ corresponding source snapshots. Cross-file locations are converted when their
 target document is open, or when the backend resolves a closed-file target to
 its current source snapshot and URI.
 
+When naming protocol or transport types, import them from
+`langmeld_lsp::lsp_types` and `langmeld_lsp::lsp_server`. The `langmeld-lsp`
+crate re-exports both dependencies, so a host does not need separate direct
+dependencies just to implement its backend or provide a connection.
+
 The [Aster example](../../examples/aster-language) demonstrates a host backend
 that combines its own AST and semantic diagnostics with resolved definition,
 reference, and rename queries. It also provides semantic token types for
