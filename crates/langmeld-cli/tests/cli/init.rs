@@ -14,6 +14,32 @@ fn shared_target_dir(workspace_root: &Path) -> PathBuf {
         .unwrap_or_else(|| workspace_root.join("target"))
 }
 
+fn run_generated_cli(
+    project: &Path,
+    workspace_root: &Path,
+    source: Option<&str>,
+) -> std::process::Output {
+    let mut command = Command::new("cargo");
+    command
+        .current_dir(project)
+        .args([
+            "run",
+            "--offline",
+            "--manifest-path",
+            "Cargo.toml",
+            "--target-dir",
+        ])
+        .arg(shared_target_dir(workspace_root));
+
+    if let Some(source) = source {
+        command.args(["--", source]);
+    }
+
+    command
+        .output()
+        .expect("generated language CLI should start")
+}
+
 #[test]
 fn init_generates_a_modular_declarative_project_without_overwriting_files() {
     let parent = TestDirectory::new();
@@ -341,7 +367,7 @@ fn init_rejects_typed_bindings_for_custom_parser_projects() {
 }
 
 #[test]
-fn init_uses_ignored_local_crate_overrides_for_both_templates() {
+fn init_uses_local_crate_overrides_for_supported_templates() {
     let parent = TestDirectory::new();
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -480,6 +506,34 @@ fn init_uses_ignored_local_crate_overrides_for_both_templates() {
             "{}",
             String::from_utf8_lossy(&output.stdout)
         );
+
+        if project_name == "declarative" {
+            let default_run = run_generated_cli(&project, &workspace_root, None);
+            assert!(
+                default_run.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&default_run.stdout),
+                String::from_utf8_lossy(&default_run.stderr)
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&default_run.stdout),
+                "Hello, Langmeld!\n"
+            );
+
+            fs::write(
+                project.join("example.widget"),
+                "program {\n  let message = \"From file\";\n\n  print message;\n}\n",
+            )
+            .expect("example source should be written");
+            let file_run = run_generated_cli(&project, &workspace_root, Some("example.widget"));
+            assert!(
+                file_run.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&file_run.stdout),
+                String::from_utf8_lossy(&file_run.stderr)
+            );
+            assert_eq!(String::from_utf8_lossy(&file_run.stdout), "From file\n");
+        }
     }
 }
 
