@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-15
+
 ### Added
 
 - Generate compile-time source entries for the root and imported `.langmeld`
