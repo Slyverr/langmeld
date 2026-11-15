@@ -9,6 +9,8 @@ API migration notes are in the
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-15
+
 ### Added
 
 - Add `ExtensibleLexer` and `LexerExtension` for custom token forms that reuse

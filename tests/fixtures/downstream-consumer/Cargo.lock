@@ -38,7 +38,7 @@ checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
 name = "langmeld-build"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "heck",
  "langmeld-core",
@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-core"
-version = "0.17.0"
+version = "0.18.0"
 
 [[package]]
 name = "langmeld-downstream-smoke"
@@ -65,21 +65,21 @@ dependencies = [
 
 [[package]]
 name = "langmeld-expression"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-language"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "langmeld-core",
 ]
 
 [[package]]
 name = "langmeld-project"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "langmeld-core",
  "langmeld-language",
@@ -88,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-textmate"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "langmeld-language",
  "serde",
@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-tree-sitter"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "langmeld-language",
 ]
