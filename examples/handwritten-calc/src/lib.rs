@@ -6,7 +6,8 @@
 //!
 //! ```text
 //! file      = item*
-//! item      = let | function | statement
+//! item      = use | let | function | statement
+//! use       = "use" string ";"
 //! let       = "let" name "=" expr ";"
 //! function  = "fn" name "(" (name ("," name)* ","?)? ")" block
 //! block     = "{" item* "}"
@@ -52,6 +53,7 @@ kinds! {
     INT Int,
     FLOAT Float,
     STRING String,
+    USE_KW UseKw,
     LET_KW LetKw,
     FN_KW FnKw,
     RETURN_KW ReturnKw,
@@ -73,6 +75,7 @@ kinds! {
     STAR Star,
     SLASH Slash,
     FILE File,
+    USE_STMT UseStmt,
     LET_STMT LetStmt,
     FN_DECL FnDecl,
     PARAM Param,
@@ -93,7 +96,7 @@ kinds! {
 
 /// What an item can start with, and so where parsing resumes after unexpected text.
 const ITEM_START: &[SyntaxKind] = &[
-    LET_KW, FN_KW, INT, FLOAT, STRING, TRUE_KW, FALSE_KW, L_PAREN, IF_KW, IDENT, MINUS,
+    USE_KW, LET_KW, FN_KW, INT, FLOAT, STRING, TRUE_KW, FALSE_KW, L_PAREN, IF_KW, IDENT, MINUS,
 ];
 
 /// What an expression can start with.
@@ -127,6 +130,7 @@ fn build_lexer() -> Lexer {
         TokenSpec::preset(STRING, "string", Preset::String(string)),
     ];
     let keywords = [
+        (USE_KW, "use"),
         (LET_KW, "let"),
         (FN_KW, "fn"),
         (RETURN_KW, "return"),
@@ -197,10 +201,19 @@ fn source_file(p: &mut Parser<'_>) {
 
 fn item(p: &mut Parser<'_>) {
     match p.current() {
+        USE_KW => use_statement(p),
         LET_KW => let_statement(p),
         FN_KW => function(p),
         _ => expression_statement(p),
     }
+}
+
+fn use_statement(p: &mut Parser<'_>) {
+    let m = p.start();
+    p.bump();
+    p.expect(STRING);
+    p.expect(SEMI);
+    m.complete(p, USE_STMT);
 }
 
 fn let_statement(p: &mut Parser<'_>) {

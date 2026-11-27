@@ -1,0 +1,2 @@
+fn twice(n) { n * 2 }
+let base = 10;

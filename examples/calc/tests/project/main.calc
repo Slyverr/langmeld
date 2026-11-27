@@ -1,0 +1,4 @@
+use "lib.calc";
+print(twice(base));
+let more = base + 1;
+more;

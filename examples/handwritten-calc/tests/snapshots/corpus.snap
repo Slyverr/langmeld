@@ -18,3 +18,4 @@ items.txt: let statement: passed, 0 diagnostics
 items.txt: function with parameters and a trailing comma: passed, 0 diagnostics
 items.txt: empty file: passed, 0 diagnostics
 items.txt: comments and nested comments: passed, 0 diagnostics
+items.txt: use of another file: passed, 0 diagnostics

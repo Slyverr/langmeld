@@ -50,3 +50,20 @@ File
       NameRef "x"
     ";"
 
+=== use of another file
+use "lib.calc";
+twice(1);
+---
+File
+  UseStmt
+    "use"
+    "\"lib.calc\""
+    ";"
+  ExprStmt
+    Call
+      Var
+        NameRef "twice"
+      "("
+      Literal "1"
+      ")"
+    ";"

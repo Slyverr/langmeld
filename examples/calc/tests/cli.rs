@@ -225,3 +225,25 @@ fn a_copy_named_for_a_command_acts_as_that_command() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "4\n");
     assert_eq!(output.status.code(), Some(0));
 }
+
+// names across files
+
+#[test]
+fn check_follows_use_across_files() {
+    insta::assert_snapshot!(calc(&["check", "tests/project"]));
+}
+
+#[test]
+fn check_shows_names_nothing_defines_with_a_suggestion() {
+    insta::assert_snapshot!(calc(&["check", "tests/typo/main.calc"]));
+}
+
+#[test]
+fn run_runs_the_files_a_program_uses() {
+    insta::assert_snapshot!(calc(&["run", "tests/project/main.calc"]));
+}
+
+#[test]
+fn run_says_when_a_used_file_cannot_be_read() {
+    insta::assert_snapshot!(calc(&["run", "tests/typo/lost.calc"]));
+}

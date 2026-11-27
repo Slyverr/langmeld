@@ -3,8 +3,10 @@
 use std::path::PathBuf;
 
 use langmeld::ast::AstNode;
+use langmeld::bind::Project;
 use langmeld::cli::clap::{Arg, ArgMatches, Command, value_parser};
-use langmeld::cli::{App, Failure, line, parse_file, report};
+use langmeld::cli::{App, Failure, line, read, report};
+use langmeld::project::DiskFiles;
 use langmeld::{FileId, SourceFile, parse};
 
 use crate::checks::divisions_by_zero;
@@ -31,8 +33,23 @@ fn run_command(matches: &ArgMatches) -> Result<(), Failure> {
     let path = matches
         .get_one::<PathBuf>("file")
         .ok_or_else(|| Failure::Unable("name a file to run".to_owned()))?;
-    let (source, _) = parse_file(language(), path, FileId::new(0))?;
-    run_source(&source)
+    let name = path.display().to_string().replace('\\', "/");
+    let mut project = Project::new(loaded());
+    let id = project
+        .set(&name, read(path)?)
+        .ok_or_else(|| Failure::Unable(format!("{name}: the file is too large")))?;
+    // The files it uses are read too, whatever they use in turn.
+    project.open(&name, &DiskFiles);
+    let sources: Vec<SourceFile> = project.files().map(|file| file.source().clone()).collect();
+    let problems = project.file(id).map(|file| &file.parse().diagnostics);
+    if let Some(problems) = problems.filter(|problems| !problems.is_empty()) {
+        report(&sources, problems);
+        return Err(Failure::Found);
+    }
+    interp::run_project(&project, id, &mut line).map_err(|problem| {
+        report(&sources, std::slice::from_ref(&*problem));
+        Failure::Found
+    })
 }
 
 fn eval_command(matches: &ArgMatches) -> Result<(), Failure> {
@@ -49,6 +66,7 @@ fn eval_command(matches: &ArgMatches) -> Result<(), Failure> {
 /// The program, with every command.
 pub fn app() -> App<'static> {
     let program = App::new(loaded())
+        .resolver(crate::Builtins)
         .name("calc")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Calc, a small calculator language built with Langmeld")

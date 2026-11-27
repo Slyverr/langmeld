@@ -15,6 +15,8 @@ pub mod interp;
 
 use std::sync::OnceLock;
 
+use langmeld::bind::Resolver;
+
 use langmeld_syntax::pattern::{field, lit, look, many, r, sep};
 use langmeld_syntax::{
     Assoc, ExprSpec, FloatPreset, IdentStyle, IntPreset, Language, Preset, StringPreset, Token,
@@ -69,7 +71,14 @@ fn build() -> Language {
         .keywords(["return"])
         .contextual(["from"])
         .rule("File", many(field("items", r("Item"))))
-        .rule("Item", choice![r("LetStmt"), r("FnDecl"), r("ExprStmt")])
+        .rule(
+            "Item",
+            choice![r("UseStmt"), r("LetStmt"), r("FnDecl"), r("ExprStmt")],
+        )
+        .rule(
+            "UseStmt",
+            seq![lit("use"), field("path", r("string")), lit(";")],
+        )
         .rule(
             "LetStmt",
             seq![
@@ -108,6 +117,16 @@ fn build() -> Language {
         .describe("ident", "identifier")
         .build()
         .expect("the Calc grammar is fixed, and the tests build it")
+}
+
+/// What Calc knows without being told: the functions `print`, `sqrt` and `abs`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Builtins;
+
+impl Resolver for Builtins {
+    fn predefined(&self) -> &[(&str, &str)] {
+        &[("value", "print"), ("value", "sqrt"), ("value", "abs")]
+    }
 }
 
 /// The Calc language, built on first use.
