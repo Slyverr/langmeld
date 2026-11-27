@@ -1,0 +1,118 @@
+=== a line ending is one newline token
+a
+b
+---
+IDENT "a" joint
+NEWLINE "\n" joint
+IDENT "b"
+
+=== blank lines and comments collapse into one newline
+a
+
+// x
+
+  /* y */
+b
+
+---
+IDENT "a" joint
+NEWLINE "\n"
+LINE_BREAK "\n"
+LINE_COMMENT "// x"
+LINE_BREAK "\n"
+LINE_BREAK "\n"
+WS "  "
+BLOCK_COMMENT "/* y */"
+LINE_BREAK "\n"
+IDENT "b" joint
+NEWLINE "\n"
+
+=== newlines inside parentheses and brackets are trivia
+f(a,
+b
+)
+[c
+d]
+
+---
+IDENT "f" joint
+L_PAREN "(" joint
+IDENT "a" joint
+COMMA ","
+LINE_BREAK "\n"
+IDENT "b"
+LINE_BREAK "\n"
+R_PAREN ")" joint
+NEWLINE "\n" joint
+L_BRACK "[" joint
+IDENT "c"
+LINE_BREAK "\n"
+IDENT "d" joint
+R_BRACK "]" joint
+NEWLINE "\n"
+
+=== braces end statements again inside brackets
+(a {b
+c} d)
+---
+L_PAREN "(" joint
+IDENT "a"
+WS " "
+L_BRACE "{" joint
+IDENT "b" joint
+NEWLINE "\n" joint
+IDENT "c" joint
+R_BRACE "}"
+WS " "
+IDENT "d" joint
+R_PAREN ")"
+
+=== a trailing operator continues the line
+a +
+b
+---
+IDENT "a"
+WS " "
+PLUS "+"
+LINE_BREAK "\n"
+IDENT "b"
+
+=== a trailing comma continues the line
+a,
+b
+---
+IDENT "a" joint
+COMMA ","
+LINE_BREAK "\n"
+IDENT "b"
+
+=== a semicolon and a newline
+a;
+b
+---
+IDENT "a" joint
+SEMI ";" joint
+NEWLINE "\n" joint
+IDENT "b"
+
+=== carriage returns count as line endings
+a
+bc
+---
+IDENT "a" joint
+NEWLINE "\r\n" joint
+IDENT "b" joint
+NEWLINE "\r" joint
+IDENT "c"
+
+=== a comment after a trailing operator
+a + // why
+b
+---
+IDENT "a"
+WS " "
+PLUS "+"
+WS " "
+LINE_COMMENT "// why"
+LINE_BREAK "\n"
+IDENT "b"

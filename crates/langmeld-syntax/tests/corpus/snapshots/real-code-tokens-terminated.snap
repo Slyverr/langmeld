@@ -1,0 +1,13 @@
+---
+source: crates/langmeld-syntax/tests/corpus/main.rs
+expression: report
+---
+lines.txt: a line ending is one newline token: passed
+lines.txt: blank lines and comments collapse into one newline: passed
+lines.txt: newlines inside parentheses and brackets are trivia: passed
+lines.txt: braces end statements again inside brackets: passed
+lines.txt: a trailing operator continues the line: passed
+lines.txt: a trailing comma continues the line: passed
+lines.txt: a semicolon and a newline: passed
+lines.txt: carriage returns count as line endings: passed
+lines.txt: a comment after a trailing operator: passed

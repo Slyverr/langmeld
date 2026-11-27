@@ -1,0 +1,11 @@
+---
+source: crates/langmeld-syntax/tests/corpus/main.rs
+expression: report
+---
+strings.txt: a string without holes: passed
+strings.txt: one hole: passed
+strings.txt: nested braces inside a hole: passed
+strings.txt: a string inside a hole: passed
+strings.txt: a hole open at the end of the file: passed
+strings.txt: a hole open at the end of the line: passed
+strings.txt: an escaped quote in the text: passed

@@ -4,6 +4,13 @@
 |--------|----------|
 | `corpus/` | Framework behavior: grammar errors, error recovery, every diagnostic code |
 | `real-code/` | Syntax that real languages use, one topic per file |
+| `real-code/tokens/` | The same kind of cases at token level: the expected output lists every token |
+
+Token cases run a small test lexer instead of a parser. Each token is one line,
+`KIND "text"`, with `joint` after it when nothing separates it from the next token, and
+each diagnostic follows as `! CODE start..end message`. `tokens/terminated/` uses a lexer
+whose line endings end statements, and `tokens/interpolated/` one whose strings hold
+`{}` holes.
 
 Run them with `cargo nextest run -p langmeld-syntax --test corpus`.
 

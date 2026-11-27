@@ -1,0 +1,43 @@
+---
+source: crates/langmeld-syntax/tests/corpus/main.rs
+expression: report
+---
+comments.txt: block comments nest: passed
+comments.txt: a block comment left open: passed
+comments.txt: documentation and line comments: passed
+literals.txt: character in single quotes: passed
+literals.txt: unicode escape in a string: passed
+literals.txt: emoji in a string: passed
+literals.txt: emoji outside a string is one error: passed
+literals.txt: string not closed on its line: passed
+numbers.txt: float with a negative exponent: passed
+numbers.txt: hexadecimal with underscores: passed
+numbers.txt: inclusive range: passed
+numbers.txt: a unit after a number: passed
+numbers.txt: a base prefix without digits: passed
+numbers.txt: method call on an integer: passed
+numbers.txt: float with a fraction: passed
+numbers.txt: two dots after an integer are a range: passed
+numbers.txt: underscores in a decimal: passed
+numbers.txt: binary number: passed
+operators.txt: unary minus right after an assignment: passed
+operators.txt: unary minus right after not-equal: passed
+operators.txt: nested generics keep their closers apart and joined: passed
+operators.txt: spaced closers are not joined: passed
+operators.txt: shift right joined in an expression: passed
+operators.txt: less-than next to a minus: passed
+operators.txt: arrow, decrement and minus: passed
+operators.txt: range between names: passed
+text.txt: carriage return line feed: passed
+text.txt: lone carriage return: passed
+text.txt: byte order mark: passed
+text.txt: byte order mark in the middle: passed
+text.txt: tabs between tokens: passed
+text.txt: no trailing newline: passed
+text.txt: trailing newline kept: passed
+text.txt: empty file: passed
+words.txt: hyphenated word: passed
+words.txt: subtraction keeps its spaces: passed
+words.txt: keyword used as a name stays a keyword: passed
+words.txt: identifiers in other scripts: passed
+words.txt: contextual keyword as a name: passed

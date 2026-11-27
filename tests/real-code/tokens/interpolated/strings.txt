@@ -1,0 +1,80 @@
+=== a string without holes
+"plain"
+---
+STR_START "\"" joint
+STR_TEXT "plain" joint
+STR_END "\""
+
+=== one hole
+"a {b} c"
+---
+STR_START "\"" joint
+STR_TEXT "a " joint
+HOLE_OPEN "{" joint
+IDENT "b" joint
+HOLE_CLOSE "}" joint
+STR_TEXT " c" joint
+STR_END "\""
+
+=== nested braces inside a hole
+"x {f({y})} z"
+---
+STR_START "\"" joint
+STR_TEXT "x " joint
+HOLE_OPEN "{" joint
+IDENT "f" joint
+L_PAREN "(" joint
+L_BRACE "{" joint
+IDENT "y" joint
+R_BRACE "}" joint
+R_PAREN ")" joint
+HOLE_CLOSE "}" joint
+STR_TEXT " z" joint
+STR_END "\""
+
+=== a string inside a hole
+"a {"b {c}"} d"
+---
+STR_START "\"" joint
+STR_TEXT "a " joint
+HOLE_OPEN "{" joint
+STR_START "\"" joint
+STR_TEXT "b " joint
+HOLE_OPEN "{" joint
+IDENT "c" joint
+HOLE_CLOSE "}" joint
+STR_END "\"" joint
+HOLE_CLOSE "}" joint
+STR_TEXT " d" joint
+STR_END "\""
+
+=== a hole open at the end of the file
+"a {b
+---
+STR_START "\"" joint
+STR_TEXT "a " joint
+HOLE_OPEN "{" joint
+IDENT "b"
+! LM-L002 0..5 unterminated string; add a closing `"` before the end of the line
+
+=== a hole open at the end of the line
+"a {b
+c
+---
+STR_START "\"" joint
+STR_TEXT "a " joint
+HOLE_OPEN "{" joint
+IDENT "b"
+WS "\n"
+IDENT "c"
+! LM-L002 0..5 unterminated string; add a closing `"` before the end of the line
+
+=== an escaped quote in the text
+"a \" {b}"
+---
+STR_START "\"" joint
+STR_TEXT "a \\\" " joint
+HOLE_OPEN "{" joint
+IDENT "b" joint
+HOLE_CLOSE "}" joint
+STR_END "\""

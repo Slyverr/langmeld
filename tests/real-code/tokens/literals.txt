@@ -1,0 +1,34 @@
+=== character in single quotes
+'c'
+---
+CHAR "'c'"
+
+=== unicode escape in a string
+"\u{1F600}"
+---
+STRING "\"\\u{1F600}\""
+
+=== emoji in a string
+"😀"
+---
+STRING "\"😀\""
+
+=== emoji outside a string is one error
+a 😀 b
+---
+IDENT "a"
+WS " "
+ERROR "😀"
+WS " "
+IDENT "b"
+! LM-L001 2..6 unexpected character `😀`
+
+=== string not closed on its line
+"ab
+c
+---
+STRING "\"ab"
+WS "\n"
+IDENT "c"
+! LM-L002 0..3 unterminated string; add a closing `"` before the end of the line
+
