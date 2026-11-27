@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "examples/*", "tests/stress"]
+members = ["crates/*", "examples/*", "tests/stress", "tests/typed"]
 
 [workspace.package]
 version = "0.4.0"
@@ -16,6 +16,7 @@ publish = false
 [workspace.dependencies]
 # The crates of this workspace; the version is the one of `[workspace.package]`, and a
 # test keeps the two equal.
+langmeld = { path = "crates/langmeld", version = "0.4.0" }
 langmeld-ide = { path = "crates/langmeld-ide", version = "0.4.0" }
 langmeld-meta = { path = "crates/langmeld-meta", version = "0.4.0" }
 langmeld-syntax = { path = "crates/langmeld-syntax", version = "0.4.0" }
@@ -37,6 +38,7 @@ postcard = { version = "1", default-features = false, features = ["use-std"] }
 rowan = "0.16.1"
 text-size = "1.1.1"
 unicode-ident = "1.0.27"
+trybuild = "1.0.116"
 wasm-bindgen-test = "0.3.80"
 
 [workspace.lints.rust]

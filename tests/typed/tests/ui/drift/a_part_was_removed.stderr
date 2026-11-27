@@ -1,0 +1,5 @@
+error[E0599]: no method named `colour` found for reference `&typed::syntax::Circle` in the current scope
+ --> tests/ui/drift/a_part_was_removed.rs:5:20
+  |
+5 |     let _ = circle.colour();
+  |                    ^^^^^^ method not found in `&typed::syntax::Circle`

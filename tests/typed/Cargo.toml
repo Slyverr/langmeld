@@ -1,0 +1,21 @@
+[package]
+name = "typed"
+description = "A language that exercises the Rust types written for trees: how they read, and the errors when the grammar and the code drift apart."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+langmeld.workspace = true
+
+[build-dependencies]
+langmeld.workspace = true
+
+[dev-dependencies]
+trybuild.workspace = true
+
+[lints]
+workspace = true
