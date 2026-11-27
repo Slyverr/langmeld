@@ -1,6 +1,6 @@
 [package]
 name = "langmeld-ide"
-description = "Langmeld binding, project loading, language server and editor packaging."
+description = "Experimental: langmeld binding, project loading, language server and editor packaging."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,6 @@ repository.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
-publish.workspace = true
 
 [dependencies]
 langmeld-syntax.workspace = true

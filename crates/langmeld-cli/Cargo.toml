@@ -1,6 +1,6 @@
 [package]
 name = "langmeld-cli"
-description = "The langmeld binary and the CLI kit for language binaries."
+description = "Experimental: the langmeld binary and the CLI kit for language binaries."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,6 @@ repository.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
-publish.workspace = true
 
 [lib]
 name = "langmeld_cli"

@@ -8,6 +8,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-27
+
 ### Added
 
 - `langmeld init NAME` writes a language that runs at once: a grammar, an interpreter, a

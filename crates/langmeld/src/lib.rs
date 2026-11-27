@@ -1,5 +1,7 @@
 //! Langmeld is an experimental Rust framework for building languages.
 //!
+//! **Experimental:** the API may change in any minor release.
+//!
 //! This facade is the only crate users depend on. A language is declared in a `.langmeld`
 //! file, read with [`load_language`], and run with [`parse`]:
 //!
