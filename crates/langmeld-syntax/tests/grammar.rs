@@ -805,6 +805,100 @@ fn the_schema_describes_the_nodes() {
     assert!(lets.schema().node("Missing").is_none());
 }
 
+/// `after skip before` of a field, or `?` when it cannot be told apart.
+fn place(language: &Language, node: &str, field: &str) -> String {
+    let node = language.schema().node(node).expect("a node");
+    match &node.field(field).expect("a field").place {
+        Some(place) => format!(
+            "{} {} {}",
+            place.after.as_deref().unwrap_or("-"),
+            place.skip,
+            place.before.as_deref().unwrap_or("-")
+        ),
+        None => "?".to_owned(),
+    }
+}
+
+#[test]
+fn the_schema_says_where_each_field_is() {
+    let language = build(
+        basics("Places")
+            .rule(
+                "File",
+                many(choice![r("Move"), r("If"), r("Pair"), r("List"), r("Lost")]),
+            )
+            .rule(
+                "Move",
+                seq![
+                    lit("move"),
+                    field("what", r("Name")),
+                    lit("from"),
+                    field("from", r("Name")),
+                    lit("->"),
+                    field("to", r("Name"))
+                ],
+            )
+            .rule(
+                "If",
+                seq![
+                    lit("if"),
+                    field("then", r("Name")),
+                    opt(seq![lit("else"), field("other", r("Name"))])
+                ],
+            )
+            .rule(
+                "Pair",
+                seq![
+                    lit("pair"),
+                    field("first", r("Name")),
+                    field("second", r("Name"))
+                ],
+            )
+            .rule(
+                "List",
+                seq![
+                    lit("list"),
+                    field("items", many(r("Name"))),
+                    lit(";"),
+                    field("last", r("Name"))
+                ],
+            )
+            .rule(
+                "Lost",
+                seq![
+                    lit("lost"),
+                    opt(field("maybe", r("int"))),
+                    field("always", r("int"))
+                ],
+            )
+            .rule("Name", r("ident")),
+    );
+    assert_eq!(place(&language, "Move", "what"), "move 0 -");
+    assert_eq!(place(&language, "Move", "from"), "from 0 -");
+    assert_eq!(place(&language, "Move", "to"), "-> 0 -");
+    assert_eq!(place(&language, "If", "then"), "if 0 -");
+    assert_eq!(place(&language, "If", "other"), "else 0 -");
+    assert_eq!(place(&language, "Pair", "first"), "pair 0 -");
+    assert_eq!(place(&language, "Pair", "second"), "pair 1 -");
+    assert_eq!(place(&language, "List", "items"), "list 0 ;");
+    assert_eq!(place(&language, "List", "last"), "; 0 -");
+    assert_eq!(place(&language, "Lost", "maybe"), "?");
+    assert_eq!(place(&language, "Lost", "always"), "?");
+}
+
+#[test]
+fn operators_have_fields_for_their_parts() {
+    let language = sums();
+    assert_eq!(place(&language, "Add", "lhs"), "- 0 -");
+    assert_eq!(place(&language, "Add", "rhs"), "- 1 -");
+    assert_eq!(place(&language, "Add", "operator"), "- 0 -");
+    assert_eq!(place(&language, "Neg", "operand"), "- 0 -");
+    assert_eq!(place(&language, "Call", "operand"), "- 0 -");
+    assert_eq!(place(&language, "Call", "args"), "( 0 -");
+    let add = language.schema().node("Add").expect("a node");
+    assert_eq!(add.field("operator").expect("labelled").tokens, ["+", "-"]);
+}
+
 // Refused grammars: every check has a case that triggers it and a near miss that does
 // not, and says what is wrong in plain words with a way to fix it.
 

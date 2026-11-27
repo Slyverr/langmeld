@@ -30,6 +30,7 @@
 //! This crate builds for `wasm32-unknown-unknown`: it uses no threads,
 //! filesystem, time or stdio.
 
+pub mod ast;
 mod diagnostic;
 mod embed;
 mod explain;
@@ -50,9 +51,9 @@ pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{
     Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, Lookahead,
-    NodeSchema, Pattern, Schema, SchemaError, Token, parse, pattern,
+    NodeSchema, Pattern, Place, Schema, SchemaError, Token, parse, pattern,
 };
-pub use kind::{SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken};
+pub use kind::{SyntaxElement, SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken};
 pub use lexeme::Lexeme;
 pub use lexer::{
     FloatPreset, IdentStyle, IntPreset, Interpolation, LexCursor, LexLimits, Lexed, Lexer,

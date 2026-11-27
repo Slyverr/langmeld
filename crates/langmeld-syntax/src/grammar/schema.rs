@@ -29,6 +29,42 @@ pub struct FieldSchema {
     pub tokens: Vec<String>,
     /// How often it occurs.
     pub cardinality: Cardinality,
+    /// Where it is among the children, or `None` if labels alone tell it apart from
+    /// other parts, so that a tree cannot.
+    pub place: Option<Place>,
+}
+
+/// Where a field is among the children of its node: the first ones of its kinds,
+/// found between two tokens and after passing over some.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
+pub struct Place {
+    /// The field comes after the first of this token, such as `else`.
+    pub after: Option<String>,
+    /// How many children of its kinds come before it, there.
+    pub skip: usize,
+    /// The field comes before the first of this token that follows.
+    pub before: Option<String>,
+}
+
+impl Place {
+    /// After the first of the token `after`.
+    pub fn after(mut self, after: impl Into<String>) -> Self {
+        self.after = Some(after.into());
+        self
+    }
+
+    /// Passing over `skip` children of the field's kinds.
+    pub fn skip(mut self, skip: usize) -> Self {
+        self.skip = skip;
+        self
+    }
+
+    /// Before the first of the token `before`.
+    pub fn before(mut self, before: impl Into<String>) -> Self {
+        self.before = Some(before.into());
+        self
+    }
 }
 
 impl FieldSchema {
@@ -50,7 +86,14 @@ impl FieldSchema {
             nodes: nodes.into_iter().map(Into::into).collect(),
             tokens: Vec::new(),
             cardinality,
+            place: Some(Place::default()),
         }
+    }
+
+    /// Says where the field is, when it is not the first child of its kinds.
+    pub fn at(mut self, place: Place) -> Self {
+        self.place = Some(place);
+        self
     }
 
     /// A field that is one of the given tokens.
@@ -262,6 +305,28 @@ impl Schema {
         self.unions.get(name).map(Vec::as_slice)
     }
 
+    /// Every group of nodes, in name order, with what it stands for.
+    ///
+    /// ```
+    /// use langmeld_syntax::Schema;
+    ///
+    /// let schema = Schema::default().with_union("Expr", ["Add", "Num"]);
+    /// let unions: Vec<_> = schema.unions().map(|(name, _)| name).collect();
+    /// assert_eq!(unions, ["Expr"]);
+    /// ```
+    pub fn unions(&self) -> impl Iterator<Item = (&str, &[String])> {
+        self.unions
+            .iter()
+            .map(|(name, members)| (name.as_str(), members.as_slice()))
+    }
+
+    pub(super) fn set_place(&mut self, node: &str, field: &str, place: Option<Place>) {
+        let fields = self.nodes.get_mut(node).map(|node| node.fields.iter_mut());
+        if let Some(found) = fields.into_iter().flatten().find(|f| f.name == field) {
+            found.place = place;
+        }
+    }
+
     /// Every node, in name order.
     ///
     /// ```
@@ -278,7 +343,10 @@ impl Schema {
     }
 
     /// The nodes that `names` stand for, unions expanded.
-    fn expand<'a>(&'a self, names: impl IntoIterator<Item = &'a String>) -> BTreeSet<&'a str> {
+    pub(super) fn expand<'a>(
+        &'a self,
+        names: impl IntoIterator<Item = &'a String>,
+    ) -> BTreeSet<&'a str> {
         let mut found = BTreeSet::new();
         let mut pending: Vec<&String> = names.into_iter().collect();
         let mut seen = BTreeSet::new();
