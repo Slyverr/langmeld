@@ -183,6 +183,11 @@ separate pull request for the release.
 3. Merge the pull request once every check passes.
 4. Tag the `chore(release)` commit on `main` `vX.Y.Z` with a signed tag and push the tag.
    Merging gives commits new hashes, so tag the one on `main`, not the one on the branch.
+5. Pushing the tag runs the release workflow. It checks that the tag matches the workspace
+   version, builds the `langmeld` binaries for Linux, macOS and Windows, and creates the
+   GitHub Release with the changelog section as its notes.
+6. Publishing to crates.io happens in the same workflow, once `publish = false` is removed
+   from the crates to publish and the repository variable `PUBLISH_CRATES` is `true`.
 
 ## Reporting issues
 
