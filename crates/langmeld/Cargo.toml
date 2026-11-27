@@ -12,5 +12,9 @@ keywords.workspace = true
 categories.workspace = true
 publish.workspace = true
 
+[dependencies]
+langmeld-meta = { path = "../langmeld-meta" }
+langmeld-syntax = { path = "../langmeld-syntax" }
+
 [lints]
 workspace = true
