@@ -1,0 +1,13 @@
+# Pieces of what the server is sent: tokens of Calc and of .langmeld files.
+"let"
+"fn"
+"rule"
+"expr"
+"language"
+"tokens"
+"editor"
+"symbol"
+"fold"
+"/*"
+"*/"
+"//"

@@ -12,9 +12,11 @@ cargo-fuzz = true
 calc = { path = "../examples/calc" }
 handwritten-calc = { path = "../examples/handwritten-calc" }
 json = { path = "../examples/json" }
+langmeld-ide = { path = "../crates/langmeld-ide", features = ["lsp"] }
 langmeld-meta = { path = "../crates/langmeld-meta" }
 langmeld-syntax = { path = "../crates/langmeld-syntax" }
 libfuzzer-sys = "0.4.13"
+serde_json = "1"
 
 [[bin]]
 name = "line_index"
@@ -75,6 +77,13 @@ bench = false
 [[bin]]
 name = "manifest"
 path = "fuzz_targets/manifest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lsp_session"
+path = "fuzz_targets/lsp_session.rs"
 test = false
 doc = false
 bench = false
