@@ -11,3 +11,16 @@ examine_globs = [
 # minimum (in seconds).
 timeout_multiplier = 4.0
 minimum_test_timeout = 60.0
+
+# Changes no test can see, because they change nothing a user can observe.
+exclude_re = [
+    # Only skips keeping a list that is never read outside an attempt.
+    'replace > with >= in CompletedMarker::precede',
+    # Only frees that list sooner; a stale entry is never read again.
+    "replace Parser<'a>::end_speculation with \\(\\)",
+    # `Lexer::builder()` is `LexerBuilder::default()`.
+    'replace Lexer::builder -> LexerBuilder with Default::default\(\)',
+    # A guard for a match of no length or inside a character; patterns that can match
+    # either are refused when the lexer is built.
+    'replace \|\| with && in Lexer::longest_pattern',
+]
