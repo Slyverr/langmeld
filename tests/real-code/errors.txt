@@ -1,7 +1,17 @@
-=== one missing value gives one error [expected-failure]
+=== one missing value gives one error
 let x = ;
 let y = 2;
 ---
 File
-  LetStmt "let" Name("x") "=" !error(expected an expression) ";"
-  LetStmt "let" Name("y") "=" Literal(2) ";"
+  LetStmt
+    "let"
+    Name "x"
+    "="
+    ";"
+  LetStmt
+    "let"
+    Name "y"
+    "="
+    Literal "2"
+    ";"
+! LM-P001 8..9 expected an expression, found `;`

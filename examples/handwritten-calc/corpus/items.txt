@@ -1,0 +1,52 @@
+=== let statement
+let x = 1;
+---
+File
+  LetStmt
+    "let"
+    Name "x"
+    "="
+    Literal "1"
+    ";"
+
+=== function with parameters and a trailing comma
+fn add(a, b,) { a + b }
+---
+File
+  FnDecl
+    "fn"
+    Name "add"
+    "("
+    Param
+      Name "a"
+    ","
+    Param
+      Name "b"
+    ","
+    ")"
+    Block
+      "{"
+      ExprStmt
+        Add
+          Var
+            NameRef "a"
+          "+"
+          Var
+            NameRef "b"
+      "}"
+
+=== empty file
+
+---
+File
+
+=== comments and nested comments
+// a
+/* b /* c */ */ x;
+---
+File
+  ExprStmt
+    Var
+      NameRef "x"
+    ";"
+

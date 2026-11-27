@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "examples/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ repository = "https://github.com/Slyverr/langmeld"
 publish = false
 
 [workspace.dependencies]
+criterion = { version = "0.8.0", default-features = false }
 insta = "1.49.0"
 proptest = "1.7.0"
 regex-automata = { version = "0.4.19", default-features = false, features = [

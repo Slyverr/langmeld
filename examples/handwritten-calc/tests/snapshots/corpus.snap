@@ -1,0 +1,20 @@
+---
+source: examples/handwritten-calc/tests/calc.rs
+expression: report
+---
+errors.txt: missing semicolon: passed, 1 diagnostics
+errors.txt: missing value: passed, 1 diagnostics
+errors.txt: keyword used as a name: passed, 1 diagnostics
+errors.txt: chained comparison: passed, 1 diagnostics
+errors.txt: stray closers: passed, 1 diagnostics
+errors.txt: block without its opening brace: passed, 1 diagnostics
+errors.txt: five deliberate mistakes: passed, 5 diagnostics
+expressions.txt: unary minus right after an operator: passed, 0 diagnostics
+expressions.txt: multiplication binds tighter, and addition groups left: passed, 0 diagnostics
+expressions.txt: calls bind tighter than minus: passed, 0 diagnostics
+expressions.txt: comparison of sums in a group: passed, 0 diagnostics
+expressions.txt: if with else: passed, 0 diagnostics
+items.txt: let statement: passed, 0 diagnostics
+items.txt: function with parameters and a trailing comma: passed, 0 diagnostics
+items.txt: empty file: passed, 0 diagnostics
+items.txt: comments and nested comments: passed, 0 diagnostics

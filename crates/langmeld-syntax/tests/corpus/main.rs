@@ -27,11 +27,6 @@ fn framework_corpus() {
 }
 
 #[test]
-fn real_code_corpus() {
-    check_directory("real-code", parse_tree);
-}
-
-#[test]
 fn real_code_tokens() {
     check_directory("real-code/tokens", |source| {
         lex_tokens(&support::c_like(), source)

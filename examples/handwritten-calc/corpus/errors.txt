@@ -1,0 +1,139 @@
+=== missing semicolon
+let x = 1
+let y = 2;
+---
+File
+  LetStmt
+    "let"
+    Name "x"
+    "="
+    Literal "1"
+  LetStmt
+    "let"
+    Name "y"
+    "="
+    Literal "2"
+    ";"
+! LM-P001 9..9 expected `;`, found `let`
+
+=== missing value
+let x = ;
+---
+File
+  LetStmt
+    "let"
+    Name "x"
+    "="
+    ";"
+! LM-P001 8..9 expected an expression, found `;`
+
+=== keyword used as a name
+let let;
+---
+File
+  LetStmt
+    "let"
+    Name
+      Error "let"
+    ";"
+! LM-P002 4..7 `let` is a keyword and can't be used as a name
+
+=== chained comparison
+a < b < c;
+---
+File
+  ExprStmt
+    Cmp
+      Cmp
+        Var
+          NameRef "a"
+        "<"
+        Var
+          NameRef "b"
+      "<"
+      Var
+        NameRef "c"
+    ";"
+! CALC-001 6..7 `<` cannot follow another comparison; add parentheses around one of them
+
+=== stray closers
+) }
+x;
+---
+File
+  Error ")" "}"
+  ExprStmt
+    Var
+      NameRef "x"
+    ";"
+! LM-P001 0..1 expected a statement, found `)`
+
+=== block without its opening brace
+fn f() 1;
+---
+File
+  FnDecl
+    "fn"
+    Name "f"
+    "("
+    ")"
+    Block
+  ExprStmt
+    Literal "1"
+    ";"
+! LM-P001 7..8 expected `{`, found `1`
+
+
+=== five deliberate mistakes
+let a = 1
+fn f(x { x }
+let let = 2;
+}
+let ok = a < b < c;
+---
+File
+  LetStmt
+    "let"
+    Name "a"
+    "="
+    Literal "1"
+  FnDecl
+    "fn"
+    Name "f"
+    "("
+    Param
+      Name "x"
+    Block
+      "{"
+      ExprStmt
+        Var
+          NameRef "x"
+      "}"
+  LetStmt
+    "let"
+    Name
+      Error "let"
+    "="
+    Literal "2"
+    ";"
+  Error "}"
+  LetStmt
+    "let"
+    Name "ok"
+    "="
+    Cmp
+      Cmp
+        Var
+          NameRef "a"
+        "<"
+        Var
+          NameRef "b"
+      "<"
+      Var
+        NameRef "c"
+    ";"
+! LM-P001 9..9 expected `;`, found `fn`
+! LM-P001 17..18 expected `,` or `)`, found `{`
+! LM-P002 27..30 `let` is a keyword and can't be used as a name
+! LM-P001 36..37 expected a statement, found `}`
+! CALC-001 53..54 `<` cannot follow another comparison; add parentheses around one of them
