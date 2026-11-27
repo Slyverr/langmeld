@@ -104,7 +104,7 @@ fn main() -> std::process::ExitCode {
 
 | Command | Does |
 |---------|------|
-| `check [PATH]... [--format text\|json]` | Parses the files with the language's extensions, runs your checks, and shows every problem |
+| `check [PATH]... [--format text\|json]` | Parses the files with the language's extensions, binds their names across them and the files they import, runs your checks, and shows every problem |
 | `test [--corpus DIR] [--update]` | Runs the corpus files in `corpus/` |
 | `explain CODE` | Explains a code of Langmeld or of yours |
 | `lsp` | With the `lsp` feature: serves the language to editors, with your checks and the `editor` block of the grammar (`App::new(syntax::loaded())` brings it with the language); see [Editor support](editor-support.md) |
