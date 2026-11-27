@@ -8,8 +8,16 @@ use crate::Failure;
 
 /// Reads a text file.
 pub fn read(path: &Path) -> Result<String, Failure> {
-    std::fs::read_to_string(path)
-        .map_err(|problem| Failure::Unable(format!("cannot read {}: {problem}", path.display())))
+    std::fs::read_to_string(path).map_err(|problem| {
+        // The number of the error is of the system, so it is left out.
+        let reason = problem.to_string();
+        let reason = reason.split(" (os error").next().unwrap_or(&reason);
+        Failure::Unable(format!(
+            "cannot read {}: {}",
+            path.display(),
+            reason.to_lowercase()
+        ))
+    })
 }
 
 /// Reads and parses a file of a language. `id` numbers the file among those read.
