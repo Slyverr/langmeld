@@ -25,7 +25,7 @@ out = "../../editors/vscode"
 | Key | Meaning | Default |
 |-----|---------|---------|
 | `root` | The root `.langmeld` file, relative to the manifest | `language/main.langmeld` |
-| `bins.layout` | One binary (`single`), a compiler, a language server and a runner (`split`), or one binary that acts as the others by its name (`multicall`) | `single` |
+| `bins.layout` | One binary (`single`), one that runs programs and one for the tools (`split`; the language server gets a third with the server), or one binary that acts as the others by its name (`multicall`) | `single` |
 | `bins.server` | The command that starts the language server | none |
 | `project.manifest` | The name of the file that marks the root of a project written in the language | none |
 | `package.vscode.display-name`, `publisher`, `icon`, `out` | What the Visual Studio Code extension is made with | none |

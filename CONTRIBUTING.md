@@ -53,7 +53,7 @@ Verify it works by running the tests (see Commands).
 | WASM check | `cargo build -p langmeld-syntax -p langmeld-meta -p langmeld-ide --target wasm32-unknown-unknown --locked` |
 | Mutation tests | `cargo mutants` (needs time; the nightly run does it and only reports) |
 | **Check (local)** | `cargo xtask check`: format, lint, tests and WASM build in under two minutes |
-| Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests and WASM tests in Node |
+| Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests, WASM tests in Node, and an end-to-end test that starts a language of every layout of programs and builds it |
 
 ## Project structure
 
@@ -65,7 +65,7 @@ Verify it works by running the tests (see Commands).
 | `crates/langmeld-ide/` | Binding, projects, language server, editor packaging |
 | `crates/langmeld-cli/` | The `langmeld` binary and the CLI kit |
 | `examples/` | Languages built with Langmeld, each with its own tests |
-| `tests/` | Corpus files, the runner that checks them, and `stress/`, a language that holds the format to its promises |
+| `tests/` | Corpus files, the runner that checks them, `stress/`, a language that holds the format to its promises, and `typed/`, a language that holds the generated Rust types to theirs |
 | `fuzz/` | Fuzz targets (nightly Rust; its own workspace) |
 | `xtask/` | The `cargo xtask` commands (its own workspace) |
 | `docs/` | In-depth documentation |
@@ -179,7 +179,8 @@ separate pull request for the release.
 1. As the last commit of that pull request, rename `## [Unreleased]` in
    [CHANGELOG.md](CHANGELOG.md) to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty
    `## [Unreleased]` above it, and set `version` under `[workspace.package]` in
-   `Cargo.toml`.
+   `Cargo.toml`, and in the entries for our own crates under `[workspace.dependencies]`
+   (a test fails when they differ). Update `Cargo.lock` and `fuzz/Cargo.lock` too.
 2. Commit as `chore(release): prepare vX.Y.Z`.
 3. Merge the pull request once every check passes.
 4. Tag the `chore(release)` commit on `main` `vX.Y.Z` with a signed tag and push the tag.

@@ -7,8 +7,9 @@ bigger languages.
 
 Every language needs the same hard frontend work: parsing, errors, names and editor support.
 Langmeld's goal is that you describe the syntax, structure and name binding once and get
-that frontend, while you write what the language means and does in Rust. Only the language
-file and its command line exist so far.
+that frontend, while you write what the language means and does in Rust. So far the
+language file, Rust types for its trees, diagnostics and a command line exist; editor support
+comes next.
 
 ## Installation
 
@@ -33,8 +34,17 @@ langmeld parse --grammar calc.langmeld example.calc
 langmeld test .
 ```
 
+Start a language that runs, with its trees, interpreter and command line already in place:
+
+```sh
+langmeld init shapes-lang
+cd shapes-lang
+cargo run -- run examples/hello.shapes
+```
+
 See [Write a `.langmeld` file](docs/guides/write-a-langmeld-file.md) for a first language,
-and the [format reference](docs/reference/langmeld-format.md) for everything a file can say.
+[Make a program](docs/guides/make-a-program.md) to run it, and the
+[format reference](docs/reference/langmeld-format.md) for everything a file can say.
 
 ## Documentation
 
