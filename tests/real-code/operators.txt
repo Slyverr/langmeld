@@ -1,0 +1,17 @@
+=== unary minus right after an assignment [expected-failure]
+x=-1
+---
+File
+  Assign Name("x") "=" Prefix "-" Literal(1)
+
+=== unary minus right after not-equal [expected-failure]
+a!=-b
+---
+File
+  Infix NameRef("a") "!=" Prefix "-" NameRef("b")
+
+=== shift right [expected-failure]
+a >> b
+---
+File
+  Infix NameRef("a") ">>" NameRef("b")

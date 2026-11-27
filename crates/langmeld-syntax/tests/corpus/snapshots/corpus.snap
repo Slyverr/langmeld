@@ -1,0 +1,5 @@
+---
+source: crates/langmeld-syntax/tests/corpus/main.rs
+expression: report
+---
+

@@ -1,0 +1,7 @@
+=== one missing value gives one error [expected-failure]
+let x = ;
+let y = 2;
+---
+File
+  LetStmt "let" Name("x") "=" !error(expected an expression) ";"
+  LetStmt "let" Name("y") "=" Literal(2) ";"

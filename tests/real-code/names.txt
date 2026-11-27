@@ -1,0 +1,5 @@
+=== keyword used as a name [expected-failure]
+let let;
+---
+File
+  LetStmt "let" !error("`let` is a keyword and can't be used as a name") ";"
