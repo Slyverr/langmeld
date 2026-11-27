@@ -101,7 +101,7 @@ checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 
 [[package]]
 name = "calc"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "handwritten-calc",
  "langmeld-syntax",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "handwritten-calc"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "insta",
  "langmeld-syntax",
@@ -432,7 +432,7 @@ dependencies = [
 
 [[package]]
 name = "json"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "criterion",
  "langmeld-syntax",
@@ -440,23 +440,23 @@ dependencies = [
 
 [[package]]
 name = "langmeld"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-cli"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-ide"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-meta"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "langmeld-syntax"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "criterion",
  "insta",
