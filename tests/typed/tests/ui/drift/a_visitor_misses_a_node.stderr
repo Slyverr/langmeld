@@ -1,0 +1,17 @@
+error[E0046]: not all trait items implemented, missing: `visit_add`, `visit_file`, `visit_group`, `visit_mul`, `visit_name`, `visit_neg`, `visit_note`, `visit_num`, `visit_paren`, `visit_rect`, `visit_ref`
+ --> tests/ui/drift/a_visitor_misses_a_node.rs:7:1
+  |
+7 | impl Visitor for OnlyCircles {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `visit_add`, `visit_file`, `visit_group`, `visit_mul`, `visit_name`, `visit_neg`, `visit_note`, `visit_num`, `visit_paren`, `visit_rect`, `visit_ref` in implementation
+  |
+  = help: implement the missing item: `fn visit_add(&mut self, _: &typed::syntax::Add) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_file(&mut self, _: &typed::syntax::File) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_group(&mut self, _: &typed::syntax::Group) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_mul(&mut self, _: &typed::syntax::Mul) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_name(&mut self, _: &Name) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_neg(&mut self, _: &typed::syntax::Neg) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_note(&mut self, _: &typed::syntax::Note) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_num(&mut self, _: &typed::syntax::Num) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_paren(&mut self, _: &typed::syntax::Paren) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_rect(&mut self, _: &typed::syntax::Rect) -> <Self as Visitor>::Output { todo!() }`
+  = help: implement the missing item: `fn visit_ref(&mut self, _: &typed::syntax::Ref) -> <Self as Visitor>::Output { todo!() }`

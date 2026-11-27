@@ -1,0 +1,7 @@
+error[E0432]: unresolved import `typed::syntax::Square`
+ --> tests/ui/drift/a_node_was_renamed.rs:2:5
+  |
+2 | use typed::syntax::Square;
+  |     ^^^^^^^^^^^^^^^------
+  |                    |
+  |                    no `Square` in `syntax`

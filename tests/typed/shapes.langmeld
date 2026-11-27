@@ -1,0 +1,30 @@
+langmeld 1
+
+language Shapes {
+    extensions "shp"
+    comments { line "//" }
+}
+
+tokens {
+    skip space = /[ \t\r\n]+/
+    word       = preset ident(ascii)
+    number     = preset int(dec)
+    text       = preset string(double)
+}
+
+rule File   = items:Item*
+rule Item   = Circle | Rect | Group | Note
+rule Circle = "circle" name:Name "radius" radius:number ";"
+rule Rect   = "rect" name:Name? "size" width:Expr "by" height:Expr ";"
+rule Group  = "group" name:Name "{" items:Item* "}"
+rule Note   = "note" body:text ";"
+rule Name   = word
+
+expr Expr {
+    atom  Num   = number
+    atom  Ref   = Name
+    atom  Paren = "(" inner:Expr ")"
+    prefix  Neg "-"       prec 3
+    infix   Mul "*"       prec 2 left
+    infix   Add "+" | "-" prec 1 left
+}
