@@ -222,6 +222,38 @@ pub(crate) fn explain(mut found: Diagnostic) -> Diagnostic {
     found
 }
 
+/// A rule with nothing after its `=` ends where the next declaration begins, which is
+/// reported as a part of the rule missing. Says plainly that the rule has no body, at
+/// the `=`.
+fn without_body(file: &SourceFile, found: Diagnostic) -> Diagnostic {
+    if found.code != "LM-P001" || !found.message.starts_with("expected a part of a rule") {
+        return found;
+    }
+    let at = usize::try_from(u32::from(found.range.start())).unwrap_or(0);
+    let Some(through) = file.text().get(..at).map(str::trim_end) else {
+        return found;
+    };
+    let Some(head) = through.strip_suffix('=').map(str::trim_end) else {
+        return found;
+    };
+    let name_at = head
+        .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .map_or(0, |at| at + 1);
+    let (before, name) = head.split_at(name_at);
+    if !before.trim_end().ends_with("rule") || name.is_empty() {
+        return found;
+    }
+    let equals = u32::try_from(through.len() - 1).unwrap_or(0);
+    let range = TextRange::at(TextSize::from(equals), TextSize::from(1));
+    problem(
+        "LM-P001",
+        found.file,
+        range,
+        format!("rule `{name}` has no body"),
+        format!("write what `{name}` matches after the `=`, or remove the rule"),
+    )
+}
+
 /// `dir/` of a path, empty for a bare name.
 fn directory(path: &str) -> &str {
     path.rfind('/').map_or("", |at| &path[..=at])
@@ -277,8 +309,14 @@ impl Collector<'_> {
         };
         self.loaded.insert(name.clone());
         let parsed = parse(meta::language(), &file);
-        self.problems
-            .extend(parsed.diagnostics.iter().cloned().map(explain));
+        self.problems.extend(
+            parsed
+                .diagnostics
+                .iter()
+                .cloned()
+                .map(|found| without_body(&file, found))
+                .map(explain),
+        );
         let root = Node(parsed.syntax());
         let imports: Vec<_> = root
             .children()

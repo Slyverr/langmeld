@@ -141,6 +141,23 @@ fn a_syntax_mistake_is_one_diagnostic_with_a_fix() {
 }
 
 #[test]
+fn a_rule_with_nothing_after_its_equals_sign_says_it_has_no_body() {
+    let expected = "error[LM-P001]: rule `Item` has no body
+ --> t.langmeld:4:11
+  |
+4 | rule Item =
+  |           ^
+  = note: To fix this, write what `Item` matches after the `=`, or remove the rule.
+
+";
+    // Whatever comes next, the rule is the one mistake.
+    for next in ["rule Other = ident\n", "tokens { more = preset int }\n", ""] {
+        let found = refused_text(&format!("{HEAD}rule Item =\n{next}"));
+        assert_eq!(found, expected, "{next}");
+    }
+}
+
+#[test]
 fn imports_are_relative_and_each_file_is_read_once() {
     let source = Source::text(
         "lang/main.langmeld",

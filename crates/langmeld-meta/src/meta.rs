@@ -6,7 +6,7 @@
 
 use std::sync::OnceLock;
 
-use langmeld_syntax::pattern::{field, lit, many, many1, opt, r, sep_strict};
+use langmeld_syntax::pattern::{field, lit, many, many1, not, opt, r, sep_strict};
 use langmeld_syntax::{
     Diagnostic, IdentStyle, IntPreset, Language, Preset, StringPreset, Token, choice, seq,
 };
@@ -224,7 +224,20 @@ fn build() -> Result<Language, Vec<Diagnostic>> {
             "Alternation",
             seq![r("Sequence"), many(seq![lit("|"), r("Sequence")])],
         )
-        .rule("Sequence", many1(r("Piece")))
+        // A part of a rule is never the start of the next declaration, so a rule with
+        // nothing after its `=` ends there, and is reported as having no body.
+        .rule("Sequence", many1(seq![not(r("Declaration")), r("Piece")]))
+        .rule(
+            "Declaration",
+            choice![
+                seq![lit("rule"), r("ident")],
+                seq![lit("expr"), r("ident")],
+                seq![lit("language"), r("ident")],
+                seq![lit("tokens"), lit("{")],
+                seq![lit("bind"), lit("{")],
+                seq![lit("editor"), lit("{")]
+            ],
+        )
         .rule("Piece", choice![r("Look"), r("Part")])
         .rule("Look", seq![choice![lit("&"), lit("!")], r("Repeated")])
         .rule(
@@ -437,6 +450,7 @@ fn build() -> Result<Language, Vec<Diagnostic>> {
         .describe("Item", "a declaration")
         .describe("Piece", "a part of a rule")
         .describe("Atom", "a part of a rule")
+        .describe("Sequence", "a part of a rule")
         .describe("ident", "a name")
         .describe("string", "quoted text")
         .describe("number", "a number")
