@@ -493,7 +493,8 @@ impl<'a> Parser<'a> {
     /// Whether a speculation would be pointless: the parser is stopped, or what is
     /// being tried has failed already.
     fn cannot_speculate(&self) -> bool {
-        self.halted || (self.speculating > 0 && self.failed)
+        // `failed` is only ever set while speculating.
+        self.halted || self.failed
     }
 
     fn checkpoint(&self) -> Checkpoint {
@@ -594,7 +595,7 @@ impl<'a> Parser<'a> {
             }
         }
         // What is being tried has failed: let it run out quickly.
-        if self.halted || (self.speculating > 0 && self.failed) {
+        if self.cannot_speculate() {
             return SyntaxKind::EOF;
         }
         self.token_at(n).map_or(SyntaxKind::EOF, |token| token.kind)

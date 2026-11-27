@@ -153,10 +153,8 @@ impl<'a> TreeBuilder<'a> {
         while self.next < self.tokens.len() {
             self.add_next();
         }
-        if self.written < self.text.len() {
-            // The tokens did not cover the text.
-            self.add_unplaced();
-        }
+        // Adds nothing unless the tokens did not cover the text.
+        self.add_unplaced();
         self.inner.finish_node();
         self.inner.finish()
     }
