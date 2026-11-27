@@ -177,6 +177,45 @@ impl<'r> OfKind<'r> {
     }
 }
 
+/// The kinds of name looked for by uses written from `start`.
+#[cfg(feature = "lsp")]
+pub(crate) fn namespaces_at(
+    language: &Language,
+    rules: &BindRules,
+    root: &SyntaxNode,
+    start: TextSize,
+) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    if start >= root.text_range().end() {
+        return found;
+    }
+    let token = root.token_at_offset(start).right_biased();
+    let Some(token) = token.filter(|token| token.text_range().start() == start) else {
+        return found;
+    };
+    for node in token.parent().into_iter().flat_map(|node| node.ancestors()) {
+        for rule in &rules.rules {
+            let Binding::Refers {
+                targets, namespace, ..
+            } = rule
+            else {
+                continue;
+            };
+            let here = targets.iter().any(|target| {
+                let (name, label) = split(target);
+                is_node(language, &node, name)
+                    && parts(language, &node, label)
+                        .iter()
+                        .any(|range| range.start() == start)
+            });
+            if here && !found.contains(namespace) {
+                found.push(namespace.clone());
+            }
+        }
+    }
+    found
+}
+
 /// A rule that brings the members of what a reference means into a scope.
 struct Include {
     file: FileId,

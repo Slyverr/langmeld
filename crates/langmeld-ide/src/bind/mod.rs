@@ -43,6 +43,8 @@ use crate::Served;
 use crate::project::{FileProvider, resolve as relative};
 
 pub use rename::RenameError;
+#[cfg(feature = "lsp")]
+pub(crate) use resolve::namespaces_at;
 
 /// The most bytes of text a file of a project may have, unless set otherwise.
 pub const DEFAULT_FILE_LIMIT: usize = 16 << 20;
