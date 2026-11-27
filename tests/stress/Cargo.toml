@@ -1,0 +1,20 @@
+[package]
+name = "stress"
+description = "A stress-test language for the .langmeld format: its grammar, and the corpus that holds it to what it says."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dev-dependencies]
+langmeld = { path = "../../crates/langmeld" }
+langmeld-meta = { path = "../../crates/langmeld-meta" }
+
+[[test]]
+name = "stress"
+path = "stress.rs"
+
+[lints]
+workspace = true

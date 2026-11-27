@@ -4,6 +4,7 @@
 |--------|----------|
 | `corpus/` | Framework behavior: grammar errors, error recovery, every diagnostic code |
 | `real-code/` | Syntax that real languages use, one topic per file |
+| `stress/` | A small invented language, `pipes.langmeld`, and its corpus: valid and broken text for every hard feature of the format, held to at most two tokens of lookahead |
 | `real-code/tokens/` | The same kind of cases at token level: the expected output lists every token |
 
 Token cases run a small test lexer instead of a parser. Each token is one line,

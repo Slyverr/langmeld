@@ -1,0 +1,101 @@
+=== lines: valid, two properties on one line
+timeout: 30s; retries: 3
+name: build
+---
+File
+  Property
+    "timeout"
+    ":"
+    Number "30s"
+  ";"
+  Property
+    "retries"
+    ":"
+    Number "3"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+
+=== lines: valid, the line ends each property
+timeout: 30s
+retries: 3
+
+
+name: build
+---
+File
+  Property
+    "timeout"
+    ":"
+    Number "30s"
+  "\n"
+  Property
+    "retries"
+    ":"
+    Number "3"
+  "\n"
+  "\n"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+
+=== lines: broken, no separator between properties
+timeout: 30s retries: 3
+name: build
+---
+File
+  Property
+    "timeout"
+    ":"
+    ListValue
+      PlainValue "30s"
+      PlainValue "retries"
+      Error ":"
+      PlainValue "3"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 20..21 expected a plain value, found `:`
+
+=== tags: valid, the list ends at the line
+tags: fast stable beta
+build -> test
+---
+File
+  Property
+    "tags"
+    ":"
+    ListValue
+      PlainValue "fast"
+      PlainValue "stable"
+      PlainValue "beta"
+  "\n"
+  EdgeStmt
+    "build"
+    "->"
+    "test"
+
+=== tags: broken, a stray closer after the list
+tags: fast stable )
+name: build
+---
+File
+  Property
+    "tags"
+    ":"
+    ListValue
+      PlainValue "fast"
+      PlainValue "stable"
+      Error ")"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 18..19 expected a plain value, found `)`

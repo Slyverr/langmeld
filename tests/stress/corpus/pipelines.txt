@@ -1,0 +1,239 @@
+=== computed: valid, a repeated task
+repeat 1..=3 as i { task worker[i] }
+---
+File
+  RepeatDecl
+    "repeat"
+    Span
+      Number "1"
+      "..="
+      Number "3"
+    "as"
+    "i"
+    Body
+      "{"
+      TaskDecl
+        "task"
+        "worker"
+        "["
+        NameRef "i"
+        "]"
+      "}"
+
+=== computed: valid, a task with a body
+task build { run make }
+task test
+---
+File
+  TaskDecl
+    "task"
+    "build"
+    Body
+      "{"
+      RunStmt
+        "run"
+        "make"
+      "}"
+  "\n"
+  TaskDecl
+    "task"
+    "test"
+
+=== computed: broken, no name for the counter
+repeat 1..=3 { task worker[i] }
+name: build
+---
+File
+  RepeatDecl
+    "repeat"
+    Span
+      Number "1"
+      "..="
+      Number "3"
+    Body
+      "{"
+      TaskDecl
+        "task"
+        "worker"
+        "["
+        NameRef "i"
+        "]"
+      "}"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 13..14 expected `as`, found `{`
+
+=== computed: broken, an empty index
+repeat 1..=3 as i { task worker[] }
+name: build
+---
+File
+  RepeatDecl
+    "repeat"
+    Span
+      Number "1"
+      "..="
+      Number "3"
+    "as"
+    "i"
+    Body
+      "{"
+      TaskDecl
+        "task"
+        "worker"
+        "["
+        "]"
+      "}"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 32..33 expected an expression, found `]`
+
+=== global: valid, a pipeline holds tasks
+pipeline deploy {
+    task build
+    task test; task ship
+}
+---
+File
+  PipelineDecl
+    "pipeline"
+    "deploy"
+    Body
+      "{"
+      "\n"
+      TaskDecl
+        "task"
+        "build"
+      "\n"
+      TaskDecl
+        "task"
+        "test"
+      ";"
+      TaskDecl
+        "task"
+        "ship"
+      "\n"
+      "}"
+
+=== global: valid, another pipeline in another file
+pipeline other { run build }
+---
+File
+  PipelineDecl
+    "pipeline"
+    "other"
+    Body
+      "{"
+      RunStmt
+        "run"
+        "build"
+      "}"
+
+=== global: broken, a pipeline without a name
+pipeline { task build }
+name: build
+---
+File
+  PipelineDecl
+    "pipeline"
+    Body
+      "{"
+      TaskDecl
+        "task"
+        "build"
+      "}"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 9..10 expected ident, found `{`
+
+=== extension: valid, a stage names its pipeline
+stage canary for pipeline deploy { run build }
+---
+File
+  StageDecl
+    "stage"
+    "canary"
+    "for"
+    "pipeline"
+    "deploy"
+    Body
+      "{"
+      RunStmt
+        "run"
+        "build"
+      "}"
+
+=== extension: broken, the keyword before the name is missing
+stage canary for deploy { run build }
+name: build
+---
+File
+  StageDecl
+    "stage"
+    "canary"
+    "for"
+    Error "deploy"
+    Body
+      "{"
+      RunStmt
+        "run"
+        "build"
+      "}"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 17..23 expected `pipeline`, found `deploy`
+
+=== editor: valid, comments and nesting
+# a pipeline
+pipeline p { # its tasks
+    task t
+    run t
+}
+---
+File
+  "\n"
+  PipelineDecl
+    "pipeline"
+    "p"
+    Body
+      "{"
+      "\n"
+      TaskDecl
+        "task"
+        "t"
+      "\n"
+      RunStmt
+        "run"
+        "t"
+      "\n"
+      "}"
+
+=== editor: broken, a block that is never closed
+pipeline p {
+    task t
+
+---
+File
+  PipelineDecl
+    "pipeline"
+    "p"
+    Body
+      "{"
+      "\n"
+      TaskDecl
+        "task"
+        "t"
+      "\n"
+! LM-P001 24..24 expected `}`, found end of file
