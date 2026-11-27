@@ -58,6 +58,9 @@ pub struct Diagnostic {
     pub notes: Vec<String>,
     /// Edits that would solve the problem.
     pub fixes: Vec<Fix>,
+    /// The rule, token or expression the problem is about, so that a grammar read from a
+    /// file can show it where it was written.
+    pub(crate) about: Option<String>,
 }
 
 impl Diagnostic {
@@ -78,7 +81,15 @@ impl Diagnostic {
             labels: Vec::new(),
             notes: Vec::new(),
             fixes: Vec::new(),
+            about: None,
         }
+    }
+
+    /// Names what the problem is about.
+    #[must_use]
+    pub(crate) fn about(mut self, name: impl Into<String>) -> Self {
+        self.about = Some(name.into());
+        self
     }
 
     /// An [`Severity::Error`] diagnostic.

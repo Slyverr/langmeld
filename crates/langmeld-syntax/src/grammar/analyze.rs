@@ -835,7 +835,7 @@ fn left_recursion(input: &Input<'_>, nullable: &[bool]) -> Vec<Diagnostic> {
             error("LM-G002", message),
             "this is left recursion, which a parser that reads from left to right cannot handle",
         );
-        errors.push(to_fix(problem, "move operators into an `expr` block"));
+        errors.push(to_fix(problem, "move operators into an `expr` block").about(name));
         reported.extend(path);
     }
     errors
@@ -886,6 +886,7 @@ fn too_costly(holder: &str, k: usize) -> Diagnostic {
         error("LM-G016", message),
         "factor out the common start, or use `try` / `extern rule`",
     )
+    .about(holder)
 }
 
 fn show_token(input: &Input<'_>, token: Token) -> String {
@@ -1121,6 +1122,17 @@ fn collision(
     clash: &Clash,
     common: Option<&str>,
 ) -> Diagnostic {
+    collision_of(input, holder, body, role, clash, common).about(holder)
+}
+
+fn collision_of(
+    input: &Input<'_>,
+    holder: &str,
+    body: NodeId,
+    role: Role,
+    clash: &Clash,
+    common: Option<&str>,
+) -> Diagnostic {
     let part = format!("{} {}", role.noun(), show(input, body));
     match common {
         Some(start) => {
@@ -1171,6 +1183,16 @@ fn collision(
 }
 
 fn choice_error(
+    input: &Input<'_>,
+    holder: &str,
+    first: String,
+    second: String,
+    clash: &Clash,
+) -> Diagnostic {
+    choice_error_of(input, holder, first, second, clash).about(holder)
+}
+
+fn choice_error_of(
     input: &Input<'_>,
     holder: &str,
     first: String,
@@ -1254,10 +1276,13 @@ fn operator_clashes(input: &Input<'_>) -> Vec<Diagnostic> {
                     "in `{}`, `{symbol}` continues an expression as both `{a}` and `{b}`",
                     expr.name
                 );
-                errors.push(to_fix(
-                    error("LM-G010", message),
-                    "give the operators different symbols",
-                ));
+                errors.push(
+                    to_fix(
+                        error("LM-G010", message),
+                        "give the operators different symbols",
+                    )
+                    .about(&expr.name),
+                );
                 continue;
             }
             let follows = continuation.symbol.parts.first().is_some_and(|&first| {
@@ -1272,10 +1297,13 @@ fn operator_clashes(input: &Input<'_>) -> Vec<Diagnostic> {
                      belong to what follows it",
                     expr.name
                 );
-                errors.push(to_fix(
-                    error("LM-G010", message),
-                    "use a different symbol for the operator, or for what follows",
-                ));
+                errors.push(
+                    to_fix(
+                        error("LM-G010", message),
+                        "use a different symbol for the operator, or for what follows",
+                    )
+                    .about(&expr.name),
+                );
             }
         }
     }
@@ -1298,10 +1326,13 @@ fn empty_repetitions<'a>(
                         "in `{holder}`, a repeated part can match nothing, so the repetition \
                          could go on without end"
                     );
-                    errors.push(to_fix(
-                        error("LM-G005", message),
-                        "require at least one token inside the repetition",
-                    ));
+                    errors.push(
+                        to_fix(
+                            error("LM-G005", message),
+                            "require at least one token inside the repetition",
+                        )
+                        .about(holder),
+                    );
                 }
                 _ => {}
             }

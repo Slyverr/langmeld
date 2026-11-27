@@ -5,6 +5,7 @@ mod builder;
 mod compile;
 mod engine;
 mod ir;
+mod lookahead;
 pub mod pattern;
 mod problem;
 mod recovery;
@@ -17,6 +18,7 @@ use std::fmt;
 use crate::{Diagnostic, Lexer, Parse, ParseLimits, Parser, Severity, SourceFile, SyntaxKind};
 
 pub use builder::{Assoc, ExprSpec, ExternRule, LanguageBuilder, Token};
+pub use lookahead::Lookahead;
 pub use pattern::Pattern;
 pub use schema::{Cardinality, FieldSchema, NodeSchema, Schema, SchemaError};
 
@@ -197,6 +199,33 @@ impl Language {
     /// ```
     pub fn schema(&self) -> &Schema {
         &self.schema
+    }
+
+    /// Where the grammar looks more than one token ahead to choose, with the rule each
+    /// choice is in. Choices that the next token settles are not listed.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, r};
+    /// use langmeld_syntax::{choice, seq, Language};
+    ///
+    /// let language = Language::builder("Pairs")
+    ///     .rule("File", choice![r("Open"), r("Close")])
+    ///     .rule("Open", seq![lit("<"), lit("-")])
+    ///     .rule("Close", seq![lit("<"), lit("+")])
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// let ahead = language.lookahead();
+    /// assert_eq!((ahead[0].rule.as_str(), ahead[0].tokens), ("File", 2));
+    /// assert_eq!(language.max_lookahead(), 2);
+    /// ```
+    pub fn lookahead(&self) -> Vec<Lookahead> {
+        lookahead::report(self)
+    }
+
+    /// The most tokens any choice of the grammar looks at to decide: 1 when the next
+    /// token always settles it.
+    pub fn max_lookahead(&self) -> usize {
+        lookahead::deepest(self)
     }
 
     /// Problems that do not stop the grammar from being used, such as a rule that

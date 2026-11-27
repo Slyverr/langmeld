@@ -8,6 +8,14 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- Strings with holes can be declared in a grammar (`Token::interpolated`): the quotes, the
+  text and each hole's expression become one node.
+- Grammar problems can point at the place a rule or name was written
+  (`LanguageBuilder::locate`, `Pattern::located`), and `Language::lookahead` lists the
+  choices that need more than one token to decide.
+
 ## [0.3.0] - 2026-11-27
 
 ### Added
