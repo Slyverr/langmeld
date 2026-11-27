@@ -9,6 +9,7 @@
 //! - [`cli`]: the `calc` program, `calc run file.calc` or `calc eval "1 + 2 * 3"`.
 
 pub mod checks;
+#[cfg(feature = "cli")]
 pub mod cli;
 pub mod interp;
 

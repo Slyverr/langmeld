@@ -1,0 +1,22 @@
+[package]
+name = "calc-web"
+description = "The Calc language server in a browser worker, behind the Monaco editor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+calc = { path = "../calc", default-features = false }
+langmeld = { workspace = true, features = ["lsp"] }
+wasm-bindgen.workspace = true
+
+# The code that `wasm-bindgen` writes uses `unsafe` to talk to JavaScript, so this
+# crate cannot forbid it as the others do.
+[lints.rust]
+missing_docs = "deny"
