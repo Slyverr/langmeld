@@ -9,11 +9,13 @@ Tools for languages written in `.langmeld` files
 Usage: langmeld [COMMAND]
 
 Commands:
-  check    Check a language: the grammar is read, validated and explained when it is wrong
-  test     Run the corpus files of a language project, and show what differs
-  parse    Parse a file with a language written in a `.langmeld` file, with no Rust code
-  explain  Say what a diagnostic code means and how to solve it
-  help     Print this message or the help of the given subcommand(s)
+  init      Start a new language: a project of its own, or a language library in a workspace
+  generate  Add to a language project: a rule, or a handler of a node
+  check     Check a language: the grammar is read, validated and explained when it is wrong
+  test      Run the corpus files of a language project, and show what differs
+  parse     Parse a file with a language written in a `.langmeld` file, with no Rust code
+  explain   Say what a diagnostic code means and how to solve it
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help

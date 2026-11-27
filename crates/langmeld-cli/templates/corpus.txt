@@ -1,0 +1,29 @@
+=== a name and its use
+let x = 2;
+print x * 3;
+---
+File
+  Let
+    "let"
+    Name "x"
+    "="
+    Number "2"
+    ";"
+  Print
+    "print"
+    Product
+      Variable "x"
+      "*"
+      Number "3"
+    ";"
+
+=== a missing value is one problem
+let y = ;
+---
+File
+  Let
+    "let"
+    Name "y"
+    "="
+    ";"
+! LM-P001 8..9 expected an expression, found `;`

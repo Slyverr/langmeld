@@ -16,6 +16,14 @@ pub(crate) struct Project {
 /// Why a path cannot be used: text for the user.
 pub(crate) struct Refused(pub(crate) String);
 
+impl Refused {
+    /// The reason as a failure of a command that reports its own `error:` line.
+    pub(crate) fn failure(self) -> langmeld_cli::Failure {
+        let text = self.0.trim_end();
+        langmeld_cli::Failure::Unable(text.strip_prefix("error: ").unwrap_or(text).to_owned())
+    }
+}
+
 /// The project that `path` names: a `.langmeld` file, or a folder with a manifest.
 pub(crate) fn find(path: &Path) -> Result<Project, Refused> {
     if path.is_file() {

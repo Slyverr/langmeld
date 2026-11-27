@@ -1,0 +1,4 @@
+// A first program.
+let width = 6;
+let height = 7;
+print width * height;

@@ -12,7 +12,8 @@ Usage: cargo xtask <command>
 
 Commands:
   check   Fast local checks: format, lint, tests (64 property cases), WASM build
-  ci      The pull-request set: check with 256 cases, doc tests, WASM tests in Node
+  ci      The pull-request set: check with 256 cases, doc tests, WASM tests in Node,
+          and the end-to-end build of new languages
 ";
 
 /// Runs the command named on the command line.
@@ -118,6 +119,22 @@ fn ci_steps() -> Vec<Step> {
         "wasm-bindgen-test-runner",
     ));
     steps.push(wasm);
+    // Starting a language and building it takes minutes without a warm build folder, so
+    // the fast loop leaves it out.
+    steps.push(cargo(
+        "end-to-end (init, then build every layout)",
+        &[
+            "nextest",
+            "run",
+            "-p",
+            "langmeld-cli",
+            "--test",
+            "e2e",
+            "--run-ignored",
+            "only",
+            "--locked",
+        ],
+    ));
     steps.push(cargo(
         "lint (xtask)",
         &[
