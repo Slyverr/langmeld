@@ -26,5 +26,9 @@ wasm-bindgen-test.workspace = true
 name = "lexer"
 harness = false
 
+[[bench]]
+name = "grammar"
+harness = false
+
 [lints]
 workspace = true
