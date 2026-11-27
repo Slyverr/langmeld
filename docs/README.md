@@ -32,6 +32,7 @@ Update this list when adding, renaming or removing a document.
 - [guides/write-a-langmeld-file.md](guides/write-a-langmeld-file.md): describing a language in a `.langmeld` file, checking it, running it and reloading it
 - [guides/declare-a-grammar.md](guides/declare-a-grammar.md): declaring a language as a grammar with the builder, and what happens to a grammar that is refused
 - [guides/make-a-program.md](guides/make-a-program.md): from a grammar to a running language: typed trees, an interpreter, a command line, and where it goes in a project
+- [guides/editor-support.md](guides/editor-support.md): errors, colours, outline, folding and completion in editors from the grammar, a Visual Studio Code extension, and the same server in a browser
 - [guides/hand-written-parser.md](guides/hand-written-parser.md): writing a parser by hand with the syntax crate's primitives
 
 ### Reference

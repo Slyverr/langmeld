@@ -38,6 +38,12 @@ pub trait LanguageHooks {
         Vec::new()
     }
 
+    /// Called when the editor closes the document called `name`, which is its address.
+    /// The language can forget what it keeps about it.
+    fn closed(&self, name: &str) {
+        let _ = name;
+    }
+
     /// Whether [`definition`](Self::definition) finds anything.
     fn provides_definitions(&self) -> bool {
         false
@@ -114,7 +120,7 @@ fn notification(method: &str, params: impl Serialize) -> Message {
     Message::Notification(Notification::new(method.to_owned(), params))
 }
 
-fn log(text: String) -> Message {
+pub(crate) fn log(text: String) -> Message {
     notification(
         lsp::notification::LogMessage::METHOD,
         lsp::LogMessageParams {
@@ -410,7 +416,14 @@ impl<'l, H: LanguageHooks> Server<'l, H> {
                     Ok(params) => {
                         let uri = params.text_document.uri;
                         self.documents.remove(uri.as_str());
-                        vec![publish(uri, None, Vec::new())]
+                        let mut replies = Vec::new();
+                        if catch_unwind(AssertUnwindSafe(|| self.hooks.closed(uri.as_str())))
+                            .is_err()
+                        {
+                            replies.push(log("the language failed to close a document".to_owned()));
+                        }
+                        replies.push(publish(uri, None, Vec::new()));
+                        replies
                     }
                     Err(problem) => bad(problem),
                 }
