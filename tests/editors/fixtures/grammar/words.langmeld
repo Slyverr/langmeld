@@ -1,0 +1,6 @@
+langmeld 1
+language Words { extensions "w" }
+tokens { skip s = / +/ name = preset ident(ascii) }
+rule File = Word*
+rule Word = name
+rule Other = Missing

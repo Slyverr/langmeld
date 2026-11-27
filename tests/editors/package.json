@@ -1,0 +1,20 @@
+{
+  "name": "langmeld-editor-tests",
+  "private": true,
+  "description": "Checks of the editor support, run by the pull request workflow: the extension that `langmeld package vscode` writes, started in Visual Studio Code, and the browser example in a headless browser.",
+  "scripts": {
+    "compile": "tsc -p .",
+    "test:vscode": "node out/runTest.js",
+    "test:browser": "node browser/replay.mjs"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "2.4.1",
+    "puppeteer-core": "23.11.1",
+    "typescript": "5.7.2"
+  }
+}

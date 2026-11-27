@@ -40,6 +40,7 @@ jobs:
             parse_calc,
             langmeld_loader,
             manifest,
+            lsp_session,
           ]
     steps:
       - uses: actions/checkout@v7
@@ -100,6 +101,10 @@ jobs:
         run: nix develop --command cargo bench -p langmeld-syntax --bench grammar -- --noplot
       - name: JSON benchmark
         run: nix develop --command cargo bench -p json --bench throughput -- --noplot
+      - name: Language server benchmark
+        run: |
+          nix develop --command cargo bench -p langmeld-ide --features lsp --bench edit \
+            -- --noplot
       - name: Add the results to the run summary
         run: |
           {
@@ -121,7 +126,7 @@ jobs:
                   mean = json.loads((info.parent / "estimates.json").read_text())["mean"]
                   found[details["full_id"]] = (
                       mean["point_estimate"] / 1e9,
-                      details["throughput"]["Bytes"],
+                      (details.get("throughput") or {}).get("Bytes"),
                   )
               except (OSError, KeyError, TypeError, ValueError):
                   continue
@@ -141,6 +146,16 @@ jobs:
               print(f"| JSON parse | {mbps:.1f} MB/s | ≥ 20 MB/s: {verdict} |")
           if "json/parse with 300 rules" in found:
               print(f"| JSON parse, 300 rules | {speed('json/parse with 300 rules'):.1f} MB/s | |")
+          for name, label in (
+              ("edit to problems, 10,000 lines", "Edit to published problems, 10,000 lines"),
+              ("colours, 10,000 lines", "Colours of 10,000 lines"),
+          ):
+              if name in found:
+                  millis = found[name][0] * 1000
+                  bar = ""
+                  if name.startswith("edit"):
+                      bar = f"< 50 ms: {'met' if millis < 50 else 'not met'}"
+                  print(f"| {label} | {millis:.1f} ms | {bar} |")
           for kind in ("same input", "every rule used"):
               rows = {n: f"grammar/{kind}/{n}" for n in (5, 50, 300)}
               if not all(name in found for name in rows.values()):
