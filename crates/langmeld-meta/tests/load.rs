@@ -258,3 +258,41 @@ fn the_other_settings_of_the_language_block_reach_the_grammar() {
     let parsed = parse(&loaded.language, &file);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
 }
+
+mod rendering {
+    use langmeld_meta::render;
+    use langmeld_syntax::{
+        Diagnostic, FileId, Fix, Label, SourceFile, TextEdit, TextRange, TextSize,
+    };
+
+    fn range(start: u32, end: u32) -> TextRange {
+        TextRange::new(TextSize::new(start), TextSize::new(end))
+    }
+
+    #[test]
+    fn labels_notes_and_fixes_are_shown_with_the_places_they_name() {
+        let files = [
+            SourceFile::new(FileId::new(0), "main.calc", "let x = 1;\nlet x = 2;\nx;\n")
+                .expect("small"),
+            SourceFile::new(FileId::new(1), "other.calc", "let a = 1;\n").expect("small"),
+        ];
+        let diagnostic = Diagnostic::error(
+            "CALC010",
+            FileId::new(0),
+            range(15, 16),
+            "`x` is defined twice",
+        )
+        .label(Label::new(
+            FileId::new(0),
+            range(4, 5),
+            "first defined here",
+        ))
+        .label(Label::new(FileId::new(1), range(4, 5), "and `a` here"))
+        .note("a name can be defined once in a block")
+        .fix(Fix::new(
+            "rename it to `y`",
+            vec![TextEdit::new(FileId::new(0), range(15, 16), "y")],
+        ));
+        insta::assert_snapshot!(render(&files, &[diagnostic]));
+    }
+}

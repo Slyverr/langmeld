@@ -2,7 +2,7 @@
 
 use std::fmt::Write;
 
-use langmeld_syntax::{Diagnostic, Severity, SourceFile};
+use langmeld_syntax::{Diagnostic, Severity, SourceFile, TextRange};
 
 /// Where a byte offset is: the one-based line and column, and the text of the line.
 fn find(text: &str, offset: usize) -> (usize, usize, &str, usize) {
@@ -26,8 +26,38 @@ pub fn place(file: &SourceFile, offset: usize) -> String {
     format!("{}:{line}:{}", file.name(), column + 1)
 }
 
-/// Writes each diagnostic as a headline, the place and line it points at, and its
-/// notes, with a blank line between diagnostics.
+/// Writes the line a range starts on, with carets under the range. Gives the width of the
+/// line number, which the notes that follow are indented by.
+fn snippet(out: &mut String, file: &SourceFile, range: TextRange) -> usize {
+    let start = usize::try_from(u32::from(range.start())).unwrap_or(0);
+    let end = usize::try_from(u32::from(range.end())).unwrap_or(start);
+    let (number, column, line, byte) = find(file.text(), start);
+    let width = number.to_string().len();
+    let shown = line.replace('\t', " ");
+    let reach = end
+        .saturating_sub(start)
+        .min(line.len().saturating_sub(byte));
+    let carets = line
+        .get(byte..byte + reach)
+        .map_or(1, |covered| covered.chars().count())
+        .max(1);
+    let gutter = " ".repeat(width);
+    writeln!(
+        out,
+        "{gutter}--> {}:{number}:{}\n{gutter} |\n{number} | {shown}\n{gutter} | {}{}",
+        file.name(),
+        column + 1,
+        " ".repeat(column),
+        "^".repeat(carets)
+    )
+    .expect("writes to a string");
+    width
+}
+
+/// Writes each diagnostic as a headline, the place and line it points at, the other places
+/// it names, its notes and the fixes it offers, with a blank line between diagnostics. A
+/// fix is left out when a note that starts "To fix this" says it already. A
+/// fix is left out when a note that starts "To fix this" says it already.
 pub fn render(files: &[SourceFile], diagnostics: &[Diagnostic]) -> String {
     let mut out = String::new();
     for diagnostic in diagnostics {
@@ -38,34 +68,28 @@ pub fn render(files: &[SourceFile], diagnostics: &[Diagnostic]) -> String {
         };
         writeln!(out, "{kind}[{}]: {}", diagnostic.code, diagnostic.message)
             .expect("writes to a string");
-        let file = files.iter().find(|file| file.id() == diagnostic.file);
+        let find_file = |id| files.iter().find(|file| file.id() == id);
         let mut width = 1;
-        if let Some(file) = file {
-            let start = usize::try_from(u32::from(diagnostic.range.start())).unwrap_or(0);
-            let end = usize::try_from(u32::from(diagnostic.range.end())).unwrap_or(start);
-            let (number, column, line, byte) = find(file.text(), start);
-            width = number.to_string().len();
-            let shown = line.replace('\t', " ");
-            let reach = end
-                .saturating_sub(start)
-                .min(line.len().saturating_sub(byte));
-            let carets = line
-                .get(byte..byte + reach)
-                .map_or(1, |covered| covered.chars().count())
-                .max(1);
-            let gutter = " ".repeat(width);
-            writeln!(
-                out,
-                "{gutter}--> {}:{number}:{}\n{gutter} |\n{number} | {shown}\n{gutter} | {}{}",
-                file.name(),
-                column + 1,
-                " ".repeat(column),
-                "^".repeat(carets)
-            )
-            .expect("writes to a string");
+        if let Some(file) = find_file(diagnostic.file) {
+            width = snippet(&mut out, file, diagnostic.range);
+        }
+        for label in &diagnostic.labels {
+            if let Some(file) = find_file(label.file) {
+                writeln!(out, "note: {}", label.message).expect("writes to a string");
+                width = width.max(snippet(&mut out, file, label.range));
+            }
         }
         for note in &diagnostic.notes {
             writeln!(out, "{} = note: {note}", " ".repeat(width)).expect("writes to a string");
+        }
+        // A note that starts "To fix this" already says what the fix does.
+        let said = diagnostic
+            .notes
+            .iter()
+            .any(|note| note.starts_with("To fix this"));
+        for fix in diagnostic.fixes.iter().filter(|_| !said) {
+            writeln!(out, "{} = fix: {}", " ".repeat(width), fix.title)
+                .expect("writes to a string");
         }
         out.push('\n');
     }
