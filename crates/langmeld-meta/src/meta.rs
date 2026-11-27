@@ -447,6 +447,7 @@ fn build() -> Result<Language, Vec<Diagnostic>> {
             seq![lit("highlight"), r("ident"), r("ident")],
         )
         // How a mistake names what it expected.
+        .extensions(["langmeld"])
         .describe("Item", "a declaration")
         .describe("Piece", "a part of a rule")
         .describe("Atom", "a part of a rule")
