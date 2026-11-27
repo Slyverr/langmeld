@@ -49,6 +49,17 @@ pub use langmeld_syntax::{
     explain, parse, pattern,
 };
 
+/// The command line of a language: the standard commands and your own, on `clap`, which
+/// it re-exports.
+#[cfg(feature = "cli")]
+pub mod cli {
+    pub use langmeld_cli::clap;
+    pub use langmeld_cli::{
+        App, Failure, Format, check_files, error_line, files_in, line, parse_file, read, report,
+        run_corpus,
+    };
+}
+
 /// Help with what a language does with its trees.
 #[cfg(feature = "kit")]
 pub mod kit {

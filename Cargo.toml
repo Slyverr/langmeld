@@ -17,13 +17,15 @@ publish = false
 # The crates of this workspace; the version is the one of `[workspace.package]`, and a
 # test keeps the two equal.
 langmeld = { path = "crates/langmeld", version = "0.4.0" }
+langmeld-cli = { path = "crates/langmeld-cli", version = "0.4.0" }
 langmeld-ide = { path = "crates/langmeld-ide", version = "0.4.0" }
 langmeld-meta = { path = "crates/langmeld-meta", version = "0.4.0" }
 langmeld-syntax = { path = "crates/langmeld-syntax", version = "0.4.0" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 toml = { version = "1", default-features = false, features = ["parse", "serde"] }
 assert_cmd = "2"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "string"] }
 criterion = { version = "0.8.0", default-features = false }
 insta = "1.49.0"
 proptest = "1.7.0"

@@ -12,11 +12,14 @@ categories.workspace = true
 publish.workspace = true
 
 [dependencies]
+langmeld-cli = { workspace = true, optional = true }
 langmeld-ide = { workspace = true, optional = true }
 langmeld-meta.workspace = true
 langmeld-syntax.workspace = true
 
 [features]
+# The command line of a language: `langmeld::cli`.
+cli = ["dep:langmeld-cli"]
 # Help with what a language does with its trees: `langmeld::kit`.
 kit = ["dep:langmeld-ide"]
 

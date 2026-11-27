@@ -580,6 +580,7 @@ dependencies = [
 name = "langmeld"
 version = "0.4.0"
 dependencies = [
+ "langmeld-cli",
  "langmeld-ide",
  "langmeld-meta",
  "langmeld-syntax",
@@ -594,6 +595,8 @@ dependencies = [
  "insta",
  "langmeld-meta",
  "langmeld-syntax",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]
