@@ -34,6 +34,7 @@
 
 pub mod ast;
 mod diagnostic;
+mod editor;
 mod embed;
 mod explain;
 mod externals;
@@ -47,6 +48,7 @@ mod macros;
 mod parser;
 
 pub use diagnostic::{Diagnostic, Diagnostics, Fix, Label, Severity, TextEdit};
+pub use editor::TokenClass;
 pub use embed::EmbedError;
 pub use explain::{codes, explain};
 pub use externals::Externals;

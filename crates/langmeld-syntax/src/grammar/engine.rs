@@ -26,6 +26,21 @@ pub(super) struct Engine<'l> {
     exprs: Vec<Cell<Option<TextSize>>>,
 }
 
+/// Records, at the end of the text, every token the table has a way for.
+fn offer(language: &Language, table: &Table, p: &mut Parser<'_>) {
+    let kinds = table.kinds.iter().zip(0..);
+    for (entry, kind) in kinds {
+        if !matches!(entry, Entry::Miss) {
+            p.may_follow(SyntaxKind(kind));
+        }
+    }
+    for (word, _) in &table.words {
+        if let Some(&kind) = language.words.get(word) {
+            p.may_follow(kind);
+        }
+    }
+}
+
 /// The alternative the next tokens call for.
 fn decide(language: &Language, table: &Table, p: &mut Parser<'_>) -> Option<u16> {
     let mut table = table;
@@ -38,6 +53,9 @@ fn decide(language: &Language, table: &Table, p: &mut Parser<'_>) -> Option<u16>
             let text = p.nth_text(ahead);
             table.words.iter().find(|(word, _)| word == text)
         };
+        if kind == SyntaxKind::EOF {
+            offer(language, table, p);
+        }
         let entry = match word {
             Some((_, entry)) => Some(entry),
             None if kind == SyntaxKind::EOF => Some(&table.end),
@@ -402,6 +420,7 @@ impl<'l> Engine<'l> {
                 self.skip_free_lines(p);
             }
             if p.at_end() {
+                offer(language, table, p);
                 return;
             }
             let before = p.current_range().start();
@@ -553,6 +572,13 @@ impl<'l> Engine<'l> {
         loop {
             self.skip_free_lines(p);
             let current = p.current();
+            if current == SyntaxKind::EOF {
+                for continuation in &expr.continuations {
+                    if let Some(&first) = continuation.symbol.parts.first() {
+                        p.may_follow(first);
+                    }
+                }
+            }
             let Some(next) = expr
                 .by_first
                 .get(usize::from(current.0))
