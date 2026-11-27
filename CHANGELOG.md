@@ -17,7 +17,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
   syntax tree and one diagnostic per mistake.
 - Hand-written parsers can call rules by name, try a part and go back, and look ahead.
 - A description of the nodes a grammar produces and the fields each one has.
-- An example that declares JSON as a grammar.
+- An example that declares JSON as a grammar, and another that declares Calc and is checked
+  to give the same trees as its hand-written twin.
 
 ## [0.2.0] - 2026-11-27
 
