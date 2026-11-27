@@ -39,6 +39,10 @@ name = "lsp"
 required-features = ["lsp"]
 
 [[test]]
+name = "lsp_names"
+required-features = ["lsp"]
+
+[[test]]
 name = "sessions"
 required-features = ["lsp"]
 

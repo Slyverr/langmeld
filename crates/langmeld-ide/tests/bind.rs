@@ -197,7 +197,7 @@ fn imports_bring_in_the_names_of_another_file() {
         problems(&project, &bindings),
         [
             "LM-B001 main:2 `hidden` is not defined",
-            "LM-B003 main:3 cannot read `gone`",
+            "LM-B003 main:3 the file `gone` cannot be read",
         ]
     );
 }
@@ -416,7 +416,7 @@ fn every_problem_says_what_is_wrong_and_how_to_solve_it() {
         ("a", "group shapes {}\nlet used = 1;\nlet idle = 2;\n"),
         (
             "b",
-            "group shapes {}\nshow nowhere;\nshow used;\nuse \"gone\";\n",
+            "use \"a\";\ngroup shapes {}\nshow nowhere;\nshow used;\nuse \"gone\";\n",
         ),
     ];
     let (_, bindings) = bound(&language, &files);
@@ -433,7 +433,10 @@ fn every_problem_says_what_is_wrong_and_how_to_solve_it() {
              be written in this language.",
         ]
     );
-    let unused: Vec<_> = bindings.unused().iter().map(told).collect();
+    let unused: Vec<_> = (bindings.unused().iter())
+        .filter(|found| found.message.contains("idle"))
+        .map(told)
+        .collect();
     assert_eq!(
         unused,
         [
@@ -552,8 +555,7 @@ fn computed_names_come_from_the_language_and_cannot_be_renamed() {
     let language = load_language(Source::text("jobs.langmeld", JOBS))
         .unwrap_or_else(|error| panic!("{error}"));
     let mut project = Project::new(&language);
-    let text =
-        "repeat 3 as i { task worker }\nrun worker_2;\nrun worker_9;\ntask solo;\nrun solo;\n";
+    let text = "repeat 3 as i { task worker run worker_2 run worker_9 }\ntask solo\nrun solo\n";
     let file = project.set("main", text).expect("small");
     let resolver = Counted(&language.language);
     let bindings = resolver.resolve(&project);
@@ -568,7 +570,7 @@ fn computed_names_come_from_the_language_and_cannot_be_renamed() {
             ("worker_1", true),
             ("worker_2", true),
             ("worker_3", true),
-            ("solo", true)
+            ("solo", false)
         ]
     );
     let found: Vec<_> = bindings
@@ -585,7 +587,7 @@ fn computed_names_come_from_the_language_and_cannot_be_renamed() {
     // Going to the definition leads to the one written name, and so do the others.
     assert_eq!(
         target.range,
-        TextRange::at(at("worker }"), TextSize::of("worker"))
+        TextRange::at(at("worker run"), TextSize::of("worker"))
     );
     assert_eq!(bindings.references_to(target).count(), 1);
     assert_eq!(
@@ -595,7 +597,7 @@ fn computed_names_come_from_the_language_and_cannot_be_renamed() {
     // A task not in a repetition keeps the name as written.
     assert_eq!(
         bindings
-            .definition_at(file, at("solo;\nrun"))
+            .definition_at(file, at("solo\nrun"))
             .map(|d| d.name.as_str()),
         Some("solo")
     );

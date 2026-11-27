@@ -15,28 +15,6 @@ use langmeld_syntax::{Diagnostic, Parse, Severity, SourceFile, TextRange, TextSi
 
 use crate::project;
 
-/// The path of a `file:` address.
-fn path_of(uri: &str) -> Option<String> {
-    let rest = uri.strip_prefix("file://")?;
-    let mut bytes = Vec::with_capacity(rest.len());
-    let mut rest = rest.bytes();
-    while let Some(byte) = rest.next() {
-        if byte != b'%' {
-            bytes.push(byte);
-            continue;
-        }
-        let digits = [rest.next()?, rest.next()?];
-        let digits = std::str::from_utf8(&digits).ok()?;
-        bytes.push(u8::from_str_radix(digits, 16).ok()?);
-    }
-    let path = String::from_utf8(bytes).ok()?;
-    // `/C:/…` on Windows means `C:/…`.
-    match path.as_bytes() {
-        [b'/', drive, b':', ..] if drive.is_ascii_alphabetic() => path.get(1..).map(str::to_owned),
-        _ => Some(path),
-    }
-}
-
 /// The files on disk, except the open ones, whose text the editor holds.
 struct Open(BTreeMap<String, String>);
 
@@ -112,9 +90,11 @@ impl LanguageHooks for Grammars {
         if !parse.diagnostics.is_empty() {
             return Vec::new();
         }
-        let Some(path) = path_of(file.name()) else {
+        // An unsaved document has an address instead of a path.
+        let path = file.name().to_owned();
+        if !Path::new(&path).is_absolute() {
             return Vec::new();
-        };
+        }
         let texts = {
             let mut open = self
                 .open
@@ -127,12 +107,10 @@ impl LanguageHooks for Grammars {
     }
 
     fn closed(&self, name: &str) {
-        if let Some(path) = path_of(name) {
-            self.open
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .remove(&path);
-        }
+        self.open
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(name);
     }
 
     fn provides_definitions(&self) -> bool {
@@ -158,21 +136,4 @@ pub(crate) fn run() -> ExitCode {
         error_line(&format!("error: {reason}"));
     }
     ExitCode::from(failure.code())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::path_of;
-
-    #[test]
-    fn addresses_become_paths() {
-        assert_eq!(
-            path_of("file:///a/b%20c.langmeld").as_deref(),
-            Some("/a/b c.langmeld")
-        );
-        assert_eq!(path_of("file:///C%3A/x").as_deref(), Some("C:/x"));
-        assert_eq!(path_of("untitled:1"), None);
-        assert_eq!(path_of("file:///%zz"), None);
-        assert_eq!(path_of("file:///%4"), None);
-    }
 }

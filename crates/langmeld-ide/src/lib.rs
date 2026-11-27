@@ -24,5 +24,6 @@ pub use served::Served;
 
 #[cfg(feature = "lsp")]
 pub use lsp::{
-    DEFAULT_LIMIT, LanguageHooks, Message, Server, StdioTransport, Transport, serve, serve_with,
+    DEFAULT_LIMIT, LanguageHooks, Message, ProjectFileKind, Server, StdioTransport, Transport,
+    serve, serve_with,
 };

@@ -6,10 +6,17 @@
         "jsonrpc": "2.0",
         "result": {
           "capabilities": {
+            "codeActionProvider": true,
             "completionProvider": {},
+            "definitionProvider": true,
             "documentSymbolProvider": true,
             "foldingRangeProvider": true,
+            "hoverProvider": true,
             "positionEncoding": "utf-16",
+            "referencesProvider": true,
+            "renameProvider": {
+              "prepareProvider": true
+            },
             "selectionRangeProvider": true,
             "semanticTokensProvider": {
               "full": true,
@@ -32,7 +39,8 @@
                 ]
               }
             },
-            "textDocumentSync": 2
+            "textDocumentSync": 2,
+            "workspaceSymbolProvider": true
           },
           "serverInfo": {
             "name": "Calc language server"
@@ -383,7 +391,7 @@
             0,
             2,
             5,
-            5,
+            6,
             0,
             0,
             6,

@@ -55,7 +55,7 @@ const DECLARATION: u32 = 2;
 /// Punctuation that separates or groups, which is not coloured as an operator.
 const QUIET: [&str; 10] = ["(", ")", "{", "}", "[", "]", ";", ",", ".", ":"];
 
-fn symbol_kind(name: &str) -> SymbolKind {
+pub(crate) fn symbol_kind(name: &str) -> SymbolKind {
     match name {
         "file" => SymbolKind::FILE,
         "module" => SymbolKind::MODULE,
@@ -85,7 +85,38 @@ fn symbol_kind(name: &str) -> SymbolKind {
     }
 }
 
-fn token_type(symbol: &str) -> u32 {
+/// The kind of completion for a name whose symbol is of the kind `symbol`.
+pub(crate) fn completion_kind(symbol: Option<&str>) -> CompletionItemKind {
+    match symbol {
+        Some("function") => CompletionItemKind::FUNCTION,
+        Some("method") => CompletionItemKind::METHOD,
+        Some("constructor") => CompletionItemKind::CONSTRUCTOR,
+        Some("constant") => CompletionItemKind::CONSTANT,
+        Some("class") => CompletionItemKind::CLASS,
+        Some("struct") => CompletionItemKind::STRUCT,
+        Some("interface") => CompletionItemKind::INTERFACE,
+        Some("enum") => CompletionItemKind::ENUM,
+        Some("enum_member") => CompletionItemKind::ENUM_MEMBER,
+        Some("module" | "namespace" | "package") => CompletionItemKind::MODULE,
+        Some("property") => CompletionItemKind::PROPERTY,
+        Some("field" | "key") => CompletionItemKind::FIELD,
+        Some("type") => CompletionItemKind::TYPE_PARAMETER,
+        _ => CompletionItemKind::VARIABLE,
+    }
+}
+
+/// The word around `offset`: letters, digits and `_`. Empty where there is none.
+pub(crate) fn word_around(text: &str, offset: TextSize) -> TextRange {
+    let at = usize::from(offset).min(text.len());
+    let (before, after) = text.split_at_checked(at).unwrap_or((text, ""));
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    let start = before.trim_end_matches(word).len();
+    let end = text.len() - after.trim_start_matches(word).len();
+    let size = |at: usize| TextSize::of(text.get(..at).unwrap_or_default());
+    TextRange::new(size(start), size(end))
+}
+
+pub(crate) fn token_type(symbol: &str) -> u32 {
     match symbol {
         "function" | "method" => 6,
         "class" | "struct" | "interface" | "enum" | "type" => 7,
@@ -101,7 +132,7 @@ impl View<'_> {
     }
 
     /// The part of an element that is not space or comments, where it has any.
-    fn trimmed(&self, element: &SyntaxElement) -> TextRange {
+    pub(crate) fn trimmed(&self, element: &SyntaxElement) -> TextRange {
         let SyntaxElement::Node(node) = element else {
             return element.text_range();
         };
@@ -120,7 +151,7 @@ impl View<'_> {
 
     /// The nodes the editor rules list as symbols: each with its name, where that
     /// is, and its kind.
-    fn declarations(&self) -> Vec<(SyntaxNode, TextRange, String)> {
+    pub(crate) fn declarations(&self) -> Vec<(SyntaxNode, TextRange, String)> {
         let rules: HashMap<&str, (&str, &str)> = self
             .editor
             .rules
@@ -147,7 +178,7 @@ impl View<'_> {
             .collect()
     }
 
-    fn text(&self, range: TextRange) -> &str {
+    pub(crate) fn text(&self, range: TextRange) -> &str {
         self.file
             .text()
             .get(usize::from(range.start())..usize::from(range.end()))
@@ -303,7 +334,9 @@ impl View<'_> {
         })
     }
 
-    pub(crate) fn semantic_tokens(&self) -> Vec<SemanticToken> {
+    /// The colours of the tokens, with `uses` giving those of names by what they
+    /// mean, by where each starts.
+    pub(crate) fn semantic_tokens(&self, uses: &HashMap<TextSize, u32>) -> Vec<SemanticToken> {
         let names: HashMap<TextSize, u32> = self
             .declarations()
             .into_iter()
@@ -328,7 +361,7 @@ impl View<'_> {
                 Some(TokenClass::Punctuation) if !QUIET.contains(&token.text()) => (OPERATOR, 0),
                 Some(TokenClass::Identifier) => match declared {
                     Some(kind) => (kind, DECLARATION),
-                    None => (VARIABLE, 0),
+                    None => (uses.get(&span.start()).copied().unwrap_or(VARIABLE), 0),
                 },
                 _ => continue,
             };
@@ -360,17 +393,9 @@ impl View<'_> {
     /// completion replaces. The word is what is being written, whole.
     fn word_at(&self, offset: TextSize) -> (&str, lsp_types::Range) {
         let text = self.file.text();
-        let at = usize::from(offset).min(text.len());
-        let (before, after) = text.split_at_checked(at).unwrap_or((text, ""));
-        let word = |c: char| c.is_alphanumeric() || c == '_';
-        let start = before.trim_end_matches(word).len();
-        let end = text.len() - after.trim_start_matches(word).len();
-        let prefix = text.get(..start).unwrap_or_default();
-        let replaced = TextRange::new(
-            TextSize::of(prefix),
-            TextSize::of(text.get(..end).unwrap_or_default()),
-        );
-        (prefix, range(self.file, replaced, self.encoding))
+        let word = word_around(text, offset);
+        let prefix = text.get(..usize::from(word.start())).unwrap_or_default();
+        (prefix, range(self.file, word, self.encoding))
     }
 
     fn items(
