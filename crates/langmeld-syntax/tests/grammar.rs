@@ -1933,3 +1933,77 @@ fn a_missing_closer_is_one_error_when_what_comes_after_it_follows() {
     let parse = self::parse(&language, "fn (a ? b) { }");
     assert_eq!(parse.diagnostics.len(), 1, "{:?}", parse.diagnostics);
 }
+
+#[test]
+fn a_rule_can_be_called_again_and_again_from_custom_code() {
+    // Calls that finished do not count towards the depth limit.
+    let language = build(
+        basics("Many")
+            .rule("File", r("Names"))
+            .rule("Name", r("ident"))
+            .extern_rule(
+                ExternRule::new("Names", |p| {
+                    let node = p.start();
+                    while !p.at_end() {
+                        p.rule("Name");
+                    }
+                    let kind = p.kind_of("Pair");
+                    node.complete(p, kind);
+                })
+                .first(["ident"])
+                .produces(["Pair"]),
+            ),
+    );
+    assert_eq!(errors(&language, &"a ".repeat(600)), Vec::<String>::new());
+}
+
+#[test]
+fn the_root_is_not_checked_against_the_schema_when_the_text_has_errors() {
+    let language = build(
+        basics("Odd")
+            .rule("File", seq![r("Custom"), many(r("ident"))])
+            .extern_rule(ExternRule::new("Custom", |p| {
+                let node = p.start();
+                p.bump();
+                node.complete(p, SyntaxKind(999));
+            })),
+    );
+    // One mistake is reported, and the wrong tree is not on top of it.
+    assert_eq!(
+        errors(&language, "x 1"),
+        ["LM-P001 2..3 expected ident, found `1`"]
+    );
+}
+
+#[test]
+fn a_wrong_tree_is_reported_where_it_is() {
+    if !cfg!(debug_assertions) {
+        return;
+    }
+    let language = build(
+        basics("Odd")
+            .rule("File", many(r("Item")))
+            .rule("Item", seq![lit("item"), r("Custom")])
+            .extern_rule(ExternRule::new("Custom", |p| {
+                let node = p.start();
+                p.bump();
+                node.complete(p, SyntaxKind(999));
+            })),
+    );
+    assert_eq!(
+        errors(&language, "item a item b"),
+        [
+            "LM-S001 0..6 the grammar's code made a wrong tree: `Item` cannot have `unknown` as a child"
+        ]
+    );
+}
+
+#[test]
+fn languages_and_lexers_can_be_printed() {
+    let language = lets();
+    let shown = format!("{language:?}");
+    assert!(
+        shown.starts_with("Language { name: \"Lets\", rules: [\"File\", \"Stmt\""),
+        "{shown}"
+    );
+}
