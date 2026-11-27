@@ -104,6 +104,22 @@ impl Language {
         LanguageBuilder::new(name.into())
     }
 
+    /// The name the language was declared with.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::lit;
+    /// use langmeld_syntax::Language;
+    ///
+    /// let language = Language::builder("Bangs")
+    ///     .rule("File", lit("!"))
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// assert_eq!(language.name(), "Bangs");
+    /// ```
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// The kind of the node, token or literal called `name`. Nodes are named for the
     /// rules, atoms and operators that make them; a literal is named by its text.
     ///
