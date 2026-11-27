@@ -176,12 +176,43 @@ fn deep_nesting_is_reported() {
         format!("1{};", " + 1".repeat(20_000)),
         "if a { ".repeat(5000),
     ] {
-        let diagnostics = parsed(&text).diagnostics;
+        let parse = parsed(&text);
         assert!(
-            diagnostics.iter().any(|d| d.code == "LM-P003"),
-            "{diagnostics:?}"
+            parse.diagnostics.iter().any(|d| d.code == "LM-P003"),
+            "{:?}",
+            parse.diagnostics
         );
+        assert_within_limit(&parse);
     }
+}
+
+/// No node has more ancestors, itself included, than the tree depth limit allows.
+fn assert_within_limit(parse: &langmeld_syntax::Parse) {
+    let limit = langmeld_syntax::ParseLimits::default().max_tree_depth as usize;
+    let deepest = parse
+        .syntax()
+        .descendants()
+        .map(|node| node.ancestors().count())
+        .max()
+        .unwrap_or(0);
+    assert!(deepest <= limit, "the tree is {deepest} deep, not {limit}");
+}
+
+/// When the root has to be left out, the node that holds the rest is part of the tree
+/// too, so the tree must still fit. The input is one that the fuzzer found: many `-`
+/// and `<` in a row, which deepen the tree without recursion.
+#[test]
+fn a_tree_without_its_root_still_fits_the_limit() {
+    const PIECES: [&str; 28] = [
+        "let ", "fn ", "if ", "else ", "true", "x", "1", "2.5", "\"s\"", "(", ")", "{", "}", ",",
+        ";", "=", "==", "<", "+", "-", "*", "/", " ", "\n", "//", "/*", "*/", "@",
+    ];
+    let bytes = include_bytes!("../../../fuzz/seeds/parse_handwritten_calc/deep_tree");
+    let text: String = bytes
+        .iter()
+        .map(|&byte| PIECES[usize::from(byte) % PIECES.len()])
+        .collect();
+    assert_within_limit(&parsed(&text));
 }
 
 #[test]
