@@ -1,11 +1,12 @@
 //! Works out the node schema of a grammar from its labels.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use super::builder::{Definition, Operator};
 use super::ir::Rule;
 use super::pattern::Shape;
-use super::{Cardinality, FieldSchema, NodeSchema, Pattern, Schema};
+use super::places::Items;
+use super::{Cardinality, FieldSchema, NodeSchema, Pattern, Place, Schema};
 
 fn add(node: &mut NodeSchema, label: &str, name: &str, token: bool, cardinality: Cardinality) {
     let position = node.fields.iter().position(|field| field.name == label);
@@ -89,6 +90,67 @@ fn walk(
     }
 }
 
+fn operand(label: &str, expr: &str, skip: usize) -> FieldSchema {
+    FieldSchema::new(label, [expr], Cardinality::One).at(Place::default().skip(skip))
+}
+
+fn token_field(label: &str, symbols: &[String]) -> FieldSchema {
+    FieldSchema::token(label, symbols.iter().cloned(), Cardinality::One)
+}
+
+/// Fills in where each field of the nodes that rules make is.
+fn place_fields(schema: &mut Schema, definitions: &[&Definition]) {
+    let mut places = Vec::new();
+    for definition in definitions {
+        let bodies: Vec<(&str, Option<&str>, &Pattern)> = match definition {
+            Definition::Rule(name, body) => vec![(name, None, body)],
+            Definition::Expr(expr) => expr
+                .atoms
+                .iter()
+                .map(|(name, body)| (name.as_str(), None, body))
+                .chain(expr.operators.iter().filter_map(|operator| match operator {
+                    Operator::Postfix { name, body, .. } => {
+                        Some((name.as_str(), Some(expr.name.as_str()), body))
+                    }
+                    _ => None,
+                }))
+                .collect(),
+            Definition::Extern(_) => Vec::new(),
+        };
+        for (name, operand, body) in bodies {
+            let Some(node) = schema.node(name) else {
+                continue;
+            };
+            let mut items = Items::default();
+            if let Some(expr) = operand {
+                items.leading(expr, "operand");
+            }
+            items.add(body, None);
+            let stands_for = |name: &str| {
+                let name = name.to_owned();
+                let expanded = schema.expand([&name]);
+                expanded
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect::<BTreeSet<_>>()
+            };
+            for field in &node.fields {
+                if operand.is_some() && field.name == "operand" {
+                    continue;
+                }
+                let mut wanted = schema.expand(&field.nodes);
+                wanted.extend(field.tokens.iter().map(String::as_str));
+                let many = field.cardinality == Cardinality::Many;
+                let place = items.place(&field.name, many, &wanted, &stands_for);
+                places.push((name.to_owned(), field.name.clone(), place));
+            }
+        }
+    }
+    for (node, field, place) in places {
+        schema.set_place(&node, &field, place);
+    }
+}
+
 pub(super) fn infer(definitions: &[&Definition], rules: &[Rule]) -> Schema {
     let names: HashSet<&str> = definitions.iter().map(|d| d.name()).collect();
     let node = |name: &str, body: &Pattern| {
@@ -121,10 +183,27 @@ pub(super) fn infer(definitions: &[&Definition], rules: &[Rule]) -> Schema {
                 }
                 for operator in &expr.operators {
                     let (name, made) = match operator {
-                        Operator::Prefix { name, .. } | Operator::Infix { name, .. } => {
-                            (name, NodeSchema::new(name.clone()))
+                        Operator::Prefix { name, symbols, .. } => {
+                            let made = NodeSchema::new(name.clone())
+                                .with_field(token_field("operator", symbols))
+                                .with_field(operand("operand", &expr.name, 0));
+                            (name, made)
                         }
-                        Operator::Postfix { name, body, .. } => (name, node(name, body)),
+                        Operator::Infix { name, symbols, .. } => {
+                            let made = NodeSchema::new(name.clone())
+                                .with_field(operand("lhs", &expr.name, 0))
+                                .with_field(token_field("operator", symbols))
+                                .with_field(operand("rhs", &expr.name, 1));
+                            (name, made)
+                        }
+                        Operator::Postfix { name, body, .. } => {
+                            let mut made = node(name, body);
+                            // A part of the author's own keeps its name.
+                            if made.field("operand").is_none() {
+                                made.fields.insert(0, operand("operand", &expr.name, 0));
+                            }
+                            (name, made)
+                        }
                     };
                     members.push(name.clone());
                     schema = schema.with_node(made.with_child(expr.name.clone()));
@@ -139,5 +218,6 @@ pub(super) fn infer(definitions: &[&Definition], rules: &[Rule]) -> Schema {
             }
         }
     }
+    place_fields(&mut schema, definitions);
     schema
 }

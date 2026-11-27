@@ -46,3 +46,5 @@ impl rowan::Language for SyntaxLanguage {
 pub type SyntaxNode = rowan::SyntaxNode<SyntaxLanguage>;
 /// A token of a syntax tree.
 pub type SyntaxToken = rowan::SyntaxToken<SyntaxLanguage>;
+/// A node or a token of a syntax tree.
+pub type SyntaxElement = rowan::SyntaxElement<SyntaxLanguage>;

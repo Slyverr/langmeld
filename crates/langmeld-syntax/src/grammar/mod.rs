@@ -7,6 +7,7 @@ mod engine;
 mod ir;
 mod lookahead;
 pub mod pattern;
+mod places;
 mod problem;
 mod recovery;
 mod schema;
@@ -21,7 +22,7 @@ pub(crate) use builder::ParseFn;
 pub use builder::{Assoc, ExprSpec, ExternRule, LanguageBuilder, Token};
 pub use lookahead::Lookahead;
 pub use pattern::Pattern;
-pub use schema::{Cardinality, FieldSchema, NodeSchema, Schema, SchemaError};
+pub use schema::{Cardinality, FieldSchema, NodeSchema, Place, Schema, SchemaError};
 
 use ir::{Callee, Expr, Extern, KindSet, Node, Rule};
 
@@ -65,6 +66,9 @@ pub struct Language {
     kind_names: Vec<String>,
     #[serde(with = "crate::embed::sorted")]
     node_kinds: HashMap<String, SyntaxKind>,
+    /// Names of the tokens that rules see, and of those read by Rust code.
+    declared: Vec<String>,
+    custom_tokens: Vec<String>,
     /// Declared tokens by name, and literals by text.
     #[serde(with = "crate::embed::sorted")]
     token_kinds: HashMap<String, SyntaxKind>,
@@ -203,6 +207,38 @@ impl Language {
     /// ```
     pub fn lexer(&self) -> &Lexer {
         &self.lexer
+    }
+
+    /// The kind of the declared token called `name`, or of the literal with this text.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, many};
+    /// use langmeld_syntax::Language;
+    ///
+    /// let language = Language::builder("Bangs")
+    ///     .rule("File", many(lit("!")))
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// assert!(language.token_kind("!").is_some());
+    /// assert!(language.token_kind("File").is_none());
+    /// ```
+    pub fn token_kind(&self, name: &str) -> Option<SyntaxKind> {
+        self.token_kinds.get(name).copied()
+    }
+
+    /// The tokens declared by name that rules can see, in the order declared.
+    pub fn declared_tokens(&self) -> impl Iterator<Item = &str> {
+        self.declared.iter().map(String::as_str)
+    }
+
+    /// The rules parsed by Rust code.
+    pub fn custom_rules(&self) -> impl Iterator<Item = &str> {
+        self.externs.iter().map(|custom| custom.name.as_str())
+    }
+
+    /// The tokens read by Rust code.
+    pub fn custom_tokens(&self) -> impl Iterator<Item = &str> {
+        self.custom_tokens.iter().map(String::as_str)
     }
 
     /// The nodes of the language, as worked out from the labels in its rules.

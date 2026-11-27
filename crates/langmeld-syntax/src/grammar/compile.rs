@@ -1481,6 +1481,21 @@ fn assemble(parts: Parts<'_, '_>) -> Language {
         root,
         kind_names: kinds.names,
         node_kinds: lowered_kinds,
+        declared: builder
+            .tokens
+            .iter()
+            .filter(|token| {
+                !token.trivia
+                    && !matches!(token.shape, TokenShape::Part | TokenShape::Strings { .. })
+            })
+            .map(|token| token.name.clone())
+            .collect(),
+        custom_tokens: builder
+            .tokens
+            .iter()
+            .filter(|token| matches!(token.shape, TokenShape::External(_)))
+            .map(|token| token.name.clone())
+            .collect(),
         token_kinds: tokens
             .into_iter()
             .map(|(name, kind)| (name.to_owned(), kind))
