@@ -296,3 +296,14 @@ mod rendering {
         insta::assert_snapshot!(render(&files, &[diagnostic]));
     }
 }
+
+#[test]
+fn text_with_a_wide_character_where_a_rule_name_ends_does_not_panic() {
+    // Found by fuzzing: a place that ended inside a two-byte character.
+    let text = String::from_utf8_lossy(
+        b"langmexpe4ted `\x01m\nrule\xd7\xb6tem = +\" \" \"a\" | \"a\"right\x02",
+    )
+    .into_owned();
+    let found = refused_text(&text);
+    insta::assert_snapshot!(found);
+}

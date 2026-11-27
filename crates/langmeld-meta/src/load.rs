@@ -236,9 +236,13 @@ fn without_body(file: &SourceFile, found: Diagnostic) -> Diagnostic {
     let Some(head) = through.strip_suffix('=').map(str::trim_end) else {
         return found;
     };
+    // The name starts after the last character that cannot be in one, which may be wider
+    // than a byte.
     let name_at = head
-        .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .map_or(0, |at| at + 1);
+        .char_indices()
+        .rev()
+        .find(|(_, c)| !(c.is_alphanumeric() || *c == '_'))
+        .map_or(0, |(at, c)| at + c.len_utf8());
     let (before, name) = head.split_at(name_at);
     if !before.trim_end().ends_with("rule") || name.is_empty() {
         return found;
