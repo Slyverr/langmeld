@@ -40,6 +40,19 @@ jobs:
       - name: Build
         run: nix develop .#msrv --command cargo build --workspace --locked
 
+  nix-build:
+    name: Nix build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - name: Build the package
+        run: nix build .#default -L
+      - name: Run the binary
+        run: ./result/bin/langmeld
+
   fuzz:
     name: Fuzz smoke test (${{ matrix.target }})
     runs-on: ubuntu-latest
