@@ -8,7 +8,7 @@ use langmeld_syntax::{
     TextSize, parse,
 };
 
-use crate::declared::{Bindings, Editor};
+use crate::declared::{BindRules, Editor};
 use crate::lower::{Options, Unit, lower};
 use crate::problem::problem;
 use crate::tree::Node;
@@ -182,7 +182,7 @@ pub struct Loaded {
     /// The file extensions of the language, without dots.
     pub extensions: Vec<String>,
     /// What the `bind` blocks declare.
-    pub bindings: Bindings,
+    pub bindings: BindRules,
     /// What the `editor` blocks declare.
     pub editor: Editor,
 }
@@ -468,6 +468,7 @@ pub fn load_language(source: Source) -> Result<Loaded, LoadError> {
     }
     match lowered.builder.build() {
         Ok(language) => {
+            problems.extend(crate::names::check(&language, &lowered.bindings));
             problems.extend(crate::editor::check(&language, &lowered.editor));
             if problems.is_empty() {
                 Ok(Loaded {

@@ -65,6 +65,16 @@ pub enum Binding {
         /// Where it was written.
         place: Place,
     },
+    /// `A.member refers member of A.object`: uses of a member, which only the code of the
+    /// language can look up, as in the `b` of `a.b`.
+    Member {
+        /// The uses.
+        targets: Vec<Path>,
+        /// The part whose member is meant.
+        of: Path,
+        /// Where it was written.
+        place: Place,
+    },
     /// `A.body includes members of A.target`
     Includes {
         /// The parts that see more.
@@ -111,7 +121,7 @@ pub enum EditorRule {
 
 /// The `bind` statements of a language, in the order written.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Bindings {
+pub struct BindRules {
     /// The statements.
     pub rules: Vec<Binding>,
 }

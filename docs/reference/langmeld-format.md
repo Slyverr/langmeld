@@ -270,33 +270,40 @@ custom rule is read as one error node, reported once (`LM-F012`).
 ## `bind`
 
 Binding declares which nodes define names, which refer to them, and the scopes between.
-It is read and kept; the language server uses it in a later release.
+The language server and `langmeld::bind` use it to report names that nothing defines, and
+to go to definitions, find uses, rename and complete names, across files. See
+[Names and projects](../guides/names-and-projects.md) for how to use it.
 
 ```langmeld
 langmeld 1
 
-language Bound { }
+language Bound { extensions "bound" }
 
 tokens {
     skip space = /[ \t\r\n]+/
     ident      = preset ident(ascii)
+    string     = preset string(double)
 }
 
-rule File   = Item*
-rule Item   = Let | Fn | Use
-rule Let    = "let" name:Name ";"
-rule Fn     = "fn" name:Name "{" Item* "}"
-rule Use    = "use" target:NameRef path:ident ";"
-rule Name   = ident
+rule File    = Item*
+rule Item    = Let | Fn | Use | Stage | Get
+rule Let     = "let" name:Name ";"
+rule Fn      = "fn" name:Name "{" Item* "}"
+rule Use     = "use" path:string ";"
+rule Stage   = "stage" name:Name "for" target:NameRef body:Block
+rule Block   = "{" Item* "}"
+rule Get     = object:NameRef "." member:ident ";"
+rule Name    = ident
 rule NameRef = ident
 
 bind {
-    scope File, Fn
+    scope File, Fn, Block
     Let.name  defines value after
     Fn.name   defines value hoisted in parent
-    Use.path  imports value from Use.target
+    Use.path  imports value from Use.path
     NameRef   refers value
-    Fn.name   includes members of Use.target
+    Stage.body includes members of Stage.target
+    Get.member refers member of Get.object
 }
 ```
 
@@ -305,12 +312,17 @@ bind {
 | `scope A, B` | These nodes open a scope, nested as the tree is |
 | `A.field defines ns modes` | The text at the field defines a name in the namespace `ns` |
 | `A refers ns` | The node refers to a name of `ns`, found from the innermost scope outwards |
-| `A.field imports ns from B.field` | The names of the file whose path is written at `B.field` |
-| `A.field includes members of B.field` | The scope sees the members of what `B.field` refers to |
+| `A.field imports ns from A.path` | The names of the file whose path is written at `A.path`, which is a quoted path relative to the importing file |
+| `A.field includes members of A.other` | The scope of `field` also sees the members of what `other` refers to, in this file or another |
+| `A.field refers member of A.other` | The text at `field` names a member, as the `b` in `a.b`, which code of the language looks up |
 
-Modes after `defines`: `after` (visible after its end), `hoisted` (the whole scope), `in
-parent` (the scope around), `shadowing` (the default), `unique` (a duplicate is an error),
-`global` (shared by all files), and `computed` (named by Rust code).
+Modes after `defines`: `after` (visible after its node ends), `hoisted` (the whole scope),
+`in parent` (the scope around), `shadowing` (the default: a name hides an earlier one),
+`unique` (a duplicate in the scope is an error), `global` (shared by all files, with no
+import, and a duplicate anywhere is an error), and `computed` (named by Rust code).
+`after` and `hoisted`, `shadowing` and `unique`, and `global` and `in parent` contradict
+each other, which is an error (`LM-F020`). A path in these lines is a node, or a node and the
+label of one of its parts, and what it names must exist (`LM-F018`, `LM-F019`).
 
 ## `editor`
 

@@ -12,7 +12,7 @@ use langmeld_syntax::{
     SyntaxToken, TextEdit, TextRange, Token,
 };
 
-use crate::declared::{Binding, Bindings, Editor, EditorRule, Path, Place};
+use crate::declared::{BindRules, Binding, Editor, EditorRule, Path, Place};
 use crate::problem::problem;
 use crate::tree::Node;
 
@@ -36,7 +36,7 @@ pub(crate) struct Options<'a> {
 pub(crate) struct Lowered {
     pub(crate) builder: LanguageBuilder,
     pub(crate) extensions: Vec<String>,
-    pub(crate) bindings: Bindings,
+    pub(crate) bindings: BindRules,
     pub(crate) editor: Editor,
     pub(crate) problems: Vec<Diagnostic>,
 }
@@ -103,7 +103,7 @@ struct Lowering<'a> {
     /// Where each name is written, in all files, so that a rename can reach its uses.
     names: HashMap<String, Vec<(FileId, TextRange)>>,
     extensions: Vec<String>,
-    bindings: Bindings,
+    bindings: BindRules,
     editor: Editor,
     problems: Vec<Diagnostic>,
 }
@@ -689,10 +689,17 @@ impl Lowering<'_> {
                         .collect(),
                     place: here,
                 },
-                "Refers" => Binding::Refers {
-                    targets,
-                    namespace,
-                    place: here,
+                "Refers" => match verb.child("Path") {
+                    Some(of) => Binding::Member {
+                        targets,
+                        of: self.path(&of),
+                        place: here,
+                    },
+                    None => Binding::Refers {
+                        targets,
+                        namespace,
+                        place: here,
+                    },
                 },
                 "Imports" => Binding::Imports {
                     targets,
@@ -833,7 +840,7 @@ pub(crate) fn lower(units: &[Unit], options: &Options<'_>, fallback_name: &str) 
             .collect(),
         names: written_names(units),
         extensions: Vec::new(),
-        bindings: Bindings::default(),
+        bindings: BindRules::default(),
         editor: Editor::default(),
         problems: Vec::new(),
     };
