@@ -423,6 +423,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "json"
+version = "0.2.0"
+dependencies = [
+ "criterion",
+ "langmeld-syntax",
+]
+
+[[package]]
 name = "langmeld"
 version = "0.2.0"
 
