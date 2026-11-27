@@ -1,0 +1,4 @@
+fn square(n) {
+  n * n
+}
+let area = square(12 +;

@@ -53,6 +53,40 @@ jobs:
       - name: Run the binary
         run: ./result/bin/langmeld
 
+  vscode:
+    name: Visual Studio Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the programs the extensions start
+        run: nix develop --command cargo build -p langmeld-cli -p calc --locked
+      - name: Write the extensions, compile them and run them in the editor
+        run: xvfb-run -a nix develop --command bash tests/editors/vscode.sh
+
+  web:
+    name: Calc in the browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the language server for the browser
+        run: nix develop --command bash examples/web/build.sh
+      - name: Drive it from Node
+        run: nix develop --command node examples/web/test.mjs
+      - name: Run the sessions and the editor page in a headless browser
+        run: |
+          nix develop --command bash -euc \
+            'cd tests/editors && npm ci --no-audit --no-fund && node browser/replay.mjs'
+
   fuzz:
     name: Fuzz smoke test (${{ matrix.target }})
     runs-on: ubuntu-latest
@@ -70,6 +104,7 @@ jobs:
             parse_calc,
             langmeld_loader,
             manifest,
+            lsp_session,
           ]
     steps:
       - uses: actions/checkout@v7
