@@ -8,6 +8,16 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- Declare a language as a grammar with a builder: rules, repetition, choices, operators
+  with precedence, fields, and custom rules written in Rust. The grammar is checked when
+  it is built, and each problem comes with advice on how to fix it.
+- A parser that runs a declared grammar and recovers from mistakes, giving a lossless
+  syntax tree and one diagnostic per mistake.
+- Hand-written parsers can call rules by name, try a part and go back, and look ahead.
+- A description of the nodes a grammar produces and the fields each one has.
+
 ## [0.2.0] - 2026-11-27
 
 ### Added
