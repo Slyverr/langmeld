@@ -4,7 +4,10 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::{Diagnostic, Lexer, Severity, SyntaxKind, Terminators, TokenSpec};
+use crate::{
+    Diagnostic, FileId, Interpolation, Lexer, Preset, Severity, StringParts, SyntaxKind,
+    Terminators, TextRange, TextSize, TokenSpec,
+};
 
 use super::analyze::{self, Input, Output};
 use super::builder::{Comment, Definition, ExprSpec, LanguageBuilder, Operator, Token, TokenShape};
@@ -12,14 +15,93 @@ use super::ir::{
     Callee, Continuation, Expr, Extern, KindSet, Node, NodeId, Operation, Rule, Start, Symbol,
     Table,
 };
-use super::pattern::Shape;
+use super::pattern::{Shape, r};
 use super::problem::{error, to_fix, undefined, warning};
 use super::{Language, Pattern, recovery, schema_of};
 
 /// A language cannot have more kinds than this; the highest numbers are reserved.
 const MOST_KINDS: usize = 60_000;
 
+/// Gives problems the place where their subject was written, if it was recorded.
+fn relocate(builder: &LanguageBuilder, problems: &mut [Diagnostic]) {
+    let place = |name: &str| {
+        builder
+            .places
+            .iter()
+            .rev()
+            .find(|(named, _)| named == name)
+            .map(|(_, place)| *place)
+    };
+    for problem in problems {
+        if problem.range != TextRange::empty(TextSize::new(0)) || problem.file != FileId::new(0) {
+            continue;
+        }
+        let found = problem
+            .about
+            .as_deref()
+            .and_then(place)
+            .or_else(|| place(&builder.name));
+        if let Some((file, range)) = found {
+            problem.file = file;
+            problem.range = range;
+        }
+    }
+}
+
+/// An interpolated string is a rule over the parts the lexer cuts it into.
+fn desugar(mut builder: LanguageBuilder) -> LanguageBuilder {
+    let mut tokens = Vec::new();
+    for token in std::mem::take(&mut builder.tokens) {
+        let TokenShape::Interpolated {
+            quotes,
+            open,
+            close,
+            content,
+        } = token.shape
+        else {
+            tokens.push(token);
+            continue;
+        };
+        let names: Vec<String> = ["start", "text", "end", "hole open", "hole close"]
+            .iter()
+            .map(|part| format!("{} {part}", token.name))
+            .collect();
+        let shape = TokenShape::Strings {
+            quotes,
+            open,
+            close,
+            parts: names.clone(),
+        };
+        for (index, name) in names.iter().enumerate() {
+            let shape = if index == 0 {
+                shape.clone()
+            } else {
+                TokenShape::Part
+            };
+            tokens.push(Token {
+                name: name.clone(),
+                shape,
+                trivia: false,
+                identifier: false,
+            });
+        }
+        let [start, text, end, hole_open, hole_close] =
+            <[String; 5]>::try_from(names).expect("five parts were named");
+        let hole = super::pattern::seq([r(hole_open), r(content), r(hole_close)]);
+        let body = super::pattern::seq([
+            r(start),
+            super::pattern::many(super::pattern::choice([r(text), hole])),
+            // A string the lexer found no end for has been reported by the lexer.
+            super::pattern::opt(r(end)),
+        ]);
+        builder.definitions.push(Definition::Rule(token.name, body));
+    }
+    builder.tokens = tokens;
+    builder
+}
+
 pub(super) fn compile(builder: LanguageBuilder) -> Result<Language, Vec<Diagnostic>> {
+    let builder = desugar(builder);
     if builder.definitions.is_empty() {
         let message = "the language has no rules";
         return Err(vec![to_fix(
@@ -58,6 +140,7 @@ pub(super) fn compile(builder: LanguageBuilder) -> Result<Language, Vec<Diagnost
             "use fewer tokens and rules",
         ));
         // Their numbers are not distinct, so nothing further can be checked.
+        relocate(&builder, &mut problems);
         return Err(problems);
     }
 
@@ -65,18 +148,21 @@ pub(super) fn compile(builder: LanguageBuilder) -> Result<Language, Vec<Diagnost
     let (rules, mut exprs, externs) = (lowered.rules, lowered.exprs, lowered.externs);
     let mut warnings = Vec::new();
     for rule in externs.iter().filter(|rule| rule.first.is_empty()) {
-        warnings.push(to_fix(
-            warning(
-                "LM-G015",
-                format!(
-                    "the custom rule `{}` says nothing about how it starts, so it may start \
+        warnings.push(
+            to_fix(
+                warning(
+                    "LM-G015",
+                    format!(
+                        "the custom rule `{}` says nothing about how it starts, so it may start \
                      with anything",
-                    rule.name
+                        rule.name
+                    ),
                 ),
-            ),
-            "list the literals or tokens it can start with using `first`, so that choices \
+                "list the literals or tokens it can start with using `first`, so that choices \
              around it can be checked",
-        ));
+            )
+            .about(&rule.name),
+        );
     }
     if let Some(root) = numbering.root {
         let closers: Vec<SyntaxKind> = terminators
@@ -115,6 +201,8 @@ pub(super) fn compile(builder: LanguageBuilder) -> Result<Language, Vec<Diagnost
         apply(&mut nodes, output, &recovery);
     }
 
+    relocate(&builder, &mut problems);
+    relocate(&builder, &mut warnings);
     let schema = schema_of::infer(&declared.definitions, &rules);
     let failed = problems.iter().any(|e| e.severity == Severity::Error);
     match (lexer, numbering.root) {
@@ -154,6 +242,7 @@ fn declared_twice(name: &str) -> Diagnostic {
         error("LM-G011", format!("`{name}` is declared twice")),
         "rename one of the two",
     )
+    .about(name)
 }
 
 /// Names must be unique, whatever they name.
@@ -198,6 +287,7 @@ fn contextual_conflicts(builder: &LanguageBuilder) -> Vec<Diagnostic> {
                 ),
                 "keep one of the two",
             )
+            .about(word)
         })
         .collect()
 }
@@ -542,6 +632,35 @@ fn token_specs(builder: &LanguageBuilder, vocabulary: &Vocabulary<'_>) -> Vec<To
             let &kind = vocabulary.tokens.get(token.name.as_str())?;
             let name = described(&token.name);
             let mut spec = match &token.shape {
+                TokenShape::Strings {
+                    quotes,
+                    open,
+                    close,
+                    parts,
+                } => {
+                    let kind_of = |index: usize| vocabulary.tokens.get(parts[index].as_str());
+                    let (&start, &text, &end, &hole_open, &hole_close) = (
+                        kind_of(0)?,
+                        kind_of(1)?,
+                        kind_of(2)?,
+                        kind_of(3)?,
+                        kind_of(4)?,
+                    );
+                    let parts = StringParts {
+                        start,
+                        text,
+                        end,
+                        hole_open,
+                        hole_close,
+                    };
+                    let quotes = quotes.clone().interpolation(Interpolation::new(
+                        open.clone(),
+                        close.clone(),
+                        parts,
+                    ));
+                    TokenSpec::preset(kind, name, Preset::String(quotes))
+                }
+                TokenShape::Interpolated { .. } | TokenShape::Part => return None,
                 TokenShape::Regex(pattern) => TokenSpec::regex(kind, name, pattern.clone()),
                 TokenShape::Preset(preset) => TokenSpec::preset(kind, name, preset.clone()),
                 TokenShape::External(lex) => {
@@ -717,10 +836,15 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    fn undefined_name(&mut self, holder: &str, name: &str) {
+    fn undefined_name(&mut self, holder: &str, name: &str, place: Option<(FileId, TextRange)>) {
         let message = format!("`{holder}` uses `{name}`, which is not a rule or a token");
         let known = self.known.clone();
-        self.errors.push(undefined(message, name, &known));
+        let mut problem = undefined(message, name, &known).about(holder);
+        if let Some((file, range)) = place {
+            problem.file = file;
+            problem.range = range;
+        }
+        self.errors.push(problem);
     }
 
     fn lower(&mut self, holder: &str, pattern: &Pattern) -> NodeId {
@@ -749,7 +873,7 @@ impl<'a> Lowering<'a> {
                     None => match self.tokens.get(name.as_str()) {
                         Some(&kind) => Node::Token(kind),
                         None => {
-                            self.undefined_name(holder, name);
+                            self.undefined_name(holder, name, pattern.1);
                             Node::Missing
                         }
                     },
@@ -1030,7 +1154,8 @@ impl<'a> Lowering<'a> {
         for (rule, _) in &builder.recover {
             if !lowered.rules.iter().any(|declared| declared.name == *rule) {
                 let message = format!("`recover` names `{rule}`, which is not a rule");
-                self.errors.push(undefined(message, rule, &self.known));
+                self.errors
+                    .push(undefined(message, rule, &self.known).about(rule));
             }
         }
         lowered
@@ -1094,10 +1219,13 @@ impl<'a> Lowering<'a> {
                             "in `{}`, the postfix operator `{name}` does not start with a literal",
                             spec.name
                         );
-                        self.errors.push(to_fix(
-                            error("LM-G013", message),
-                            "start it with the symbol that marks the operator",
-                        ));
+                        self.errors.push(
+                            to_fix(
+                                error("LM-G013", message),
+                                "start it with the symbol that marks the operator",
+                            )
+                            .about(&spec.name),
+                        );
                         continue;
                     };
                     let body = self.lower(&spec.name, body);
@@ -1296,6 +1424,7 @@ fn unreachable_rules(input: &Input<'_>) -> Vec<Diagnostic> {
                 warning("LM-G006", format!("`{name}` is never used")),
                 "use it, or remove it",
             )
+            .about(name)
         })
         .collect()
 }

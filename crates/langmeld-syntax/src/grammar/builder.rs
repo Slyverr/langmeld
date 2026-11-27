@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::{Diagnostic, LexCursor, LexLimits, ParseLimits, Parser, Preset};
+use crate::{
+    Diagnostic, FileId, LexCursor, LexLimits, ParseLimits, Parser, Preset, StringPreset, TextRange,
+};
 
 use super::{Language, Pattern};
 
@@ -11,6 +13,23 @@ pub(crate) type ParseFn = dyn Fn(&mut Parser<'_>) + Send + Sync;
 
 #[derive(Clone)]
 pub(crate) enum TokenShape {
+    /// A string with holes, as declared; it becomes a rule and a lexer token.
+    Interpolated {
+        quotes: StringPreset,
+        open: String,
+        close: String,
+        content: String,
+    },
+    /// The token the lexer reads an interpolated string with, and the names of the
+    /// kinds it cuts the string into.
+    Strings {
+        quotes: StringPreset,
+        open: String,
+        close: String,
+        parts: Vec<String>,
+    },
+    /// A kind that only exists as a part of a string.
+    Part,
     Regex(String),
     Preset(Preset),
     External(Arc<LexFn>),
@@ -119,6 +138,27 @@ impl Token {
         lex: impl Fn(&mut LexCursor<'_>) -> Option<usize> + Send + Sync + 'static,
     ) -> Self {
         Self::new(name, TokenShape::External(Arc::new(lex)))
+    }
+
+    /// A string with holes between `open` and `close`, each parsed by the rule or
+    /// expression called `content`. Rules refer to it by `name`, which is the node of a
+    /// whole string: its quotes, its text and its holes with what they hold.
+    pub fn interpolated(
+        name: impl Into<String>,
+        quotes: StringPreset,
+        open: impl Into<String>,
+        close: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
+        Self::new(
+            name,
+            TokenShape::Interpolated {
+                quotes,
+                open: open.into(),
+                close: close.into(),
+                content: content.into(),
+            },
+        )
     }
 
     /// Marks the token as an identifier, so that reserved words are recognised among
@@ -479,6 +519,7 @@ pub struct LanguageBuilder {
     pub(crate) definitions: Vec<Definition>,
     pub(crate) root: Option<String>,
     pub(crate) descriptions: Vec<(String, String)>,
+    pub(crate) places: Vec<(String, (FileId, TextRange))>,
     pub(crate) lex_limits: LexLimits,
     pub(crate) parse_limits: ParseLimits,
 }
@@ -497,6 +538,7 @@ impl LanguageBuilder {
             definitions: Vec::new(),
             root: None,
             descriptions: Vec::new(),
+            places: Vec::new(),
             lex_limits: LexLimits::default(),
             parse_limits: ParseLimits::default(),
         }
@@ -865,6 +907,15 @@ impl LanguageBuilder {
     /// ```
     pub fn describe(mut self, rule: impl Into<String>, text: impl Into<String>) -> Self {
         self.descriptions.push((rule.into(), text.into()));
+        self
+    }
+
+    /// Records where the token, rule or expression called `name` was written, so that
+    /// problems with it point there. The language's own name stands for its header, where
+    /// problems with no more exact place point.
+    #[must_use]
+    pub fn locate(mut self, name: impl Into<String>, file: FileId, range: TextRange) -> Self {
+        self.places.push((name.into(), (file, range)));
         self
     }
 

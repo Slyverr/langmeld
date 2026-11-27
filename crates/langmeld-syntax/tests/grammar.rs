@@ -2007,3 +2007,114 @@ fn languages_and_lexers_can_be_printed() {
         "{shown}"
     );
 }
+
+mod places {
+    use langmeld_syntax::pattern::{lit, many, r};
+    use langmeld_syntax::{
+        FileId, IdentStyle, Language, Preset, SourceFile, StringPreset, TextRange, TextSize, Token,
+        parse, seq,
+    };
+
+    fn range(start: u32, end: u32) -> TextRange {
+        TextRange::new(TextSize::new(start), TextSize::new(end))
+    }
+
+    #[test]
+    fn a_problem_points_where_its_rule_was_written() {
+        let file = FileId::new(7);
+        let problems = Language::builder("Placed")
+            .token(Token::skip("space", r"\s+"))
+            .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+            .rule("File", many(r("Item")))
+            .locate("File", file, range(5, 9))
+            .rule("Item", seq![r("word"), many(r("word")), r("word")])
+            .locate("Item", file, range(20, 24))
+            .build()
+            .expect_err("the repetition collides with what follows it");
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert_eq!(problems[0].code, "LM-G004");
+        assert_eq!((problems[0].file, problems[0].range), (file, range(20, 24)));
+    }
+
+    #[test]
+    fn an_unknown_name_points_at_its_own_pattern() {
+        let file = FileId::new(3);
+        let problems = Language::builder("Placed")
+            .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+            .rule(
+                "File",
+                seq![lit("a"), r("Mising").located(file, range(30, 36))],
+            )
+            .locate("File", file, range(0, 4))
+            .build()
+            .expect_err("`Mising` is not declared");
+        assert_eq!(problems[0].code, "LM-G001");
+        assert_eq!((problems[0].file, problems[0].range), (file, range(30, 36)));
+    }
+
+    #[test]
+    fn problems_without_a_place_point_at_the_language_header() {
+        let file = FileId::new(1);
+        let warnings = Language::builder("Placed")
+            .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+            .rule("File", lit("a"))
+            .rule("Spare", lit("b"))
+            .locate("Placed", file, range(0, 6))
+            .build()
+            .expect("a warning only");
+        assert_eq!(warnings.warnings()[0].code, "LM-G006");
+        // The rule has no recorded place, so the header stands for it.
+        assert_eq!(warnings.warnings()[0].range, range(0, 6));
+    }
+
+    #[test]
+    fn interpolated_strings_hold_their_holes_as_expressions() {
+        let mut quotes = StringPreset::default();
+        quotes.double = true;
+        let language = Language::builder("Holes")
+            .token(Token::skip("space", r"\s+"))
+            .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+            .token(Token::interpolated("string", quotes, "{", "}", "Name"))
+            .rule("File", many(r("string")))
+            .rule("Name", r("word"))
+            .build()
+            .expect("the grammar is valid");
+        let source =
+            SourceFile::new(FileId::new(0), "x", "\"a {b} c\" \"\" \"{d}{e}\"").expect("small");
+        let parsed = parse(&language, &source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        assert_eq!(parsed.syntax().text(), source.text());
+        let strings: Vec<_> = parsed.syntax().children().collect();
+        assert_eq!(strings.len(), 3);
+        assert_eq!(language.kind_name(strings[0].kind()), "string");
+        let names = strings[2]
+            .children()
+            .filter(|node| language.kind_name(node.kind()) == "Name")
+            .count();
+        assert_eq!(names, 2);
+        // A hole that is not an expression is one mistake.
+        let broken = SourceFile::new(FileId::new(0), "x", "\"a {1} c\"").expect("small");
+        assert_eq!(parse(&language, &broken).diagnostics.len(), 1);
+    }
+
+    #[test]
+    fn lookahead_lists_the_choices_that_need_more_than_one_token() {
+        let language = Language::builder("Ahead")
+            .token(Token::skip("space", r"\s+"))
+            .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+            .rule("File", many(r("Item")))
+            .rule("Item", langmeld_syntax::choice![r("Call"), r("Pair")])
+            .rule("Call", seq![r("word"), lit("(")])
+            .rule("Pair", seq![r("word"), lit(":")])
+            .build()
+            .expect("the grammar is valid");
+        let ahead = language.lookahead();
+        assert_eq!(ahead.len(), 1, "{ahead:?}");
+        assert_eq!(
+            (ahead[0].rule.as_str(), ahead[0].starts.as_str()),
+            ("Item", "word")
+        );
+        assert_eq!(ahead[0].tokens, 2);
+        assert_eq!(language.max_lookahead(), 2);
+    }
+}

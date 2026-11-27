@@ -13,9 +13,25 @@
 //! ];
 //! ```
 
+use crate::{FileId, TextRange};
+
 /// A part of a rule. Build it with the functions of [`pattern`](self).
 #[derive(Clone, Debug)]
-pub struct Pattern(pub(crate) Shape);
+pub struct Pattern(pub(crate) Shape, pub(crate) Option<(FileId, TextRange)>);
+
+impl Pattern {
+    /// Records where this part was written, so that a problem with a name it uses points
+    /// there.
+    #[must_use]
+    pub fn located(mut self, file: FileId, range: TextRange) -> Self {
+        self.1 = Some((file, range));
+        self
+    }
+}
+
+fn new(shape: Shape) -> Pattern {
+    Pattern(shape, None)
+}
 
 #[derive(Clone, Debug)]
 pub(crate) enum Shape {
@@ -58,7 +74,7 @@ pub(crate) enum Shape {
 /// assert_eq!(problems("go go"), 0);
 /// ```
 pub fn lit(text: impl Into<String>) -> Pattern {
-    Pattern(Shape::Literal(text.into()))
+    new(Shape::Literal(text.into()))
 }
 
 /// The rule or token called `name`.
@@ -82,7 +98,7 @@ pub fn lit(text: impl Into<String>) -> Pattern {
 /// assert_eq!(problems("1 x"), 1);
 /// ```
 pub fn r(name: impl Into<String>) -> Pattern {
-    Pattern(Shape::Reference(name.into()))
+    new(Shape::Reference(name.into()))
 }
 
 /// One part after another. [`seq!`](crate::seq) is shorter to write.
@@ -105,7 +121,7 @@ pub fn r(name: impl Into<String>) -> Pattern {
 /// assert_eq!(problems("a c"), 1);
 /// ```
 pub fn seq(parts: impl IntoIterator<Item = Pattern>) -> Pattern {
-    Pattern(Shape::Sequence(parts.into_iter().collect()))
+    new(Shape::Sequence(parts.into_iter().collect()))
 }
 
 /// One of several parts, told apart by the tokens that come next.
@@ -129,7 +145,7 @@ pub fn seq(parts: impl IntoIterator<Item = Pattern>) -> Pattern {
 /// assert_eq!(problems("c"), 1);
 /// ```
 pub fn choice(alternatives: impl IntoIterator<Item = Pattern>) -> Pattern {
-    Pattern(Shape::Choice(alternatives.into_iter().collect()))
+    new(Shape::Choice(alternatives.into_iter().collect()))
 }
 
 /// The part, or nothing.
@@ -152,7 +168,7 @@ pub fn choice(alternatives: impl IntoIterator<Item = Pattern>) -> Pattern {
 /// assert_eq!(problems("a c"), 1);
 /// ```
 pub fn opt(part: Pattern) -> Pattern {
-    Pattern(Shape::Optional(Box::new(part)))
+    new(Shape::Optional(Box::new(part)))
 }
 
 /// The part any number of times.
@@ -175,7 +191,7 @@ pub fn opt(part: Pattern) -> Pattern {
 /// assert_eq!(problems("b"), 1);
 /// ```
 pub fn many(part: Pattern) -> Pattern {
-    Pattern(Shape::Many(Box::new(part)))
+    new(Shape::Many(Box::new(part)))
 }
 
 /// The part once or more.
@@ -197,7 +213,7 @@ pub fn many(part: Pattern) -> Pattern {
 /// assert_eq!(problems("a a"), 0);
 /// ```
 pub fn many1(part: Pattern) -> Pattern {
-    Pattern(Shape::Many1(Box::new(part)))
+    new(Shape::Many1(Box::new(part)))
 }
 
 /// Any number of items with `separator` between them, and possibly after the last.
@@ -221,7 +237,7 @@ pub fn many1(part: Pattern) -> Pattern {
 /// assert_eq!(problems("[1 2]"), 1);
 /// ```
 pub fn sep(item: Pattern, separator: impl Into<String>) -> Pattern {
-    Pattern(Shape::Separated {
+    new(Shape::Separated {
         item: Box::new(item),
         separator: separator.into(),
         strict: false,
@@ -249,7 +265,7 @@ pub fn sep(item: Pattern, separator: impl Into<String>) -> Pattern {
 /// assert_eq!(problems("[1, 2,]"), 1);
 /// ```
 pub fn sep_strict(item: Pattern, separator: impl Into<String>) -> Pattern {
-    Pattern(Shape::Separated {
+    new(Shape::Separated {
         item: Box::new(item),
         separator: separator.into(),
         strict: true,
@@ -279,7 +295,7 @@ pub fn sep_strict(item: Pattern, separator: impl Into<String>) -> Pattern {
 /// assert_eq!(problems("go go"), 1);
 /// ```
 pub fn terminated(part: Pattern) -> Pattern {
-    Pattern(Shape::Terminated(Box::new(part)))
+    new(Shape::Terminated(Box::new(part)))
 }
 
 /// Names a part, so that the tree's typed view can offer it.
@@ -303,7 +319,7 @@ pub fn terminated(part: Pattern) -> Pattern {
 /// assert_eq!(problems("let"), 1);
 /// ```
 pub fn field(name: impl Into<String>, part: Pattern) -> Pattern {
-    Pattern(Shape::Field(name.into(), Box::new(part)))
+    new(Shape::Field(name.into(), Box::new(part)))
 }
 
 /// Requires that the part comes next, without taking it.
@@ -326,7 +342,7 @@ pub fn field(name: impl Into<String>, part: Pattern) -> Pattern {
 /// assert_eq!(problems("a a"), 1);
 /// ```
 pub fn look(part: Pattern) -> Pattern {
-    Pattern(Shape::Look(Box::new(part)))
+    new(Shape::Look(Box::new(part)))
 }
 
 /// Requires that the part does not come next.
@@ -348,7 +364,7 @@ pub fn look(part: Pattern) -> Pattern {
 /// assert_eq!(problems("b"), 0);
 /// ```
 pub fn not(part: Pattern) -> Pattern {
-    Pattern(Shape::Not(Box::new(part)))
+    new(Shape::Not(Box::new(part)))
 }
 
 /// Parses the part if that works without errors, and otherwise goes on as if it had
@@ -372,5 +388,5 @@ pub fn not(part: Pattern) -> Pattern {
 /// assert_eq!(problems("a d"), 1);
 /// ```
 pub fn attempt(part: Pattern) -> Pattern {
-    Pattern(Shape::Attempt(Box::new(part)))
+    new(Shape::Attempt(Box::new(part)))
 }
