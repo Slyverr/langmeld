@@ -730,7 +730,7 @@ fn broken_patterns_are_refused() {
         "{errors:?}"
     );
     assert!(
-        errors[0].ends_with(" [To fix this, check the regular expression.]"),
+        errors[0].contains("an invalid pattern: unclosed group [To fix"),
         "{errors:?}"
     );
 
@@ -829,5 +829,32 @@ fn any_short_text_can_be_lexed() {
                 lex(lexer, &text);
             }
         }
+    }
+}
+
+#[test]
+fn an_empty_interpolation_delimiter_is_refused() {
+    use langmeld_syntax::{Interpolation, StringParts};
+    let parts = StringParts {
+        start: STR_START,
+        text: STR_TEXT,
+        end: STR_END,
+        hole_open: HOLE_OPEN,
+        hole_close: HOLE_CLOSE,
+    };
+    let fix = "To fix this, require at least one character, for example with `+` instead of `*`.";
+    for (open, close) in [("", "}"), ("${", ""), ("", "")] {
+        let preset = double_quoted().interpolation(Interpolation::new(open, close, parts));
+        assert_eq!(
+            definition_errors(vec![TokenSpec::preset(
+                STRING,
+                "string",
+                Preset::String(preset)
+            )]),
+            [format!(
+                "LM-G007 token `string` can match empty text [{fix}]"
+            )],
+            "{open:?} {close:?}"
+        );
     }
 }

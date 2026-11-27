@@ -426,6 +426,59 @@ mod tests {
     }
 
     #[test]
+    fn a_kind_declared_twice_has_what_either_declaration_has() {
+        const K: SyntaxKind = SyntaxKind(9);
+        let specs = [
+            TokenSpec::line_comment(K, "//"),
+            TokenSpec::keyword(K, "kw"),
+            TokenSpec::preset(K, "name", Preset::Ident(IdentStyle::Ascii)),
+            TokenSpec::line_comment(K, "///").doc(),
+        ];
+        let kinds = Kinds::of(&specs);
+        let info = kinds.get(K).expect("declared");
+        assert!(info.keyword && info.identifier && info.doc_comment);
+        assert_eq!(info.spec, 0);
+    }
+
+    #[test]
+    fn the_parts_of_an_interpolated_string_have_names() {
+        let parts = StringParts {
+            start: SyntaxKind(20),
+            text: SyntaxKind(21),
+            end: SyntaxKind(22),
+            hole_open: SyntaxKind(23),
+            hole_close: SyntaxKind(24),
+        };
+        let preset = StringPreset::default()
+            .double(true)
+            .interpolation(Interpolation::new("${", "}", parts));
+        let lexer = Lexer::builder()
+            .token(TokenSpec::preset(
+                NAME,
+                "identifier",
+                Preset::Ident(IdentStyle::Ascii),
+            ))
+            .token(TokenSpec::preset(
+                SyntaxKind(20),
+                "string",
+                Preset::String(preset),
+            ))
+            .build()
+            .expect("the declarations are valid");
+        let described: Vec<_> = (20..=24).map(|n| lexer.describe(SyntaxKind(n))).collect();
+        assert_eq!(
+            described,
+            ["string", "string text", "closing quote", "`${`", "`}`"]
+        );
+        assert_eq!(lexer.describe(NAME), "identifier");
+    }
+
+    #[test]
+    fn a_lexer_prints_its_tokens() {
+        assert!(format!("{:?}", lexer()).starts_with("Lexer { tokens: [\"identifier\", \"let\""));
+    }
+
+    #[test]
     fn keywords_are_found_among_many() {
         let words = ["zeta", "alpha", "mid", "beta", "omega"];
         let mut builder = Lexer::builder().token(TokenSpec::preset(
