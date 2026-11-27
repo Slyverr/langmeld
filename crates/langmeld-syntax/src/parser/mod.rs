@@ -10,6 +10,32 @@ use crate::{Diagnostic, FileId, Lexed, Lexeme, Lexer, SourceFile, SyntaxKind, Sy
 
 pub use builder::TreeBuilder;
 
+/// Rules that a parser can call by name, so that code of the language's own can use
+/// rules declared elsewhere.
+pub(crate) trait Rules {
+    /// Parses the rule called `name`. Returns whether there is one.
+    fn parse(&self, name: &str, parser: &mut Parser<'_>) -> bool;
+
+    /// The kind of the node called `name`.
+    fn kind(&self, name: &str) -> Option<SyntaxKind>;
+}
+
+/// What a speculative parse has to restore if it fails. It holds numbers only, so
+/// that starting one allocates nothing.
+struct Checkpoint {
+    at: usize,
+    events: usize,
+    open: usize,
+    /// Height of the innermost open node.
+    height: u32,
+    wrapped: usize,
+    expected: usize,
+    expected_base: usize,
+    recovering: bool,
+    tree_too_deep: bool,
+    fuel: u32,
+}
+
 /// How often a parser may look ahead without taking a token before it is considered
 /// stuck. A loop that never takes a token gets here quickly; in a debug build that
 /// is an assertion failure, and otherwise the parser stops with a diagnostic.
@@ -183,6 +209,9 @@ impl CompletedMarker {
         if let Some(event) = self.event {
             if let Some(Event::Start { wrapper, .. }) = parser.events.get_mut(event) {
                 *wrapper = Some(marker.event);
+                if parser.speculating > 0 {
+                    parser.wrapped.push(event);
+                }
             }
             if let Some(open) = parser.open.last_mut() {
                 open.height = self.height;
@@ -249,13 +278,28 @@ pub struct Parser<'a> {
     diagnostics: Vec<Diagnostic>,
     /// Set after an error, until a token is taken as expected.
     recovering: bool,
-    /// Kinds asked for at the current token.
+    /// Kinds asked for at the current token are `expected[expected_base..]`. Outside
+    /// of speculation, taking a token clears the list; inside it, the part before
+    /// `expected_base` is kept for a failed attempt to restore.
     expected: Vec<SyntaxKind>,
+    expected_base: usize,
     fuel: u32,
     /// Set when a limit was reached: the parser then only sees the end of the file.
     halted: bool,
     tree_too_deep: bool,
     limits: ParseLimits,
+    rules: Option<&'a dyn Rules>,
+    /// Calls of rules by name under way.
+    calls: u32,
+    /// Attempts and lookaheads under way. While there are any, a problem is only
+    /// noted as a failure: no message is made.
+    speculating: u32,
+    /// Whether the innermost speculation met a problem.
+    failed: bool,
+    /// Events given a wrapper during speculation.
+    wrapped: Vec<usize>,
+    /// Tokens that failed attempts may still read again.
+    backtracking: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -281,11 +325,19 @@ impl<'a> Parser<'a> {
             diagnostics: lexed.diagnostics,
             recovering: false,
             expected: Vec::new(),
+            expected_base: 0,
             fuel: FUEL,
             halted: false,
             tree_too_deep: false,
             limits: ParseLimits::default(),
+            rules: None,
+            calls: 0,
+            speculating: 0,
+            failed: false,
+            wrapped: Vec::new(),
+            backtracking: 0,
         };
+        parser.backtracking = parser.visible.len().saturating_mul(64) + 1024;
         parser.recovering = parser.follows_unknown_text();
         parser
     }
@@ -294,6 +346,213 @@ impl<'a> Parser<'a> {
     pub fn limits(mut self, limits: ParseLimits) -> Self {
         self.limits = limits;
         self
+    }
+
+    /// Lets [`rule`](Self::rule) and [`kind_of`](Self::kind_of) use these rules.
+    pub(crate) fn rules(mut self, rules: &'a dyn Rules) -> Self {
+        self.rules = Some(rules);
+        self
+    }
+
+    /// Parses the rule that a grammar declares as `name`, from code of your own. Returns
+    /// false if there is no such rule, or if rules called this way are nested more
+    /// deeply than [`ParseLimits::max_depth`]. A rule that is under way at this very
+    /// token is not started again, so code that calls its own caller cannot loop.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, many, r};
+    /// use langmeld_syntax::{ExternRule, FileId, IdentStyle, Language, Preset, SourceFile, Token};
+    ///
+    /// // `Couple` is parsed by code of our own, which hands the names to the rule `Name`.
+    /// let language = Language::builder("Pairs")
+    ///     .token(Token::skip("space", r"\s+"))
+    ///     .token(Token::preset("word", Preset::Ident(IdentStyle::Xid)))
+    ///     .rule("File", many(r("Couple")))
+    ///     .rule("Name", r("word"))
+    ///     .extern_rule(
+    ///         ExternRule::new("Couple", |p| {
+    ///             let pair = p.start();
+    ///             p.rule("Name");
+    ///             p.rule("Name");
+    ///             let kind = p.kind_of("Pair");
+    ///             pair.complete(p, kind);
+    ///         })
+    ///         .first(["word"])
+    ///         .produces(["Pair"]),
+    ///     )
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// let file = SourceFile::new(FileId::new(0), "example", "a b c d")?;
+    /// let parse = langmeld_syntax::parse(&language, &file);
+    /// assert!(parse.diagnostics.is_empty());
+    /// assert_eq!(parse.syntax().children().count(), 2);
+    /// # Ok::<(), langmeld_syntax::TextTooLarge>(())
+    /// ```
+    pub fn rule(&mut self, name: &str) -> bool {
+        let Some(rules) = self.rules else {
+            return false;
+        };
+        if self.calls >= self.limits.max_depth {
+            let limit = self.limits.max_depth;
+            self.halt("LM-P003", || too_deep(limit));
+            return false;
+        }
+        self.calls += 1;
+        let found = rules.parse(name, self);
+        self.calls -= 1;
+        found
+    }
+
+    /// The kind of the node or token that a grammar declares as `name`, or
+    /// [`SyntaxKind::ERROR`] if there is none. Without a grammar there never is.
+    pub fn kind_of(&self, name: &str) -> SyntaxKind {
+        self.rules
+            .and_then(|rules| rules.kind(name))
+            .unwrap_or(SyntaxKind::ERROR)
+    }
+
+    /// Tries to parse something, and undoes it if that reports a problem. Returns
+    /// whether it was kept.
+    ///
+    /// While the attempt runs, a problem is only noted as a failure: nothing is
+    /// allocated and no message is made, and the parser sees the end of the file from
+    /// then on, so the attempt ends quickly. Trying again and again costs time, so the
+    /// total is limited.
+    ///
+    /// ```
+    /// use langmeld_syntax::{
+    ///     FileId, IdentStyle, Lexer, Parser, Preset, SourceFile, SyntaxKind, TokenSpec,
+    /// };
+    ///
+    /// const NAME: SyntaxKind = SyntaxKind(1);
+    /// const COLON: SyntaxKind = SyntaxKind(2);
+    /// const FILE: SyntaxKind = SyntaxKind(3);
+    /// const SPACE: SyntaxKind = SyntaxKind(4);
+    ///
+    /// let lexer = Lexer::builder()
+    ///     .token(TokenSpec::preset(NAME, "name", Preset::Ident(IdentStyle::Ascii)))
+    ///     .token(TokenSpec::punct(COLON, ":"))
+    ///     .token(TokenSpec::regex(SPACE, "space", " +").skip())
+    ///     .build()
+    ///     .expect("the declarations are valid");
+    /// let file = SourceFile::new(FileId::new(0), "example", "a b")?;
+    /// let mut p = Parser::new(&file, lexer.lex(&file), &lexer);
+    /// let root = p.start();
+    /// // `a` is not followed by `:`, so nothing is taken and nothing is reported.
+    /// let kept = p.attempt(|p| {
+    ///     p.expect(NAME);
+    ///     p.expect(COLON);
+    /// });
+    /// assert!(!kept);
+    /// assert_eq!(p.current(), NAME);
+    /// while !p.at_end() {
+    ///     p.bump();
+    /// }
+    /// root.complete(&mut p, FILE);
+    /// assert!(p.finish().diagnostics.is_empty());
+    /// # Ok::<(), langmeld_syntax::TextTooLarge>(())
+    /// ```
+    pub fn attempt(&mut self, parse: impl FnOnce(&mut Self)) -> bool {
+        if self.cannot_speculate() {
+            return false;
+        }
+        let checkpoint = self.checkpoint();
+        let failed = self.speculate(parse);
+        // A limit reached during the attempt stays reached.
+        if failed && !self.halted {
+            self.rewind(checkpoint);
+        } else if self.at == checkpoint.at {
+            self.recovering = checkpoint.recovering;
+        }
+        self.end_speculation();
+        !failed
+    }
+
+    /// Whether something could be parsed here. Takes nothing, and like
+    /// [`attempt`](Self::attempt) reports nothing.
+    pub fn lookahead(&mut self, parse: impl FnOnce(&mut Self)) -> bool {
+        if self.cannot_speculate() {
+            return false;
+        }
+        let checkpoint = self.checkpoint();
+        let failed = self.speculate(parse);
+        if !self.halted {
+            self.rewind(checkpoint);
+        }
+        self.end_speculation();
+        !failed
+    }
+
+    /// Takes the current token without treating it as part of what was expected, as
+    /// for a line ending that a rule has no use for. Errors held back stay so.
+    pub fn bump_skipped(&mut self) {
+        self.take_unexpected();
+    }
+
+    /// Whether a speculation would be pointless: the parser is stopped, or what is
+    /// being tried has failed already.
+    fn cannot_speculate(&self) -> bool {
+        self.halted || (self.speculating > 0 && self.failed)
+    }
+
+    fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            at: self.at,
+            events: self.events.len(),
+            open: self.open.len(),
+            height: self.open.last().map_or(0, |open| open.height),
+            wrapped: self.wrapped.len(),
+            expected: self.expected.len(),
+            expected_base: self.expected_base,
+            recovering: self.recovering,
+            tree_too_deep: self.tree_too_deep,
+            fuel: self.fuel,
+        }
+    }
+
+    /// Runs `parse` noting problems as a failure. Returns whether it failed, and
+    /// leaves the failure of whatever surrounds it as it was.
+    fn speculate(&mut self, parse: impl FnOnce(&mut Self)) -> bool {
+        let outer = std::mem::replace(&mut self.failed, false);
+        // Problems must show, or the attempt would seem to succeed.
+        self.recovering = false;
+        self.speculating += 1;
+        parse(self);
+        self.speculating -= 1;
+        std::mem::replace(&mut self.failed, outer)
+    }
+
+    fn end_speculation(&mut self) {
+        if self.speculating == 0 {
+            self.wrapped.clear();
+        }
+    }
+
+    fn rewind(&mut self, checkpoint: Checkpoint) {
+        let taken = self.at.saturating_sub(checkpoint.at);
+        self.at = checkpoint.at;
+        self.events.truncate(checkpoint.events);
+        for event in self.wrapped.drain(checkpoint.wrapped..) {
+            if let Some(Event::Start { wrapper, .. }) = self.events.get_mut(event) {
+                *wrapper = None;
+            }
+        }
+        self.open.truncate(checkpoint.open);
+        if let Some(open) = self.open.last_mut() {
+            open.height = checkpoint.height;
+        }
+        self.expected.truncate(checkpoint.expected);
+        self.expected_base = checkpoint.expected_base;
+        self.recovering = checkpoint.recovering;
+        self.tree_too_deep = checkpoint.tree_too_deep;
+        // Each rewind costs a step, so that endless retrying is caught.
+        self.fuel = checkpoint.fuel.saturating_sub(1);
+        match self.backtracking.checked_sub(taken) {
+            Some(left) => self.backtracking = left,
+            None => self.halt("LM-P007", || {
+                "this needs too much backtracking to parse".to_owned()
+            }),
+        }
     }
 
     /// Starts a node at the current token.
@@ -333,18 +592,29 @@ impl<'a> Parser<'a> {
                 });
             }
         }
-        if self.halted {
+        // What is being tried has failed: let it run out quickly.
+        if self.halted || (self.speculating > 0 && self.failed) {
             return SyntaxKind::EOF;
         }
         self.token_at(n).map_or(SyntaxKind::EOF, |token| token.kind)
+    }
+
+    /// The text of the token `n` places after the current one, or nothing past the end.
+    pub fn nth_text(&mut self, n: usize) -> &'a str {
+        if self.nth(n) == SyntaxKind::EOF {
+            return "";
+        }
+        self.token_at(n)
+            .map(|token| token.range)
+            .map_or("", |range| self.slice(range))
     }
 
     /// Whether the current token is of `kind`. If it is not, a later error can say
     /// that `kind` was expected.
     pub fn at(&mut self, kind: SyntaxKind) -> bool {
         let found = self.current() == kind;
-        if !found && !self.expected.contains(&kind) {
-            self.expected.push(kind);
+        if !found {
+            self.note_expected(kind);
         }
         found
     }
@@ -378,8 +648,8 @@ impl<'a> Parser<'a> {
         };
         let current = self.current();
         let found = self.lexer.is_identifier(current) && self.current_text() == word;
-        if !found && !self.expected.contains(&kind) {
-            self.expected.push(kind);
+        if !found {
+            self.note_expected(kind);
         }
         found
     }
@@ -444,6 +714,9 @@ impl<'a> Parser<'a> {
         if self.eat(kind) {
             return true;
         }
+        if self.fail_speculation() {
+            return false;
+        }
         let current = self.current();
         if self.lexer.is_identifier(kind) && self.lexer.is_keyword(current) && !self.on_new_line() {
             if !self.recovering {
@@ -466,7 +739,7 @@ impl<'a> Parser<'a> {
     /// Reports that something else was expected, listing every kind asked for at the
     /// current token.
     pub fn error_expected(&mut self) {
-        if self.recovering {
+        if self.fail_speculation() || self.recovering {
             return;
         }
         let names: Vec<_> = self
@@ -484,8 +757,9 @@ impl<'a> Parser<'a> {
 
     /// Reports "expected `what`, found …" for the current token.
     pub fn expected(&mut self, what: &str) {
-        // While an earlier error is being held against this one, build no message.
-        if self.recovering {
+        // While an earlier error is being held against this one, or the parser is only
+        // trying, build no message.
+        if self.fail_speculation() || self.recovering {
             return;
         }
         let message = format!("expected {what}, found {}", self.found());
@@ -499,32 +773,85 @@ impl<'a> Parser<'a> {
 
     /// Reports a problem of the language's own at the current token.
     pub fn error(&mut self, code: &'static str, message: impl Into<String>) {
-        if self.recovering {
+        self.error_with(code, || message.into());
+    }
+
+    /// As [`error`](Self::error), making the message only if it is wanted.
+    pub(crate) fn error_with(&mut self, code: &'static str, message: impl FnOnce() -> String) {
+        if self.fail_speculation() || self.recovering {
             return;
         }
         let range = self.current_range();
-        self.report(code, range, message.into());
+        self.report(code, range, message());
+    }
+
+    /// As [`expected`](Self::expected), making the description only if it is wanted.
+    pub(crate) fn expected_with(&mut self, what: impl FnOnce() -> String) {
+        if self.fail_speculation() || self.recovering {
+            return;
+        }
+        let what = what();
+        self.expected(&what);
     }
 
     /// Reports that `what` was expected, then puts tokens into an
     /// [`SyntaxKind::ERROR`] node until one of the `recovery` kinds or the end.
+    /// A contextual word among them is found where an identifier has its text.
     ///
     /// If the current token is already one of them, nothing is taken, so a loop must
     /// handle those kinds itself.
     pub fn recover(&mut self, what: &str, recovery: &[SyntaxKind]) {
-        if !self.recovering {
+        self.recover_until(what, |p| p.can_resume(recovery));
+    }
+
+    /// As [`recover`](Self::recover), for a set of kinds that `resume` tests, so that
+    /// a language with many kinds need not list them.
+    pub(crate) fn recover_until(&mut self, what: &str, mut resume: impl FnMut(&mut Self) -> bool) {
+        if !self.fail_speculation() && !self.recovering {
             let message = format!("expected {what}, found {}", self.found());
             let range = self.current_range();
             self.report("LM-P001", range, message);
         }
-        if self.at_end() || recovery.contains(&self.current()) {
+        if self.at_end() || resume(self) {
             return;
         }
         let skipped = self.start();
-        while !self.at_end() && !recovery.contains(&self.current()) {
+        while !self.at_end() && !resume(self) {
             self.take_unexpected();
         }
         skipped.complete(self, SyntaxKind::ERROR);
+    }
+
+    /// Whether the current token is one that recovery stops at.
+    fn can_resume(&mut self, recovery: &[SyntaxKind]) -> bool {
+        let current = self.current();
+        if recovery.contains(&current) {
+            return true;
+        }
+        if !self.lexer.is_identifier(current) {
+            return false;
+        }
+        let (lexer, text) = (self.lexer, self.current_text());
+        recovery
+            .iter()
+            .any(|&kind| lexer.contextual_text(kind) == Some(text))
+    }
+
+    /// Notes that a kind was asked for at the current token.
+    fn note_expected(&mut self, kind: SyntaxKind) {
+        if !self.expected[self.expected_base..].contains(&kind) {
+            self.expected.push(kind);
+        }
+    }
+
+    /// While trying something, a problem is no more than a failure. Returns whether
+    /// the parser is trying.
+    fn fail_speculation(&mut self) -> bool {
+        let trying = self.speculating > 0;
+        if trying {
+            self.failed = true;
+        }
+        trying
     }
 
     /// Whether a line ends between the previous token and the current one.
@@ -598,7 +925,9 @@ impl<'a> Parser<'a> {
         };
         let mut node_height = height + 1;
         if node_height > self.limits.max_tree_depth {
-            if !self.tree_too_deep {
+            if self.fail_speculation() {
+                // Something that is only being tried does not fit.
+            } else if !self.tree_too_deep {
                 self.tree_too_deep = true;
                 let range = self.current_range();
                 let message = too_deep(self.limits.max_tree_depth);
@@ -656,7 +985,12 @@ impl<'a> Parser<'a> {
     fn advance(&mut self, kind: SyntaxKind, count: usize) {
         self.events.push(Event::Token { kind, count });
         self.at += count;
-        self.expected.clear();
+        if self.speculating == 0 {
+            self.expected.clear();
+            self.expected_base = 0;
+        } else {
+            self.expected_base = self.expected.len();
+        }
         self.fuel = FUEL;
     }
 
@@ -711,7 +1045,7 @@ impl<'a> Parser<'a> {
     }
 
     fn report(&mut self, code: &'static str, range: TextRange, message: String) {
-        if !self.recovering {
+        if !self.fail_speculation() && !self.recovering {
             self.recovering = true;
             self.push_diagnostic(code, range, message);
         }

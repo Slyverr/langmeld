@@ -612,6 +612,232 @@ fn the_tree_builder_can_be_driven_directly() {
     assert_eq!(root.text().to_string(), text);
 }
 
+/// `( name* )` read as a parameter list only if `->` follows; otherwise a group.
+fn arrow_or_group(p: &mut Parser<'_>) {
+    let file = p.start();
+    let arrow = p.attempt(|p| {
+        let m = p.start();
+        p.expect(L_PAREN);
+        while p.eat(IDENT) {}
+        p.expect(R_PAREN);
+        p.expect(ARROW);
+        name(p, NAME);
+        m.complete(p, CALL);
+    });
+    if !arrow {
+        let m = p.start();
+        p.expect(L_PAREN);
+        expression(p);
+        p.expect(R_PAREN);
+        m.complete(p, PAREN);
+    }
+    file.complete(p, FILE);
+}
+
+#[test]
+fn a_successful_attempt_is_kept() {
+    let parse = parse_with("(a b) -> c", None, arrow_or_group);
+    assert!(parse.diagnostics.is_empty());
+    assert_eq!(shape(&parse.syntax()), "(FILE (CALL ( a b ) -> (NAME c)))");
+}
+
+#[test]
+fn a_failed_attempt_leaves_no_trace() {
+    let parse = parse_with("(a + b)", None, arrow_or_group);
+    assert!(parse.diagnostics.is_empty(), "{:?}", parse.diagnostics);
+    assert_eq!(
+        shape(&parse.syntax()),
+        "(FILE (PAREN ( (BINARY (NAME_REF a) + (NAME_REF b)) )))"
+    );
+}
+
+#[test]
+fn errors_after_a_failed_attempt_are_reported() {
+    let parse = parse_with("(1 +", None, arrow_or_group);
+    assert_eq!(
+        problems(&parse.diagnostics),
+        ["LM-P001 4..4 expected an expression, found end of file"]
+    );
+}
+
+#[test]
+fn a_failed_attempt_does_not_change_what_a_later_error_lists() {
+    fn grammar(p: &mut Parser<'_>) {
+        let m = p.start();
+        p.at(SEMI);
+        // Asks for more kinds, takes a token, then fails.
+        assert!(!p.attempt(|p| {
+            p.at(COMMA);
+            p.bump();
+            p.expect(COLON);
+        }));
+        p.at(R_PAREN);
+        p.error_expected();
+        while !p.at_end() {
+            p.bump();
+        }
+        m.complete(p, FILE);
+    }
+    let parse = parse_with("a b", None, grammar);
+    assert_eq!(
+        problems(&parse.diagnostics),
+        ["LM-P001 0..1 expected `;` or `)`, found `a`"]
+    );
+}
+
+#[test]
+fn attempts_nest_and_an_inner_failure_does_not_fail_the_outer_one() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        let kept = p.attempt(|p| {
+            let inner = p.attempt(|p| {
+                p.expect(L_PAREN);
+                p.expect(SEMI);
+            });
+            assert!(!inner);
+            p.expect(L_PAREN);
+            p.expect(IDENT);
+            p.expect(R_PAREN);
+        });
+        assert!(kept);
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    let parse = parse_with("(a)", None, grammar);
+    assert!(parse.diagnostics.is_empty(), "{:?}", parse.diagnostics);
+}
+
+#[test]
+fn an_attempt_can_undo_a_wrapped_node() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        let m = p.start();
+        p.bump();
+        let done = m.complete(p, LITERAL);
+        // Wraps the finished literal, then gives up.
+        assert!(!p.attempt(|p| {
+            let wrapper = done.precede(p);
+            p.bump();
+            p.expect(SEMI);
+            wrapper.complete(p, BINARY);
+        }));
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    let parse = parse_with("1 + 2", None, grammar);
+    assert!(parse.diagnostics.is_empty());
+    assert_eq!(shape(&parse.syntax()), "(FILE (LITERAL 1) + 2)");
+}
+
+#[test]
+fn looking_ahead_takes_nothing() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        assert!(p.lookahead(|p| {
+            p.expect(IDENT);
+            p.expect(EQ);
+        }));
+        assert!(!p.lookahead(|p| {
+            p.expect(IDENT);
+            p.expect(SEMI);
+        }));
+        assert_eq!(p.current(), IDENT);
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    let parse = parse_with("a = b", None, grammar);
+    assert!(parse.diagnostics.is_empty());
+}
+
+#[test]
+fn the_text_of_a_token_ahead_can_be_read() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        assert_eq!(p.nth_text(0), "a");
+        assert_eq!(p.nth_text(2), "b");
+        assert_eq!(p.nth_text(9), "");
+        while !p.at_end() {
+            p.bump();
+        }
+        assert_eq!(p.nth_text(0), "");
+        file.complete(p, FILE);
+    }
+    assert!(parse_with("a = b", None, grammar).diagnostics.is_empty());
+}
+
+#[test]
+fn a_token_can_be_passed_over_without_ending_recovery() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        p.expect(SEMI);
+        p.bump_skipped();
+        // Still the same mistake.
+        p.expect(SEMI);
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    assert_eq!(parse_with("a b", None, grammar).diagnostics.len(), 1);
+}
+
+#[test]
+fn recovery_stops_at_a_contextual_word() {
+    fn grammar(p: &mut Parser<'_>) {
+        let m = p.start();
+        p.recover("a statement", &[FROM_KW]);
+        assert!(p.at_contextual(FROM_KW));
+        p.bump();
+        m.complete(p, FILE);
+    }
+    let parsed = parse_with("1 here from", None, grammar);
+    assert_eq!(parsed.diagnostics.len(), 1);
+}
+
+#[test]
+fn trying_again_and_again_is_limited() {
+    // Every attempt reads far ahead and fails, so reading is repeated without end.
+    fn grammar(p: &mut Parser<'_>) {
+        let m = p.start();
+        while !p.at_end() {
+            if !p.attempt(|p| {
+                while p.eat(INT) {}
+                p.expect(SEMI);
+            }) {
+                p.bump();
+            }
+        }
+        m.complete(p, FILE);
+    }
+    let text = "1 ".repeat(20_000);
+    let parse = parse_with(&text, None, grammar);
+    assert!(
+        parse.diagnostics.iter().any(|d| d.code == "LM-P007"),
+        "{:?}",
+        parse.diagnostics
+    );
+}
+
+#[test]
+fn rules_cannot_be_called_without_a_grammar() {
+    fn grammar(p: &mut Parser<'_>) {
+        let m = p.start();
+        assert!(!p.rule("Expr"));
+        assert_eq!(p.kind_of("Expr"), SyntaxKind::ERROR);
+        while !p.at_end() {
+            p.bump();
+        }
+        m.complete(p, FILE);
+    }
+    assert!(parse_with("a", None, grammar).diagnostics.is_empty());
+}
+
 #[test]
 fn any_short_text_can_be_parsed() {
     const PIECES: [&str; 14] = [
