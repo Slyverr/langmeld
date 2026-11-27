@@ -1,0 +1,84 @@
+=== a let and its use
+let x = 2;
+x * 3;
+---
+File
+  LetStmt
+    "let"
+    Name "x"
+    "="
+    Literal "2"
+    ";"
+  ExprStmt
+    Mul
+      Var
+        NameRef "x"
+      "*"
+      Literal "3"
+    ";"
+
+=== a function and a call
+fn double(n) { n + n }
+double(4);
+---
+File
+  FnDecl
+    "fn"
+    Name "double"
+    "("
+    Param
+      Name "n"
+    ")"
+    Block
+      "{"
+      ExprStmt
+        Add
+          Var
+            NameRef "n"
+          "+"
+          Var
+            NameRef "n"
+      "}"
+  ExprStmt
+    Call
+      Var
+        NameRef "double"
+      "("
+      Literal "4"
+      ")"
+    ";"
+
+=== a missing expression is one problem
+let y = ;
+---
+File
+  LetStmt
+    "let"
+    Name "y"
+    "="
+    ";"
+! LM-P001 8..9 expected an expression, found `;`
+
+=== a condition with both branches
+if 1 < 2 { 10 } else { 20 };
+---
+File
+  ExprStmt
+    If
+      "if"
+      Cmp
+        Literal "1"
+        "<"
+        Literal "2"
+      Block
+        "{"
+        ExprStmt
+          Literal "10"
+        "}"
+      "else"
+      Block
+        "{"
+        ExprStmt
+          Literal "20"
+        "}"
+    ";"

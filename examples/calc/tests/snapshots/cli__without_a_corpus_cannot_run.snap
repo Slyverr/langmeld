@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc_in(&folder, &[\"test\"])"
+---
+exit: 2
+--- stdout
+--- stderr
+error: there are no corpus files in `corpus`; add `.txt` files of cases there

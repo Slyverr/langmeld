@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"check\", \"--format\", \"json\", \"tests/files/good.calc\"])"
+---
+exit: 0
+--- stdout
+{"diagnostics":[],"errors":0,"files":1,"warnings":0}
+--- stderr

@@ -1,0 +1,10 @@
+---
+source: examples/calc/tests/run.rs
+expression: "shown(Some(Budget::new(100, 64)), sum)"
+---
+error[CALC007]: the program ran for too many steps
+ --> p.calc:1:15
+  |
+1 | fn count(n) { if n < 1 { 0 } else { n + count(n - 1) } }
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: To fix this, make the program do less, or raise the budget of steps.

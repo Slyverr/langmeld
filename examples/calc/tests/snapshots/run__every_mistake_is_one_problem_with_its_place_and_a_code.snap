@@ -1,0 +1,133 @@
+---
+source: examples/calc/tests/run.rs
+expression: all
+---
+=== x;
+error[CALC001]: `x` is not defined
+ --> p.calc:1:1
+  |
+1 | x;
+  | ^
+
+
+=== 1 / 0;
+error[CALC002]: division by zero
+ --> p.calc:1:1
+  |
+1 | 1 / 0;
+  | ^^^^^
+
+
+=== 1.5 / 0;
+error[CALC002]: division by zero
+ --> p.calc:1:1
+  |
+1 | 1.5 / 0;
+  | ^^^^^^^
+
+
+=== 9223372036854775807 + 1;
+error[CALC003]: the number is too large
+ --> p.calc:1:1
+  |
+1 | 9223372036854775807 + 1;
+  | ^^^^^^^^^^^^^^^^^^^^^^^
+
+
+=== 9223372036854775808;
+error[CALC003]: the number is too large
+ --> p.calc:1:1
+  |
+1 | 9223372036854775808;
+  | ^^^^^^^^^^^^^^^^^^^
+
+
+=== 1e400;
+error[CALC003]: the number is too large
+ --> p.calc:1:1
+  |
+1 | 1e400;
+  | ^^^^^
+
+
+=== "a" * 2;
+error[CALC004]: cannot multiply text and whole number
+ --> p.calc:1:1
+  |
+1 | "a" * 2;
+  | ^^^^^^^
+
+
+=== -"a";
+error[CALC004]: cannot negate text
+ --> p.calc:1:1
+  |
+1 | -"a";
+  | ^^^^
+
+
+=== 1 < "a";
+error[CALC004]: cannot compare whole number and text
+ --> p.calc:1:1
+  |
+1 | 1 < "a";
+  | ^^^^^^^
+
+
+=== if 1 { 2 };
+error[CALC004]: the condition must be true or false, not whole number
+ --> p.calc:1:4
+  |
+1 | if 1 { 2 };
+  |    ^
+
+
+=== let f = 1;
+f(2);
+error[CALC006]: whole number cannot be called
+ --> p.calc:2:1
+  |
+2 | f(2);
+  | ^
+
+
+=== fn f(a) { a }
+f(1, 2);
+error[CALC005]: `f` takes 1 argument but was given 2 arguments
+ --> p.calc:2:1
+  |
+2 | f(1, 2);
+  | ^^^^^^^
+
+
+=== fn f(a) { a }
+f();
+error[CALC005]: `f` takes 1 argument but was given 0 arguments
+ --> p.calc:2:1
+  |
+2 | f();
+  | ^^^
+
+
+=== abs(1, 2);
+error[CALC005]: `abs` takes one argument but was given 2 arguments
+ --> p.calc:1:1
+  |
+1 | abs(1, 2);
+  | ^^^^^^^^^
+
+
+=== sqrt("a");
+error[CALC004]: `sqrt` does not work on text
+ --> p.calc:1:1
+  |
+1 | sqrt("a");
+  | ^^^^^^^^^
+
+
+=== unknown(1);
+error[CALC001]: `unknown` is not defined
+ --> p.calc:1:1
+  |
+1 | unknown(1);
+  | ^^^^^^^^^^

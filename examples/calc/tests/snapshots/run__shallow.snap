@@ -1,0 +1,10 @@
+---
+source: examples/calc/tests/run.rs
+expression: "shown(Some(Budget::new(100_000, 10)), sum)"
+---
+error[CALC008]: calls go too deep
+ --> p.calc:1:41
+  |
+1 | fn count(n) { if n < 1 { 0 } else { n + count(n - 1) } }
+  |                                         ^^^^^^^^^^^^
+  = note: To fix this, make the calls go less deep, or raise the budget of depth.

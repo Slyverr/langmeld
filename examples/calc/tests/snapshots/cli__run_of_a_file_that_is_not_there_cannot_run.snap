@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"run\", \"tests/nowhere.calc\"])"
+---
+exit: 2
+--- stdout
+--- stderr
+error: cannot read tests/nowhere.calc: no such file or directory

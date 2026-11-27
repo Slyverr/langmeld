@@ -1,0 +1,10 @@
+---
+source: examples/calc/tests/run.rs
+expression: ran(forever)
+---
+error[CALC008]: calls go too deep
+ --> p.calc:1:11
+  |
+1 | fn f(n) { f(n + 1) }
+  |           ^^^^^^^^
+  = note: To fix this, make the calls go less deep, or raise the budget of depth.

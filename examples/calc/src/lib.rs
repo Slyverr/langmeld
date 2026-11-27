@@ -1,5 +1,15 @@
-//! Calc, a small language declared as a grammar. The same language written by hand is
-//! the `handwritten-calc` example.
+//! Calc, a small calculator language declared in `calc.langmeld`, with an interpreter and
+//! a command line. The same language is also declared with the grammar builder, as
+//! [`language`], and written by hand in the `handwritten-calc` example; tests hold the
+//! three to the same trees.
+//!
+//! - [`syntax`]: the types of the trees, written from the grammar when the example is
+//!   built.
+//! - [`interp`]: what programs mean.
+//! - [`cli`]: the `calc` program, `calc run file.calc` or `calc eval "1 + 2 * 3"`.
+
+pub mod cli;
+pub mod interp;
 
 use std::sync::OnceLock;
 
@@ -110,4 +120,10 @@ fn build() -> Language {
 pub fn language() -> &'static Language {
     static LANGUAGE: OnceLock<Language> = OnceLock::new();
     LANGUAGE.get_or_init(build)
+}
+
+/// The types of Calc's syntax trees, written from `calc.langmeld` when the example was
+/// built, and the language itself.
+pub mod syntax {
+    langmeld::include_syntax!();
 }

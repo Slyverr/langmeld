@@ -1,0 +1,9 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"test\"])"
+---
+exit: 0
+--- stdout
+corpus/basics.txt: 4 passed
+test result: ok. 4 cases
+--- stderr

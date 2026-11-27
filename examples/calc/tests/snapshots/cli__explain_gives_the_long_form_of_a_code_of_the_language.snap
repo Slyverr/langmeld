@@ -1,0 +1,12 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"explain\", \"CALC002\"])"
+---
+exit: 0
+--- stdout
+CALC002
+
+A number is divided by zero, which has no result.
+
+Check the divisor before dividing.
+--- stderr

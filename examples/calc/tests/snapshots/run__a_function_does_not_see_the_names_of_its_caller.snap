@@ -1,0 +1,9 @@
+---
+source: examples/calc/tests/run.rs
+expression: ran(program)
+---
+error[CALC001]: `secret` is not defined
+ --> p.calc:1:10
+  |
+1 | fn f() { secret }
+  |          ^^^^^^

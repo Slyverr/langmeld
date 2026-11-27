@@ -1,0 +1,22 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"--help\"])"
+---
+exit: 0
+--- stdout
+Calc, a small calculator language built with Langmeld
+
+Usage: calc <COMMAND>
+
+Commands:
+  check    Check files and show their problems
+  test     Run the corpus files of the language
+  explain  Explain a diagnostic code
+  run      Run a Calc file and show what it shows
+  eval     Work out an expression, such as "1 + 2 * 3"
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+--- stderr

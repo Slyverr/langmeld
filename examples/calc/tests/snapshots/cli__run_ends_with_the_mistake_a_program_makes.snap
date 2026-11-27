@@ -1,0 +1,12 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"run\", \"tests/files/wrong.calc\"])"
+---
+exit: 1
+--- stdout
+--- stderr
+error[CALC005]: `f` takes 1 argument but was given 2 arguments
+ --> tests/files/wrong.calc:2:1
+  |
+2 | f(1, 2);
+  | ^^^^^^^
