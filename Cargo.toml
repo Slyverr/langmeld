@@ -10,6 +10,13 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slyverr/langmeld"
 publish = false
 
+[workspace.dependencies]
+insta = "1.49.0"
+proptest = "1.7.0"
+rowan = "0.16.1"
+text-size = "1.1.1"
+wasm-bindgen-test = "0.3.80"
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "deny"
