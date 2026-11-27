@@ -19,7 +19,7 @@ checksum = "3bc62ac97cc33321f50863d514c3bc38a453947a8f9e781137e47c7401020aed"
 
 [[package]]
 name = "calc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "langmeld",
  "langmeld-syntax",
@@ -89,7 +89,7 @@ dependencies = [
 
 [[package]]
 name = "handwritten-calc"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "langmeld-syntax",
 ]
@@ -112,7 +112,7 @@ dependencies = [
 
 [[package]]
 name = "json"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "langmeld",
  "langmeld-syntax",
@@ -120,7 +120,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "langmeld-meta",
  "langmeld-syntax",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-meta"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "langmeld-syntax",
  "postcard",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-syntax"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "postcard",
  "regex-automata",
