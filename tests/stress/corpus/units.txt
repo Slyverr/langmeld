@@ -1,0 +1,156 @@
+=== units: valid, a unit is one token
+timeout: 500ms
+wait: 30s
+limit: 2h
+---
+File
+  Property
+    "timeout"
+    ":"
+    Number "500ms"
+  "\n"
+  Property
+    "wait"
+    ":"
+    Number "30s"
+  "\n"
+  Property
+    "limit"
+    ":"
+    Number "2h"
+
+=== units: valid, hyphenated words and ranges
+direction: left-to-right
+range: 1..=3
+half: 1..3
+---
+File
+  Property
+    "direction"
+    ":"
+    NameRef "left-to-right"
+  "\n"
+  Property
+    "range"
+    ":"
+    Span
+      Number "1"
+      "..="
+      Number "3"
+  "\n"
+  Property
+    "half"
+    ":"
+    Span
+      Number "1"
+      ".."
+      Number "3"
+
+=== units: broken, a range without its end
+range: 1..= ;
+name: build
+---
+File
+  Property
+    "range"
+    ":"
+    Span
+      Number "1"
+      "..="
+  ";"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 12..13 expected an expression, found `;`
+
+=== interpolation: valid, a hole holds an expression
+label: "Worker {i}"
+label: "{a + 1} of {b}"
+label: "plain"
+---
+File
+  Property
+    "label"
+    ":"
+    Text
+      string
+        "\""
+        "Worker "
+        "{"
+        NameRef "i"
+        "}"
+        "\""
+  "\n"
+  Property
+    "label"
+    ":"
+    Text
+      string
+        "\""
+        "{"
+        Add
+          NameRef "a"
+          "+"
+          Number "1"
+        "}"
+        " of "
+        "{"
+        NameRef "b"
+        "}"
+        "\""
+  "\n"
+  Property
+    "label"
+    ":"
+    Text
+      string
+        "\""
+        "plain"
+        "\""
+
+=== interpolation: broken, an empty hole
+label: "a {} b"
+name: build
+---
+File
+  Property
+    "label"
+    ":"
+    Text
+      string
+        "\""
+        "a "
+        "{"
+        "}"
+        " b"
+        "\""
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 11..12 expected an expression, found `}`
+
+=== interpolation: broken, text that is never closed
+label: "Worker {i}
+name: build
+---
+File
+  Property
+    "label"
+    ":"
+    Text
+      string
+        "\""
+        "Worker "
+        "{"
+        NameRef "i"
+        "}"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-L002 7..18 unterminated string; add a closing `"` before the end of the line

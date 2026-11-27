@@ -1,0 +1,90 @@
+=== retry: valid, decided by the second token
+retry build 3
+retry: 3
+retry -> build
+---
+File
+  RetryStmt
+    "retry"
+    "build"
+    "3"
+  "\n"
+  Property
+    "retry"
+    ":"
+    Number "3"
+  "\n"
+  EdgeStmt
+    "retry"
+    "->"
+    "build"
+
+=== retry: valid, still a name elsewhere
+build -> retry
+pipeline retry { task retry }
+run retry
+---
+File
+  EdgeStmt
+    "build"
+    "->"
+    "retry"
+  "\n"
+  PipelineDecl
+    "pipeline"
+    "retry"
+    Body
+      "{"
+      TaskDecl
+        "task"
+        "retry"
+      "}"
+  "\n"
+  RunStmt
+    "run"
+    "retry"
+
+=== retry: broken, neither a command nor a property
+retry 3
+name: build
+---
+File
+  RetryStmt
+    "retry"
+    "3"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 6..7 expected ident, found `3`
+
+=== names: valid, an edge and a property
+build -> test
+build: fast
+---
+File
+  EdgeStmt
+    "build"
+    "->"
+    "test"
+  "\n"
+  Property
+    "build"
+    ":"
+    NameRef "fast"
+
+=== names: broken, two names and nothing between them
+build test
+name: build
+---
+File
+  EdgeStmt
+    "build"
+    "test"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 6..10 expected `->`, found `test`

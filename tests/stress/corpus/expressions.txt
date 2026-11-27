@@ -1,0 +1,197 @@
+=== expressions: valid, precedence and a minus after an operator
+when: retries * 2 > -limit
+when: -a + -b * c
+when: (a + b) * c
+---
+File
+  Property
+    "when"
+    ":"
+    Cmp
+      Mul
+        NameRef "retries"
+        "*"
+        Number "2"
+      ">"
+      Neg
+        "-"
+        NameRef "limit"
+  "\n"
+  Property
+    "when"
+    ":"
+    Add
+      Neg
+        "-"
+        NameRef "a"
+      "+"
+      Mul
+        Neg
+          "-"
+          NameRef "b"
+        "*"
+        NameRef "c"
+  "\n"
+  Property
+    "when"
+    ":"
+    Mul
+      Group
+        "("
+        Add
+          NameRef "a"
+          "+"
+          NameRef "b"
+        ")"
+      "*"
+      NameRef "c"
+
+=== expressions: broken, comparisons do not chain
+when: a < b < c
+name: build
+---
+File
+  Property
+    "when"
+    ":"
+    Cmp
+      Cmp
+        NameRef "a"
+        "<"
+        NameRef "b"
+      "<"
+      NameRef "c"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P006 12..13 `<` cannot be chained; add parentheses around one of the operations
+
+=== expressions: broken, an operator without its second operand
+when: retries * ;
+name: build
+---
+File
+  Property
+    "when"
+    ":"
+    Mul
+      NameRef "retries"
+      "*"
+  ";"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 16..17 expected an expression, found `;`
+
+=== generics: valid, the closers are two lists
+type: List<Map<K, V>>;
+type: Map<String, List<Int>>;
+---
+File
+  TypeProperty
+    "type"
+    ":"
+    TypeRef
+      "List"
+      "<"
+      TypeRef
+        "Map"
+        "<"
+        TypeRef "K"
+        ","
+        TypeRef "V"
+        ">"
+      ">"
+  ";"
+  "\n"
+  TypeProperty
+    "type"
+    ":"
+    TypeRef
+      "Map"
+      "<"
+      TypeRef "String"
+      ","
+      TypeRef
+        "List"
+        "<"
+        TypeRef "Int"
+        ">"
+      ">"
+  ";"
+
+=== generics: valid, the same symbols shift in an expression
+mask: a >> 2
+mask: a << 2 >> 1
+---
+File
+  Property
+    "mask"
+    ":"
+    Shift
+      NameRef "a"
+      ">>"
+      Number "2"
+  "\n"
+  Property
+    "mask"
+    ":"
+    Shift
+      Shift
+        NameRef "a"
+        "<<"
+        Number "2"
+      ">>"
+      Number "1"
+
+=== generics: broken, a list that is never closed
+type: List<Map<K, V>;
+name: build
+---
+File
+  TypeProperty
+    "type"
+    ":"
+    TypeRef
+      "List"
+      "<"
+      TypeRef
+        "Map"
+        "<"
+        TypeRef "K"
+        ","
+        TypeRef "V"
+        ">"
+  ";"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 20..21 expected `,` or `>`, found `;`
+
+=== generics: broken, a comma is missing
+type: Map<K V>;
+name: build
+---
+File
+  TypeProperty
+    "type"
+    ":"
+    TypeRef
+      "Map"
+      "<"
+      TypeRef "K"
+      TypeRef "V"
+      ">"
+  ";"
+  "\n"
+  Property
+    "name"
+    ":"
+    NameRef "build"
+! LM-P001 12..13 expected `<`, `,` or `>`, found `V`

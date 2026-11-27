@@ -1,0 +1,45 @@
+=== recovery: broken, three mistakes and the lines between are kept
+a b
+ok: 1
+type: <>
+ok: 2
+stage s for x { }
+ok: 3
+---
+File
+  EdgeStmt
+    "a"
+    "b"
+  "\n"
+  Property
+    "ok"
+    ":"
+    Number "1"
+  "\n"
+  TypeProperty
+    "type"
+    ":"
+    TypeRef
+  Error "<" ">"
+  "\n"
+  Property
+    "ok"
+    ":"
+    Number "2"
+  "\n"
+  StageDecl
+    "stage"
+    "s"
+    "for"
+    Error "x"
+    Body
+      "{"
+      "}"
+  "\n"
+  Property
+    "ok"
+    ":"
+    Number "3"
+! LM-P001 2..3 expected `->`, found `b`
+! LM-P001 16..17 expected ident, found `<`
+! LM-P001 37..38 expected `pipeline`, found `x`

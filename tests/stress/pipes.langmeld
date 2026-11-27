@@ -1,0 +1,84 @@
+langmeld 1
+
+// A small invented language for describing build pipelines. It is here to hold every
+// hard thing a language can ask of the format at once: statements ended by lines,
+// words that are keywords only sometimes, units, ranges, text with holes, operators
+// and generic types that share their symbols, and a block that names a pipeline
+// defined elsewhere.
+
+language Pipes {
+    extensions "pipe"
+    comments { line "#" }
+    terminators { newline ";" }
+}
+
+tokens {
+    skip space = /[ \t]+/
+    duration   = /[0-9]+(ms|s|m|h)/                 // `500ms` is one token, not `500` and `ms`
+    number     = preset int(underscores)
+    ident      = preset ident(xid)
+    word       = /[a-z]+(-[a-z]+)+/                 // `left-to-right` is one word
+    string     = preset string(double, interpolate "{" "}" with Expr)
+    keywords   { type }
+    contextual { pipeline stage for repeat as task run retry }
+}
+
+rule File       = items:terminated(Statement)*
+rule Statement  = PipelineDecl | StageDecl | RepeatDecl | TaskDecl | RunStmt | RetryStmt
+                | TypeProperty | EdgeStmt | Property
+rule Body       = "{" statements:terminated(Statement)* "}"
+
+// `pipeline deploy { ... }` and `stage canary for pipeline deploy { ... }`
+rule PipelineDecl = "pipeline" name:ident body:Body
+rule StageDecl    = "stage" name:ident "for" "pipeline" target:ident body:Body
+rule RepeatDecl   = "repeat" range:Expr "as" var:ident body:Body
+rule TaskDecl     = "task" name:ident ("[" index:Expr "]")? body:Body?
+
+// `run build`, `retry build 3`, `build -> test`; the second token tells them from
+// `run: 1`, `retry: 3` and `build: fast`.
+rule RunStmt    = "run" target:ident args:PlainValue*
+rule RetryStmt  = "retry" target:ident times:number?
+rule EdgeStmt   = from:ident "->" to:ident
+rule Property   = key:ident ":" value:Value
+
+// A value is a list of two or more plain words (`tags: fast stable beta`, ended by the
+// line), or an expression (`when: retries * 2 > -limit`). One plain word is an expression.
+rule Value      = ListValue | Expr
+rule ListValue  = first:PlainValue rest:PlainValue+
+rule PlainValue = number | duration | ident | word
+
+// `type: List<Map<K, V>>`, where `>>` closes two lists, and `mask: a >> 2`, where it shifts.
+rule TypeProperty = "type" ":" value:TypeRef
+rule TypeRef      = name:ident ("<" args:sep(TypeRef, ",") ">")?
+
+expr Expr {
+    atom Number  = number | duration
+    atom Text    = string
+    atom NameRef = ident | word
+    atom Group   = "(" inner:Expr ")"
+    prefix Neg   "-"                 prec 9
+    infix  Mul   "*" | "/"           prec 7 left
+    infix  Add   "+" | "-"           prec 6 left
+    infix  Shift ">>" | "<<"         prec 5 left
+    infix  Cmp   ">" | "<" | "=="    prec 4 none
+    infix  Span  "..=" | ".."        prec 3 none
+}
+
+bind {
+    scope PipelineDecl, StageDecl, RepeatDecl
+    PipelineDecl.name defines pipeline global
+    TaskDecl.name     defines task computed
+    RepeatDecl.var    defines value
+    NameRef           refers value
+    RunStmt.target    refers task
+    StageDecl.target  refers pipeline
+    StageDecl.body    includes members of StageDecl.target
+}
+
+editor {
+    symbol PipelineDecl kind module name name
+    symbol StageDecl    kind namespace name name
+    symbol TaskDecl     kind function name name
+    fold   Body
+    highlight NameRef by_binding
+}
