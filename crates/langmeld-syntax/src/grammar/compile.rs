@@ -1473,6 +1473,7 @@ fn assemble(parts: Parts<'_, '_>) -> Language {
     } = vocabulary;
     Language {
         name: builder.name.clone(),
+        extensions: builder.extensions.clone(),
         lexer,
         nodes,
         rules,

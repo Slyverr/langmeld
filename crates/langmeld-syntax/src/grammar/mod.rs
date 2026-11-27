@@ -57,6 +57,7 @@ use ir::{Callee, Expr, Extern, KindSet, Node, Rule};
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Language {
     name: String,
+    extensions: Vec<String>,
     lexer: Lexer,
     nodes: Vec<Node>,
     rules: Vec<Rule>,
@@ -207,6 +208,11 @@ impl Language {
     /// ```
     pub fn lexer(&self) -> &Lexer {
         &self.lexer
+    }
+
+    /// The file extensions of the language, without the dot.
+    pub fn extensions(&self) -> impl Iterator<Item = &str> {
+        self.extensions.iter().map(String::as_str)
     }
 
     /// The kind of the declared token called `name`, or of the literal with this text.

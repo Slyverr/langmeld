@@ -542,7 +542,8 @@ impl Lowering<'_> {
             match setting.name() {
                 "Extensions" => {
                     let extensions = self.strings(&setting);
-                    self.extensions.extend(extensions);
+                    self.extensions.extend(extensions.clone());
+                    self.with(|builder| builder.extensions(extensions));
                 }
                 "CommentsDecl" => {
                     for comment in setting.children() {

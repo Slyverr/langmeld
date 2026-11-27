@@ -33,6 +33,7 @@ fn accepted(text: &str) -> Loaded {
 fn the_calc_example_of_the_format_is_accepted_as_written() {
     let loaded = accepted(&grammar("calc-format.langmeld"));
     assert_eq!(loaded.extensions, ["calc"]);
+    assert_eq!(loaded.language.extensions().collect::<Vec<_>>(), ["calc"]);
     assert!(loaded.language.warnings().is_empty());
     // Every choice is settled by the next token.
     assert_eq!(loaded.language.max_lookahead(), 1);
