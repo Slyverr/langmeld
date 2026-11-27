@@ -1,0 +1,104 @@
+name: Nightly
+
+# Longer runs than a pull request gets. They hold nothing up, and a failure opens an
+# issue. To run it on a branch:
+#   gh workflow run nightly.yml --ref <branch>
+on:
+  schedule:
+    - cron: "17 3 * * *" # every day, 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [line_index]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - name: Inputs found by earlier runs
+        uses: actions/cache@v6
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      - name: Fuzz for 10 minutes
+        run: |
+          nix develop .#fuzz --command cargo fuzz run ${{ matrix.target }} -- \
+            -max_total_time=600 -timeout=10 -rss_limit_mb=2048
+      - name: Keep the input that failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
+
+  properties:
+    name: Property tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Test with 10000 cases
+        env:
+          PROPTEST_CASES: "10000"
+        run: nix develop --command cargo nextest run --workspace --locked
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Test in a headless browser
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          WASM_BINDGEN_USE_BROWSER: "1"
+        run: |
+          export CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver"
+          nix develop --command cargo test -p langmeld-syntax \
+            --target wasm32-unknown-unknown --locked
+
+  report:
+    name: Report failure
+    needs: [fuzz, properties, browser]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create nightly --description "Failed nightly run" --color B60205 2>/dev/null || true
+          body="The nightly run failed: $RUN_URL"
+          number=$(gh issue list --label nightly --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --label nightly --title "Nightly run failed" --body "$body"
+          fi
