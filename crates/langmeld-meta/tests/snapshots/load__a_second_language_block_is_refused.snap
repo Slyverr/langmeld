@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}language U {{ }}\\nrule File = ident\\n\"))"
+---
+error[LM-F013]: the language is already described by another `language` block
+ --> t.langmeld:4:1
+  |
+4 | language U { }
+  | ^^^^^^^^^^^^^^
+  = note: To fix this, keep one `language` block, and move this one's settings into it.

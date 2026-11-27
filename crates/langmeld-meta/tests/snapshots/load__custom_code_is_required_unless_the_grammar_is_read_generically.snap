@@ -1,0 +1,17 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: refused_text(&text)
+---
+error[LM-F009]: extern rule `Pair` has no Rust code
+ --> t.langmeld:4:13
+  |
+4 | extern rule Pair -> File first "("
+  |             ^^^^
+  = note: To fix this, give its code with `Source::extern_rule("Pair", ...)`.
+
+error[LM-F009]: extern token `Raw` has no Rust code
+ --> t.langmeld:5:14
+  |
+5 | extern token Raw
+  |              ^^^
+  = note: To fix this, give its code with `Source::extern_token("Raw", ...)`.

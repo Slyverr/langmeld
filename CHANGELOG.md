@@ -10,6 +10,10 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ### Added
 
+- A language can be written in a `.langmeld` file and loaded with `load_language`. The
+  file is checked, and every mistake is one diagnostic at its place in the file, with a
+  note that says how to fix it. Files can import others, and custom rules and tokens get
+  their Rust code by name.
 - `langmeld.toml`, the file of a language project, is read with every mistake reported at
   its place: the root file, how binaries are laid out, the project file and the editor
   package. It cannot repeat what the `language` block of the grammar already says.

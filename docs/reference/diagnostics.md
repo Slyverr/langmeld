@@ -59,3 +59,41 @@ refused. A warning leaves the grammar usable and is listed by `Language::warning
 | `LM-G014` | Error | The language has more tokens, rules and literals than a kind number can count |
 | `LM-G015` | Warning | A custom rule does not say what it can start with, so it may start with anything and choices around it cannot be checked |
 | `LM-G016` | Error | A choice needs to look further ahead than can be checked for a grammar this large |
+
+## Problems in `.langmeld` files
+
+These are found while a file is read, before the grammar is checked, and each has a note
+that starts "To fix this". Mistakes of the text itself are reported with the codes
+`LM-L001`, `LM-L002` and `LM-P001` above. See the
+[format reference](langmeld-format.md).
+
+| Code | Meaning |
+|------|---------|
+| `LM-F001` | The file does not start with its format version line |
+| `LM-F002` | The file is written for a format version this release does not read |
+| `LM-F003` | A rule, expression, operand or operator name is not in PascalCase; the fix renames it everywhere |
+| `LM-F004` | A token or label name is not in snake_case |
+| `LM-F005` | A token uses a preset that does not exist |
+| `LM-F006` | A preset has an option it does not have, or `interpolate` is used outside `string` |
+| `LM-F007` | An imported file, or the language file, cannot be read |
+| `LM-F008` | Imports go in a circle |
+| `LM-F009` | An `extern` rule or token has no Rust code |
+| `LM-F010` | A quoted string uses an escape the format does not know |
+| `LM-F011` | A precedence is not a number from 1 to 65535 |
+| `LM-F012` | A custom rule is parsed without its Rust code, so it is read as one error |
+| `LM-F013` | A second `language` block |
+| `LM-F014` | No `language` block |
+
+Problems found by checking the grammar (`LM-G001` and the others above) are reported at
+the rule they are about in the `.langmeld` file; a name that is not declared is
+reported at the place it is used.
+
+## Problems in `langmeld.toml`
+
+| Code | Meaning |
+|------|---------|
+| `LM-M001` | The file is not valid TOML |
+| `LM-M002` | A setting that does not exist |
+| `LM-M003` | A field of the `language` block is repeated; it is written in the grammar only |
+| `LM-M004` | A setting has a value of the wrong kind, or one that is not allowed |
+

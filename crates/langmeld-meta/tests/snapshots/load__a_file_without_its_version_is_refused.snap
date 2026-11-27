@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(\"language T { }\\nrule File = \\\"a\\\"\\n\")"
+---
+error[LM-F001]: the file does not start with its format version
+ --> t.langmeld:1:1
+  |
+1 | language T { }
+  | ^
+  = note: To fix this, write `langmeld 1` on the first line.

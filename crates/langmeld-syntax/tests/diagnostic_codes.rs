@@ -60,12 +60,23 @@ fn repository() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// The folders of every crate, such as `src` or `tests`.
+fn in_crates(folder: &str) -> Vec<PathBuf> {
+    let crates = repository().join("crates");
+    let mut found: Vec<_> = fs::read_dir(crates)
+        .expect("the crates are listed")
+        .flatten()
+        .map(|entry| entry.path().join(folder))
+        .collect();
+    found.sort();
+    found
+}
+
 fn in_source() -> BTreeSet<String> {
-    codes_under(
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
-        &["rs"],
-        &[],
-    )
+    in_crates("src")
+        .iter()
+        .flat_map(|folder| codes_under(folder, &["rs"], &[]))
+        .collect()
 }
 
 #[test]
@@ -103,9 +114,8 @@ fn every_code_is_explained_in_the_reference() {
 #[test]
 fn every_code_is_shown_by_a_test() {
     let root = repository();
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut shown = BTreeSet::new();
-    for folder in [manifest.join("tests"), root.join("tests")] {
+    for folder in in_crates("tests").into_iter().chain([root.join("tests")]) {
         shown.extend(codes_under(
             &folder,
             &["rs", "txt", "snap"],

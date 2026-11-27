@@ -1,0 +1,11 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&grammar(\"calc-ambiguous.langmeld\"))"
+---
+error[LM-G003]: in `Block`, the repeated `Item` and what follows it both start with `Expr`, so the parser cannot tell where the repetition ends
+  --> t.langmeld:23:6
+   |
+23 | rule Block    = "{" stmts:Item* Expr? "}"
+   |      ^^^^^
+   = note: In technical terms: the choice between going on and stopping is made by looking at most 3 tokens ahead (LL(3)), and both ways can begin with `Expr`.
+   = note: To fix this, factor out the common start, for example by ending the repeated part with `;` or with a lookahead such as `&"}"`, or use `try` / `extern rule`.

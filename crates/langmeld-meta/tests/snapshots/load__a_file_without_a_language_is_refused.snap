@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(\"langmeld 1\\nrule File = \\\"a\\\"\\n\")"
+---
+error[LM-F014]: the file does not say what language it describes
+ --> t.langmeld:1:1
+  |
+1 | langmeld 1
+  | ^
+  = note: To fix this, add a block such as `language Name { extensions "ext" }`.

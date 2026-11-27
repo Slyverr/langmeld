@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}rule File = ident )\\nrule B = ident\\n\"))"
+---
+error[LM-P001]: expected a declaration, found `)`
+ --> t.langmeld:4:19
+  |
+4 | rule File = ident )
+  |                   ^
+  = note: To fix this, write a declaration where `)` is, or remove `)`.

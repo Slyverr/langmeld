@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "langmeld_meta::render_warnings(&loaded)"
+---
+warning[LM-G006]: `Spare` is never used
+ --> t.langmeld:5:6
+  |
+5 | rule Spare = ident
+  |      ^^^^^
+  = note: To fix this, use it, or remove it.

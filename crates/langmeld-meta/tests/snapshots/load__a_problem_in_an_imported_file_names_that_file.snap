@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: refused(source)
+---
+error[LM-G001]: `A` uses `Missing`, which is not a rule or a token
+ --> a.langmeld:2:10
+  |
+2 | rule A = Missing
+  |          ^^^^^^^
+  = note: To fix this, declare `Missing` as a rule or a token.

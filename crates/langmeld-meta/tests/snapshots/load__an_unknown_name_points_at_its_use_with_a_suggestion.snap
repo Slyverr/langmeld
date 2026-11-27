@@ -1,0 +1,17 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}rule File = Itm*\\nrule Item = ident\\n\"))"
+---
+error[LM-G001]: `File` uses `Itm`, which is not a rule or a token
+ --> t.langmeld:4:13
+  |
+4 | rule File = Itm*
+  |             ^^^
+  = note: To fix this, did you mean `Item`? If not, declare `Itm`.
+
+warning[LM-G006]: `Item` is never used
+ --> t.langmeld:5:6
+  |
+5 | rule Item = ident
+  |      ^^^^
+  = note: To fix this, use it, or remove it.
