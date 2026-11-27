@@ -1,0 +1,20 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"check\", \"../../../../tests/stress\", \"--explain\"])"
+---
+exit: 0
+--- stdout
+../../../../tests/stress/pipes.langmeld: language Pipes is valid (25 nodes, 0 warnings)
+Lookahead: the most tokens looked at to choose is 2. These choices need more than one:
+  in `Statement`, a choice that starts with `ident` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `pipeline` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `repeat` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `retry` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `run` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `stage` looks 2 tokens ahead
+  in `Statement`, a choice that starts with `task` looks 2 tokens ahead
+  in `Value`, a choice that starts with `duration` looks 2 tokens ahead
+  in `Value`, a choice that starts with `ident` looks 2 tokens ahead
+  in `Value`, a choice that starts with `number` looks 2 tokens ahead
+  in `Value`, a choice that starts with `word` looks 2 tokens ahead
+--- stderr

@@ -41,3 +41,8 @@ pub use langmeld_syntax::{
     SyntaxNode, SyntaxToken, Terminators, TextEdit, TextRange, TextSize, TextTooLarge, Token,
     TokenSpec, TreeBuilder, Utf16LineCol, parse, pattern,
 };
+
+/// The guide's code blocks, compiled and run as doc tests so they stay correct.
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/guides/write-a-langmeld-file.md")]
+struct WriteALangmeldFileGuide;
