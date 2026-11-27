@@ -11,9 +11,15 @@ publish = false
 [[bin]]
 name = "calc"
 path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+# The `calc` program, and its command line.
+cli = ["langmeld/cli", "langmeld/lsp"]
 
 [dependencies]
-langmeld = { workspace = true, features = ["cli", "kit", "lsp"] }
+langmeld = { workspace = true, features = ["kit"] }
 langmeld-syntax.workspace = true
 
 [dev-dependencies]

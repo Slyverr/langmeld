@@ -50,7 +50,7 @@ Verify it works by running the tests (see Commands).
 | Test | `cargo nextest run --workspace --locked` (doc tests: `cargo test --workspace --doc --locked`) |
 | Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Format | `cargo fmt --all` (check only: add `--check`) |
-| WASM check | `cargo build -p langmeld-syntax -p langmeld-meta -p langmeld-ide --target wasm32-unknown-unknown --locked` |
+| WASM check | `cargo build -p langmeld-syntax -p langmeld-meta -p langmeld-ide -p calc-web --target wasm32-unknown-unknown --locked` |
 | Mutation tests | `cargo mutants` (needs time; the nightly run does it and only reports) |
 | **Check (local)** | `cargo xtask check`: format, lint, tests and WASM build in under two minutes |
 | Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests, WASM tests in Node, and an end-to-end test that starts a language of every layout of programs and builds it |
@@ -65,7 +65,7 @@ Verify it works by running the tests (see Commands).
 | `crates/langmeld-ide/` | Binding, projects, language server, editor packaging |
 | `crates/langmeld-cli/` | The `langmeld` binary and the CLI kit |
 | `examples/` | Languages built with Langmeld, each with its own tests |
-| `tests/` | Corpus files, the runner that checks them, `stress/`, a language that holds the format to its promises, and `typed/`, a language that holds the generated Rust types to theirs |
+| `tests/` | Corpus files, the runner that checks them, `stress/`, a language that holds the format to its promises, `typed/`, a language that holds the generated Rust types to theirs, and `editors/`, the checks that run an editor and a browser, which the pull request workflow runs (see its README) |
 | `fuzz/` | Fuzz targets (nightly Rust; its own workspace) |
 | `xtask/` | The `cargo xtask` commands (its own workspace) |
 | `docs/` | In-depth documentation |
