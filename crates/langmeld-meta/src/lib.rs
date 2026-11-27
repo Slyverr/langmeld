@@ -1,6 +1,7 @@
 //! The `.langmeld` format: reading files into languages, `langmeld.toml`, and the corpus
 //! files that test languages.
 
+pub mod corpus;
 mod manifest;
 mod problem;
 mod render;
