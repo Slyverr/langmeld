@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "handwritten-calc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "langmeld-syntax",
 ]
@@ -92,7 +92,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-syntax"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "regex-automata",
  "rowan",
