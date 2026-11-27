@@ -9,7 +9,9 @@ publish = false
 cargo-fuzz = true
 
 [dependencies]
+calc = { path = "../examples/calc" }
 handwritten-calc = { path = "../examples/handwritten-calc" }
+json = { path = "../examples/json" }
 langmeld-syntax = { path = "../crates/langmeld-syntax" }
 libfuzzer-sys = "0.4.13"
 
@@ -37,6 +39,27 @@ bench = false
 [[bin]]
 name = "parse_handwritten_calc"
 path = "fuzz_targets/parse_handwritten_calc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "grammar_builder"
+path = "fuzz_targets/grammar_builder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_json"
+path = "fuzz_targets/parse_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_calc"
+path = "fuzz_targets/parse_calc.rs"
 test = false
 doc = false
 bench = false
