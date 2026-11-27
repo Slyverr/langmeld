@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [line_index]
+        target: [line_index, lexer, interpolation, parse_handwritten_calc]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -55,7 +55,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: fuzz
+      - name: Add the seed inputs
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cp -n fuzz/seeds/${{ matrix.target }}/* fuzz/corpus/${{ matrix.target }}/ 2>/dev/null || true
       - name: Fuzz for 60 seconds
         run: |
           nix develop .#fuzz --command cargo fuzz run ${{ matrix.target }} -- \
-            -max_total_time=60 -timeout=10 -rss_limit_mb=2048
+            -max_total_time=60 -timeout=10 -rss_limit_mb=2048 \
+            $(test -f fuzz/dict/${{ matrix.target }}.dict && echo -dict=fuzz/dict/${{ matrix.target }}.dict)
