@@ -6,6 +6,8 @@
 
 mod check;
 mod exhaustive;
+mod generate;
+mod init;
 mod parse;
 mod project;
 mod test;
@@ -26,6 +28,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Start a new language: a project of its own, or a language library in a workspace.
+    #[command(group(clap::ArgGroup::new("what").required(true).args(["name", "lib"])))]
+    Init {
+        /// The name of the new project, and of its folder.
+        name: Option<String>,
+        /// Add a language library at this path, inside an existing workspace.
+        #[arg(long, value_name = "PATH")]
+        lib: Option<PathBuf>,
+        /// Which programs the project has.
+        #[arg(long, value_enum, default_value = "single")]
+        bins: init::Layout,
+        /// Depend on a checkout of Langmeld instead of a release.
+        #[arg(long, hide = true)]
+        langmeld_path: Option<String>,
+    },
+    /// Add to a language project: a rule, or a handler of a node.
+    #[command(subcommand)]
+    Generate(Addition),
     /// Check a language: the grammar is read, validated and explained when it is wrong.
     Check {
         /// A `.langmeld` file, or the folder of a project with a `langmeld.toml`.
@@ -62,6 +82,26 @@ enum Command {
     },
 }
 
+#[derive(Subcommand)]
+enum Addition {
+    /// Add a rule to the grammar, to be changed and referred to.
+    Rule {
+        /// Its name, in PascalCase.
+        name: String,
+        /// A `.langmeld` file, or a folder of a language project.
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+    /// Add a function that handles a node to `src/handlers.rs`.
+    Handler {
+        /// The node, such as a rule's name.
+        node: String,
+        /// A `.langmeld` file, or a folder of a language project.
+        #[arg(long)]
+        path: Option<PathBuf>,
+    },
+}
+
 /// The exit code of a command that gives a failure, after saying why if it could not run.
 fn finish(result: Result<(), Failure>) -> ExitCode {
     match result {
@@ -91,6 +131,23 @@ fn main() -> ExitCode {
         None => {
             let _ = Cli::command().print_long_help();
             ExitCode::SUCCESS
+        }
+        Some(Command::Init {
+            name,
+            lib,
+            bins,
+            langmeld_path,
+        }) => finish(init::run(
+            name.as_deref(),
+            lib.as_deref(),
+            bins,
+            langmeld_path.as_deref(),
+        )),
+        Some(Command::Generate(Addition::Rule { name, path })) => {
+            finish(generate::rule(&name, path.as_deref()))
+        }
+        Some(Command::Generate(Addition::Handler { node, path })) => {
+            finish(generate::handler(&node, path.as_deref()))
         }
         Some(Command::Check {
             path,

@@ -1,0 +1,27 @@
+langmeld 1
+
+language {{Name}} {
+    extensions "{{extension}}"
+    comments { line "//" }
+}
+
+tokens {
+    skip space = /[ \t\r\n]+/
+    word       = preset ident(xid)
+    number     = preset int(dec, underscores)
+}
+
+rule File      = statements:Statement*
+rule Statement = Let | Print
+rule Let       = "let" name:Name "=" value:Expr ";"
+rule Print     = "print" value:Expr ";"
+rule Name      = word
+
+expr Expr {
+    atom  Number   = number
+    atom  Variable = word
+    atom  Group    = "(" inner:Expr ")"
+    prefix Negation "-"        prec 3
+    infix Product   "*" | "/"  prec 2 left
+    infix Sum       "+" | "-"  prec 1 left
+}
