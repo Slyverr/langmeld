@@ -6,10 +6,13 @@
 
 mod format;
 mod runner;
+#[path = "../support/mod.rs"]
+mod support;
 
 use std::path::Path;
 
 use format::{Case, FormatError};
+use langmeld_syntax::Lexer;
 use runner::{Outcome, run_case};
 
 /// Turns source text into a rendered tree, or `None` when it cannot be parsed.
@@ -20,16 +23,50 @@ fn parse_tree(_source: &str) -> Option<String> {
 
 #[test]
 fn framework_corpus() {
-    check_directory("corpus");
+    check_directory("corpus", parse_tree);
 }
 
 #[test]
 fn real_code_corpus() {
-    check_directory("real-code");
+    check_directory("real-code", parse_tree);
+}
+
+#[test]
+fn real_code_tokens() {
+    check_directory("real-code/tokens", |source| {
+        lex_tokens(&support::c_like(), source)
+    });
+}
+
+#[test]
+fn real_code_tokens_with_newlines() {
+    check_directory("real-code/tokens/terminated", |source| {
+        lex_tokens(&support::terminated(), source)
+    });
+}
+
+#[test]
+fn real_code_tokens_with_interpolation() {
+    check_directory("real-code/tokens/interpolated", |source| {
+        lex_tokens(&support::interpolating("{"), source)
+    });
+}
+
+/// Every token of the source as `KIND "text"`, then every diagnostic.
+fn lex_tokens(lexer: &Lexer, source: &str) -> Option<String> {
+    let lexed = support::lex(lexer, source);
+    let tokens = lexed.tokens.iter().map(|token| {
+        let kind = support::kind_name(token.kind);
+        let joint = if token.joint { " joint" } else { "" };
+        format!("{kind} {:?}{joint}", &source[token.range])
+    });
+    let problems = support::errors(&lexed.diagnostics);
+    let problems = problems.iter().map(|problem| format!("! {problem}"));
+    Some(tokens.chain(problems).collect::<Vec<_>>().join("\n"))
 }
 
 /// Runs every `.txt` file of one corpus folder, in name order.
-fn check_directory(directory: &str) {
+fn check_directory(directory: &str, subject: fn(&str) -> Option<String>) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests")
         .join(directory);
@@ -51,7 +88,7 @@ fn check_directory(directory: &str) {
             format::parse(&text).unwrap_or_else(|error| panic!("{directory}/{file}: {error}"));
         assert!(!cases.is_empty(), "{directory}/{file} has no cases");
         for case in cases {
-            let outcome = run_case(&case, parse_tree);
+            let outcome = run_case(&case, subject);
             report.push_str(&format!("{file}: {}: {}\n", case.name, outcome.label()));
             if let Some(problem) = outcome.problem(&case) {
                 problems.push(format!("{directory}/{file}:{}: {problem}", case.line));
@@ -62,7 +99,7 @@ fn check_directory(directory: &str) {
     assert!(problems.is_empty(), "\n{}", problems.join("\n\n"));
     // The snapshot makes an added, removed or newly passing case visible in review.
     insta::with_settings!({prepend_module_to_snapshot => false}, {
-        insta::assert_snapshot!(directory, report);
+        insta::assert_snapshot!(directory.replace('/', "-"), report);
     });
 }
 

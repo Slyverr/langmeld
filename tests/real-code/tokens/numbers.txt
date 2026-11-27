@@ -1,0 +1,58 @@
+=== float with a negative exponent
+1.5e-3
+---
+FLOAT "1.5e-3"
+
+=== hexadecimal with underscores
+0xff_ff
+---
+INT "0xff_ff"
+
+=== inclusive range
+1..=4
+---
+INT "1" joint
+DOT_DOT_EQ "..=" joint
+INT "4"
+
+=== a unit after a number
+700ms
+---
+DURATION "700ms"
+
+=== a base prefix without digits
+0x
+---
+INT "0x"
+! LM-L006 0..2 `0x` needs at least one digit after it
+
+=== method call on an integer
+1.method()
+---
+INT "1" joint
+DOT "." joint
+IDENT "method" joint
+L_PAREN "(" joint
+R_PAREN ")"
+
+=== float with a fraction
+1.5
+---
+FLOAT "1.5"
+
+=== two dots after an integer are a range
+1..2
+---
+INT "1" joint
+DOT_DOT ".." joint
+INT "2"
+
+=== underscores in a decimal
+1_000
+---
+INT "1_000"
+
+=== binary number
+0b1010
+---
+INT "0b1010"

@@ -1,0 +1,65 @@
+=== carriage return line feed
+a
+b // c
+d
+---
+IDENT "a"
+WS "\r\n"
+IDENT "b"
+WS " "
+LINE_COMMENT "// c"
+WS "\r\n"
+IDENT "d"
+
+=== lone carriage return
+ab
+---
+IDENT "a"
+WS "\r"
+IDENT "b"
+
+=== byte order mark
+﻿x
+---
+BOM "\u{feff}"
+IDENT "x"
+
+=== byte order mark in the middle
+a﻿b
+---
+IDENT "a" joint
+ERROR "\u{feff}" joint
+IDENT "b"
+! LM-L001 1..4 unexpected character `\u{feff}`
+
+=== tabs between tokens
+a	b		c
+---
+IDENT "a"
+WS "\t"
+IDENT "b"
+WS "\t\t"
+IDENT "c"
+
+=== no trailing newline
+x = 1
+---
+IDENT "x"
+WS " "
+EQ "="
+WS " "
+INT "1"
+
+=== trailing newline kept
+x = 1
+
+---
+IDENT "x"
+WS " "
+EQ "="
+WS " "
+INT "1"
+WS "\n"
+
+=== empty file
+---

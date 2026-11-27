@@ -1,0 +1,25 @@
+=== block comments nest
+a /* b /* c */ d */ e
+---
+IDENT "a"
+WS " "
+BLOCK_COMMENT "/* b /* c */ d */"
+WS " "
+IDENT "e"
+
+=== a block comment left open
+a /* b /* c */
+---
+IDENT "a"
+WS " "
+BLOCK_COMMENT "/* b /* c */"
+! LM-L003 2..4 unterminated block comment; add `*/`
+
+=== documentation and line comments
+/// doc
+// line
+---
+DOC_COMMENT "/// doc"
+WS "\n"
+LINE_COMMENT "// line"
+

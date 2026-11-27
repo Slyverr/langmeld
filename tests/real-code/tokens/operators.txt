@@ -1,0 +1,80 @@
+=== unary minus right after an assignment
+x=-1
+---
+IDENT "x" joint
+EQ "=" joint
+MINUS "-" joint
+INT "1"
+
+=== unary minus right after not-equal
+a!=-b
+---
+IDENT "a" joint
+NOT_EQ "!=" joint
+MINUS "-" joint
+IDENT "b"
+
+=== nested generics keep their closers apart and joined
+Vec<Vec<T>>
+---
+IDENT "Vec" joint
+LT "<" joint
+IDENT "Vec" joint
+LT "<" joint
+IDENT "T" joint
+GT ">" joint
+GT ">"
+
+=== spaced closers are not joined
+a > > b
+---
+IDENT "a"
+WS " "
+GT ">"
+WS " "
+GT ">"
+WS " "
+IDENT "b"
+
+=== shift right joined in an expression
+a >> b
+---
+IDENT "a"
+WS " "
+GT ">" joint
+GT ">"
+WS " "
+IDENT "b"
+
+=== less-than next to a minus
+a<-b
+---
+IDENT "a" joint
+LT "<" joint
+MINUS "-" joint
+IDENT "b"
+
+=== arrow, decrement and minus
+x -> y -- z - w
+---
+IDENT "x"
+WS " "
+ARROW "->"
+WS " "
+IDENT "y"
+WS " "
+MINUS "-" joint
+MINUS "-"
+WS " "
+IDENT "z"
+WS " "
+MINUS "-"
+WS " "
+IDENT "w"
+
+=== range between names
+a..b
+---
+IDENT "a" joint
+DOT_DOT ".." joint
+IDENT "b"

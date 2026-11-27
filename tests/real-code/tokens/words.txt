@@ -1,0 +1,39 @@
+=== hyphenated word
+left-to-right
+---
+BARE "left-to-right"
+
+=== subtraction keeps its spaces
+left - right
+---
+IDENT "left"
+WS " "
+MINUS "-"
+WS " "
+IDENT "right"
+
+=== keyword used as a name stays a keyword
+let let;
+---
+LET_KW "let"
+WS " "
+LET_KW "let" joint
+SEMI ";"
+
+=== identifiers in other scripts
+héllo 名前
+---
+IDENT "héllo"
+WS " "
+IDENT "名前"
+
+=== contextual keyword as a name
+from from = 1
+---
+IDENT "from"
+WS " "
+IDENT "from"
+WS " "
+EQ "="
+WS " "
+INT "1"
