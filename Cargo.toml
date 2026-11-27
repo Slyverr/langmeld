@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "examples/*", "tests/stress", "tests/typed"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.100.0"
 license = "MIT OR Apache-2.0"
@@ -15,11 +15,11 @@ categories = ["parser-implementations", "development-tools"]
 [workspace.dependencies]
 # The crates of this workspace; the version is the one of `[workspace.package]`, and a
 # test keeps the two equal.
-langmeld = { path = "crates/langmeld", version = "0.5.0" }
-langmeld-cli = { path = "crates/langmeld-cli", version = "0.5.0", default-features = false }
-langmeld-ide = { path = "crates/langmeld-ide", version = "0.5.0" }
-langmeld-meta = { path = "crates/langmeld-meta", version = "0.5.0" }
-langmeld-syntax = { path = "crates/langmeld-syntax", version = "0.5.0" }
+langmeld = { path = "crates/langmeld", version = "0.6.0" }
+langmeld-cli = { path = "crates/langmeld-cli", version = "0.6.0", default-features = false }
+langmeld-ide = { path = "crates/langmeld-ide", version = "0.6.0" }
+langmeld-meta = { path = "crates/langmeld-meta", version = "0.6.0" }
+langmeld-syntax = { path = "crates/langmeld-syntax", version = "0.6.0" }
 lsp-server = "0.10.0"
 lsp-types = "0.97.0"
 serde = { version = "1", features = ["derive"] }
