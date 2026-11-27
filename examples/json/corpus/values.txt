@@ -1,0 +1,127 @@
+=== object with one member
+{"a": 1}
+---
+File
+  Object
+    "{"
+    Member
+      "\"a\""
+      ":"
+      Literal "1"
+    "}"
+
+=== nested arrays
+[[], [true, null]]
+---
+File
+  Array
+    "["
+    Array
+      "["
+      "]"
+    ","
+    Array
+      "["
+      Literal "true"
+      ","
+      Literal "null"
+      "]"
+    "]"
+
+=== trailing comma
+[1,]
+---
+File
+  Array
+    "["
+    Literal "1"
+    ","
+    "]"
+! LM-P001 3..4 expected a value, found `]`
+
+=== missing colon
+{"a" 1}
+---
+File
+  Object
+    "{"
+    Member
+      "\"a\""
+      Literal "1"
+    "}"
+! LM-P001 5..6 expected `:`, found `1`
+
+=== missing comma
+[1 2]
+---
+File
+  Array
+    "["
+    Literal "1"
+    Literal "2"
+    "]"
+! LM-P001 3..4 expected `,` or `]`, found `2`
+
+=== unquoted key
+{a: 1}
+---
+File
+  Object
+    "{"
+    Error "a" ":" "1"
+    "}"
+! LM-P001 1..2 expected a member, found `a`
+
+
+=== unclosed array
+[1, 2
+---
+File
+  Array
+    "["
+    Literal "1"
+    ","
+    Literal "2"
+! LM-P001 5..5 expected `,` or `]`, found end of file
+
+=== missing value
+{"a": }
+---
+File
+  Object
+    "{"
+    Member
+      "\"a\""
+      ":"
+    "}"
+! LM-P001 6..7 expected a value, found `}`
+
+=== unterminated string
+["abc
+---
+File
+  Array
+    "["
+    Literal "\"abc"
+! LM-L002 1..5 unterminated string; add a closing `"` before the end of the line
+! LM-P001 5..5 expected `,` or `]`, found end of file
+
+=== empty document
+---
+File
+! LM-P001 0..0 expected a value, found end of file
+
+=== second value
+1 2
+---
+File
+  Literal "1"
+  Error "2"
+! LM-P001 2..3 expected the end of the file, found `2`
+
+=== stray closer
+]
+---
+File
+  Error "]"
+! LM-P001 0..1 expected a value, found `]`

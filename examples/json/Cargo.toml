@@ -1,0 +1,22 @@
+[package]
+name = "json"
+description = "JSON, declared as a grammar: the smallest example."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+langmeld-syntax = { path = "../../crates/langmeld-syntax" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[lints]
+workspace = true

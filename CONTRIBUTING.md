@@ -63,6 +63,7 @@ Verify it works by running the tests (see Commands).
 | `crates/langmeld-meta/` | `.langmeld` format, `langmeld.toml`, code generation |
 | `crates/langmeld-ide/` | Binding, projects, language server, editor packaging |
 | `crates/langmeld-cli/` | The `langmeld` binary and the CLI kit |
+| `examples/` | Languages built with Langmeld, each with its own tests |
 | `tests/` | Corpus files and the runner that checks them |
 | `fuzz/` | Fuzz targets (nightly Rust; its own workspace) |
 | `xtask/` | The `cargo xtask` commands (its own workspace) |
