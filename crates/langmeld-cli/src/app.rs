@@ -7,26 +7,37 @@ use std::process::ExitCode;
 
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
 use langmeld_ide::Served;
+use langmeld_ide::bind::Resolver;
+#[cfg(feature = "lsp")]
+use langmeld_ide::{ProjectFileKind, Server, StdioTransport};
 use langmeld_meta::Editor;
 use langmeld_syntax::{Diagnostic, Parse, SourceFile, explain};
 
-use crate::{Failure, Format, check_files, line, run_corpus};
+use crate::{Failure, Format, check_files_with, line, run_corpus};
 
 type Run<'l> = Box<dyn Fn(&ArgMatches) -> Result<(), Failure> + 'l>;
 type Host<'l> = Box<dyn Fn(&SourceFile, &Parse) -> Vec<Diagnostic> + 'l>;
 
-/// The language's checks, shown by editors on files that parse without problems.
+/// The language's checks, shown by editors on files that parse without problems, and
+/// its way of resolving names.
 #[cfg(feature = "lsp")]
-struct Checks<'a, 'l>(&'a Host<'l>);
+struct Checks<'a, 'l> {
+    host: &'a Host<'l>,
+    resolver: Option<&'a (dyn Resolver + 'l)>,
+}
 
 #[cfg(feature = "lsp")]
 impl langmeld_ide::LanguageHooks for Checks<'_, '_> {
     fn diagnostics(&self, file: &SourceFile, parse: &Parse) -> Vec<Diagnostic> {
         if parse.diagnostics.is_empty() {
-            (self.0)(file, parse)
+            (self.host)(file, parse)
         } else {
             Vec::new()
         }
+    }
+
+    fn resolver(&self) -> Option<&dyn Resolver> {
+        self.resolver.map(|resolver| resolver as &dyn Resolver)
     }
 }
 
@@ -52,6 +63,9 @@ pub struct App<'l> {
     standard: bool,
     commands: Vec<(Command, Run<'l>)>,
     host: Host<'l>,
+    resolver: Option<Box<dyn Resolver + 'l>>,
+    #[cfg(feature = "lsp")]
+    project_files: Vec<ProjectFileKind>,
     explanations: BTreeMap<String, String>,
 }
 
@@ -69,6 +83,9 @@ impl<'l> App<'l> {
             standard: false,
             commands: Vec::new(),
             host: Box::new(|_, _| Vec::new()),
+            resolver: None,
+            #[cfg(feature = "lsp")]
+            project_files: Vec::new(),
             explanations: BTreeMap::new(),
         }
     }
@@ -128,6 +145,24 @@ impl<'l> App<'l> {
         check: impl Fn(&SourceFile, &Parse) -> Vec<Diagnostic> + 'l,
     ) -> Self {
         self.host = Box::new(check);
+        self
+    }
+
+    /// How `check` and the language server resolve names, where the declared rules are
+    /// not enough: names that are there without being written, names a node stands for,
+    /// and what a member means.
+    #[must_use]
+    pub fn resolver(mut self, resolver: impl Resolver + 'l) -> Self {
+        self.resolver = Some(Box::new(resolver));
+        self
+    }
+
+    /// Has the language server check the project file of the language's users called
+    /// `name`, such as `mylang.toml`, as the type `T` reads it, and complete its keys.
+    #[cfg(feature = "lsp")]
+    #[must_use]
+    pub fn project_file<T: serde::de::DeserializeOwned>(mut self, name: impl Into<String>) -> Self {
+        self.project_files.push(ProjectFileKind::new::<T>(name));
         self
     }
 
@@ -192,8 +227,16 @@ impl<'l> App<'l> {
     /// Serves the language to an editor until it asks to exit.
     #[cfg(feature = "lsp")]
     fn lsp(&self) -> Result<(), Failure> {
-        let hooks = Checks(&self.host);
-        match langmeld_ide::serve(self.served, hooks) {
+        let hooks = Checks {
+            host: &self.host,
+            resolver: self.resolver.as_deref(),
+        };
+        let server = self
+            .project_files
+            .iter()
+            .cloned()
+            .fold(Server::new(self.served, hooks), Server::project_file_of);
+        match langmeld_ide::serve_with(StdioTransport::new(), server) {
             Ok(0) => Ok(()),
             Ok(_) => Err(Failure::Found),
             Err(problem) => Err(Failure::Unable(problem.to_string())),
@@ -218,7 +261,8 @@ impl<'l> App<'l> {
             Some("json") => Format::Json,
             _ => Format::Text,
         };
-        check_files(self.served.language(), &paths, format, &self.host)
+        let resolver = self.resolver.as_deref();
+        check_files_with(self.served, &paths, format, &self.host, resolver)
     }
 
     fn test(&self, matches: &ArgMatches) -> Result<(), Failure> {

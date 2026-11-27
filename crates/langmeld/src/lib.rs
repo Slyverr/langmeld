@@ -36,8 +36,8 @@
 
 pub use langmeld_meta::codegen;
 pub use langmeld_meta::{
-    Bins, Editor, EditorRule, Layout, LoadError, Loaded, MANIFEST_NAME, Manifest, Package, Project,
-    Source, VsCode, build, load_language,
+    BindRules, Binding, Bins, Editor, EditorRule, Layout, LoadError, Loaded, MANIFEST_NAME,
+    Manifest, Package, Project, Source, VsCode, build, load_language,
 };
 pub use langmeld_syntax as syntax;
 pub use langmeld_syntax::{
@@ -48,7 +48,7 @@ pub use langmeld_syntax::{
     Pattern, Preset, Schema, SchemaError, Severity, SourceFile, StringParts, StringPreset,
     SyntaxElement, SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken, Terminators, TextEdit,
     TextRange, TextSize, TextTooLarge, Token, TokenClass, TokenSpec, TreeBuilder, Utf16LineCol,
-    ast, codes, explain, parse, pattern,
+    ast, closest, codes, explain, parse, pattern,
 };
 
 /// The command line of a language: the standard commands and your own, on `clap`, which
@@ -57,8 +57,29 @@ pub use langmeld_syntax::{
 pub mod cli {
     pub use langmeld_cli::clap;
     pub use langmeld_cli::{
-        App, Failure, Format, check_files, error_line, files_in, line, parse_file, read, report,
-        run_corpus,
+        App, Failure, Format, check_files, check_files_with, error_line, files_in, line,
+        parse_file, read, report, run_corpus,
+    };
+}
+
+/// Names across the files of a project: what each name means, the names nothing defines,
+/// and renaming safely. A language declares how names bind in the `bind` block of its
+/// grammar. See the guide on names and projects.
+#[cfg(feature = "bind")]
+pub mod bind {
+    pub use langmeld_ide::bind::{
+        Bindings, DEFAULT_FILE_LIMIT, DEFAULT_FILES_LIMIT, Definition, Member, MemberAccess,
+        Project, ProjectFile, Reference, RenameError, Resolver,
+    };
+}
+
+/// Where the files of a project come from, and the project file of a language's users,
+/// such as `mylang.toml`, read into a type the language chooses.
+#[cfg(feature = "bind")]
+pub mod project {
+    pub use langmeld_ide::project::{
+        DiskFiles, FileProvider, ManifestError, MemoryFiles, Overlay, ProjectManifest, find_up,
+        keys,
     };
 }
 
@@ -68,8 +89,8 @@ pub mod cli {
 #[cfg(feature = "lsp")]
 pub mod ide {
     pub use langmeld_ide::{
-        DEFAULT_LIMIT, LanguageHooks, Message, Served, Server, StdioTransport, Transport, serve,
-        serve_with,
+        DEFAULT_LIMIT, LanguageHooks, Message, ProjectFileKind, Served, Server, StdioTransport,
+        Transport, serve, serve_with,
     };
 }
 
@@ -97,6 +118,11 @@ macro_rules! include_syntax {
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/guides/write-a-langmeld-file.md")]
 struct WriteALangmeldFileGuide;
+
+/// The guide's code blocks, compiled and run as doc tests so they stay correct.
+#[cfg(all(doctest, feature = "bind"))]
+#[doc = include_str!("../../../docs/guides/names-and-projects.md")]
+struct NamesAndProjectsGuide;
 
 /// The guide's code blocks, compiled and run as doc tests so they stay correct.
 #[cfg(all(doctest, feature = "lsp"))]

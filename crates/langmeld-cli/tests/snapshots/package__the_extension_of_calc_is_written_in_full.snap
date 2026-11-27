@@ -177,7 +177,7 @@ export function deactivate() {
       ]
     },
     {
-      "match": "\\b(else|false|fn|from|if|let|return|true)\\b",
+      "match": "\\b(else|false|fn|from|if|let|return|true|use)\\b",
       "name": "keyword.control.calc"
     },
     {
