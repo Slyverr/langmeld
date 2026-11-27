@@ -60,7 +60,7 @@ fn an_extension_follows_the_grammar_and_the_manifest() {
         root.join("langmeld.toml"),
         "[bins]\nserver = [\"shapesc\", \"lsp\", \"--quiet\"]\n[package.vscode]\n\
          display-name = \"Shapes\"\npublisher = \"someone\"\nicon = \"logo.png\"\n\
-         out = \"editor\"\n",
+         out = \"editor\"\n[project]\nmanifest = \"shapes.toml\"\n",
     )
     .expect("written");
     let ran = langmeld(&root, &["package", "vscode"]);
@@ -115,6 +115,15 @@ fn an_extension_follows_the_grammar_and_the_manifest() {
     assert!(extension.contains("LanguageClient"), "{extension}");
     assert!(extension.contains("\"shapesc\""), "{extension}");
     assert!(extension.contains("[\"lsp\",\"--quiet\"]"), "{extension}");
+    // The project file of the language's users goes to the server too.
+    assert!(
+        extension.contains("{ pattern: \"**/shapes.toml\" }"),
+        "{extension}"
+    );
+    assert_eq!(
+        package["activationEvents"],
+        json!(["workspaceContains:**/shapes.toml"])
+    );
     for file in ["tsconfig.json", ".vscodeignore", "README.md", ".gitignore"] {
         assert!(out.join(file).is_file(), "{file}");
     }

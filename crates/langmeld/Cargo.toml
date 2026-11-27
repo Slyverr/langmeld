@@ -17,12 +17,18 @@ langmeld-meta.workspace = true
 langmeld-syntax.workspace = true
 
 [features]
+# Names across the files of a project, and the files and project file of a language's
+# users: `langmeld::bind` and `langmeld::project`.
+bind = ["dep:langmeld-ide"]
 # The command line of a language: `langmeld::cli`.
-cli = ["dep:langmeld-cli"]
+cli = ["dep:langmeld-cli", "bind"]
 # Help with what a language does with its trees: `langmeld::kit`.
-kit = ["dep:langmeld-ide"]
+kit = ["bind"]
 # Language servers, in `langmeld::ide`, and the `lsp` command of `langmeld::cli`.
-lsp = ["dep:langmeld-ide", "langmeld-ide/lsp", "langmeld-cli?/lsp"]
+lsp = ["bind", "langmeld-ide/lsp", "langmeld-cli?/lsp"]
+
+[dev-dependencies]
+serde.workspace = true
 
 [lints]
 workspace = true

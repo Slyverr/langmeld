@@ -2,12 +2,13 @@
 
 use std::path::PathBuf;
 
-use langmeld_syntax::{
-    Diagnostic, Diagnostics, FileId, Language, Parse, Severity, SourceFile, TextRange,
-};
+use langmeld_ide::Served;
+use langmeld_ide::bind::{Project, Resolver};
+use langmeld_ide::project::DiskFiles;
+use langmeld_syntax::{Diagnostic, Diagnostics, FileId, Parse, Severity, SourceFile, TextRange};
 use serde_json::{Value, json};
 
-use crate::{Failure, files_in, output, parse_file};
+use crate::{Failure, files_in, output, read};
 
 /// How problems are written.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -73,6 +74,10 @@ fn as_json(files: &[SourceFile], found: &Diagnostic) -> Value {
 /// and shows every problem. Files are numbered in the order read. Fails if there are
 /// errors.
 ///
+/// For a language that binds names, names are resolved across these files and the files
+/// they import, so a name that nothing defines is a problem. See [`check_files_with`] to
+/// resolve names in a way of your own.
+///
 /// With [`Format::Json`] the output is one object:
 ///
 /// ```json
@@ -86,24 +91,66 @@ fn as_json(files: &[SourceFile], found: &Diagnostic) -> Value {
 ///   }]
 /// }
 /// ```
-pub fn check_files(
-    language: &Language,
+pub fn check_files<'l>(
+    language: impl Into<Served<'l>>,
     paths: &[PathBuf],
     format: Format,
     host: &dyn Fn(&SourceFile, &Parse) -> Vec<Diagnostic>,
 ) -> Result<(), Failure> {
-    let mut files = Vec::new();
-    let mut found = Diagnostics::new();
-    for (number, path) in files_in(language, paths)?.into_iter().enumerate() {
-        let id = FileId::new(u32::try_from(number).unwrap_or(u32::MAX));
-        let (file, parsed) = parse_file(language, &path, id)?;
-        // The language's own checks expect a tree without errors.
-        if parsed.diagnostics.is_empty() {
-            found.extend(host(&file, &parsed));
+    check_files_with(language, paths, format, host, None)
+}
+
+/// Like [`check_files`], resolving names with `resolver` where the declared rules are not
+/// enough.
+pub fn check_files_with<'l>(
+    language: impl Into<Served<'l>>,
+    paths: &[PathBuf],
+    format: Format,
+    host: &dyn Fn(&SourceFile, &Parse) -> Vec<Diagnostic>,
+    resolver: Option<&dyn Resolver>,
+) -> Result<(), Failure> {
+    let served = language.into();
+    let language = served.language();
+    let mut project = Project::new(served);
+    let mut checked: Vec<(FileId, String)> = Vec::new();
+    for path in files_in(language, paths)? {
+        let name = path.display().to_string().replace('\\', "/");
+        if project.file_at(&name).is_some() {
+            continue;
         }
-        found.extend(parsed.diagnostics);
-        files.push(file);
+        let id = project.set(&name, read(&path)?).ok_or_else(|| {
+            Failure::Unable(format!(
+                "{name}: the file is too large, or there are more files than a project holds"
+            ))
+        })?;
+        checked.push((id, name));
     }
+    let mut found = Diagnostics::new();
+    // Names reach across the files checked and those they import.
+    if !project.rules().rules.is_empty() || resolver.is_some() {
+        for (_, name) in &checked {
+            project.open(name, &DiskFiles);
+        }
+        let bindings = match resolver {
+            Some(resolver) => resolver.resolve(&project),
+            None => project.bind(),
+        };
+        let ours: Vec<FileId> = checked.iter().map(|&(id, _)| id).collect();
+        let mine = bindings.diagnostics().iter();
+        found.extend(mine.filter(|found| ours.contains(&found.file)).cloned());
+    }
+    for &(id, _) in &checked {
+        let Some(file) = project.file(id) else {
+            continue;
+        };
+        // The language's own checks expect a tree without errors.
+        if file.parse().diagnostics.is_empty() {
+            found.extend(host(file.source(), file.parse()));
+        }
+        found.extend(file.parse().diagnostics.iter().cloned());
+    }
+    // Imported files too, so that problems can point into them.
+    let files: Vec<SourceFile> = project.files().map(|file| file.source().clone()).collect();
     let found = found.into_sorted();
     let errors = found
         .iter()
@@ -113,7 +160,7 @@ pub fn check_files(
     match format {
         Format::Json => {
             let value = json!({
-                "files": files.len(),
+                "files": checked.len(),
                 "errors": errors,
                 "warnings": warnings,
                 "diagnostics": found.iter().map(|d| as_json(&files, d)).collect::<Vec<_>>(),
@@ -126,7 +173,7 @@ pub fn check_files(
                 |n: usize, what: &str| format!("{n} {what}{}", if n == 1 { "" } else { "s" });
             output::line(&format!(
                 "checked {}, {}, {}",
-                count(files.len(), "file"),
+                count(checked.len(), "file"),
                 count(errors, "error"),
                 count(warnings, "warning")
             ));

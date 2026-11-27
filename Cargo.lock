@@ -627,6 +627,7 @@ dependencies = [
  "langmeld-ide",
  "langmeld-meta",
  "langmeld-syntax",
+ "serde",
 ]
 
 [[package]]
@@ -639,6 +640,7 @@ dependencies = [
  "langmeld-ide",
  "langmeld-meta",
  "langmeld-syntax",
+ "serde",
  "serde_json",
  "toml",
 ]
@@ -1103,6 +1105,7 @@ version = "0.6.0"
 dependencies = [
  "langmeld",
  "langmeld-meta",
+ "serde_json",
 ]
 
 [[package]]

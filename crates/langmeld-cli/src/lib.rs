@@ -28,7 +28,7 @@ use std::fmt;
 
 pub use app::App;
 pub use clap;
-pub use files::{Format, check_files};
+pub use files::{Format, check_files, check_files_with};
 pub use output::{error_line, line, report};
 pub use source::{files_in, parse_file, read};
 pub use testing::run_corpus;

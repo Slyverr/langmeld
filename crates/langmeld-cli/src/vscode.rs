@@ -58,6 +58,8 @@ struct Extension<'l> {
     icon: Option<String>,
     /// The program that serves the language, and its arguments.
     server: Vec<String>,
+    /// The name of the project file of the language's users.
+    project: Option<String>,
 }
 
 impl Extension<'_> {
@@ -119,6 +121,11 @@ impl Extension<'_> {
         });
         if let (Some(icon), Some(fields)) = (&self.icon, package.as_object_mut()) {
             fields.insert("icon".to_owned(), Value::String(icon.clone()));
+        }
+        // A folder with the project file starts the server before a file is opened.
+        if let (Some(file), Some(fields)) = (&self.project, package.as_object_mut()) {
+            let event = format!("workspaceContains:**/{file}");
+            fields.insert("activationEvents".to_owned(), json!([event]));
         }
         package
     }
@@ -211,6 +218,11 @@ impl Extension<'_> {
         let arguments = json!(self.server.get(1..).unwrap_or_default());
         let command = json!(command);
         let name = json!(self.name);
+        let mut selector = format!(r#"{{ language: "{id}" }}"#);
+        if let Some(file) = &self.project {
+            let pattern = json!(format!("**/{file}"));
+            selector.push_str(&format!(", {{ pattern: {pattern} }}"));
+        }
         format!(
             r#"// Written by `langmeld package vscode`. It starts the language server.
 import * as vscode from "vscode";
@@ -223,7 +235,7 @@ export async function activate(context: vscode.ExtensionContext) {{
   const command = settings.get<string>("server.path") || {command};
   const server = {{ command, args: {arguments} }};
   client = new LanguageClient("{id}", {name}, server, {{
-    documentSelector: [{{ language: "{id}" }}],
+    documentSelector: [{selector}],
   }});
   context.subscriptions.push({{ dispose: () => client?.stop() }});
   await client.start();
@@ -387,6 +399,7 @@ pub(crate) fn run(path: &Path, out: Option<&Path>, grammar: bool) -> Result<(), 
         publisher: vscode.publisher.unwrap_or_else(|| "local".to_owned()),
         icon,
         server,
+        project: manifest.project.map(|project| project.manifest),
     };
     for (path, text) in extension.files() {
         write(&out, &path, text.as_bytes())?;
