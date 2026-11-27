@@ -8,6 +8,10 @@ edition = "2024"
 rust-version = "1.100.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slyverr/langmeld"
+homepage = "https://github.com/Slyverr/langmeld"
+readme = "README.md"
+keywords = ["parser", "language", "lexer", "dsl", "syntax"]
+categories = ["parser-implementations", "development-tools"]
 publish = false
 
 [workspace.dependencies]

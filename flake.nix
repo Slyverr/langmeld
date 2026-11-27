@@ -10,7 +10,7 @@
   };
 
   outputs =
-    { nixpkgs, rust-overlay, ... }:
+    { nixpkgs, rust-overlay, self, ... }:
     let
       systems = [
         "x86_64-linux"
@@ -30,6 +30,21 @@
         );
     in
     {
+      packages = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/package.nix { };
+      });
+
+      apps = forAllSystems (pkgs: {
+        default = {
+          type = "app";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.default}/bin/langmeld";
+        };
+      });
+
+      overlays.default = final: prev: {
+        langmeld = (prev.extend rust-overlay.overlays.default).callPackage ./nix/package.nix { };
+      };
+
       devShells = forAllSystems (
         pkgs:
         let
