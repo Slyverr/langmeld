@@ -519,15 +519,17 @@ pub fn source() -> ::langmeld::Source {{
         if custom.is_empty() {
             self.out.push_str(
                 "
+/// The language and what it tells editors, read once.
+pub fn loaded() -> &'static ::langmeld::Loaded {
+    static LOADED: ::std::sync::OnceLock<::langmeld::Loaded> = ::std::sync::OnceLock::new();
+    LOADED.get_or_init(|| {
+        ::langmeld::load_language(source()).expect(\"the build script compiled it with this version\")
+    })
+}
+
 /// The language, read once.
 pub fn language() -> &'static ::langmeld::Language {
-    static LOADED: ::std::sync::OnceLock<::langmeld::Loaded> = ::std::sync::OnceLock::new();
-    &LOADED
-        .get_or_init(|| {
-            ::langmeld::load_language(source())
-                .expect(\"the build script compiled it with this version\")
-        })
-        .language
+    &loaded().language
 }
 ",
             );
