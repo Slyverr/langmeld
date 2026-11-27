@@ -1,0 +1,19 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: shown
+---
+exit: 1
+--- stdout
+corpus/cases.txt: 0 passed, 2 failed
+  FAIL wrong tree (line 1)
+    expected:
+      File
+    actual:
+      File
+        Property
+          "speed"
+          ":"
+          Value "3"
+  FAIL now fine (line 6) passes now: remove `[expected-failure]` from its name
+test result: FAILED. 2 of 2 cases failed
+--- stderr

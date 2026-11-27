@@ -10,6 +10,10 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ### Added
 
+- The `langmeld` command: `check` validates a language file or project and, with `--explain`,
+  shows where it looks more than one token ahead; `test` runs the corpus files of a
+  language project and `--update` rewrites what they expect; `parse --grammar` parses a
+  file with a `.langmeld` file alone, reading custom rules as one error each.
 - A language can be compiled ahead of time from a build script (`build::embed`) and a program
   includes the result, so it starts without reading or checking the grammar. A language
   declared with the builder can be written as bytes and read back too.

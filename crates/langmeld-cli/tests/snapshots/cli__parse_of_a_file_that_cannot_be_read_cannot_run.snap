@@ -1,0 +1,8 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"parse\", \"--grammar\", \"pairs/pairs.langmeld\", \"pairs/missing.pairs\"])"
+---
+exit: 2
+--- stdout
+--- stderr
+error: cannot read `pairs/missing.pairs`: No such file or directory (os error 2)

@@ -1,0 +1,18 @@
+langmeld 1
+
+language Arrows { extensions "arrows" }
+
+tokens {
+    skip space = /[ \t\r\n]+/
+    name       = preset ident(ascii)
+}
+
+rule File = Expr*
+
+// Needs unbounded lookahead to tell `(a, b) => a` from `(a)`.
+extern rule ArrowOrParen -> Expr first "("
+
+expr Expr {
+    atom Name  = name
+    atom Fancy = ArrowOrParen
+}
