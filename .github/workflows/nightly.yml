@@ -1,12 +1,19 @@
 name: Nightly
 
 # Longer runs than a pull request gets. They hold nothing up, and a failure opens an
-# issue. To run it on a branch:
+# issue. Surviving mutants and benchmark numbers are only reported. To run it on a branch:
 #   gh workflow run nightly.yml --ref <branch>
+# The mutation run covers the files changed since the previous day; to cover every file:
+#   gh workflow run nightly.yml --ref <branch> -f full=true
 on:
   schedule:
     - cron: "17 3 * * *" # every day, 03:17 UTC
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Mutation testing: cover every file, not only those changed since yesterday"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,7 +29,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [line_index, lexer, interpolation, parse_handwritten_calc]
+        target:
+          [
+            line_index,
+            lexer,
+            interpolation,
+            parse_handwritten_calc,
+            grammar_builder,
+            parse_json,
+            parse_calc,
+          ]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -78,6 +94,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Lexer benchmark
         run: nix develop --command cargo bench -p langmeld-syntax --bench lexer -- --noplot | tee bench.txt
+      - name: Grammar benchmark
+        run: nix develop --command cargo bench -p langmeld-syntax --bench grammar -- --noplot
+      - name: JSON benchmark
+        run: nix develop --command cargo bench -p json --bench throughput -- --noplot
       - name: Add the results to the run summary
         run: |
           {
@@ -87,6 +107,142 @@ jobs:
             grep -E '^lex/|time:|thrpt:' bench.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY" || true
+          import json
+          import pathlib
+
+          # What criterion measured, by benchmark name: seconds and bytes per run.
+          found = {}
+          for info in pathlib.Path("target/criterion").rglob("new/benchmark.json"):
+              try:
+                  details = json.loads(info.read_text())
+                  mean = json.loads((info.parent / "estimates.json").read_text())["mean"]
+                  found[details["full_id"]] = (
+                      mean["point_estimate"] / 1e9,
+                      details["throughput"]["Bytes"],
+                  )
+              except (OSError, KeyError, TypeError, ValueError):
+                  continue
+
+          def speed(name):
+              seconds, size = found[name]
+              return size / seconds / 1e6
+
+          print("### Parsing speed")
+          print("Runner times are noisy: the bars are read as a trend, and never fail the run.")
+          print()
+          print("| Benchmark | Speed | Bar |")
+          print("|-----------|-------|-----|")
+          if "json/parse" in found:
+              mbps = speed("json/parse")
+              verdict = "met" if mbps >= 20 else "not met"
+              print(f"| JSON parse | {mbps:.1f} MB/s | ≥ 20 MB/s: {verdict} |")
+          if "json/parse with 300 rules" in found:
+              print(f"| JSON parse, 300 rules | {speed('json/parse with 300 rules'):.1f} MB/s | |")
+          for kind in ("same input", "every rule used"):
+              rows = {n: f"grammar/{kind}/{n}" for n in (5, 50, 300)}
+              if not all(name in found for name in rows.values()):
+                  continue
+              for n, name in rows.items():
+                  print(f"| {n} rules, {kind} | {speed(name):.1f} MB/s | |")
+              ratio = found[rows[300]][0] / found[rows[5]][0]
+              verdict = "met" if ratio <= 2 else "not met"
+              print(f"| 300 rules against 5, {kind} | {ratio:.2f}× the time | within 2×: {verdict} |")
+          PY
+
+  mutants:
+    name: Mutation testing (${{ matrix.part }})
+    runs-on: ubuntu-latest
+    # Surviving mutants are reported, never a failure. Part of a long run that does not
+    # finish in time is reported as far as it got.
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Choose what to change
+        id: scope
+        env:
+          FULL: ${{ inputs.full }}
+        run: |
+          if [ "$FULL" = "true" ]; then
+            echo "scope=every file" >> "$GITHUB_OUTPUT"
+            : > mutants.diff
+          else
+            # The newest commit that is a day old, or the empty tree if there is none.
+            base=$(git rev-list -1 --before="24 hours ago" HEAD)
+            echo "scope=files changed since ${base:-the first commit}" >> "$GITHUB_OUTPUT"
+            git diff "${base:-$(git hash-object -t tree /dev/null)}" HEAD > mutants.diff
+          fi
+      - name: Mutate
+        env:
+          FULL: ${{ inputs.full }}
+          PROPTEST_CASES: "16"
+          # Leave a core to the runner's own agent, which a busy machine can starve until
+          # the job is lost.
+          CARGO_BUILD_JOBS: "3"
+        run: |
+          args=(--shard "${{ matrix.part }}/8" --timeout 180 --test-tool nextest)
+          if [ "$FULL" != "true" ]; then
+            args+=(--in-diff mutants.diff)
+          fi
+          status=0
+          nice -n 19 timeout 340m nix develop --command cargo mutants "${args[@]}" || status=$?
+          # 2: some mutants survived; 3: some timed out; 124: out of time. All are reports.
+          case "$status" in
+            0 | 2 | 3 | 124) ;;
+            *) exit "$status" ;;
+          esac
+          echo "MUTANTS_STATUS=$status" >> "$GITHUB_ENV"
+      - name: Add the results to the run summary
+        if: always()
+        env:
+          SCOPE: ${{ steps.scope.outputs.scope }}
+        run: |
+          count() { if [ -f "mutants.out/$1" ]; then grep -c . "mutants.out/$1" || true; else echo 0; fi; }
+          {
+            echo "### Mutation testing, part $((${{ matrix.part }} + 1)) of 8"
+            echo "Covers $SCOPE. Missed mutants are a report, not a failure."
+            echo
+            echo "| Outcome | Mutants |"
+            echo "|---------|---------|"
+            echo "| Caught | $(count caught.txt) |"
+            echo "| Missed | $(count missed.txt) |"
+            echo "| Timed out | $(count timeout.txt) |"
+            echo "| Unviable | $(count unviable.txt) |"
+            if [ "${MUTANTS_STATUS:-}" = "124" ]; then
+              echo
+              echo "The run ran out of time, so the lists stop where it did."
+            fi
+            if [ -s mutants.out/missed.txt ]; then
+              echo
+              echo '<details><summary>Missed mutants</summary>'
+              echo
+              echo '```'
+              cat mutants.out/missed.txt
+              echo '```'
+              echo '</details>'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-${{ matrix.part }}
+          path: |
+            mutants.out/outcomes.json
+            mutants.out/caught.txt
+            mutants.out/missed.txt
+            mutants.out/timeout.txt
+            mutants.out/unviable.txt
+          if-no-files-found: ignore
 
   browser:
     name: Browser tests
@@ -109,7 +265,7 @@ jobs:
 
   report:
     name: Report failure
-    needs: [fuzz, properties, browser, bench]
+    needs: [fuzz, properties, browser, bench, mutants]
     if: failure()
     runs-on: ubuntu-latest
     permissions:
