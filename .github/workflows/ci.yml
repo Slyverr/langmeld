@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Format, lint, tests and WebAssembly
+        run: nix develop --command cargo xtask ci
+
+  msrv:
+    name: Minimum supported Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: nix develop .#msrv --command cargo build --workspace --locked
+
+  fuzz:
+    name: Fuzz smoke test (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [line_index]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+      - name: Fuzz for 60 seconds
+        run: |
+          nix develop .#fuzz --command cargo fuzz run ${{ matrix.target }} -- \
+            -max_total_time=60 -timeout=10 -rss_limit_mb=2048
