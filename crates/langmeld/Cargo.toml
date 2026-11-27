@@ -21,6 +21,8 @@ langmeld-syntax.workspace = true
 cli = ["dep:langmeld-cli"]
 # Help with what a language does with its trees: `langmeld::kit`.
 kit = ["dep:langmeld-ide"]
+# Language servers, in `langmeld::ide`, and the `lsp` command of `langmeld::cli`.
+lsp = ["dep:langmeld-ide", "langmeld-ide/lsp", "langmeld-cli?/lsp"]
 
 [lints]
 workspace = true

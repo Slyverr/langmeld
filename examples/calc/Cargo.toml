@@ -13,7 +13,7 @@ name = "calc"
 path = "src/main.rs"
 
 [dependencies]
-langmeld = { workspace = true, features = ["cli", "kit"] }
+langmeld = { workspace = true, features = ["cli", "kit", "lsp"] }
 langmeld-syntax.workspace = true
 
 [dev-dependencies]
