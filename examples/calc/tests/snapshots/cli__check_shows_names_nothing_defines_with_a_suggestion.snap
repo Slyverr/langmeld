@@ -1,0 +1,23 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"check\", \"tests/typo/main.calc\"])"
+---
+exit: 1
+--- stdout
+checked 1 file, 2 errors, 0 warnings
+--- stderr
+error[LM-B001]: `twise` is not defined
+ --> tests/typo/main.calc:2:7
+  |
+2 | print(twise(base));
+  |       ^^^^^
+  = note: did you mean `twice`?
+  = fix: use `twice`
+
+error[LM-B001]: `bass` is not defined
+ --> tests/typo/main.calc:3:7
+  |
+3 | print(bass);
+  |       ^^^^
+  = note: did you mean `base`?
+  = fix: use `base`

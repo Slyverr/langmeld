@@ -1,0 +1,12 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"run\", \"tests/typo/lost.calc\"])"
+---
+exit: 1
+--- stdout
+--- stderr
+error[CALC011]: cannot read "nowhere.calc"
+ --> tests/typo/lost.calc:1:5
+  |
+1 | use "nowhere.calc";
+  |     ^^^^^^^^^^^^^^

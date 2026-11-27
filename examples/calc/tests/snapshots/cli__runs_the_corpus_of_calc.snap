@@ -4,6 +4,6 @@ expression: "calc(&[\"test\"])"
 ---
 exit: 0
 --- stdout
-corpus/basics.txt: 4 passed
-test result: ok. 4 cases
+corpus/basics.txt: 5 passed
+test result: ok. 5 cases
 --- stderr

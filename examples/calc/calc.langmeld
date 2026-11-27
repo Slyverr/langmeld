@@ -11,12 +11,13 @@ tokens {
     int        = preset int(dec, hex, underscores)
     float      = preset float(exponent)          // requires a digit after `.`
     string     = preset string(double)           // unterminated → error at end of line
-    keywords   { let fn return if else true false }
+    keywords   { use let fn return if else true false }
     contextual { from }                          // stays `ident` unless a rule asks for it
 }
 
 rule File     = items:Item*
-rule Item     = LetStmt | FnDecl | ExprStmt
+rule Item     = UseStmt | LetStmt | FnDecl | ExprStmt
+rule UseStmt  = "use" path:string ";"        // runs another file here, and brings in its names
 rule LetStmt  = "let" name:Name "=" value:Expr ";"
 rule FnDecl   = "fn" name:Name "(" params:sep(Param, ",") ")" body:Block
 rule Param    = name:Name
@@ -43,6 +44,7 @@ bind {
     FnDecl.name  defines value hoisted in parent
     Param.name   defines value
     NameRef      refers  value
+    UseStmt      imports value from UseStmt.path
 }
 
 editor {

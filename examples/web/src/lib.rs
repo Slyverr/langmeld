@@ -16,6 +16,10 @@ impl LanguageHooks for Checks {
             Vec::new()
         }
     }
+
+    fn resolver(&self) -> Option<&dyn langmeld::bind::Resolver> {
+        Some(&calc::Builtins)
+    }
 }
 
 /// A language server for one page.

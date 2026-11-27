@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"check\", \"tests/project\"])"
+---
+exit: 0
+--- stdout
+checked 2 files, 0 errors, 0 warnings
+--- stderr

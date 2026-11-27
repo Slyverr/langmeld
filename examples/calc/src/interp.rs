@@ -12,10 +12,11 @@
 use std::fmt;
 
 use langmeld::ast::AstNode;
+use langmeld::bind::Project;
 use langmeld::kit::interp::{Budget, Env, Exhausted, Value};
 use langmeld::{Diagnostic, FileId, TextRange};
 
-use crate::syntax::{Block, Call, Expr, File, FnDecl, If, Item, Literal};
+use crate::syntax::{Block, Call, Expr, File, FnDecl, If, Item, Literal, UseStmt};
 
 /// How many steps a program may take before it is stopped.
 pub const MOST_STEPS: u64 = 5_000_000;
@@ -24,7 +25,7 @@ pub const MOST_STEPS: u64 = 5_000_000;
 pub const MOST_DEPTH: u32 = 128;
 
 /// What `explain` says about each code of the language.
-pub const EXPLANATIONS: [(&str, &str); 10] = [
+pub const EXPLANATIONS: [(&str, &str); 11] = [
     (
         "CALC001",
         "A name is used that nothing defines.\n\nDefine it with `let` before it is used, or \
@@ -82,6 +83,12 @@ pub const EXPLANATIONS: [(&str, &str); 10] = [
          warning from `calc check`, found without running the program. Divide by a number \
          that is not zero.",
     ),
+    (
+        "CALC011",
+        "A file named by `use` cannot be run.\n\nCheck the path: `use` names a file \
+         relative to the folder of the file that uses it, written with `/`, and the file must \
+         exist. A file that has syntax problems is not run either; `calc check` shows them.",
+    ),
 ];
 
 /// A function the program declared.
@@ -89,6 +96,8 @@ pub const EXPLANATIONS: [(&str, &str); 10] = [
 pub struct Function {
     name: String,
     decl: FnDecl,
+    /// The file that declares it, which problems in its body are in.
+    file: FileId,
 }
 
 impl fmt::Display for Function {
@@ -104,7 +113,12 @@ pub type Val = Value<Function>;
 type Result<T> = std::result::Result<T, Box<Diagnostic>>;
 
 struct Interpreter<'o> {
+    /// The file whose statements are running.
     file: FileId,
+    /// The files that `use` can name.
+    project: Option<&'o Project<'o>>,
+    /// The files being run, each of which used the next.
+    running: Vec<FileId>,
     env: Env<Val>,
     budget: Budget,
     output: &'o mut dyn FnMut(&str),
@@ -155,6 +169,7 @@ impl Interpreter<'_> {
                 let function = Function {
                     name: name.clone(),
                     decl: decl.clone(),
+                    file: self.file,
                 };
                 self.env.define(name, Value::Other(function));
             }
@@ -177,6 +192,7 @@ impl Interpreter<'_> {
                     self.env.define(node_text(name.syntax()), value);
                 }
                 Item::FnDecl(_) => {}
+                Item::UseStmt(statement) => self.import(&statement)?,
                 Item::ExprStmt(statement) => {
                     let expr = self.part(statement.expr(), statement.syntax().text_range())?;
                     let value = self.value(&expr)?;
@@ -193,6 +209,40 @@ impl Interpreter<'_> {
             }
         }
         Ok(last)
+    }
+
+    /// Runs the file a `use` names where it is written, unless it is running already.
+    fn import(&mut self, statement: &UseStmt) -> Result<()> {
+        let range = statement.syntax().text_range();
+        let path = self.part(statement.path(), range)?;
+        let project = self.project;
+        let found = project.and_then(|project| {
+            let id = project.import_at(self.file, path.syntax().text_range().start())?;
+            Some((id, project.file(id)?))
+        });
+        let Some((id, imported)) = found else {
+            let message = format!("cannot read {}", path.text());
+            return Err(self.fail("CALC011", path.syntax().text_range(), message));
+        };
+        if self.running.contains(&id) {
+            return Ok(());
+        }
+        // The problems of that file are shown in it.
+        if let Some(problem) = imported.parse().diagnostics.first() {
+            return Err(Box::new(problem.clone()));
+        }
+        let file = File::cast(imported.parse().syntax());
+        let file = self.part(file, range)?;
+        self.budget
+            .enter()
+            .map_err(|reached| self.exhausted(reached, range))?;
+        self.running.push(id);
+        let using = std::mem::replace(&mut self.file, id);
+        let ran = self.items(file.items().collect(), false);
+        self.file = using;
+        self.running.pop();
+        self.budget.leave();
+        ran.map(drop)
     }
 
     fn semicolon(&self) -> langmeld::SyntaxKind {
@@ -455,7 +505,10 @@ impl Interpreter<'_> {
                 self.env.define(node_text(name.syntax()), value);
             }
         }
+        // Its problems are in the file that declares it.
+        let caller = std::mem::replace(&mut self.file, function.file);
         let result = self.block(&body);
+        self.file = caller;
         self.env.pop();
         self.budget.leave();
         result
@@ -516,6 +569,7 @@ fn item_range(item: &Item) -> TextRange {
     match item {
         Item::LetStmt(it) => it.syntax().text_range(),
         Item::FnDecl(it) => it.syntax().text_range(),
+        Item::UseStmt(it) => it.syntax().text_range(),
         Item::ExprStmt(it) => it.syntax().text_range(),
     }
 }
@@ -553,8 +607,59 @@ pub fn run_within(
     budget: Budget,
     output: &mut dyn FnMut(&str),
 ) -> Result<()> {
+    execute(file, id, None, budget, output)
+}
+
+/// Runs the file `id` of a project, in which `use` can name the other files, with the most
+/// steps and calls Calc allows.
+///
+/// ```
+/// use calc::interp::run_project;
+/// use langmeld::bind::Project;
+/// use langmeld::project::MemoryFiles;
+///
+/// let mut files = MemoryFiles::default();
+/// files.insert("main.calc", "use \"lib.calc\"; print(twice(4));");
+/// files.insert("lib.calc", "fn twice(n) { n * 2 }");
+/// let mut project = Project::new(calc::syntax::loaded());
+/// let main = project.open("main.calc", &files).expect("there");
+/// let mut shown = Vec::new();
+/// run_project(&project, main, &mut |line| shown.push(line.to_owned()))?;
+/// assert_eq!(shown, ["8"]);
+/// # Ok::<(), Box<langmeld::Diagnostic>>(())
+/// ```
+pub fn run_project<'p>(
+    project: &'p Project<'p>,
+    id: FileId,
+    output: &'p mut dyn FnMut(&str),
+) -> Result<()> {
+    let found = project
+        .file(id)
+        .and_then(|file| File::cast(file.parse().syntax()));
+    let Some(file) = found else {
+        let message = "there is no such file in the project";
+        return Err(Box::new(Diagnostic::error(
+            "CALC011",
+            id,
+            TextRange::default(),
+            message,
+        )));
+    };
+    let budget = Budget::new(MOST_STEPS, MOST_DEPTH);
+    execute(&file, id, Some(project), budget, output)
+}
+
+fn execute<'o>(
+    file: &File,
+    id: FileId,
+    project: Option<&'o Project<'o>>,
+    budget: Budget,
+    output: &'o mut dyn FnMut(&str),
+) -> Result<()> {
     let mut interpreter = Interpreter {
         file: id,
+        project,
+        running: vec![id],
         env: Env::new(),
         budget,
         output,
