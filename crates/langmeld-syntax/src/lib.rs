@@ -14,6 +14,9 @@
 //!   [`Lexeme`]s that covers the file.
 //! - Parsing: write functions that drive a [`Parser`], which builds a [`Parse`]
 //!   (a lossless tree and diagnostics) through a [`TreeBuilder`].
+//! - Grammars: declare a [`Language`] with [`Language::builder`] and the
+//!   [`pattern`] functions, and [`parse`] files with it. The grammar is checked when it
+//!   is built, and what is wrong is reported as [`Diagnostic`]s with a way to fix it.
 //!
 //! ```
 //! use langmeld_syntax::{FileId, SourceFile, TextSize};
@@ -29,14 +32,20 @@
 
 mod diagnostic;
 mod file;
+mod grammar;
 mod kind;
 mod lexeme;
 mod lexer;
 mod line_index;
+mod macros;
 mod parser;
 
 pub use diagnostic::{Diagnostic, Fix, Label, Severity, TextEdit};
 pub use file::{FileId, SourceFile};
+pub use grammar::{
+    Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, NodeSchema,
+    Pattern, Schema, SchemaError, Token, parse, pattern,
+};
 pub use kind::{SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken};
 pub use lexeme::Lexeme;
 pub use lexer::{

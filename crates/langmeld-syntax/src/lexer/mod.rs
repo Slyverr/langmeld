@@ -273,6 +273,11 @@ impl Lexer {
         identifiers.any(|(len, spec)| len == word.len() && self.specs[spec].identifier)
     }
 
+    /// Whether tokens of `kind` are trivia, which parsers do not see.
+    pub(crate) fn is_trivia(&self, kind: SyntaxKind) -> bool {
+        self.spec(kind).is_some_and(|spec| spec.trivia)
+    }
+
     fn spec(&self, kind: SyntaxKind) -> Option<&TokenSpec> {
         self.specs.get(self.kinds.get(kind)?.spec)
     }
