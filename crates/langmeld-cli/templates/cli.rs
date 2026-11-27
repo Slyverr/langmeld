@@ -31,6 +31,7 @@ fn run_command(language: &Language, matches: &ArgMatches) -> Result<(), Failure>
 /// A program with the commands added to it so far: none.
 fn program(name: &str) -> App<'static> {
     let app = App::new(syntax::language())
+        .editor(&syntax::loaded().editor)
         .name(name)
         .version(env!("CARGO_PKG_VERSION"))
         .about("{{Name}}, a language built with Langmeld");

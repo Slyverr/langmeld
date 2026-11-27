@@ -25,3 +25,7 @@ expr Expr {
     infix Product   "*" | "/"  prec 2 left
     infix Sum       "+" | "-"  prec 1 left
 }
+
+editor {
+    symbol Let kind variable name name
+}

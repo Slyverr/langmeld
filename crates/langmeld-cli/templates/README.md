@@ -11,6 +11,7 @@ You need [Rust](https://rustup.rs/).
 {{tools}} check examples                   # problems of every file there
 {{tools}} test                             # the cases in corpus
 {{tools}} explain {{CODE}}001                  # what a diagnostic means
+{{tools}} lsp                              # the language server editors start
 ```
 
 ## Change it
@@ -20,6 +21,7 @@ You need [Rust](https://rustup.rs/).
 | What can be written | `language/main.langmeld` |
 | What programs do | `src/interp.rs` |
 | The commands | `src/cli.rs` |
+| What editors show | `editor { }` in `language/main.langmeld` |
 | What the parser should give | `corpus/*.txt` |
 
 After changing the grammar, build: the compiler shows what the code does not handle yet.

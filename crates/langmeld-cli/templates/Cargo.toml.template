@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-langmeld = { {{source}}, features = ["cli", "kit"] }
+langmeld = { {{source}}, features = ["cli", "kit", "lsp"] }
 
 [build-dependencies]
 langmeld = { {{source}} }
