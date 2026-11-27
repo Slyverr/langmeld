@@ -32,7 +32,7 @@ with every problem, each with its place.
 | A string with holes | The node that its rule is, like any other |
 | A part labelled `value` | A method `value()` on the node |
 | A part that can be one of several rules | An enum named for the node and the label, such as `LetValue` |
-| The whole grammar | `trait Visitor`, `fn visit`, `fn source()`, and `fn language()` |
+| The whole grammar | `trait Visitor`, `fn visit`, `fn source()`, `fn loaded()` and `fn language()` |
 
 Every node type has `can_cast(kind)`, `cast(node)`, `syntax()` and `range()` from
 `langmeld::ast::AstNode`, which must be in scope to call them. Types derive `Clone`,
@@ -75,9 +75,11 @@ that it never names, by type, by variant of its enum or by visitor method.
 
 ## The language
 
-`syntax::source()` is a `langmeld::Source` for the compiled language, and
-`syntax::language()` is the language read from it once. A language with `extern` rules or
-tokens has no `language()`, because their code must be given first:
+`syntax::source()` is a `langmeld::Source` for the compiled language,
+`syntax::loaded()` is the language read from it once, with what it tells editors
+(`loaded().editor`, which the command line's `lsp` command serves), and `syntax::language()`
+is its `language` field. A language with `extern` rules or tokens has neither, because
+their code must be given first:
 
 ```rust,ignore
 let loaded = langmeld::load_language(

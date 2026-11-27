@@ -75,7 +75,7 @@ fn a_release_is_what_a_new_project_depends_on_unless_told_otherwise() {
     let manifest = fs::read_to_string(root.join("plain/Cargo.toml")).expect("written");
     assert!(
         manifest.contains(&format!(
-            "langmeld = {{ version = \"{}\", features = [\"cli\", \"kit\"] }}",
+            "langmeld = {{ version = \"{}\", features = [\"cli\", \"kit\", \"lsp\"] }}",
             env!("CARGO_PKG_VERSION")
         )),
         "{manifest}"

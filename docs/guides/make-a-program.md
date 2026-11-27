@@ -107,6 +107,7 @@ fn main() -> std::process::ExitCode {
 | `check [PATH]... [--format text\|json]` | Parses the files with the language's extensions, runs your checks, and shows every problem |
 | `test [--corpus DIR] [--update]` | Runs the corpus files in `corpus/` |
 | `explain CODE` | Explains a code of Langmeld or of yours |
+| `lsp` | With the `lsp` feature: serves the language to editors, with your checks and the `editor` block of the grammar (give it with `.editor(&syntax::loaded().editor)`); see [Editor support](editor-support.md) |
 
 A command ends with exit code 0 when all is well, 1 when it found problems and showed
 them, and 2 when it could not do its work. `--format json` writes one JSON object with the

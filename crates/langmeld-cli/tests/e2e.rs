@@ -9,8 +9,9 @@
 mod support;
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use support::{Ran, facade, folder, langmeld};
 
@@ -43,7 +44,12 @@ fn follow_readme(project: &Path) {
         .map(|line| line.split('#').next().unwrap_or(line).trim())
         .collect();
     assert!(commands.len() >= 4, "{commands:?}");
-    for command in commands {
+    // The language server waits for an editor, so a test of its own talks to it.
+    assert!(
+        commands.iter().any(|command| command.ends_with(" lsp")),
+        "the README does not say how to start the language server: {commands:?}"
+    );
+    for command in commands.into_iter().filter(|c| !c.ends_with(" lsp")) {
         let words: Vec<_> = command.split_whitespace().skip(1).collect();
         let ran = cargo(project, &words);
         assert_eq!(ran.code, 0, "{command}: {}", ran.err);
@@ -108,6 +114,31 @@ fn a_single_program_builds_and_has_every_command() {
         "{}",
         test.err
     );
+    // An editor starts the language server, asks to initialize and shut down, and goes.
+    let framed = |text: &str| format!("Content-Length: {}\r\n\r\n{text}", text.len());
+    let mut server = program("single")
+        .arg("lsp")
+        .current_dir(&project)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the server starts");
+    let mut input = server.stdin.take().expect("piped");
+    for message in [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"shutdown"}"#,
+        r#"{"jsonrpc":"2.0","method":"exit"}"#,
+    ] {
+        input
+            .write_all(framed(message).as_bytes())
+            .expect("the server reads");
+    }
+    drop(input);
+    let served = server.wait_with_output().expect("the server ends");
+    assert_eq!(served.status.code(), Some(0));
+    let said = String::from_utf8_lossy(&served.stdout);
+    assert!(said.contains("language server"), "{said}");
+    assert!(said.contains("documentSymbolProvider"), "{said}");
     let check = ran(program("single").args(["check", "examples"]), &project);
     assert_eq!(
         (check.code, check.out.as_str()),
