@@ -10,8 +10,42 @@ readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+# The language server: `ide::serve`, `Server`, `LanguageHooks` and `Transport`.
+lsp = [
+    "dep:langmeld-meta",
+    "dep:lsp-server",
+    "dep:lsp-types",
+    "dep:serde",
+    "dep:serde_json",
+]
+
 [dependencies]
+langmeld-meta = { workspace = true, optional = true }
 langmeld-syntax.workspace = true
+lsp-server = { workspace = true, optional = true }
+lsp-types = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+calc = { path = "../../examples/calc" }
+criterion.workspace = true
+insta.workspace = true
+serde_json.workspace = true
+
+[[test]]
+name = "lsp"
+required-features = ["lsp"]
+
+[[test]]
+name = "sessions"
+required-features = ["lsp"]
+
+[[bench]]
+name = "edit"
+harness = false
+required-features = ["lsp"]
 
 [lints]
 workspace = true

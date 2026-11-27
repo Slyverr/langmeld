@@ -1,0 +1,693 @@
+[
+  {
+    "replies": [
+      {
+        "id": 1,
+        "jsonrpc": "2.0",
+        "result": {
+          "capabilities": {
+            "completionProvider": {},
+            "documentSymbolProvider": true,
+            "foldingRangeProvider": true,
+            "positionEncoding": "utf-8",
+            "selectionRangeProvider": true,
+            "semanticTokensProvider": {
+              "full": true,
+              "legend": {
+                "tokenModifiers": [
+                  "documentation",
+                  "declaration"
+                ],
+                "tokenTypes": [
+                  "keyword",
+                  "comment",
+                  "string",
+                  "number",
+                  "operator",
+                  "variable",
+                  "function",
+                  "class",
+                  "namespace",
+                  "property"
+                ]
+              }
+            },
+            "textDocumentSync": 2
+          },
+          "serverInfo": {
+            "name": "Calc language server"
+          }
+        }
+      }
+    ],
+    "send": {
+      "id": 1,
+      "jsonrpc": "2.0",
+      "method": "initialize",
+      "params": {
+        "capabilities": {
+          "general": {
+            "positionEncodings": [
+              "utf-8"
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "replies": [],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "initialized",
+      "params": {}
+    }
+  },
+  {
+    "replies": [
+      {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "diagnostics": [
+            {
+              "code": "CALC010",
+              "message": "this divides by zero\nTo fix this, divide by a number that is not zero.",
+              "range": {
+                "end": {
+                  "character": 27,
+                  "line": 1
+                },
+                "start": {
+                  "character": 22,
+                  "line": 1
+                }
+              },
+              "severity": 2,
+              "source": "calc"
+            }
+          ],
+          "uri": "file:///work/main.calc",
+          "version": 1
+        }
+      }
+    ],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "textDocument/didOpen",
+      "params": {
+        "textDocument": {
+          "languageId": "calc",
+          "text": "﻿// 😀 greetings\r\nlet 名前 = \"😀\" + 1 / 0;\r\nfn twice(x) {\r\n  x * 2\r\n}\r\nlet total = twice(名前);\r\n",
+          "uri": "file:///work/main.calc",
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 2,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "kind": 13,
+            "name": "名前",
+            "range": {
+              "end": {
+                "character": 28,
+                "line": 1
+              },
+              "start": {
+                "character": 0,
+                "line": 1
+              }
+            },
+            "selectionRange": {
+              "end": {
+                "character": 10,
+                "line": 1
+              },
+              "start": {
+                "character": 4,
+                "line": 1
+              }
+            }
+          },
+          {
+            "kind": 12,
+            "name": "twice",
+            "range": {
+              "end": {
+                "character": 1,
+                "line": 4
+              },
+              "start": {
+                "character": 0,
+                "line": 2
+              }
+            },
+            "selectionRange": {
+              "end": {
+                "character": 8,
+                "line": 2
+              },
+              "start": {
+                "character": 3,
+                "line": 2
+              }
+            }
+          },
+          {
+            "kind": 13,
+            "name": "total",
+            "range": {
+              "end": {
+                "character": 26,
+                "line": 5
+              },
+              "start": {
+                "character": 0,
+                "line": 5
+              }
+            },
+            "selectionRange": {
+              "end": {
+                "character": 9,
+                "line": 5
+              },
+              "start": {
+                "character": 4,
+                "line": 5
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 2,
+      "jsonrpc": "2.0",
+      "method": "textDocument/documentSymbol",
+      "params": {
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 3,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "endLine": 3,
+            "startLine": 2
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 3,
+      "jsonrpc": "2.0",
+      "method": "textDocument/foldingRange",
+      "params": {
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 4,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "parent": {
+              "parent": {
+                "range": {
+                  "end": {
+                    "character": 0,
+                    "line": 6
+                  },
+                  "start": {
+                    "character": 0,
+                    "line": 0
+                  }
+                }
+              },
+              "range": {
+                "end": {
+                  "character": 1,
+                  "line": 4
+                },
+                "start": {
+                  "character": 0,
+                  "line": 2
+                }
+              }
+            },
+            "range": {
+              "end": {
+                "character": 9,
+                "line": 2
+              },
+              "start": {
+                "character": 8,
+                "line": 2
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 4,
+      "jsonrpc": "2.0",
+      "method": "textDocument/selectionRange",
+      "params": {
+        "positions": [
+          {
+            "character": 8,
+            "line": 2
+          }
+        ],
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 5,
+        "jsonrpc": "2.0",
+        "result": {
+          "data": [
+            0,
+            3,
+            17,
+            1,
+            0,
+            1,
+            0,
+            3,
+            0,
+            0,
+            0,
+            4,
+            6,
+            5,
+            2,
+            0,
+            7,
+            1,
+            4,
+            0,
+            0,
+            2,
+            6,
+            2,
+            0,
+            0,
+            7,
+            1,
+            4,
+            0,
+            0,
+            2,
+            1,
+            3,
+            0,
+            0,
+            2,
+            1,
+            4,
+            0,
+            0,
+            2,
+            1,
+            3,
+            0,
+            1,
+            0,
+            2,
+            0,
+            0,
+            0,
+            3,
+            5,
+            6,
+            2,
+            0,
+            6,
+            1,
+            5,
+            0,
+            1,
+            2,
+            1,
+            5,
+            0,
+            0,
+            2,
+            1,
+            4,
+            0,
+            0,
+            2,
+            1,
+            3,
+            0,
+            2,
+            0,
+            3,
+            0,
+            0,
+            0,
+            4,
+            5,
+            5,
+            2,
+            0,
+            6,
+            1,
+            4,
+            0,
+            0,
+            2,
+            5,
+            5,
+            0,
+            0,
+            6,
+            6,
+            5,
+            0
+          ]
+        }
+      }
+    ],
+    "send": {
+      "id": 5,
+      "jsonrpc": "2.0",
+      "method": "textDocument/semanticTokens/full",
+      "params": {
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "diagnostics": [
+            {
+              "code": "LM-P001",
+              "message": "expected `,` or `)`, found `;`",
+              "range": {
+                "end": {
+                  "character": 25,
+                  "line": 5
+                },
+                "start": {
+                  "character": 24,
+                  "line": 5
+                }
+              },
+              "severity": 1,
+              "source": "calc"
+            }
+          ],
+          "uri": "file:///work/main.calc",
+          "version": 2
+        }
+      }
+    ],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "textDocument/didChange",
+      "params": {
+        "contentChanges": [
+          {
+            "range": {
+              "end": {
+                "character": 25,
+                "line": 5
+              },
+              "start": {
+                "character": 24,
+                "line": 5
+              }
+            },
+            "text": ""
+          }
+        ],
+        "textDocument": {
+          "uri": "file:///work/main.calc",
+          "version": 2
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "jsonrpc": "2.0",
+        "method": "window/logMessage",
+        "params": {
+          "message": "ignored a change of `file:///work/main.calc` to version 1: it is at version 2",
+          "type": 1
+        }
+      }
+    ],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "textDocument/didChange",
+      "params": {
+        "contentChanges": [
+          {
+            "text": "1 +"
+          }
+        ],
+        "textDocument": {
+          "uri": "file:///work/main.calc",
+          "version": 1
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "diagnostics": [
+            {
+              "code": "LM-P001",
+              "message": "expected `,` or `)`, found `;`",
+              "range": {
+                "end": {
+                  "character": 25,
+                  "line": 5
+                },
+                "start": {
+                  "character": 24,
+                  "line": 5
+                }
+              },
+              "severity": 1,
+              "source": "calc"
+            },
+            {
+              "code": "LM-P001",
+              "message": "expected ident, found end of file",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 2,
+                  "line": 6
+                }
+              },
+              "severity": 1,
+              "source": "calc"
+            }
+          ],
+          "uri": "file:///work/main.calc",
+          "version": 3
+        }
+      }
+    ],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "textDocument/didChange",
+      "params": {
+        "contentChanges": [
+          {
+            "range": {
+              "end": {
+                "character": 0,
+                "line": 6
+              },
+              "start": {
+                "character": 0,
+                "line": 6
+              }
+            },
+            "text": "fn"
+          }
+        ],
+        "textDocument": {
+          "uri": "file:///work/main.calc",
+          "version": 3
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 6,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "kind": 14,
+            "label": "false",
+            "textEdit": {
+              "newText": "false",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          },
+          {
+            "kind": 14,
+            "label": "fn",
+            "textEdit": {
+              "newText": "fn",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          },
+          {
+            "kind": 14,
+            "label": "if",
+            "textEdit": {
+              "newText": "if",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          },
+          {
+            "kind": 14,
+            "label": "let",
+            "textEdit": {
+              "newText": "let",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          },
+          {
+            "kind": 14,
+            "label": "true",
+            "textEdit": {
+              "newText": "true",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 6,
+      "jsonrpc": "2.0",
+      "method": "textDocument/completion",
+      "params": {
+        "position": {
+          "character": 2,
+          "line": 6
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 7,
+        "jsonrpc": "2.0",
+        "result": null
+      }
+    ],
+    "send": {
+      "id": 7,
+      "jsonrpc": "2.0",
+      "method": "shutdown",
+      "params": null
+    }
+  },
+  {
+    "replies": [],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "exit",
+      "params": null
+    }
+  }
+]

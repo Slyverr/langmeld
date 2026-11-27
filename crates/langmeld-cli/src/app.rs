@@ -6,12 +6,28 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
+use langmeld_meta::Editor;
 use langmeld_syntax::{Diagnostic, Language, Parse, SourceFile, explain};
 
 use crate::{Failure, Format, check_files, line, run_corpus};
 
 type Run<'l> = Box<dyn Fn(&ArgMatches) -> Result<(), Failure> + 'l>;
 type Host<'l> = Box<dyn Fn(&SourceFile, &Parse) -> Vec<Diagnostic> + 'l>;
+
+/// The language's checks, shown by editors on files that parse without problems.
+#[cfg(feature = "lsp")]
+struct Checks<'a, 'l>(&'a Host<'l>);
+
+#[cfg(feature = "lsp")]
+impl langmeld_ide::LanguageHooks for Checks<'_, '_> {
+    fn diagnostics(&self, file: &SourceFile, parse: &Parse) -> Vec<Diagnostic> {
+        if parse.diagnostics.is_empty() {
+            (self.0)(file, parse)
+        } else {
+            Vec::new()
+        }
+    }
+}
 
 /// The command line of a language. Add the standard commands and your own, then
 /// [`run`](Self::run) it.
@@ -23,11 +39,13 @@ type Host<'l> = Box<dyn Fn(&SourceFile, &Parse) -> Vec<Diagnostic> + 'l>;
 /// | `check [PATHS]` | parses files, runs the language's own checks and shows every problem; `--format json` writes one JSON object instead |
 /// | `test` | runs the corpus files of the language, `--corpus` says where, `--update` rewrites what failing cases expect |
 /// | `explain CODE` | says what a diagnostic code means and how to solve it |
+/// | `lsp` | serves the language to editors on standard input and output (with the `lsp` feature) |
 ///
 /// Every command ends with exit code 0 when all is well, 1 when it found problems and
 /// showed them, and 2 when it could not do its work.
 pub struct App<'l> {
     language: &'l Language,
+    editor: Option<&'l Editor>,
     name: String,
     version: Option<String>,
     about: Option<String>,
@@ -42,6 +60,7 @@ impl<'l> App<'l> {
     pub fn new(language: &'l Language) -> Self {
         Self {
             language,
+            editor: None,
             name: language.name().to_lowercase(),
             version: None,
             about: None,
@@ -73,7 +92,14 @@ impl<'l> App<'l> {
         self
     }
 
-    /// Adds `check`, `test` and `explain`.
+    /// What the language tells editors, as `Loaded::editor` has it, which `lsp` serves.
+    #[must_use]
+    pub fn editor(mut self, editor: &'l Editor) -> Self {
+        self.editor = Some(editor);
+        self
+    }
+
+    /// Adds `check`, `test` and `explain`, and with the `lsp` feature, `lsp`.
     #[must_use]
     pub fn standard(mut self) -> Self {
         self.standard = true;
@@ -110,7 +136,7 @@ impl<'l> App<'l> {
         self
     }
 
-    fn standard_commands() -> [Command; 3] {
+    fn standard_commands() -> Vec<Command> {
         let check = Command::new("check")
             .about("Check files and show their problems")
             .arg(
@@ -145,7 +171,39 @@ impl<'l> App<'l> {
         let explain = Command::new("explain")
             .about("Explain a diagnostic code")
             .arg(Arg::new("code").required(true).help("Such as LM-P001"));
-        [check, test, explain]
+        let mut commands = vec![check, test, explain];
+        if cfg!(feature = "lsp") {
+            // Editors often add `--stdio`, which is the transport there is.
+            let stdio = Arg::new("stdio")
+                .long("stdio")
+                .action(ArgAction::SetTrue)
+                .hide(true);
+            commands.push(
+                Command::new("lsp")
+                    .about("Serve the language to editors over standard input and output")
+                    .arg(stdio),
+            );
+        }
+        commands
+    }
+
+    /// Serves the language to an editor until it asks to exit.
+    #[cfg(feature = "lsp")]
+    fn lsp(&self) -> Result<(), Failure> {
+        let none = Editor::default();
+        let hooks = Checks(&self.host);
+        match langmeld_ide::serve(self.language, self.editor.unwrap_or(&none), hooks) {
+            Ok(0) => Ok(()),
+            Ok(_) => Err(Failure::Found),
+            Err(problem) => Err(Failure::Unable(problem.to_string())),
+        }
+    }
+
+    #[cfg(not(feature = "lsp"))]
+    fn lsp(&self) -> Result<(), Failure> {
+        Err(Failure::Unable(
+            "this program has no language server".to_owned(),
+        ))
     }
 
     fn check(&self, matches: &ArgMatches) -> Result<(), Failure> {
@@ -246,6 +304,7 @@ impl<'l> App<'l> {
         let result = match (own, name) {
             (Some((_, run)), _) => run(matches),
             (None, "check") => self.check(matches),
+            (None, "lsp") => self.lsp(),
             (None, "test") => self.test(matches),
             (None, "explain") => self.explain(matches),
             (None, other) => Err(Failure::Unable(format!("no command `{other}`"))),

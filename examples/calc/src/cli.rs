@@ -7,8 +7,9 @@ use langmeld::cli::clap::{Arg, ArgMatches, Command, value_parser};
 use langmeld::cli::{App, Failure, line, parse_file, report};
 use langmeld::{FileId, SourceFile, parse};
 
+use crate::checks::divisions_by_zero;
 use crate::interp::{self, EXPLANATIONS};
-use crate::syntax::{File, language};
+use crate::syntax::{File, language, loaded};
 
 /// Runs a parsed file, showing what it shows, or why it cannot.
 fn run_source(source: &SourceFile) -> Result<(), Failure> {
@@ -51,6 +52,8 @@ pub fn app() -> App<'static> {
         .name("calc")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Calc, a small calculator language built with Langmeld")
+        .editor(&loaded().editor)
+        .check_with(divisions_by_zero)
         .standard()
         .command(
             Command::new("run")

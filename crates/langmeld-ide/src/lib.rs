@@ -6,3 +6,8 @@
 //! `wasm32-unknown-unknown`.
 
 pub mod kit;
+#[cfg(feature = "lsp")]
+mod lsp;
+
+#[cfg(feature = "lsp")]
+pub use lsp::{LanguageHooks, Message, Server, StdioTransport, Transport, serve, serve_with};

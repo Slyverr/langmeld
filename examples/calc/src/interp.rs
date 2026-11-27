@@ -24,7 +24,7 @@ pub const MOST_STEPS: u64 = 5_000_000;
 pub const MOST_DEPTH: u32 = 128;
 
 /// What `explain` says about each code of the language.
-pub const EXPLANATIONS: [(&str, &str); 9] = [
+pub const EXPLANATIONS: [(&str, &str); 10] = [
     (
         "CALC001",
         "A name is used that nothing defines.\n\nDefine it with `let` before it is used, or \
@@ -75,6 +75,12 @@ pub const EXPLANATIONS: [(&str, &str); 9] = [
         "CALC009",
         "A part of the program is missing.\n\nThe file has syntax problems, which `calc \
          check` shows. This appears only when a program that has them is run anyway.",
+    ),
+    (
+        "CALC010",
+        "A number is divided by a literal zero, so the division can only fail.\n\nThis is a \
+         warning from `calc check`, found without running the program. Divide by a number \
+         that is not zero.",
     ),
 ];
 
