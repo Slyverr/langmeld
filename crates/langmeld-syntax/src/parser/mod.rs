@@ -34,6 +34,7 @@ struct Checkpoint {
     recovering: bool,
     tree_too_deep: bool,
     fuel: u32,
+    end_reported: bool,
 }
 
 /// How often a parser may look ahead without taking a token before it is considered
@@ -105,12 +106,19 @@ pub struct Parse {
     pub green: GreenNode,
     /// Problems from the lexer and the parser, in source order.
     pub diagnostics: Vec<Diagnostic>,
+    expected_at_end: Vec<SyntaxKind>,
 }
 
 impl Parse {
     /// The root of the tree.
     pub fn syntax(&self) -> SyntaxNode {
         SyntaxNode::new_root(self.green.clone())
+    }
+
+    /// The kinds the parser looked for at the end of the text, before reporting a
+    /// problem there: what may be written next. Editors offer them.
+    pub fn expected_at_end(&self) -> &[SyntaxKind] {
+        &self.expected_at_end
     }
 }
 
@@ -301,6 +309,10 @@ pub struct Parser<'a> {
     wrapped: Vec<usize>,
     /// Tokens that failed attempts may still read again.
     backtracking: usize,
+    /// What could be written at the end of the text.
+    completions: Vec<SyntaxKind>,
+    /// Whether a problem was reported at the end.
+    end_reported: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -328,6 +340,8 @@ impl<'a> Parser<'a> {
             expected: Vec::new(),
             expected_base: 0,
             fuel: FUEL,
+            completions: Vec::new(),
+            end_reported: false,
             halted: false,
             tree_too_deep: false,
             limits: ParseLimits::default(),
@@ -509,6 +523,7 @@ impl<'a> Parser<'a> {
             recovering: self.recovering,
             tree_too_deep: self.tree_too_deep,
             fuel: self.fuel,
+            end_reported: self.end_reported,
         }
     }
 
@@ -548,6 +563,7 @@ impl<'a> Parser<'a> {
         self.recovering = checkpoint.recovering;
         self.tree_too_deep = checkpoint.tree_too_deep;
         // Each rewind costs a step, so that endless retrying is caught.
+        self.end_reported = checkpoint.end_reported;
         self.fuel = checkpoint.fuel.saturating_sub(1);
         match self.backtracking.checked_sub(taken) {
             Some(left) => self.backtracking = left,
@@ -614,11 +630,25 @@ impl<'a> Parser<'a> {
     /// Whether the current token is of `kind`. If it is not, a later error can say
     /// that `kind` was expected.
     pub fn at(&mut self, kind: SyntaxKind) -> bool {
-        let found = self.current() == kind;
+        let current = self.current();
+        if current == SyntaxKind::EOF {
+            self.may_follow(kind);
+        }
+        let found = current == kind;
         if !found {
             self.note_expected(kind);
         }
         found
+    }
+
+    /// Records, at the end of the text, that a token of `kind` could be written
+    /// next; see [`Parse::expected_at_end`]. [`at`](Self::at) records what it looks
+    /// for, so this is needed only where a parser looks without it.
+    pub fn may_follow(&mut self, kind: SyntaxKind) {
+        let open = !self.end_reported && !self.completions.contains(&kind);
+        if open && self.token_at(0).is_none() {
+            self.completions.push(kind);
+        }
     }
 
     /// Whether there is no token left.
@@ -649,6 +679,9 @@ impl<'a> Parser<'a> {
             return false;
         };
         let current = self.current();
+        if current == SyntaxKind::EOF {
+            self.may_follow(kind);
+        }
         let found = self.lexer.is_identifier(current) && self.current_text() == word;
         if !found {
             self.note_expected(kind);
@@ -874,7 +907,11 @@ impl<'a> Parser<'a> {
         let green = self.build();
         let mut diagnostics = self.diagnostics;
         diagnostics.sort_by_key(|d| (d.range.start(), d.range.end(), d.code));
-        Parse { green, diagnostics }
+        Parse {
+            green,
+            diagnostics,
+            expected_at_end: self.completions,
+        }
     }
 
     fn build(&mut self) -> GreenNode {
@@ -1048,6 +1085,10 @@ impl<'a> Parser<'a> {
     }
 
     fn report(&mut self, code: &'static str, range: TextRange, message: String) {
+        // After a problem at the end, what is looked for no longer follows the text.
+        if self.token_at(0).is_none() {
+            self.end_reported = true;
+        }
         if !self.fail_speculation() && !self.recovering {
             self.recovering = true;
             self.push_diagnostic(code, range, message);

@@ -16,7 +16,11 @@ mod schema_of;
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::{Diagnostic, Lexer, Parse, ParseLimits, Parser, Severity, SourceFile, SyntaxKind};
+use crate::ast::between;
+use crate::{
+    Diagnostic, FileId, Lexer, Parse, ParseLimits, Parser, Severity, SourceFile, SyntaxElement,
+    SyntaxKind, SyntaxNode, TokenClass,
+};
 
 pub(crate) use builder::ParseFn;
 pub use builder::{Assoc, ExprSpec, ExternRule, LanguageBuilder, Token};
@@ -213,6 +217,112 @@ impl Language {
     /// The file extensions of the language, without the dot.
     pub fn extensions(&self) -> impl Iterator<Item = &str> {
         self.extensions.iter().map(String::as_str)
+    }
+
+    /// What sort of token `kind` is, if it is a token.
+    pub fn token_class(&self, kind: SyntaxKind) -> Option<TokenClass> {
+        self.lexer.class(kind)
+    }
+
+    /// The kinds of token that may come right after `text`, as editors offer them:
+    /// what the parser looks for at its end, in order of kind.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, r};
+    /// use langmeld_syntax::{IdentStyle, Language, Preset, Token, seq};
+    ///
+    /// let language = Language::builder("Greeting")
+    ///     .token(Token::skip("space", r"\s+"))
+    ///     .token(Token::preset("word", Preset::Ident(IdentStyle::Ascii)))
+    ///     .rule("File", seq![lit("hello"), lit("world"), r("word")])
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// let next = language.expected("hello ");
+    /// assert_eq!(next, [language.kind("world").expect("used")]);
+    /// ```
+    pub fn expected(&self, text: &str) -> Vec<SyntaxKind> {
+        let Ok(file) = SourceFile::new(FileId::new(0), "", text) else {
+            return Vec::new();
+        };
+        let mut found = parse(self, &file).expected_at_end().to_vec();
+        found.sort_unstable();
+        found
+    }
+
+    /// The parts of `node` labelled `label`, found where the
+    /// [`schema`](Self::schema) says they are.
+    pub fn field(&self, node: &SyntaxNode, label: &str) -> Vec<SyntaxElement> {
+        let Some(found) = self
+            .schema
+            .node(self.kind_name(node.kind()))
+            .and_then(|schema| schema.field(label))
+        else {
+            return Vec::new();
+        };
+        let Some(place) = &found.place else {
+            return Vec::new();
+        };
+        let token = |text: &Option<String>| text.as_ref().and_then(|t| self.token_kind(t));
+        let names: Vec<_> = self.schema.expand(&found.nodes).into_iter().collect();
+        // Custom code may make nodes the schema does not name.
+        let any_node = found
+            .nodes
+            .iter()
+            .any(|name| self.schema.node(name).is_none() && self.schema.union(name).is_none());
+        let tokens: Vec<_> = found
+            .tokens
+            .iter()
+            .filter_map(|name| self.token_kind(name))
+            .collect();
+        let wanted = |element: &SyntaxElement| match element {
+            SyntaxElement::Node(child) => any_node || names.contains(&self.kind_name(child.kind())),
+            SyntaxElement::Token(child) => tokens.contains(&child.kind()),
+        };
+        let found_there = between(node, token(&place.after), token(&place.before))
+            .filter(wanted)
+            .skip(place.skip);
+        match found.cardinality {
+            Cardinality::Many => found_there.collect(),
+            Cardinality::One | Cardinality::Optional => found_there.take(1).collect(),
+        }
+    }
+
+    /// How comments that run to the end of a line open, documentation ones too.
+    pub fn line_comments(&self) -> impl Iterator<Item = &str> {
+        self.lexer
+            .comments()
+            .filter_map(|(open, close)| close.is_none().then_some(open))
+    }
+
+    /// How block comments open and close.
+    pub fn block_comments(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.lexer
+            .comments()
+            .filter_map(|(open, close)| Some((open, close?)))
+    }
+
+    /// The reserved and contextual words.
+    pub fn words(&self) -> impl Iterator<Item = &str> {
+        self.lexer.words()
+    }
+
+    /// The fixed texts that are not words, such as operators and brackets.
+    pub fn punctuation(&self) -> impl Iterator<Item = &str> {
+        self.lexer.punctuation()
+    }
+
+    /// What identifiers start with and continue with, as JavaScript regular
+    /// expression text, if the language declares the identifier preset.
+    pub fn identifier_chars(&self) -> Option<(&'static str, &'static str)> {
+        self.lexer.identifier_chars()
+    }
+
+    /// The quotes that open strings and characters, each once.
+    pub fn quotes(&self) -> impl Iterator<Item = char> + use<> {
+        let found = self.lexer.quotes();
+        ['"', '\'']
+            .into_iter()
+            .filter(move |quote| found.contains(quote))
     }
 
     /// The kind of the declared token called `name`, or of the literal with this text.

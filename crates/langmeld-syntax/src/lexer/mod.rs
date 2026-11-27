@@ -12,6 +12,7 @@ use regex_automata::Anchored;
 use regex_automata::dfa::{Automaton, dense};
 use text_size::TextSize;
 
+use crate::TokenClass;
 use crate::lexeme::Vocabulary;
 use crate::{Diagnostic, Lexeme, SourceFile, SyntaxKind};
 
@@ -225,6 +226,91 @@ impl Lexer {
     /// Starts declaring a lexer.
     pub fn builder() -> LexerBuilder {
         LexerBuilder::default()
+    }
+
+    /// Each comment's opening, and its closing if it is a block comment.
+    pub(crate) fn comments(&self) -> impl Iterator<Item = (&str, Option<&str>)> {
+        self.specs.iter().filter_map(|spec| match &spec.matcher {
+            Matcher::LineComment(open) => Some((open.as_str(), None)),
+            Matcher::BlockComment { open, close } => Some((open.as_str(), Some(close.as_str()))),
+            _ => None,
+        })
+    }
+
+    /// The reserved and contextual words.
+    pub(crate) fn words(&self) -> impl Iterator<Item = &str> {
+        self.specs.iter().filter_map(|spec| match &spec.matcher {
+            Matcher::Keyword(word) | Matcher::Contextual(word) => Some(word.as_str()),
+            _ => None,
+        })
+    }
+
+    /// The fixed texts that are not words, such as operators and brackets.
+    pub(crate) fn punctuation(&self) -> impl Iterator<Item = &str> {
+        self.specs.iter().filter_map(|spec| match &spec.matcher {
+            Matcher::Punct(text) => Some(text.as_str()),
+            _ => None,
+        })
+    }
+
+    /// What identifiers start with and continue with, as JavaScript regular expression
+    /// text, if the language declares the identifier preset.
+    pub(crate) fn identifier_chars(&self) -> Option<(&'static str, &'static str)> {
+        self.specs.iter().find_map(|spec| match &spec.matcher {
+            Matcher::Preset(Preset::Ident(IdentStyle::Ascii)) => {
+                Some(("[A-Za-z_]", "[A-Za-z0-9_]"))
+            }
+            Matcher::Preset(Preset::Ident(IdentStyle::Xid)) => {
+                Some((r"[\p{L}_]", r"[\p{L}\p{N}_]"))
+            }
+            _ => None,
+        })
+    }
+
+    /// The quotes that strings and characters start with.
+    pub(crate) fn quotes(&self) -> Vec<char> {
+        let mut quotes = Vec::new();
+        for spec in &self.specs {
+            match &spec.matcher {
+                Matcher::Preset(Preset::String(options)) => {
+                    quotes.extend(options.double.then_some('"'));
+                    quotes.extend(options.single.then_some('\''));
+                }
+                Matcher::Preset(Preset::Char) => quotes.push('\''),
+                _ => {}
+            }
+        }
+        quotes
+    }
+
+    /// What sort of token `kind` is, if the lexer makes it.
+    pub(crate) fn class(&self, kind: SyntaxKind) -> Option<TokenClass> {
+        if let Some((_, part)) = self.interpolation_of(kind) {
+            return Some(match part {
+                "open" | "close" => TokenClass::Punctuation,
+                _ => TokenClass::String,
+            });
+        }
+        if let Some(terminators) = &self.terminators
+            && (kind == terminators.newline || kind == terminators.line_break)
+        {
+            return Some(TokenClass::Whitespace);
+        }
+        let spec = self.spec(kind)?;
+        Some(match &spec.matcher {
+            _ if spec.doc => TokenClass::DocComment,
+            Matcher::LineComment(_) | Matcher::BlockComment { .. } => TokenClass::Comment,
+            Matcher::Keyword(_) => TokenClass::Keyword,
+            Matcher::Contextual(_) => TokenClass::ContextualKeyword,
+            _ if spec.identifier => TokenClass::Identifier,
+            Matcher::Punct(_) => TokenClass::Punctuation,
+            Matcher::Preset(Preset::Int(_) | Preset::Float(_)) => TokenClass::Number,
+            Matcher::Preset(Preset::String(_) | Preset::Char) => TokenClass::String,
+            _ if spec.trivia => TokenClass::Whitespace,
+            Matcher::Preset(Preset::Ident(_)) | Matcher::Regex(_) | Matcher::External(_) => {
+                TokenClass::Other
+            }
+        })
     }
 
     /// Splits a file into tokens that cover all of it.
