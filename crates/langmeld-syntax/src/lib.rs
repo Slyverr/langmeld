@@ -47,8 +47,8 @@ pub use embed::EmbedError;
 pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{
-    Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, NodeSchema,
-    Pattern, Schema, SchemaError, Token, parse, pattern,
+    Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, Lookahead,
+    NodeSchema, Pattern, Schema, SchemaError, Token, parse, pattern,
 };
 pub use kind::{SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken};
 pub use lexeme::Lexeme;
