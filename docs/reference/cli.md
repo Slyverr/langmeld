@@ -12,6 +12,8 @@ with `cargo run -p langmeld-cli -- <command>`.
 | `generate rule NAME [--path PATH]` | Adds a rule to the grammar |
 | `generate handler NODE [--path PATH]` | Adds a function that handles a node to `src/handlers.rs` |
 | `check [PATH] [--explain] [--exhaustive]` | Shows the problems of a grammar. `--explain` lists the choices that look more than one token ahead; `--exhaustive` lists the nodes that the project's code in `src` never handles |
+| `lsp` | Serves `.langmeld` files to editors on standard input and output: syntax errors, the problems of the grammar for the whole project the file is in, outline, folding, colours, selection ranges, keyword completion and go-to-definition on rule, expression and token names. The option `--stdio`, which editors add, is accepted and does nothing |
+| `package vscode [PATH] [--out DIR] [--langmeld]` | Writes a Visual Studio Code extension for the language of the project at `PATH`, from the grammar and [`langmeld.toml`](langmeld-toml.md): language configuration, a TextMate grammar for colours, and the client that starts the server. `--langmeld` makes the extension for `.langmeld` files instead; `--out` overrides the folder, which is `editors/vscode` unless `package.vscode.out` says otherwise |
 | `parse --grammar PATH FILE` | Prints the tree of a file, and its problems with their source |
 | `test [PATH] [--update]` | Runs the corpus files in `corpus/` of a language project; `--update` rewrites what failing cases expect |
 | `explain CODE` | Says what a diagnostic code means and how to solve it |
@@ -38,6 +40,7 @@ program these commands, and room for its own:
 | `check [PATH]... [--format text\|json]` | Parses the files named, or the files with the language's extensions in the folders named, and runs the language's own checks on files that parse without problems |
 | `test [--corpus DIR] [--update]` | Runs the corpus files under `DIR`, `corpus` by default |
 | `explain CODE` | Explains a code of Langmeld or of the language |
+| `lsp` | With the `lsp` feature of `langmeld`: serves the language to editors on standard input and output, with the checks of `check_with` and the rules of `editor` (see [Editor support](../guides/editor-support.md)) |
 
 ### JSON
 

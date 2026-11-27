@@ -10,6 +10,8 @@ Usage: langmeld [COMMAND]
 
 Commands:
   init      Start a new language: a project of its own, or a language library in a workspace
+  lsp       Serve `.langmeld` files to editors over standard input and output
+  package   Make packages for editors
   generate  Add to a language project: a rule, or a handler of a node
   check     Check a language: the grammar is read, validated and explained when it is wrong
   test      Run the corpus files of a language project, and show what differs

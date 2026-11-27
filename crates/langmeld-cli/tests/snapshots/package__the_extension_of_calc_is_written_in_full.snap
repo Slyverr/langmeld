@@ -1,0 +1,204 @@
+---
+source: crates/langmeld-cli/tests/package.rs
+expression: shown
+---
+=== .gitignore
+node_modules/
+out/
+*.vsix
+
+=== .vscodeignore
+src/
+tsconfig.json
+.gitignore
+
+=== README.md
+# Calc
+
+Editor support for Calc. It starts `calc lsp`, which has to be on the path, or set
+`calc.server.path`.
+
+To try it: `npm install`, `npm run compile`, open this folder in Visual Studio Code
+and press F5. To make a package: `npx @vscode/vsce package`.
+
+=== language-configuration.json
+{
+  "autoClosingPairs": [
+    {
+      "close": ")",
+      "open": "("
+    },
+    {
+      "close": "}",
+      "open": "{"
+    },
+    {
+      "close": "\"",
+      "open": "\""
+    }
+  ],
+  "brackets": [
+    [
+      "(",
+      ")"
+    ],
+    [
+      "{",
+      "}"
+    ]
+  ],
+  "comments": {
+    "blockComment": [
+      "/*",
+      "*/"
+    ],
+    "lineComment": "//"
+  },
+  "surroundingPairs": [
+    {
+      "close": ")",
+      "open": "("
+    },
+    {
+      "close": "}",
+      "open": "{"
+    },
+    {
+      "close": "\"",
+      "open": "\""
+    }
+  ],
+  "wordPattern": "(-?\\d+(\\.\\d+)?)|([\\p{L}_][\\p{L}\\p{N}_]*)"
+}
+
+=== package.json
+{
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "calc.server.path": {
+          "default": "",
+          "description": "The language server to start, instead of the one on the path.",
+          "type": "string"
+        }
+      },
+      "title": "Calc"
+    },
+    "grammars": [
+      {
+        "language": "calc",
+        "path": "./syntaxes/calc.tmLanguage.json",
+        "scopeName": "source.calc"
+      }
+    ],
+    "languages": [
+      {
+        "aliases": [
+          "Calc"
+        ],
+        "configuration": "./language-configuration.json",
+        "extensions": [
+          ".calc"
+        ],
+        "id": "calc"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "description": "Editor support for Calc",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.0"
+  },
+  "displayName": "Calc",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./out/extension.js",
+  "name": "calc-language",
+  "publisher": "local",
+  "scripts": {
+    "compile": "tsc -p .",
+    "vscode:prepublish": "npm run compile"
+  },
+  "version": "0.1.0"
+}
+
+=== src/extension.ts
+// Written by `langmeld package vscode`. It starts the language server.
+import * as vscode from "vscode";
+import { LanguageClient } from "vscode-languageclient/node";
+
+let client: LanguageClient | undefined;
+
+export async function activate(context: vscode.ExtensionContext) {
+  const settings = vscode.workspace.getConfiguration("calc");
+  const command = settings.get<string>("server.path") || "calc";
+  const server = { command, args: ["lsp"] };
+  client = new LanguageClient("calc", "Calc", server, {
+    documentSelector: [{ language: "calc" }],
+  });
+  context.subscriptions.push({ dispose: () => client?.stop() });
+  await client.start();
+}
+
+export function deactivate() {
+  return client?.stop();
+}
+
+=== syntaxes/calc.tmLanguage.json
+{
+  "name": "Calc",
+  "patterns": [
+    {
+      "begin": "\\/\\*",
+      "end": "\\*\\/",
+      "name": "comment.block.calc"
+    },
+    {
+      "match": "\\/\\/.*$",
+      "name": "comment.line.calc"
+    },
+    {
+      "begin": "\"",
+      "end": "\"|$",
+      "name": "string.quoted.double.calc",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.calc"
+        }
+      ]
+    },
+    {
+      "match": "\\b(else|false|fn|from|if|let|return|true)\\b",
+      "name": "keyword.control.calc"
+    },
+    {
+      "match": "\\b(0[xX][0-9a-fA-F_]+|[0-9][0-9_]*(\\.[0-9_]+)?([eE][+-]?[0-9]+)?)\\b",
+      "name": "constant.numeric.calc"
+    }
+  ],
+  "scopeName": "source.calc"
+}
+
+=== tsconfig.json
+{
+  "compilerOptions": {
+    "module": "node16",
+    "outDir": "out",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "es2022"
+  },
+  "include": [
+    "src"
+  ]
+}
