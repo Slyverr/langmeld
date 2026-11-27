@@ -7,7 +7,7 @@ use std::fmt;
 use crate::{SyntaxKind, SyntaxNode};
 
 /// How often a field occurs in a node of a well-formed source.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Cardinality {
     /// Exactly once.
     One,
@@ -18,7 +18,7 @@ pub enum Cardinality {
 }
 
 /// A named part of a node.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct FieldSchema {
     /// The label.
@@ -73,7 +73,7 @@ impl FieldSchema {
 }
 
 /// One kind of node.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct NodeSchema {
     /// The name of the node.
@@ -198,7 +198,7 @@ impl fmt::Display for SchemaError {
 ///     )));
 /// assert!(schema.node("Let").is_some());
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Schema {
     nodes: BTreeMap<String, NodeSchema>,
     unions: BTreeMap<String, Vec<String>>,

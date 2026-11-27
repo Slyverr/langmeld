@@ -8,14 +8,14 @@ use super::LexCursor;
 
 pub(crate) type ExternalFn = dyn Fn(&mut LexCursor<'_>) -> Option<usize> + Send + Sync;
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Matcher {
     Punct(String),
     Keyword(String),
     Contextual(String),
     Regex(String),
     Preset(Preset),
-    External(Arc<ExternalFn>),
+    External(#[serde(with = "crate::embed::token_code")] Arc<ExternalFn>),
     LineComment(String),
     BlockComment { open: String, close: String },
 }
@@ -38,7 +38,7 @@ pub(crate) enum Matcher {
 /// ];
 /// assert_eq!(tokens.len(), 4);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct TokenSpec {
     pub(crate) kind: SyntaxKind,
     /// How errors name the token. For fixed text, the text itself.
@@ -155,7 +155,7 @@ impl TokenSpec {
 }
 
 /// Ready-made kinds of token.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Preset {
     /// Whole numbers.
@@ -178,7 +178,7 @@ pub enum Preset {
 /// let numbers = IntPreset::default().hex(true).underscores(true);
 /// assert!(numbers.hex && numbers.underscores && !numbers.binary);
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct IntPreset {
     /// `0x1f`.
@@ -229,7 +229,7 @@ impl IntPreset {
 /// let numbers = FloatPreset::default().exponent(true);
 /// assert!(numbers.exponent && !numbers.underscores);
 /// ```
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct FloatPreset {
     /// `1.5e-3` and `3e7`.
@@ -262,7 +262,7 @@ impl FloatPreset {
 /// let strings = StringPreset::default().double(true).raw(true);
 /// assert!(strings.double && strings.raw && !strings.single);
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct StringPreset {
     /// `"text"`.
@@ -309,7 +309,7 @@ impl StringPreset {
 ///
 /// An interpolated string becomes several tokens: its start, the text between holes,
 /// each hole's delimiters around ordinary tokens, and its end.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct Interpolation {
     /// What opens a hole, such as `{` or `${`.
@@ -332,7 +332,7 @@ impl Interpolation {
 }
 
 /// The token kinds of an interpolated string.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct StringParts {
     /// The opening quote.
     pub start: SyntaxKind,
@@ -347,7 +347,7 @@ pub struct StringParts {
 }
 
 /// Which characters identifiers are made of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum IdentStyle {
     /// Letters and digits of every script (Unicode `XID`), and `_`.
@@ -372,7 +372,7 @@ pub enum IdentStyle {
 /// let terminators = Terminators::new(NEWLINE, LINE_BREAK).brackets([(L_PAREN, R_PAREN)]);
 /// assert_eq!(terminators.brackets, [(L_PAREN, R_PAREN)]);
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct Terminators {
     /// The kind of a line ending that ends a statement.
@@ -432,7 +432,7 @@ impl Terminators {
 /// let limits = LexLimits::default().max_len(1 << 20);
 /// assert_eq!(limits.max_len, 1 << 20);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct LexLimits {
     /// Largest file, in bytes.

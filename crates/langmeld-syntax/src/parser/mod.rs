@@ -50,7 +50,7 @@ const FUEL: u32 = 1 << 20;
 /// assert_eq!(limits.max_depth, 64);
 /// assert_eq!(limits.max_tree_depth, ParseLimits::default().max_tree_depth);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ParseLimits {
     /// Most nodes that may be under construction at once. This bounds the recursion
