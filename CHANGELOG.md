@@ -8,6 +8,37 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- `langmeld init NAME` writes a language that runs at once: a grammar, an interpreter, a
+  command line and cases to test it, laid out as one program (`--bins single`), a program
+  that runs programs and one for the tools (`split`), or one that acts as the command it is
+  named for (`multicall`). `init --lib PATH` adds a language crate to the workspace around
+  it and changes nothing else but the list of members. `generate rule` and `generate
+  handler` add to it.
+- Rust types for the trees of a language, written when the program is built:
+  `build::generate` in a build script and `include_syntax!` where they are used. Every node
+  is a type with a method for each label, every choice is an enum, tokens have types, and a
+  visitor has a method for each node, so that code stops compiling when the grammar
+  gains something it does not handle. `langmeld check --exhaustive` lists the nodes the
+  code never names.
+- `langmeld::cli::App`, behind the `cli` feature: a command line for a language with
+  `check` (also as JSON, with exit codes 0, 1 and 2), `test` and `explain`, and commands of
+  its own.
+- `langmeld::kit::interp`, behind the `kit` feature: scopes, values and budgets for
+  interpreters, and a budget that runs out is a diagnostic.
+- `Diagnostics`, which collects problems and gives them back in a fixed order, and a long
+  explanation of every diagnostic code, from `langmeld explain CODE` and `explain`.
+- A language knows its file extensions (`Language::extensions`).
+- Calc is a program that runs: `calc run`, `calc eval`, `calc check`, `calc test` and
+  `calc explain`, with its own diagnostics.
+
+### Fixed
+
+- A rule with nothing after its `=` is reported as having no body, instead of as a missing
+  colon.
+- A file that cannot be read is reported without the number of the system's error.
+
 ## [0.4.0] - 2026-11-27
 
 ### Added
