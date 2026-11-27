@@ -5,6 +5,7 @@
 //! gives a [`Language`](langmeld_syntax::Language) that parses like one declared with the
 //! builder. Every mistake in a file is a diagnostic at its place in that file.
 
+pub mod build;
 pub mod corpus;
 mod declared;
 mod load;

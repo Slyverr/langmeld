@@ -1,0 +1,6 @@
+---
+source: crates/langmeld-meta/tests/embed.rs
+expression: error.rendered()
+---
+error[LM-F015]: the compiled language cannot be read: the compiled language is damaged; compile it again
+  = note: To fix this, compile it again with this version of Langmeld, and give the code of every `extern` declaration.
