@@ -29,5 +29,12 @@ Two benchmarks measure parsing, from text to tree, in bytes per second.
   comparison. The bar is at least 20 MB/s. It also parses the same document with the
   JSON grammar grown to 300 rules.
 
+## Language server
+
+`langmeld-ide` has a benchmark of the time from an edit to the problems published, for a
+Calc file of 10,000 lines, and of colouring the whole file, with
+`cargo bench -p langmeld-ide --features lsp`. The bar is 50 ms from edit to problems. The
+nightly run measures it and prints it in the run summary with the bar.
+
 The bars are read as a trend. A slow shared runner can miss them without anything being
 wrong, so the nightly run reports them and never fails because of them.
