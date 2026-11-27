@@ -246,11 +246,8 @@ impl LexerBuilder {
                 .specs
                 .iter()
                 .filter_map(|spec| match &spec.matcher {
-                    Matcher::Punct(text)
-                        if text.len() > comment.open.len() && text.starts_with(&comment.open) =>
-                    {
-                        Some(text.clone())
-                    }
+                    // The same text is refused as a duplicate, so this is always longer.
+                    Matcher::Punct(text) if text.starts_with(&comment.open) => Some(text.clone()),
                     _ => None,
                 })
                 .collect();
