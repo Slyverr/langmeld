@@ -32,6 +32,7 @@
 
 mod diagnostic;
 mod embed;
+mod explain;
 mod externals;
 mod file;
 mod grammar;
@@ -42,8 +43,9 @@ mod line_index;
 mod macros;
 mod parser;
 
-pub use diagnostic::{Diagnostic, Fix, Label, Severity, TextEdit};
+pub use diagnostic::{Diagnostic, Diagnostics, Fix, Label, Severity, TextEdit};
 pub use embed::EmbedError;
+pub use explain::{codes, explain};
 pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{

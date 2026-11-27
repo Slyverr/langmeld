@@ -1,6 +1,8 @@
 //! `Diagnostic`: one problem, where it is, and how to fix it.
 
-use langmeld_syntax::{Diagnostic, FileId, Fix, Label, Severity, TextEdit, TextRange, TextSize};
+use langmeld_syntax::{
+    Diagnostic, Diagnostics, FileId, Fix, Label, Severity, TextEdit, TextRange, TextSize,
+};
 
 fn range(start: u32, end: u32) -> TextRange {
     TextRange::new(TextSize::new(start), TextSize::new(end))
@@ -75,4 +77,20 @@ fn builders_keep_the_order_they_were_called_in() {
         .note("first")
         .note("second");
     assert_eq!(diagnostic.notes, ["first", "second"]);
+}
+
+#[test]
+fn collected_diagnostics_come_in_order() {
+    let at = |file: u32, start, code: &'static str| {
+        Diagnostic::error(code, FileId::new(file), range(start, start + 1), code)
+    };
+    let mut found = Diagnostics::new();
+    assert!(found.is_empty() && !found.has_errors());
+    found.push(at(1, 3, "B"));
+    found.extend([at(0, 9, "C"), at(1, 3, "A"), at(1, 0, "D")]);
+    found.push(Diagnostic::warning("W", FileId::new(0), range(0, 1), "w"));
+    assert!(found.has_errors());
+    assert_eq!(found.len(), 5);
+    let order: Vec<_> = found.into_sorted().iter().map(|d| d.code).collect();
+    assert_eq!(order, ["W", "C", "D", "A", "B"]);
 }
