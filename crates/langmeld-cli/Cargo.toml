@@ -18,8 +18,8 @@ doc = false # would collide with the `langmeld` library docs
 
 [dependencies]
 clap.workspace = true
-langmeld-meta = { path = "../langmeld-meta" }
-langmeld-syntax = { path = "../langmeld-syntax" }
+langmeld-meta.workspace = true
+langmeld-syntax.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true

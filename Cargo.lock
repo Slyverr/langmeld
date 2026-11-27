@@ -574,6 +574,7 @@ dependencies = [
 name = "langmeld"
 version = "0.4.0"
 dependencies = [
+ "langmeld-ide",
  "langmeld-meta",
  "langmeld-syntax",
 ]
@@ -592,6 +593,9 @@ dependencies = [
 [[package]]
 name = "langmeld-ide"
 version = "0.4.0"
+dependencies = [
+ "langmeld-syntax",
+]
 
 [[package]]
 name = "langmeld-meta"
