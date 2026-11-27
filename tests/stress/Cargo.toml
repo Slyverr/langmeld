@@ -9,12 +9,17 @@ repository.workspace = true
 publish = false
 
 [dev-dependencies]
-langmeld = { path = "../../crates/langmeld" }
+langmeld = { path = "../../crates/langmeld", features = ["lsp"] }
 langmeld-meta = { path = "../../crates/langmeld-meta" }
+serde_json.workspace = true
 
 [[test]]
 name = "stress"
 path = "stress.rs"
+
+[[test]]
+name = "names"
+path = "names.rs"
 
 [lints]
 workspace = true
