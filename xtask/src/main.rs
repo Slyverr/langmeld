@@ -88,6 +88,8 @@ fn check_steps(cases: &'static str) -> Vec<Step> {
                 "langmeld-syntax",
                 "-p",
                 "langmeld-meta",
+                "-p",
+                "langmeld-ide",
                 "--target",
                 "wasm32-unknown-unknown",
                 "--locked",
