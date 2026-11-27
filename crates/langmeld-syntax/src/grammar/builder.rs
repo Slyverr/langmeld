@@ -526,6 +526,7 @@ pub struct LanguageBuilder {
     pub(crate) definitions: Vec<Definition>,
     pub(crate) root: Option<String>,
     pub(crate) descriptions: Vec<(String, String)>,
+    pub(crate) extensions: Vec<String>,
     pub(crate) places: Vec<(String, (FileId, TextRange))>,
     pub(crate) lex_limits: LexLimits,
     pub(crate) parse_limits: ParseLimits,
@@ -545,6 +546,7 @@ impl LanguageBuilder {
             definitions: Vec::new(),
             root: None,
             descriptions: Vec::new(),
+            extensions: Vec::new(),
             places: Vec::new(),
             lex_limits: LexLimits::default(),
             parse_limits: ParseLimits::default(),
@@ -914,6 +916,26 @@ impl LanguageBuilder {
     /// ```
     pub fn describe(mut self, rule: impl Into<String>, text: impl Into<String>) -> Self {
         self.descriptions.push((rule.into(), text.into()));
+        self
+    }
+
+    /// The file extensions of the language, without the dot, which tools use to find its
+    /// files.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, many};
+    /// use langmeld_syntax::Language;
+    ///
+    /// let language = Language::builder("Bangs")
+    ///     .extensions(["bang"])
+    ///     .rule("File", many(lit("!")))
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// assert_eq!(language.extensions().collect::<Vec<_>>(), ["bang"]);
+    /// ```
+    pub fn extensions<S: Into<String>>(mut self, extensions: impl IntoIterator<Item = S>) -> Self {
+        self.extensions
+            .extend(extensions.into_iter().map(Into::into));
         self
     }
 
