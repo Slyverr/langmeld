@@ -12,7 +12,7 @@ categories.workspace = true
 publish.workspace = true
 
 [dependencies]
-langmeld-syntax = { path = "../langmeld-syntax" }
+langmeld-syntax.workspace = true
 postcard.workspace = true
 serde.workspace = true
 toml.workspace = true
