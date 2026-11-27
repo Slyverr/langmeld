@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [line_index]
+        target: [line_index, lexer, interpolation, parse_handwritten_calc]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,10 +34,15 @@ jobs:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: fuzz-corpus-${{ matrix.target }}-
+      - name: Add the seed inputs
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cp -n fuzz/seeds/${{ matrix.target }}/* fuzz/corpus/${{ matrix.target }}/ 2>/dev/null || true
       - name: Fuzz for 10 minutes
         run: |
           nix develop .#fuzz --command cargo fuzz run ${{ matrix.target }} -- \
-            -max_total_time=600 -timeout=10 -rss_limit_mb=2048
+            -max_total_time=600 -timeout=10 -rss_limit_mb=2048 \
+            $(test -f fuzz/dict/${{ matrix.target }}.dict && echo -dict=fuzz/dict/${{ matrix.target }}.dict)
       - name: Keep the input that failed
         if: failure()
         uses: actions/upload-artifact@v7
@@ -61,6 +66,28 @@ jobs:
           PROPTEST_CASES: "10000"
         run: nix develop --command cargo nextest run --workspace --locked
 
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v32
+      - uses: Swatinem/rust-cache@v2
+      - name: Lexer benchmark
+        run: nix develop --command cargo bench -p langmeld-syntax --bench lexer -- --noplot | tee bench.txt
+      - name: Add the results to the run summary
+        run: |
+          {
+            echo '### Lexer benchmark'
+            echo 'Runner times are noisy: read them as a trend, never as a gate.'
+            echo '```'
+            grep -E '^lex/|time:|thrpt:' bench.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   browser:
     name: Browser tests
     runs-on: ubuntu-latest
@@ -82,7 +109,7 @@ jobs:
 
   report:
     name: Report failure
-    needs: [fuzz, properties, browser]
+    needs: [fuzz, properties, browser, bench]
     if: failure()
     runs-on: ubuntu-latest
     permissions:
