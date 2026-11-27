@@ -46,7 +46,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [line_index, lexer, interpolation, parse_handwritten_calc]
+        target:
+          [
+            line_index,
+            lexer,
+            interpolation,
+            parse_handwritten_calc,
+            grammar_builder,
+            parse_json,
+            parse_calc,
+          ]
     steps:
       - uses: actions/checkout@v7
         with:
