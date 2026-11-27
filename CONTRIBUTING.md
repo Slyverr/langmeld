@@ -50,7 +50,7 @@ Verify it works by running the tests (see Commands).
 | Test | `cargo nextest run --workspace --locked` (doc tests: `cargo test --workspace --doc --locked`) |
 | Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Format | `cargo fmt --all` (check only: add `--check`) |
-| WASM check | `cargo build -p langmeld-syntax --target wasm32-unknown-unknown --locked` |
+| WASM check | `cargo build -p langmeld-syntax -p langmeld-meta --target wasm32-unknown-unknown --locked` |
 | Mutation tests | `cargo mutants` (needs time; the nightly run does it and only reports) |
 | **Check (local)** | `cargo xtask check`: format, lint, tests and WASM build in under two minutes |
 | Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests and WASM tests in Node |
@@ -65,7 +65,7 @@ Verify it works by running the tests (see Commands).
 | `crates/langmeld-ide/` | Binding, projects, language server, editor packaging |
 | `crates/langmeld-cli/` | The `langmeld` binary and the CLI kit |
 | `examples/` | Languages built with Langmeld, each with its own tests |
-| `tests/` | Corpus files and the runner that checks them |
+| `tests/` | Corpus files, the runner that checks them, and `stress/`, a language that holds the format to its promises |
 | `fuzz/` | Fuzz targets (nightly Rust; its own workspace) |
 | `xtask/` | The `cargo xtask` commands (its own workspace) |
 | `docs/` | In-depth documentation |
@@ -102,8 +102,9 @@ Verify it works by running the tests (see Commands).
 - Follow the existing style; the formatter and linter are the final word.
 - Never panic on user input. Use `expect` only for real invariants, and state the reason.
 - `unsafe` code is forbidden by the workspace lints.
-- `langmeld-syntax` must keep building for `wasm32-unknown-unknown`: no threads,
-  filesystem, time or stdio.
+- `langmeld-syntax` and `langmeld-meta` must keep building for `wasm32-unknown-unknown`: no
+  threads, time or stdio, and no filesystem except where `langmeld-meta` reads files from
+  disk, which is left out of that build.
 - For the lexer, parser, validation and binding, write the test before the implementation.
 - Don't add speculative options, crates or public items. Keep items `pub(crate)` unless
   they are meant to be public API.
