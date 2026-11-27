@@ -9,12 +9,34 @@ publish = false
 cargo-fuzz = true
 
 [dependencies]
+handwritten-calc = { path = "../examples/handwritten-calc" }
 langmeld-syntax = { path = "../crates/langmeld-syntax" }
 libfuzzer-sys = "0.4.13"
 
 [[bin]]
 name = "line_index"
 path = "fuzz_targets/line_index.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lexer"
+path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "interpolation"
+path = "fuzz_targets/interpolation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parse_handwritten_calc"
+path = "fuzz_targets/parse_handwritten_calc.rs"
 test = false
 doc = false
 bench = false
