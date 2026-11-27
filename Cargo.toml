@@ -13,8 +13,16 @@ publish = false
 [workspace.dependencies]
 insta = "1.49.0"
 proptest = "1.7.0"
+regex-automata = { version = "0.4.19", default-features = false, features = [
+    "std",
+    "syntax",
+    "unicode",
+    "dfa-build",
+    "dfa-search",
+] }
 rowan = "0.16.1"
 text-size = "1.1.1"
+unicode-ident = "1.0.27"
 wasm-bindgen-test = "0.3.80"
 
 [workspace.lints.rust]
