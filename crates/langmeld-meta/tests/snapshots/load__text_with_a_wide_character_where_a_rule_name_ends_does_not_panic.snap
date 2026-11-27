@@ -1,0 +1,38 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: found
+---
+error[LM-P001]: expected a declaration, found `langmexpe4ted`
+ --> t.langmeld:1:1
+  |
+1 | langmexpe4ted `m
+  | ^^^^^^^^^^^^^
+  = note: To fix this, write a declaration where `langmexpe4ted` is, or remove `langmexpe4ted`.
+
+error[LM-L001]: unexpected characters ``\u{1}`
+ --> t.langmeld:1:15
+  |
+1 | langmexpe4ted `m
+  |               ^^
+  = note: To fix this, remove it, or put it in quotes if it is text.
+
+error[LM-L001]: unexpected character `\u{5f6}`
+ --> t.langmeld:2:5
+  |
+2 | rule׶tem = +" " "a" | "a"right
+  |     ^
+  = note: To fix this, remove it, or put it in quotes if it is text.
+
+error[LM-P001]: expected a part of a rule, found `+`
+ --> t.langmeld:2:12
+  |
+2 | rule׶tem = +" " "a" | "a"right
+  |            ^
+  = note: To fix this, write a part of a rule where `+` is, or remove `+`.
+
+error[LM-L001]: unexpected character `\u{2}`
+ --> t.langmeld:2:31
+  |
+2 | rule׶tem = +" " "a" | "a"right
+  |                               ^
+  = note: To fix this, remove it, or put it in quotes if it is text.
