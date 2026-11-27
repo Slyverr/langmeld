@@ -10,6 +10,9 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ### Added
 
+- JSON and Calc are also written as `.langmeld` files, and tests check that both give the
+  same trees as their builder versions on every corpus file, whether loaded at run time
+  or compiled by the build script.
 - The `langmeld` command: `check` validates a language file or project and, with `--explain`,
   shows where it looks more than one token ahead; `test` runs the corpus files of a
   language project and `--update` rewrites what they expect; `parse --grammar` parses a
