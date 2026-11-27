@@ -8,6 +8,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-27
+
 ### Added
 
 - JSON and Calc are also written as `.langmeld` files, and tests check that both give the
