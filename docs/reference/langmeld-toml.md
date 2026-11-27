@@ -26,9 +26,9 @@ out = "../../editors/vscode"
 |-----|---------|---------|
 | `root` | The root `.langmeld` file, relative to the manifest | `language/main.langmeld` |
 | `bins.layout` | One binary (`single`), one that runs programs and one for the tools (`split`; the language server gets a third with the server), or one binary that acts as the others by its name (`multicall`) | `single` |
-| `bins.server` | The command that starts the language server | none |
+| `bins.server` | The command that starts the language server, which `package vscode` writes into the extension | the program of the language and `lsp` (`name lsp`; `namec lsp` for `split`) |
 | `project.manifest` | The name of the file that marks the root of a project written in the language | none |
-| `package.vscode.display-name`, `publisher`, `icon`, `out` | What the Visual Studio Code extension is made with | none |
+| `package.vscode.display-name`, `publisher`, `icon`, `out` | What the Visual Studio Code extension is made with: its name in the editor (the language's name), the publisher's identifier (`local`), an icon file copied into it, and the folder written (`editors/vscode`) | see left |
 
 Mistakes are reported with the place in the file and a note that starts "To fix this":
 text that is not TOML (`LM-M001`), a key that does not exist (`LM-M002`), a field of the

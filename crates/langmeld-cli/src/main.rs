@@ -10,7 +10,10 @@ mod generate;
 mod init;
 mod parse;
 mod project;
+#[cfg(feature = "lsp")]
+mod serve;
 mod test;
+mod vscode;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -43,6 +46,16 @@ enum Command {
         #[arg(long, hide = true)]
         langmeld_path: Option<String>,
     },
+    /// Serve `.langmeld` files to editors over standard input and output.
+    #[cfg(feature = "lsp")]
+    Lsp {
+        /// Editors often add this; it is the only transport there is.
+        #[arg(long, hide = true)]
+        stdio: bool,
+    },
+    /// Make packages for editors.
+    #[command(subcommand)]
+    Package(Package),
     /// Add to a language project: a rule, or a handler of a node.
     #[command(subcommand)]
     Generate(Addition),
@@ -79,6 +92,22 @@ enum Command {
     Explain {
         /// The code, such as `LM-P001`.
         code: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum Package {
+    /// An extension for Visual Studio Code, from the grammar and `langmeld.toml`.
+    Vscode {
+        /// A `.langmeld` file, or the folder of a project with a `langmeld.toml`.
+        #[arg(default_value = ".", conflicts_with = "langmeld")]
+        path: PathBuf,
+        /// The folder to write, instead of the one in `langmeld.toml`, or `editors/vscode`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Make the extension for `.langmeld` files themselves.
+        #[arg(long)]
+        langmeld: bool,
     },
 }
 
@@ -143,6 +172,13 @@ fn main() -> ExitCode {
             bins,
             langmeld_path.as_deref(),
         )),
+        #[cfg(feature = "lsp")]
+        Some(Command::Lsp { stdio: _ }) => serve::run(),
+        Some(Command::Package(Package::Vscode {
+            path,
+            out,
+            langmeld,
+        })) => finish(vscode::run(&path, out.as_deref(), langmeld)),
         Some(Command::Generate(Addition::Rule { name, path })) => {
             finish(generate::rule(&name, path.as_deref()))
         }
