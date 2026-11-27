@@ -88,6 +88,7 @@ enum Origin {
 pub struct Source {
     origin: Origin,
     files: Option<MemoryFiles>,
+    reader: Option<Box<dyn Files>>,
     externals: Externals,
     generic: bool,
 }
@@ -119,6 +120,7 @@ impl Source {
         Self {
             origin,
             files: None,
+            reader: None,
             externals: Externals::new(),
             generic: false,
         }
@@ -128,6 +130,15 @@ impl Source {
     #[must_use]
     pub fn file(mut self, path: impl Into<String>, text: impl Into<String>) -> Self {
         self.files = Some(self.files.take().unwrap_or_default().with(path, text));
+        self
+    }
+
+    /// Where imports are read from, instead of the disk or the files given with
+    /// [`file`](Self::file). An editor uses it to read the text it holds for the files
+    /// that are open.
+    #[must_use]
+    pub fn reading(mut self, files: impl Files + 'static) -> Self {
+        self.reader = Some(Box::new(files));
         self
     }
 
@@ -374,6 +385,7 @@ pub fn load_language(source: Source) -> Result<Loaded, LoadError> {
     let Source {
         origin,
         files,
+        reader: custom,
         externals,
         generic,
     } = source;
@@ -403,14 +415,18 @@ pub fn load_language(source: Source) -> Result<Loaded, LoadError> {
         }
     };
     #[cfg(not(target_arch = "wasm32"))]
-    let reader: &dyn Files = match &files {
-        Some(memory) => memory,
-        None => &DiskFiles,
+    let reader: &dyn Files = match (&custom, &files) {
+        (Some(custom), _) => custom.as_ref(),
+        (None, Some(memory)) => memory,
+        (None, None) => &DiskFiles,
     };
     #[cfg(target_arch = "wasm32")]
     let memory = files.unwrap_or_default();
     #[cfg(target_arch = "wasm32")]
-    let reader: &dyn Files = &memory;
+    let reader: &dyn Files = match &custom {
+        Some(custom) => custom.as_ref(),
+        None => &memory,
+    };
     let mut collector = Collector {
         files: reader,
         sources: Vec::new(),
