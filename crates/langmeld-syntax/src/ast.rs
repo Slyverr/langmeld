@@ -38,3 +38,24 @@ pub fn between(
     }
     children.take_while(move |child| before.is_none_or(|before| !is(child, before)))
 }
+
+/// The children of `node` after the first token of kind `after`. Generated types use it
+/// to find a part that follows a token.
+pub fn after(node: &SyntaxNode, after: u16) -> impl Iterator<Item = SyntaxElement> + use<> {
+    between(node, Some(SyntaxKind(after)), None)
+}
+
+/// The children of `node` before the first token of kind `before`.
+pub fn before(node: &SyntaxNode, before: u16) -> impl Iterator<Item = SyntaxElement> + use<> {
+    between(node, None, Some(SyntaxKind(before)))
+}
+
+/// The children of `node` after the first token of kind `after` and before the first
+/// token of kind `before` that follows it.
+pub fn within(
+    node: &SyntaxNode,
+    after: u16,
+    before: u16,
+) -> impl Iterator<Item = SyntaxElement> + use<> {
+    between(node, Some(SyntaxKind(after)), Some(SyntaxKind(before)))
+}
