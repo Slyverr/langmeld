@@ -8,6 +8,16 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Changed
+
+- The language and what it tells editors travel together: `ide::serve(language, hooks)` and
+  `Server::new(language, hooks)` take a language read from a file as it is (`&Loaded`, such
+  as the generated `syntax::loaded()`), which brings its `editor` rules, or a `&Language`,
+  or a `Served` with rules given to it by `Served::editor`. This replaces the three
+  arguments of 0.6.0. `App::new` takes the same, so `App::new(syntax::loaded())` replaces
+  `App::new(syntax::language()).editor(...)`; `App::editor` stays for a language with a
+  parser of its own.
+
 ## [0.6.0] - 2026-11-27
 
 ### Added

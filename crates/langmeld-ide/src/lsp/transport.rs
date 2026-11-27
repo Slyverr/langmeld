@@ -2,11 +2,10 @@
 
 use std::io::{self, BufReader, Stdin};
 
-use langmeld_meta::Editor;
-use langmeld_syntax::Language;
 use lsp_server::Message;
 
 use super::{LanguageHooks, Server};
+use crate::Served;
 
 /// A way to exchange messages with a client.
 pub trait Transport {
@@ -84,8 +83,8 @@ pub fn serve_with<T: Transport, H: LanguageHooks>(
     }
 }
 
-/// Serves `language` on the standard input and output. See [`serve_with`]. `editor` is
-/// what the language tells editors, as `Loaded::editor` has it.
-pub fn serve<H: LanguageHooks>(language: &Language, editor: &Editor, hooks: H) -> io::Result<u8> {
-    serve_with(StdioTransport::new(), Server::new(language, editor, hooks))
+/// Serves `language` on the standard input and output. See [`serve_with`]. A language
+/// read from a file is served as it is, with the rules it carries; see [`Served`].
+pub fn serve<'l, H: LanguageHooks>(language: impl Into<Served<'l>>, hooks: H) -> io::Result<u8> {
+    serve_with(StdioTransport::new(), Server::new(language, hooks))
 }

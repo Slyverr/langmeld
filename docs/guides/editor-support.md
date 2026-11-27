@@ -68,15 +68,15 @@ langmeld = { version = "0.6", features = ["cli", "kit", "lsp"] }
 ```
 
 ```rust,ignore
-let app = App::new(language())
-    .editor(&loaded().editor)
+let app = App::new(loaded())
     .check_with(my_checks)
     .standard();
 ```
 
-`mylang lsp` then serves the language on standard input and output. `.editor(...)` gives
-the rules of the `editor` block, which the generated `syntax::loaded()` holds with the
-language. `check_with` gives the checks of your own: the server shows them with the parser's
+`mylang lsp` then serves the language on standard input and output. The generated
+`syntax::loaded()` carries the rules of the `editor` block with the language, so they
+travel together; a language with a parser of your own is `App::new(&language)` and gets
+rules, if it has any, from `.editor(&rules)`. `check_with` gives the checks of your own: the server shows them with the parser's
 problems, on text that parses without problems, as `mylang check` does.
 
 A project made with `langmeld init` already has all of this.
@@ -103,7 +103,7 @@ let loaded = load_language(Source::text(
     "tiny.langmeld",
     "langmeld 1\nlanguage Tiny { extensions \"tiny\" }\nrule File = \"!\"*\n",
 ))?;
-let mut server = Server::new(&loaded.language, &loaded.editor, Checks);
+let mut server = Server::new(&loaded, Checks);
 let replies = server.handle_json(
     r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#,
 );

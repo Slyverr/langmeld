@@ -20,6 +20,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::Served;
 use features::View;
 use position::Encoding;
 
@@ -140,9 +141,11 @@ fn panic_text(panic: &(dyn std::any::Any + Send)) -> &str {
 }
 
 impl<'l, H: LanguageHooks> Server<'l, H> {
-    /// A server for `language`, waiting for a client to initialize it. `editor` says
-    /// what the language tells editors, as `Loaded::editor` has it.
-    pub fn new(language: &'l Language, editor: &'l Editor, hooks: H) -> Self {
+    /// A server for `language`, waiting for a client to initialize it. A language read
+    /// from a file is served with the rules it carries; see [`Served`].
+    pub fn new(language: impl Into<Served<'l>>, hooks: H) -> Self {
+        let served = language.into();
+        let (language, editor) = (served.language(), served.editor_rules());
         Self {
             language,
             editor,

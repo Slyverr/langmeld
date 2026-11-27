@@ -13,7 +13,6 @@ categories.workspace = true
 [features]
 # The language server: `ide::serve`, `Server`, `LanguageHooks` and `Transport`.
 lsp = [
-    "dep:langmeld-meta",
     "dep:lsp-server",
     "dep:lsp-types",
     "dep:serde",
@@ -21,7 +20,7 @@ lsp = [
 ]
 
 [dependencies]
-langmeld-meta = { workspace = true, optional = true }
+langmeld-meta.workspace = true
 langmeld-syntax.workspace = true
 lsp-server = { workspace = true, optional = true }
 lsp-types = { workspace = true, optional = true }
