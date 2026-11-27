@@ -47,3 +47,8 @@ pub use line_index::{LineCol, LineIndex, TextTooLarge, Utf16LineCol};
 pub use parser::{CompletedMarker, Marker, Parse, ParseLimits, Parser, TreeBuilder};
 pub use rowan::GreenNode;
 pub use text_size::{TextRange, TextSize};
+
+/// The guide's code blocks, compiled and run as doc tests so they stay correct.
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/guides/hand-written-parser.md")]
+struct HandWrittenParserGuide;

@@ -27,6 +27,15 @@ Update this list when adding, renaming or removing a document.
 - [dogfood-log.md](dogfood-log.md): problems met while building real languages with Langmeld
 - [learning/notes.md](learning/notes.md): the maintainer's own explanations of the ideas the parser rests on
 
+### Guides
+
+- [guides/hand-written-parser.md](guides/hand-written-parser.md): writing a parser by hand with the syntax crate's primitives
+
+### Reference
+
+- [reference/diagnostics.md](reference/diagnostics.md): the code of every problem Langmeld reports, and what it means
+- [reference/performance.md](reference/performance.md): what the benchmarks measure and where they run
+
 ## Rules
 
 - **One fact, one place.** The project README owns the intro, install and quickstart;
