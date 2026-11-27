@@ -12,7 +12,11 @@ publish = false
 langmeld-syntax = { path = "../../crates/langmeld-syntax" }
 
 [dev-dependencies]
+langmeld = { path = "../../crates/langmeld" }
 handwritten-calc = { path = "../handwritten-calc" }
+
+[build-dependencies]
+langmeld = { path = "../../crates/langmeld" }
 
 [lints]
 workspace = true

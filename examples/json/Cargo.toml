@@ -18,5 +18,11 @@ criterion.workspace = true
 name = "throughput"
 harness = false
 
+[dev-dependencies]
+langmeld = { path = "../../crates/langmeld" }
+
+[build-dependencies]
+langmeld = { path = "../../crates/langmeld" }
+
 [lints]
 workspace = true

@@ -1,0 +1,53 @@
+langmeld 1
+
+language Calc {
+    extensions "calc"
+    comments { line "//"  block "/*" "*/" nested }
+}
+
+tokens {
+    skip ws    = /[ \t\r\n]+/
+    ident      = preset ident(xid)
+    int        = preset int(dec, hex, underscores)
+    float      = preset float(exponent)          // requires a digit after `.`
+    string     = preset string(double)           // unterminated → error at end of line
+    keywords   { let fn return if else true false }
+    contextual { from }                          // stays `ident` unless a rule asks for it
+}
+
+rule File     = items:Item*
+rule Item     = LetStmt | FnDecl | ExprStmt
+rule LetStmt  = "let" name:Name "=" value:Expr ";"
+rule FnDecl   = "fn" name:Name "(" params:sep(Param, ",") ")" body:Block
+rule Param    = name:Name
+rule Block    = "{" stmts:Item* "}"
+rule ExprStmt = expr:Expr (";" | &"}")         // last expression may omit `;`
+rule Name     = ident
+rule NameRef  = ident
+
+expr Expr {
+    atom  Literal = int | float | string | "true" | "false"
+    atom  Paren   = "(" inner:Expr ")"
+    atom  Var     = NameRef
+    atom  If      = "if" cond:Expr then:Block ("else" else:Block)?
+    prefix  Neg   "-"        prec 9
+    infix   Mul   "*" | "/"  prec 6 left
+    infix   Add   "+" | "-"  prec 5 left
+    infix   Cmp   "==" | "<" prec 4 none          // `a<b<c` is an error
+    postfix Call  "(" args:sep(Expr, ",") ")" prec 10
+}
+
+bind {
+    scope File, Block, FnDecl
+    LetStmt.name defines value after             // visible after its declaration
+    FnDecl.name  defines value hoisted in parent
+    Param.name   defines value
+    NameRef      refers  value
+}
+
+editor {
+    symbol FnDecl  kind function name name
+    symbol LetStmt kind variable name name
+    fold   Block
+    highlight NameRef by_binding
+}
