@@ -29,11 +29,14 @@ Update this list when adding, renaming or removing a document.
 
 ### Guides
 
+- [guides/write-a-langmeld-file.md](guides/write-a-langmeld-file.md): describing a language in a `.langmeld` file, checking it, running it and reloading it
 - [guides/declare-a-grammar.md](guides/declare-a-grammar.md): declaring a language as a grammar with the builder, and what happens to a grammar that is refused
 - [guides/hand-written-parser.md](guides/hand-written-parser.md): writing a parser by hand with the syntax crate's primitives
 
 ### Reference
 
+- [reference/langmeld-format.md](reference/langmeld-format.md): every part of a `.langmeld` file
+- [reference/langmeld-toml.md](reference/langmeld-toml.md): the manifest of a language project
 - [reference/diagnostics.md](reference/diagnostics.md): the code of every problem Langmeld reports, in source text, token declarations and grammars, and what it means
 - [reference/performance.md](reference/performance.md): what the benchmarks measure, the speeds they are held to, and where they run
 

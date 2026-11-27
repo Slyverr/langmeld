@@ -109,3 +109,8 @@ fn parse_does_not_run_with_a_grammar_that_has_problems() {
         "pairs/corpus/lines.txt"
     ]));
 }
+
+#[test]
+fn the_stress_test_language_passes_the_check_and_shows_where_it_looks_ahead() {
+    insta::assert_snapshot!(run(&["check", "../../../../tests/stress", "--explain"]));
+}
