@@ -930,3 +930,192 @@ fn a_token_outside_the_text_becomes_an_error_token_holding_the_rest() {
     assert_eq!(last.kind(), SyntaxKind::ERROR);
     assert_eq!(last.text(), "😀bc");
 }
+
+#[test]
+fn abandoned_markers_do_not_count_towards_the_depth() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        for _ in 0..1000 {
+            p.start().abandon(p);
+        }
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    let parse = parse_with("a b", None, grammar);
+    assert!(parse.diagnostics.is_empty(), "{:?}", parse.diagnostics);
+}
+
+#[test]
+fn the_tree_depth_limit_can_be_changed() {
+    let limits = ParseLimits::default().max_tree_depth(4);
+    let parse = parse_with("1+1+1+1+1+1+1+1;", Some(limits), file);
+    assert_eq!(
+        problems(&parse.diagnostics),
+        ["LM-P003 7..8 this is nested more than 4 levels deep"]
+    );
+}
+
+/// `1` is wrapped inside an attempt that fails, and a node that starts afterwards at
+/// the same place must not turn into the wrapper.
+fn wrap_then_fail(nested: bool) -> String {
+    fn wrap(p: &mut Parser<'_>, done: langmeld_syntax::CompletedMarker, succeed: bool) {
+        let wrapper = done.precede(p);
+        p.bump();
+        if !succeed {
+            p.expect(SEMI);
+        }
+        wrapper.complete(p, BINARY);
+    }
+    let lexer = c_like();
+    let text = "1 + 2";
+    let file_text = source(text);
+    let mut p = Parser::new(&file_text, lex(&lexer, text), &lexer);
+    let root = p.start();
+    let m = p.start();
+    p.bump();
+    let done = m.complete(&mut p, LITERAL);
+    let kept = if nested {
+        p.attempt(|p| {
+            assert!(p.attempt(|p| wrap(p, done, true)));
+            p.expect(SEMI);
+        })
+    } else {
+        p.attempt(|p| wrap(p, done, false))
+    };
+    assert!(!kept);
+    let node = p.start();
+    p.bump();
+    node.complete(&mut p, NAME);
+    while !p.at_end() {
+        p.bump();
+    }
+    root.complete(&mut p, FILE);
+    shape(&p.finish().syntax())
+}
+
+#[test]
+fn a_node_started_after_a_failed_attempt_is_not_a_wrapper() {
+    for nested in [false, true] {
+        assert_eq!(
+            wrap_then_fail(nested),
+            "(FILE (LITERAL 1) (NAME +) 2)",
+            "nested: {nested}"
+        );
+    }
+}
+
+#[test]
+fn nothing_is_tried_once_the_parser_has_stopped_or_the_attempt_has_failed() {
+    let limits = ParseLimits::default().max_depth(1);
+    let parse = parse_with("a b", Some(limits), |p| {
+        let outer = p.start();
+        let inner = p.start();
+        let mut ran = false;
+        assert!(!p.attempt(|_| ran = true));
+        assert!(!p.lookahead(|_| ran = true));
+        assert!(!ran, "the parser has stopped");
+        inner.abandon(p);
+        outer.abandon(p);
+    });
+    assert_eq!(parse.diagnostics.len(), 1);
+
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        let mut ran = false;
+        let kept = p.attempt(|p| {
+            p.expect(SEMI);
+            // The attempt has failed, so it sees the end of the file and nothing runs.
+            assert_eq!(p.current(), SyntaxKind::EOF);
+            assert_eq!(p.nth(1), SyntaxKind::EOF);
+            assert!(!p.attempt(|_| ran = true));
+            assert!(!p.lookahead(|_| ran = true));
+        });
+        assert!(!kept && !ran);
+        assert_eq!(p.current(), IDENT);
+        assert_eq!(p.nth(1), IDENT);
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    assert!(parse_with("a b", None, grammar).diagnostics.is_empty());
+}
+
+#[test]
+fn an_attempt_keeps_hold_of_an_earlier_error_only_if_it_took_nothing() {
+    fn grammar(p: &mut Parser<'_>) {
+        let file = p.start();
+        p.expected("x");
+        // Nothing was taken: the mistake is still being held against later ones.
+        assert!(p.attempt(|_| {}));
+        p.expected("y");
+        // A token was taken as expected: a new mistake is reported.
+        assert!(p.attempt(|p| p.bump()));
+        p.expected("z");
+        while !p.at_end() {
+            p.bump();
+        }
+        file.complete(p, FILE);
+    }
+    assert_eq!(
+        problems(&parse_with("a b", None, grammar).diagnostics),
+        [
+            "LM-P001 0..1 expected x, found `a`",
+            "LM-P001 2..3 expected z, found `b`"
+        ]
+    );
+}
+
+#[test]
+fn a_documentation_comment_at_the_very_start_belongs_to_the_first_node() {
+    let root = parse("/// about x\nlet x = 1;").syntax();
+    let first = root.first_child_or_token().expect("something");
+    assert_eq!(first.kind(), LET_STMT);
+    assert!(first.to_string().starts_with("/// about x"));
+}
+
+#[test]
+fn tokens_the_parser_left_end_where_the_last_of_them_does() {
+    fn one(p: &mut Parser<'_>) {
+        let m = p.start();
+        p.bump();
+        m.complete(p, FILE);
+    }
+    let error_of = |text: &str| {
+        parse_with(text, None, one)
+            .syntax()
+            .children()
+            .find(|node| node.kind() == SyntaxKind::ERROR)
+            .map(|node| node.text().to_string())
+    };
+    assert_eq!(error_of("a b c // end").as_deref(), Some("b c"));
+    // Only trivia is left: there is nothing to report or wrap.
+    assert_eq!(error_of("a // end"), None);
+}
+
+#[test]
+fn the_tree_builder_closes_open_nodes_and_keeps_text_it_was_not_given() {
+    let lexer = c_like();
+    let text = " a + b ";
+    let lexed = lex(&lexer, text);
+    let mut builder = TreeBuilder::new(text, &lexed.tokens);
+    builder.start_node(FILE);
+    builder.start_node(BINARY);
+    for _ in 0..3 {
+        builder.token(NAME_REF, 1);
+    }
+    let root = SyntaxNode::new_root(builder.finish());
+    assert_eq!(root.text().to_string(), text);
+    assert_eq!(shape(&root), "(FILE (BINARY a + b))");
+
+    // The tokens stop before the end of the text.
+    let short = lex(&lexer, "a");
+    let mut builder = TreeBuilder::new("a bc", &short.tokens);
+    builder.start_node(FILE);
+    builder.token(NAME_REF, 1);
+    let root = SyntaxNode::new_root(builder.finish());
+    assert_eq!(root.text().to_string(), "a bc");
+    assert_eq!(root.last_token().expect("a token").text(), " bc");
+}
