@@ -61,3 +61,8 @@ pub use text_size::{TextRange, TextSize};
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/guides/hand-written-parser.md")]
 struct HandWrittenParserGuide;
+
+/// The guide's code blocks, compiled and run as doc tests so they stay correct.
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/guides/declare-a-grammar.md")]
+struct DeclareAGrammarGuide;
