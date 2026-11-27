@@ -1,0 +1,24 @@
+---
+source: crates/langmeld-meta/tests/manifest.rs
+expression: "read(\"root = 3\\n[bins]\\nlayout = \\\"many\\\"\\nserver = \\\"calc\\\"\\n\").expect_err(\"wrong\")"
+---
+error[LM-M004]: `root` must be text in quotes
+ --> langmeld.toml:1:8
+  |
+1 | root = 3
+  |        ^
+  = note: To fix this, write it as `root = "..."`.
+
+error[LM-M004]: `many` is not a layout of binaries
+ --> langmeld.toml:3:10
+  |
+3 | layout = "many"
+  |          ^^^^^^
+  = note: To fix this, use `single`, `split` or `multicall`.
+
+error[LM-M004]: `server` must be a list of words
+ --> langmeld.toml:4:10
+  |
+4 | server = "calc"
+  |          ^^^^^^
+  = note: To fix this, write it as `server = ["mylang", "lsp"]`.

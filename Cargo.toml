@@ -15,6 +15,8 @@ categories = ["parser-implementations", "development-tools"]
 publish = false
 
 [workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = { version = "1", default-features = false, features = ["parse", "serde"] }
 criterion = { version = "0.8.0", default-features = false }
 insta = "1.49.0"
 proptest = "1.7.0"

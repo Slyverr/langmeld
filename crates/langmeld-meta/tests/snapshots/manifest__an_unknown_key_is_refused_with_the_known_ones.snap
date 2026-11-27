@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/manifest.rs
+expression: "read(\"[bins]\\nlayuot = \\\"split\\\"\\n\").expect_err(\"unknown\")"
+---
+error[LM-M002]: `layuot` is not a setting of `[bins]`
+ --> langmeld.toml:2:1
+  |
+2 | layuot = "split"
+  | ^^^^^^
+  = note: To fix this, remove it, or use `layout` or `server`.

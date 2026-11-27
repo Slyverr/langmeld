@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/manifest.rs
+expression: "read(\"root = \\n[bins\\n\").expect_err(\"broken\")"
+---
+error[LM-M001]: the file is not valid TOML: unclosed table, expected `]`
+ --> langmeld.toml:2:6
+  |
+2 | [bins
+  |      ^
+  = note: To fix this, correct the line, as TOML writes `key = value` and `[table]`.
