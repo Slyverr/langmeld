@@ -1,0 +1,21 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "render(&files, &[diagnostic])"
+---
+error[CALC010]: `x` is defined twice
+ --> main.calc:2:5
+  |
+2 | let x = 2;
+  |     ^
+note: first defined here
+ --> main.calc:1:5
+  |
+1 | let x = 1;
+  |     ^
+note: and `a` here
+ --> other.calc:1:5
+  |
+1 | let a = 1;
+  |     ^
+  = note: a name can be defined once in a block
+  = fix: rename it to `y`
