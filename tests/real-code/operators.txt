@@ -1,17 +1,36 @@
-=== unary minus right after an assignment [expected-failure]
+=== unary minus right after an assignment
 x=-1
 ---
 File
-  Assign Name("x") "=" Prefix "-" Literal(1)
+  Assign
+    Var
+      NameRef "x"
+    "="
+    Neg
+      "-"
+      Literal "1"
 
-=== unary minus right after not-equal [expected-failure]
+=== unary minus right after not-equal
 a!=-b
 ---
 File
-  Infix NameRef("a") "!=" Prefix "-" NameRef("b")
+  Compare
+    Var
+      NameRef "a"
+    "!="
+    Neg
+      "-"
+      Var
+        NameRef "b"
 
-=== shift right [expected-failure]
+=== shift right
 a >> b
 ---
 File
-  Infix NameRef("a") ">>" NameRef("b")
+  Shift
+    Var
+      NameRef "a"
+    ">>"
+    Var
+      NameRef "b"
+

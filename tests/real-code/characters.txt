@@ -1,0 +1,6 @@
+=== character in single quotes
+'c'
+---
+File
+  Literal "'c'"
+

@@ -80,11 +80,12 @@ fn render_node(node: &SyntaxNode, depth: usize, out: &mut String) {
 
 /// Runs every `.txt` file of a folder, in name order, and snapshots the outcomes so an
 /// added, removed or newly passing case shows in review.
-fn check_directory(root: &Path, snapshot: &str) -> usize {
+fn check_directory(root: &Path, snapshot: &str, skip: &[&str]) -> usize {
     let mut paths: Vec<_> = std::fs::read_dir(root)
         .unwrap_or_else(|error| panic!("cannot list {}: {error}", root.display()))
         .map(|entry| entry.expect("directory entry is readable").path())
         .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+        .filter(|path| !skip.iter().any(|name| path.ends_with(name)))
         .collect();
     paths.sort();
     let mut report = String::new();
@@ -123,16 +124,20 @@ fn check_directory(root: &Path, snapshot: &str) -> usize {
 #[test]
 fn corpus() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("corpus");
-    let count = check_directory(&root, "corpus");
+    let count = check_directory(&root, "corpus", &[]);
     assert!(count >= 15, "only {count} cases were found");
 }
 
-/// The syntax cases of the repository's `tests/real-code` folder that Calc covers pass;
-/// the others stay marked as expected failures.
+/// The syntax cases of the repository's `tests/real-code` folder. The files about syntax
+/// that Calc does not have are run by the syntax crate's tests, on grammars of their own.
 #[test]
 fn real_code() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/real-code");
-    check_directory(&root, "real-code");
+    check_directory(
+        &root,
+        "real-code",
+        &["generics.txt", "operators.txt", "characters.txt"],
+    );
 }
 
 const FIVE_MISTAKES: &str = "\

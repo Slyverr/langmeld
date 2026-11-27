@@ -5,6 +5,10 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 mod format;
+#[path = "../support/real_code.rs"]
+mod real_code;
+#[path = "../support/render.rs"]
+mod render;
 mod runner;
 #[path = "../support/mod.rs"]
 mod support;
@@ -12,39 +16,51 @@ mod support;
 use std::path::Path;
 
 use format::{Case, FormatError};
-use langmeld_syntax::Lexer;
+use langmeld_syntax::{Lexer, Parse, SyntaxKind, SyntaxNode};
 use runner::{Outcome, run_case};
 
-/// Turns source text into a rendered tree, or `None` when it cannot be parsed.
-/// Nothing can be rendered until a parser is connected here.
-fn parse_tree(_source: &str) -> Option<String> {
+/// Nothing parses the framework corpus yet.
+fn nothing(_file: &str, _source: &str) -> Option<String> {
     None
 }
 
 #[test]
 fn framework_corpus() {
-    check_directory("corpus", parse_tree);
+    check_directory("corpus", |_| true, nothing);
+}
+
+/// The cases of `real-code/` that Calc's syntax does not cover, parsed by grammars
+/// declared for them.
+#[test]
+fn real_code_corpus() {
+    check_directory("real-code", real_code::covers, real_code::parse_tree);
 }
 
 #[test]
 fn real_code_tokens() {
-    check_directory("real-code/tokens", |source| {
-        lex_tokens(&support::c_like(), source)
-    });
+    check_directory(
+        "real-code/tokens",
+        |_| true,
+        |_, source| lex_tokens(&support::c_like(), source),
+    );
 }
 
 #[test]
 fn real_code_tokens_with_newlines() {
-    check_directory("real-code/tokens/terminated", |source| {
-        lex_tokens(&support::terminated(), source)
-    });
+    check_directory(
+        "real-code/tokens/terminated",
+        |_| true,
+        |_, source| lex_tokens(&support::terminated(), source),
+    );
 }
 
 #[test]
 fn real_code_tokens_with_interpolation() {
-    check_directory("real-code/tokens/interpolated", |source| {
-        lex_tokens(&support::interpolating("{"), source)
-    });
+    check_directory(
+        "real-code/tokens/interpolated",
+        |_| true,
+        |_, source| lex_tokens(&support::interpolating("{"), source),
+    );
 }
 
 /// Every token of the source as `KIND "text"`, then every diagnostic.
@@ -60,8 +76,12 @@ fn lex_tokens(lexer: &Lexer, source: &str) -> Option<String> {
     Some(tokens.chain(problems).collect::<Vec<_>>().join("\n"))
 }
 
-/// Runs every `.txt` file of one corpus folder, in name order.
-fn check_directory(directory: &str, subject: fn(&str) -> Option<String>) {
+/// Runs the `.txt` files of one corpus folder that `covered` accepts, in name order.
+fn check_directory(
+    directory: &str,
+    covered: fn(&str) -> bool,
+    subject: fn(&str, &str) -> Option<String>,
+) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests")
         .join(directory);
@@ -69,6 +89,14 @@ fn check_directory(directory: &str, subject: fn(&str) -> Option<String>) {
         .unwrap_or_else(|error| panic!("cannot list {}: {error}", root.display()))
         .map(|entry| entry.expect("directory entry is readable").path())
         .filter(|path| path.extension().is_some_and(|ext| ext == "txt"))
+        .filter(|path| {
+            covered(
+                &path
+                    .file_name()
+                    .expect("listed files have names")
+                    .to_string_lossy(),
+            )
+        })
         .collect();
     paths.sort();
 
@@ -83,7 +111,7 @@ fn check_directory(directory: &str, subject: fn(&str) -> Option<String>) {
             format::parse(&text).unwrap_or_else(|error| panic!("{directory}/{file}: {error}"));
         assert!(!cases.is_empty(), "{directory}/{file} has no cases");
         for case in cases {
-            let outcome = run_case(&case, subject);
+            let outcome = run_case(&case, |source| subject(&file, source));
             report.push_str(&format!("{file}: {}: {}\n", case.name, outcome.label()));
             if let Some(problem) = outcome.problem(&case) {
                 problems.push(format!("{directory}/{file}:{}: {problem}", case.line));
@@ -273,7 +301,7 @@ fn different_output_fails_and_shows_both() {
 #[test]
 fn missing_parser_fails_a_normal_case() {
     let case = case("a", 1, "x", "X");
-    let outcome = run_case(&case, parse_tree);
+    let outcome = run_case(&case, |_| None);
     assert_eq!(outcome, Outcome::Failed { actual: None });
     assert_eq!(
         outcome.problem(&case).as_deref(),
@@ -285,7 +313,7 @@ fn missing_parser_fails_a_normal_case() {
 fn expected_failure_accepts_any_failure() {
     let mut case = case("a", 1, "x", "Y");
     case.expected_failure = true;
-    for outcome in [run_case(&case, upper), run_case(&case, parse_tree)] {
+    for outcome in [run_case(&case, upper), run_case(&case, |_| None)] {
         assert_eq!(outcome, Outcome::ExpectedFailure);
         assert_eq!(outcome.label(), "expected failure");
         assert_eq!(outcome.problem(&case), None);

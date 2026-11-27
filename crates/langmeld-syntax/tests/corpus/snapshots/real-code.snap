@@ -1,0 +1,9 @@
+---
+source: crates/langmeld-syntax/tests/corpus/main.rs
+expression: report
+---
+characters.txt: character in single quotes: passed
+generics.txt: nested generics close with two angle brackets: passed
+operators.txt: unary minus right after an assignment: passed
+operators.txt: unary minus right after not-equal: passed
+operators.txt: shift right: passed
