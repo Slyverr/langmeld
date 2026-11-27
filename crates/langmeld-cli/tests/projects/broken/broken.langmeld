@@ -1,0 +1,13 @@
+langmeld 1
+
+language Broken { extensions "broken" }
+
+tokens {
+    skip space = /[ \t\r\n]+/
+    word       = preset ident(xid)
+}
+
+rule file_list = Entry*
+rule Entry     = Then:word Block
+rule Block     = "{" Entry* Entry? "}"
+rule Spare     = word

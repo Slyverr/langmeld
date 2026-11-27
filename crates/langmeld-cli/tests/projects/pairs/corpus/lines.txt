@@ -1,0 +1,44 @@
+=== a property and an edge
+speed: 3
+build -> test
+---
+File
+  Property
+    "speed"
+    ":"
+    Value "3"
+  "\n"
+  Edge
+    "build"
+    "->"
+    "test"
+
+=== a retry, and a property named like it
+retry build 3
+retry: 2
+---
+File
+  Retry
+    "retry"
+    "build"
+    "3"
+  "\n"
+  Property
+    "retry"
+    ":"
+    Value "2"
+
+=== a line with a missing value
+speed:
+---
+File
+  Property
+    "speed"
+    ":"
+    Value
+! LM-P001 6..6 expected a value, found end of file
+
+=== not written yet [expected-failure]
+a b c
+---
+Sketch

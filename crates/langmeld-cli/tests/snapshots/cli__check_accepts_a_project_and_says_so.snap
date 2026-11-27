@@ -1,0 +1,8 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"check\", \"pairs\"])"
+---
+exit: 0
+--- stdout
+pairs/pairs.langmeld: language Pairs is valid (5 nodes, 0 warnings)
+--- stderr

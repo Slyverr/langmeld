@@ -1,0 +1,37 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"check\", \"broken/broken.langmeld\"])"
+---
+exit: 1
+--- stdout
+--- stderr
+error[LM-F003]: the rule name `file_list` should be written like `FileList`
+  --> broken/broken.langmeld:10:6
+   |
+10 | rule file_list = Entry*
+   |      ^^^^^^^^^
+   = note: To fix this, rename it to `FileList`; rule names become types, so they start with a capital and have no underscores.
+
+error[LM-F004]: the label name `Then` should be written like `then`
+  --> broken/broken.langmeld:11:18
+   |
+11 | rule Entry     = Then:word Block
+   |                  ^^^^
+   = note: To fix this, rename it to `then`; tokens and labels use lower case letters and underscores.
+
+error[LM-G003]: in `Block`, the repeated `Entry` and what follows it both start with `Entry`, so the parser cannot tell where the repetition ends
+  --> broken/broken.langmeld:12:6
+   |
+12 | rule Block     = "{" Entry* Entry? "}"
+   |      ^^^^^
+   = note: In technical terms: the choice between going on and stopping is made by looking at most 3 tokens ahead (LL(3)), and both ways can begin with `Entry`.
+   = note: To fix this, factor out the common start, for example by ending the repeated part with `;` or with a lookahead such as `&"}"`, or use `try` / `extern rule`.
+
+warning[LM-G006]: `Spare` is never used
+  --> broken/broken.langmeld:13:6
+   |
+13 | rule Spare     = word
+   |      ^^^^^
+   = note: To fix this, use it, or remove it.
+
+error: broken/broken.langmeld has 3 problems, so the language cannot be used

@@ -1,0 +1,21 @@
+langmeld 1
+
+language Pairs {
+    extensions "pairs"
+    comments { line "#" }
+    terminators { newline }
+}
+
+tokens {
+    skip space = /[ \t]+/
+    name       = preset ident(ascii)
+    number     = preset int
+    contextual { retry }
+}
+
+rule File     = items:terminated(Item)*
+rule Item     = Property | Edge | Retry
+rule Property = key:name ":" value:Value
+rule Edge     = from:name "->" to:name
+rule Retry    = "retry" target:name times:number?
+rule Value    = number | name

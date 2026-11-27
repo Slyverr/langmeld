@@ -1,0 +1,9 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"test\", \"pairs\"])"
+---
+exit: 0
+--- stdout
+corpus/lines.txt: 3 passed, 1 expected to fail
+test result: ok. 4 cases
+--- stderr

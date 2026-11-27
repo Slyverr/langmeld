@@ -1,0 +1,14 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"parse\", \"--grammar\", \"external/external.langmeld\",\n\"external/sample.arrows\"])"
+---
+exit: 1
+--- stdout
+File
+  Name "x"
+  Fancy
+    Error "("
+  Name "y"
+  Name "z"
+! LM-F012 2..3 `ArrowOrParen` is parsed by Rust code that is not loaded
+--- stderr

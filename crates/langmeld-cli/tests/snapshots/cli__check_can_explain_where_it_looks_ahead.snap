@@ -1,0 +1,11 @@
+---
+source: crates/langmeld-cli/tests/cli.rs
+expression: "run(&[\"check\", \"pairs\", \"--explain\"])"
+---
+exit: 0
+--- stdout
+pairs/pairs.langmeld: language Pairs is valid (5 nodes, 0 warnings)
+Lookahead: the most tokens looked at to choose is 2. These choices need more than one:
+  in `Item`, a choice that starts with `name` looks 2 tokens ahead
+  in `Item`, a choice that starts with `retry` looks 2 tokens ahead
+--- stderr
