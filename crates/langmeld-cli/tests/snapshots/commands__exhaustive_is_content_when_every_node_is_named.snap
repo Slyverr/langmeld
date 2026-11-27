@@ -1,0 +1,9 @@
+---
+source: crates/langmeld-cli/tests/commands.rs
+expression: "ran.shown().replace(root.to_str().expect(\"UTF-8\"), \"<project>\")"
+---
+exit: 0
+--- stdout
+language/main.langmeld: language T is valid (3 nodes, 0 warnings)
+src handles every node
+--- stderr
