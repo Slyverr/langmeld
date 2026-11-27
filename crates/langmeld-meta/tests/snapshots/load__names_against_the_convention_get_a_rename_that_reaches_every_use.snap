@@ -1,0 +1,24 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: error.rendered()
+---
+error[LM-F003]: the rule name `file_x` should be written like `FileX`
+ --> t.langmeld:4:6
+  |
+4 | rule file_x = Then:ident other
+  |      ^^^^^^
+  = note: To fix this, rename it to `FileX`; rule names become types, so they start with a capital and have no underscores.
+
+error[LM-F004]: the label name `Then` should be written like `then`
+ --> t.langmeld:4:15
+  |
+4 | rule file_x = Then:ident other
+  |               ^^^^
+  = note: To fix this, rename it to `then`; tokens and labels use lower case letters and underscores.
+
+error[LM-F003]: the rule name `other` should be written like `Other`
+ --> t.langmeld:5:6
+  |
+5 | rule other = ident
+  |      ^^^^^
+  = note: To fix this, rename it to `Other`; rule names become types, so they start with a capital and have no underscores.

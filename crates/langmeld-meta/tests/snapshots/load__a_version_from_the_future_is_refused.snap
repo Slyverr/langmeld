@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(\"langmeld 2\\nlanguage T { }\\nrule File = \\\"a\\\"\\n\")"
+---
+error[LM-F002]: the file is written for format version 2, which this release does not read
+ --> t.langmeld:1:10
+  |
+1 | langmeld 2
+  |          ^
+  = note: To fix this, write `langmeld 1`, or use a release that reads version 2.

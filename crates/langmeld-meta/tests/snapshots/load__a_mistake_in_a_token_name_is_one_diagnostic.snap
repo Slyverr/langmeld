@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}tokens {{ Number = preset int }}\\nrule File = Number\\n\"))"
+---
+error[LM-F004]: the token name `Number` should be written like `number`
+ --> t.langmeld:4:10
+  |
+4 | tokens { Number = preset int }
+  |          ^^^^^^
+  = note: To fix this, rename it to `number`; tokens and labels use lower case letters and underscores.

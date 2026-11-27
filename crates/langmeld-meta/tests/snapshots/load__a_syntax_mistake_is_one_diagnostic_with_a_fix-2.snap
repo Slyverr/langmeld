@@ -1,0 +1,10 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}rule File = \\\"unclosed\\nrule B = ident\\n\"))"
+---
+error[LM-L002]: unterminated string; add a closing `"` before the end of the line
+ --> t.langmeld:4:13
+  |
+4 | rule File = "unclosed
+  |             ^^^^^^^^^
+  = note: To fix this, close the quotes before the end of the line.

@@ -1,0 +1,17 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}rule File = \\\"a\\\\q\\\" E\\nexpr E {{ atom A = ident\\n infix M \\\"+\\\" prec 0 left }}\\n\"))"
+---
+error[LM-F010]: `\q` is not an escape the format knows
+ --> t.langmeld:4:13
+  |
+4 | rule File = "a\q" E
+  |             ^^^^^
+  = note: To fix this, use `\"`, `\\`, `\n`, `\r` or `\t`, or write the character itself.
+
+error[LM-F011]: `0` is not a precedence
+ --> t.langmeld:6:19
+  |
+6 |  infix M "+" prec 0 left }
+  |                   ^
+  = note: To fix this, write a whole number from 1 to 65535; a larger one binds tighter.

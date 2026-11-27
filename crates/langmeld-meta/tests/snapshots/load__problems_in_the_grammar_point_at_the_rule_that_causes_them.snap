@@ -1,0 +1,18 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(&format!(\"{HEAD}rule File = A\\nrule A = A \\\"+\\\" ident | ident\\nrule Empty = (ident?)*\\n\"))"
+---
+error[LM-G002]: `A` can start with itself (A -> A), so parsing it would never take a token
+ --> t.langmeld:5:6
+  |
+5 | rule A = A "+" ident | ident
+  |      ^
+  = note: In technical terms: this is left recursion, which a parser that reads from left to right cannot handle.
+  = note: To fix this, move operators into an `expr` block.
+
+warning[LM-G006]: `Empty` is never used
+ --> t.langmeld:6:6
+  |
+6 | rule Empty = (ident?)*
+  |      ^^^^^
+  = note: To fix this, use it, or remove it.

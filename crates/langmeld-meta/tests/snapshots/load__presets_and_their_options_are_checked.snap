@@ -1,0 +1,31 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: "refused_text(\"langmeld 1\\nlanguage T { }\\ntokens {\\n a = preset foo\\n b = preset int(hexa)\\n c = preset ident(xid, wide)\\n d = preset int(interpolate \\\"{\\\" \\\"}\\\" with X)\\n}\\nrule File = a b c d\\n\")"
+---
+error[LM-F005]: there is no preset called `foo`
+ --> t.langmeld:4:13
+  |
+4 |  a = preset foo
+  |             ^^^
+  = note: To fix this, use one of the presets `int`, `float`, `string`, `char` and `ident`.
+
+error[LM-F006]: preset `int` has no option `hexa`
+ --> t.langmeld:5:17
+  |
+5 |  b = preset int(hexa)
+  |                 ^^^^
+  = note: To fix this, use `dec`, `hex`, `bin`, `oct` or `underscores`.
+
+error[LM-F006]: preset `ident` has no option `wide`
+ --> t.langmeld:6:24
+  |
+6 |  c = preset ident(xid, wide)
+  |                        ^^^^
+  = note: To fix this, use `xid` or `ascii`.
+
+error[LM-F006]: preset `int` cannot have holes
+ --> t.langmeld:7:17
+  |
+7 |  d = preset int(interpolate "{" "}" with X)
+  |                 ^^^^^^^^^^^
+  = note: To fix this, use `interpolate` only in the `string` preset.

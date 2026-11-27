@@ -1,0 +1,17 @@
+---
+source: crates/langmeld-meta/tests/load.rs
+expression: refused(source)
+---
+error[LM-F007]: cannot read `gone.langmeld`: there is no such file
+ --> main.langmeld:5:8
+  |
+5 | import "gone.langmeld"
+  |        ^^^^^^^^^^^^^^^
+  = note: To fix this, check the path, which is relative to this file.
+
+error[LM-F008]: importing `main.langmeld` here would go in a circle: main.langmeld -> a.langmeld -> main.langmeld
+ --> a.langmeld:2:8
+  |
+2 | import "main.langmeld"
+  |        ^^^^^^^^^^^^^^^
+  = note: To fix this, remove this import, or move what both files need into a third file.
