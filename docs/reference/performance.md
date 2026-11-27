@@ -33,7 +33,7 @@ Two benchmarks measure parsing, from text to tree, in bytes per second.
 
 `langmeld-ide` has a benchmark of the time from an edit to the problems published, for a
 Calc file of 10,000 lines, and of colouring the whole file, with
-`cargo bench -p langmeld-ide --features lsp`. The bar is 50 ms from edit to problems. The
+`cargo bench -p langmeld-ide --features lsp`. The bar is 50 ms from edit to problems, with the names of the file bound again. The
 nightly run measures it and prints it in the run summary with the bar.
 
 The bars are read as a trend. A slow shared runner can miss them without anything being

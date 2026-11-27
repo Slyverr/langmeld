@@ -8,9 +8,10 @@ bigger languages.
 Every language needs the same hard frontend work: parsing, errors, names and editor support.
 Langmeld's goal is that you describe the syntax, structure and name binding once and get
 that frontend, while you write what the language means and does in Rust. So far the
-language file, Rust types for its trees, diagnostics, a command line, and editor support
-from the grammar alone (errors while typing, colours, outline, folding and keyword
-completion, in Visual Studio Code and in the browser) exist; names and projects come next.
+language file, Rust types for its trees, diagnostics, a command line, editor support from
+the grammar alone (errors while typing, colours, outline, folding and keyword completion,
+in Visual Studio Code and in the browser), and names across files (unknown-name errors,
+go to definition, references, rename and completion, from a `bind` block) exist.
 
 ## Installation
 

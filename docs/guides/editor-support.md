@@ -16,6 +16,7 @@ checks of your own.
 | Folding | `fold` lines of the `editor` block; without any, whatever stands in braces, and every comment of several lines |
 | Selection ranges | The tree: a token, then each node around it |
 | Keyword completion | What the parser would accept next, from the tokens it looked for at that place |
+| Names: errors, go to definition, references, rename, completion, hover, symbols of the workspace and quick fixes | The `bind` block of the grammar; see [Names and projects](names-and-projects.md) |
 
 The server counts columns as the editor asks: in UTF-8 bytes if the editor offers them, and
 otherwise in UTF-16 units. Emoji, CJK and `\r\n` line ends give the same answers either
@@ -115,7 +116,10 @@ assert!(replies[0].contains("Tiny language server"));
 `LanguageHooks` has a method for each thing a language adds: `diagnostics` (problems of its
 own), `completions` (words of its own to offer) and `provides_definitions` with
 `definition` (where the name at a place is declared in the same file). Each has a default
-that adds nothing. A method that panics is logged to the editor and counts as having added
+that adds nothing. For names there are `resolver` (a [`Resolver`](names-and-projects.md) for what
+the `bind` block cannot say), `project_diagnostics` (checks that need the names of every file,
+such as `Bindings::unused`) and `hover`. A hook is given a file named by its path when the
+document's address names a file, and otherwise by the address. A method that panics is logged to the editor and counts as having added
 nothing; the server goes on.
 
 A document over 16 MiB (change it with `Server::limit`) is not parsed. It gets one problem,
@@ -167,4 +171,7 @@ tokens within the file.
 
 - The server parses the whole document again after each change. A file of 10,000 lines
   takes well under 50 ms; the nightly run measures it.
-- Names across files, rename, hover and references arrive with binding, in a later release.
+- For a language that binds names, the server reads the files of the workspace and the files
+  they import when it starts (at most 10,000 files, each at most 16 MiB), and binds the
+  whole project again after each change.
+- A name that is computed (`computed`) cannot be renamed: there is no one text to change.

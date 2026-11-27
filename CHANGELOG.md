@@ -8,6 +8,50 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- Names across files, from the `bind` block of a grammar: `langmeld::bind` (feature `bind`)
+  binds the files of a `Project`, read through a `FileProvider` (`DiskFiles`, `MemoryFiles`
+  or an `Overlay`), and answers where a name is defined, what uses it and what is visible
+  (`Bindings`). Scopes, namespaces, `after`, `hoisted`, `in parent`, `shadowing`, `unique`,
+  `global`, `computed`, `imports ... from` and `includes members of` work, and
+  `refers member of` marks uses of a member for a `Resolver` to look up. A `Resolver` also
+  names what is there without being written and the names a node stands for.
+- Problems of names, each told once with how to solve it: a name that nothing defines, with
+  the closest defined name as a suggestion and a quick fix (`LM-B001`); a name defined twice,
+  showing the first even in another file (`LM-B002`); an import that cannot be read
+  (`LM-B003`); names nothing uses, as warnings from `Bindings::unused` (`LM-B004`); and a
+  member that does not exist (`LM-B005`).
+- `Project::rename` gives the edits that rename a name in every file, and refuses text that
+  is not a name or is a keyword, a name that is computed, and a rename that would make
+  another name mean something else.
+- The language server goes to definition (also from the path of an import to its file),
+  finds references, renames, completes the names visible at a place, hovers, lists the
+  symbols of the workspace, offers the fixes of problems as quick fixes, colours names by
+  what they mean, and shows the problems of every open file again when another file changes.
+  It reads the files of the workspace and those they import, and the files that change on
+  disk. `LanguageHooks` gains `resolver`, `project_diagnostics` and `hover`; `Server::files`
+  and `Server::project_file` say where files come from and which project file to check.
+- `ProjectManifest<T>` finds the project file of a language's users (such as `mylang.toml`)
+  above a file, reads it into a type the language chooses, and marks mistakes inside it
+  (`LM-M005`); `keys` lists the keys a table takes. `App::project_file` shows these problems
+  in the editor and completes the keys, and `package vscode` has the extension send files of
+  the name `[project] manifest` gives to the server.
+- `mylang check` binds names across the files it checks and those they import, and
+  `App::resolver` gives it and the server a `Resolver`. `check_files_with` does the same from
+  code.
+- A `bind` line that names a rule, expression or part the language does not have
+  (`LM-F018`, `LM-F019`), words that contradict each other (`LM-F020`) and a part of another
+  node (`LM-F021`) are refused when the grammar is loaded, each once.
+- Calc has `use "file.calc";`, which runs another file and brings in its names, a `Builtins`
+  resolver for `print`, `sqrt` and `abs`, and `calc::interp::run_project`; `calc run` and
+  `calc check` follow imports.
+- `closest` suggests the name nearest to one that is not known.
+- Fuzzing of binding (`binding`), property tests of renaming and of edited projects, scripted
+  editor sessions of names in UTF-8 and UTF-16, and a corpus of the stress-test language's
+  names: global pipelines across files, stages that see the tasks of their pipeline, names a
+  repetition makes, and names in the hole of a text.
+
 ### Changed
 
 - The language and what it tells editors travel together: `ide::serve(language, hooks)` and
@@ -17,6 +61,10 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
   arguments of 0.6.0. `App::new` takes the same, so `App::new(syntax::loaded())` replaces
   `App::new(syntax::language()).editor(...)`; `App::editor` stays for a language with a
   parser of its own.
+- The declared rules of a `bind` block are `BindRules`. The hooks of a language server see a
+  file named by its path when the document's address names a file, and
+  `LanguageHooks::closed` is given that name. `check_files` takes a `Served` as well as a
+  `Language`.
 
 ## [0.6.0] - 2026-11-27
 
