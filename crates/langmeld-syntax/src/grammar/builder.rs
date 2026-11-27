@@ -161,6 +161,13 @@ impl Token {
         )
     }
 
+    /// Makes the token one that rules never see, like whitespace.
+    #[must_use]
+    pub fn skipped(mut self) -> Self {
+        self.trivia = true;
+        self
+    }
+
     /// Marks the token as an identifier, so that reserved words are recognised among
     /// its matches. The identifier preset already is one.
     ///

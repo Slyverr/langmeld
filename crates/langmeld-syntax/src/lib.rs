@@ -31,6 +31,7 @@
 //! filesystem, time or stdio.
 
 mod diagnostic;
+mod externals;
 mod file;
 mod grammar;
 mod kind;
@@ -41,6 +42,7 @@ mod macros;
 mod parser;
 
 pub use diagnostic::{Diagnostic, Fix, Label, Severity, TextEdit};
+pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{
     Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, NodeSchema,
