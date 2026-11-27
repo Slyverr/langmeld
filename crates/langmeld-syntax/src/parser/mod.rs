@@ -57,7 +57,8 @@ pub struct ParseLimits {
     /// of a parser that starts a node at every level. Parsing stops here.
     pub max_depth: u32,
     /// Greatest height of the tree, which loops can grow without recursion. Nodes
-    /// above this height are left out.
+    /// above this height are left out. One level is kept for the error node that
+    /// holds a tree whose root was left out, so no tree is ever taller than this.
     pub max_tree_depth: u32,
 }
 
@@ -924,7 +925,8 @@ impl<'a> Parser<'a> {
             };
         };
         let mut node_height = height + 1;
-        if node_height > self.limits.max_tree_depth {
+        // One level is kept for the node that holds the others if the root is left out.
+        if node_height >= self.limits.max_tree_depth {
             if self.fail_speculation() {
                 // Something that is only being tried does not fit.
             } else if !self.tree_too_deep {

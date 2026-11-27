@@ -20,6 +20,11 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 - An example that declares JSON as a grammar, and another that declares Calc and is checked
   to give the same trees as its hand-written twin.
 
+### Fixed
+
+- A parser that had to leave out the root of a very deep tree could give a tree one level
+  taller than its depth limit.
+
 ## [0.2.0] - 2026-11-27
 
 ### Added
