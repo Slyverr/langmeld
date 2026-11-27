@@ -2,7 +2,7 @@
 
 #![cfg(not(target_arch = "wasm32"))]
 
-use langmeld_meta::build::{compile, write};
+use langmeld_meta::build::{SYNTAX_NAME, compile, compile_with_types, write};
 use langmeld_meta::{Source, load_language};
 use langmeld_syntax::{FileId, Language, SourceFile, parse};
 
@@ -60,6 +60,18 @@ fn a_project_compiled_by_a_build_script_is_read_back() {
     let bytes = std::fs::read(&out).expect("written");
     let embedded = load_language(Source::embedded(&bytes)).expect("read back");
     assert_eq!(embedded.extensions, ["calc"]);
+}
+
+#[test]
+fn a_project_compiled_with_types_has_the_types_beside_the_language() {
+    let folder = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("typed-project");
+    std::fs::create_dir_all(folder.join("language")).expect("a folder");
+    std::fs::write(folder.join("language/main.langmeld"), grammar()).expect("written");
+    let compiled = compile_with_types(&folder, &folder).expect("compiles");
+    assert_eq!(compiled.read.len(), 1);
+    let types = std::fs::read_to_string(folder.join(SYNTAX_NAME)).expect("written");
+    assert!(types.contains("pub struct LetStmt("), "{types}");
+    assert!(folder.join("language.bin").is_file());
 }
 
 #[test]

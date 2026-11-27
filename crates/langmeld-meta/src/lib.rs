@@ -6,6 +6,7 @@
 //! builder. Every mistake in a file is a diagnostic at its place in that file.
 
 pub mod build;
+pub mod codegen;
 pub mod corpus;
 mod declared;
 mod load;

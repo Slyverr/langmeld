@@ -26,21 +26,48 @@
 //! The same language can be declared in Rust with [`Language::builder`], or compiled when
 //! the program is built with [`build::embed`] and read with [`Source::embedded`].
 //! Everything the syntax crate offers is also at [`syntax`].
+//!
+//! A build script can also write Rust types for the trees of the language, with
+//! [`build::generate`], and a program includes them with [`include_syntax!`]. The
+//! optional features add a command line for the language (`cli`) and help with what a
+//! language does with its trees (`kit`).
 
+pub use langmeld_meta::codegen;
 pub use langmeld_meta::{
     Bins, Layout, LoadError, Loaded, MANIFEST_NAME, Manifest, Package, Project, Source, VsCode,
     build, load_language,
 };
 pub use langmeld_syntax as syntax;
 pub use langmeld_syntax::{
-    Assoc, Cardinality, CompletedMarker, Diagnostic, EmbedError, ExprSpec, ExternRule, Externals,
-    FieldSchema, FileId, Fix, FloatPreset, GreenNode, IdentStyle, IntPreset, Interpolation, Label,
-    Language, LanguageBuilder, LexCursor, LexLimits, Lexed, Lexeme, Lexer, LexerBuilder, LineCol,
-    LineIndex, Lookahead, Marker, NodeSchema, Parse, ParseLimits, Parser, Pattern, Preset, Schema,
-    SchemaError, Severity, SourceFile, StringParts, StringPreset, SyntaxKind, SyntaxLanguage,
-    SyntaxNode, SyntaxToken, Terminators, TextEdit, TextRange, TextSize, TextTooLarge, Token,
-    TokenSpec, TreeBuilder, Utf16LineCol, parse, pattern,
+    Assoc, Cardinality, CompletedMarker, Diagnostic, Diagnostics, EmbedError, ExprSpec, ExternRule,
+    Externals, FieldSchema, FileId, Fix, FloatPreset, GreenNode, IdentStyle, IntPreset,
+    Interpolation, Label, Language, LanguageBuilder, LexCursor, LexLimits, Lexed, Lexeme, Lexer,
+    LexerBuilder, LineCol, LineIndex, Lookahead, Marker, NodeSchema, Parse, ParseLimits, Parser,
+    Pattern, Preset, Schema, SchemaError, Severity, SourceFile, StringParts, StringPreset,
+    SyntaxElement, SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken, Terminators, TextEdit,
+    TextRange, TextSize, TextTooLarge, Token, TokenSpec, TreeBuilder, Utf16LineCol, ast, codes,
+    explain, parse, pattern,
 };
+
+/// Help with what a language does with its trees.
+#[cfg(feature = "kit")]
+pub mod kit {
+    pub use langmeld_ide::kit::interp;
+}
+
+/// Includes the types that [`build::generate`] wrote, inside a module:
+///
+/// ```ignore
+/// pub mod syntax {
+///     langmeld::include_syntax!();
+/// }
+/// ```
+#[macro_export]
+macro_rules! include_syntax {
+    () => {
+        include!(concat!(env!("OUT_DIR"), "/syntax.rs"));
+    };
+}
 
 /// The guide's code blocks, compiled and run as doc tests so they stay correct.
 #[cfg(doctest)]

@@ -1,6 +1,6 @@
 //! The ground that typed views of syntax trees stand on.
 
-use langmeld_syntax::ast::between;
+use langmeld_syntax::ast::{after, before, between, within};
 use langmeld_syntax::pattern::{lit, many, r};
 use langmeld_syntax::{
     FileId, IdentStyle, Language, LexCursor, Preset, SourceFile, StringPreset, SyntaxElement,
@@ -50,6 +50,18 @@ fn children_between_two_tokens() {
         words(between(&root, Some(semi), None)),
         Vec::<String>::new()
     );
+}
+
+#[test]
+fn the_shorter_forms_find_the_same_children() {
+    let language = language();
+    let file = SourceFile::new(FileId::new(0), "x", "a b ; c d").expect("small");
+    let root = parse(&language, &file).syntax();
+    let semi = language.token_kind(";").expect("a literal").0;
+    assert_eq!(words(after(&root, semi)), ["c", "d"]);
+    assert_eq!(words(before(&root, semi)), ["a", "b"]);
+    assert_eq!(words(within(&root, semi, semi)), ["c", "d"]);
+    assert_eq!(words(after(&root, 9999)).len(), 0);
 }
 
 #[test]

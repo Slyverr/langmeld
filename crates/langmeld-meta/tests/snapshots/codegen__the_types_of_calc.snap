@@ -1,0 +1,880 @@
+---
+source: crates/langmeld-meta/tests/codegen.rs
+expression: calc()
+---
+// Written by Langmeld from the grammar. Changes are lost.
+
+use ::langmeld::ast::AstNode as _;
+
+/// The `ident` token.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct IdentToken(::langmeld::SyntaxToken);
+
+impl IdentToken {
+    /// The view of `token`, if it is the `ident` token.
+    pub fn cast(token: ::langmeld::SyntaxToken) -> ::core::option::Option<Self> {
+        (token.kind() == ::langmeld::SyntaxKind(1)).then(|| Self(token))
+    }
+
+    /// The token viewed.
+    pub fn syntax(&self) -> &::langmeld::SyntaxToken {
+        &self.0
+    }
+
+    /// The text of the token.
+    pub fn text(&self) -> &str {
+        self.0.text()
+    }
+
+    /// Where the token is in the source.
+    pub fn range(&self) -> ::langmeld::TextRange {
+        self.0.text_range()
+    }
+}
+
+/// The `int` token.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct IntToken(::langmeld::SyntaxToken);
+
+impl IntToken {
+    /// The view of `token`, if it is the `int` token.
+    pub fn cast(token: ::langmeld::SyntaxToken) -> ::core::option::Option<Self> {
+        (token.kind() == ::langmeld::SyntaxKind(2)).then(|| Self(token))
+    }
+
+    /// The token viewed.
+    pub fn syntax(&self) -> &::langmeld::SyntaxToken {
+        &self.0
+    }
+
+    /// The text of the token.
+    pub fn text(&self) -> &str {
+        self.0.text()
+    }
+
+    /// Where the token is in the source.
+    pub fn range(&self) -> ::langmeld::TextRange {
+        self.0.text_range()
+    }
+}
+
+/// The `float` token.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FloatToken(::langmeld::SyntaxToken);
+
+impl FloatToken {
+    /// The view of `token`, if it is the `float` token.
+    pub fn cast(token: ::langmeld::SyntaxToken) -> ::core::option::Option<Self> {
+        (token.kind() == ::langmeld::SyntaxKind(3)).then(|| Self(token))
+    }
+
+    /// The token viewed.
+    pub fn syntax(&self) -> &::langmeld::SyntaxToken {
+        &self.0
+    }
+
+    /// The text of the token.
+    pub fn text(&self) -> &str {
+        self.0.text()
+    }
+
+    /// Where the token is in the source.
+    pub fn range(&self) -> ::langmeld::TextRange {
+        self.0.text_range()
+    }
+}
+
+/// The `string` token.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StringToken(::langmeld::SyntaxToken);
+
+impl StringToken {
+    /// The view of `token`, if it is the `string` token.
+    pub fn cast(token: ::langmeld::SyntaxToken) -> ::core::option::Option<Self> {
+        (token.kind() == ::langmeld::SyntaxKind(4)).then(|| Self(token))
+    }
+
+    /// The token viewed.
+    pub fn syntax(&self) -> &::langmeld::SyntaxToken {
+        &self.0
+    }
+
+    /// The text of the token.
+    pub fn text(&self) -> &str {
+        self.0.text()
+    }
+
+    /// Where the token is in the source.
+    pub fn range(&self) -> ::langmeld::TextRange {
+        self.0.text_range()
+    }
+}
+
+/// The `Add` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Add(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Add {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 42
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Add {
+    /// The `lhs` part.
+    pub fn lhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+
+    /// The `operator` part.
+    pub fn operator(&self) -> ::core::option::Option<::langmeld::SyntaxToken> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_token)
+            .find(|it| matches!(it.kind().0, 23 | 20))
+    }
+
+    /// The `rhs` part.
+    pub fn rhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .nth(1)
+    }
+}
+
+/// The `Block` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Block(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Block {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 32
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Block {
+    /// The `stmts` part.
+    pub fn stmts(&self) -> impl ::core::iter::Iterator<Item = Item> + use<> {
+        ::langmeld::ast::after(&self.0, 14)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Item::cast)
+    }
+}
+
+/// The `Call` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Call(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Call {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 44
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Call {
+    /// The `operand` part.
+    pub fn operand(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+
+    /// The `args` part.
+    pub fn args(&self) -> impl ::core::iter::Iterator<Item = Expr> + use<> {
+        ::langmeld::ast::after(&self.0, 11)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+    }
+}
+
+/// The `Cmp` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Cmp(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Cmp {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 43
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Cmp {
+    /// The `lhs` part.
+    pub fn lhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+
+    /// The `operator` part.
+    pub fn operator(&self) -> ::core::option::Option<::langmeld::SyntaxToken> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_token)
+            .find(|it| matches!(it.kind().0, 24 | 25))
+    }
+
+    /// The `rhs` part.
+    pub fn rhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .nth(1)
+    }
+}
+
+/// The `ExprStmt` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ExprStmt(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for ExprStmt {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 33
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl ExprStmt {
+    /// The `expr` part.
+    pub fn expr(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+}
+
+/// The `File` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct File(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for File {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 28
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl File {
+    /// The `items` part.
+    pub fn items(&self) -> impl ::core::iter::Iterator<Item = Item> + use<> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Item::cast)
+    }
+}
+
+/// The `FnDecl` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FnDecl(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for FnDecl {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 30
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl FnDecl {
+    /// The `name` part.
+    pub fn name(&self) -> ::core::option::Option<Name> {
+        ::langmeld::ast::after(&self.0, 10)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Name::cast)
+            .next()
+    }
+
+    /// The `params` part.
+    pub fn params(&self) -> impl ::core::iter::Iterator<Item = Param> + use<> {
+        ::langmeld::ast::after(&self.0, 11)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Param::cast)
+    }
+
+    /// The `body` part.
+    pub fn body(&self) -> ::core::option::Option<Block> {
+        ::langmeld::ast::after(&self.0, 13)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Block::cast)
+            .next()
+    }
+}
+
+/// The `If` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct If(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for If {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 39
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl If {
+    /// The `cond` part.
+    pub fn cond(&self) -> ::core::option::Option<Expr> {
+        ::langmeld::ast::after(&self.0, 18)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+
+    /// The `then` part.
+    pub fn then(&self) -> ::core::option::Option<Block> {
+        ::langmeld::ast::after(&self.0, 18)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Block::cast)
+            .next()
+    }
+
+    /// The `else` part.
+    pub fn r#else(&self) -> ::core::option::Option<Block> {
+        ::langmeld::ast::after(&self.0, 19)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Block::cast)
+            .next()
+    }
+}
+
+/// The `LetStmt` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LetStmt(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for LetStmt {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 29
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl LetStmt {
+    /// The `name` part.
+    pub fn name(&self) -> ::core::option::Option<Name> {
+        ::langmeld::ast::after(&self.0, 7)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Name::cast)
+            .next()
+    }
+
+    /// The `value` part.
+    pub fn value(&self) -> ::core::option::Option<Expr> {
+        ::langmeld::ast::after(&self.0, 8)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+}
+
+/// The `Literal` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Literal(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Literal {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 36
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+/// The `Mul` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Mul(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Mul {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 41
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Mul {
+    /// The `lhs` part.
+    pub fn lhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+
+    /// The `operator` part.
+    pub fn operator(&self) -> ::core::option::Option<::langmeld::SyntaxToken> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_token)
+            .find(|it| matches!(it.kind().0, 21 | 22))
+    }
+
+    /// The `rhs` part.
+    pub fn rhs(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .nth(1)
+    }
+}
+
+/// The `Name` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Name(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Name {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 34
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+/// The `NameRef` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NameRef(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for NameRef {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 35
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+/// The `Neg` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Neg(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Neg {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 40
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Neg {
+    /// The `operator` part.
+    pub fn operator(&self) -> ::core::option::Option<::langmeld::SyntaxToken> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_token)
+            .find(|it| matches!(it.kind().0, 20))
+    }
+
+    /// The `operand` part.
+    pub fn operand(&self) -> ::core::option::Option<Expr> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+}
+
+/// The `Param` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Param(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Param {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 31
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Param {
+    /// The `name` part.
+    pub fn name(&self) -> ::core::option::Option<Name> {
+        self.0
+            .children_with_tokens()
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Name::cast)
+            .next()
+    }
+}
+
+/// The `Paren` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Paren(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Paren {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 37
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+impl Paren {
+    /// The `inner` part.
+    pub fn inner(&self) -> ::core::option::Option<Expr> {
+        ::langmeld::ast::after(&self.0, 11)
+            .filter_map(::langmeld::SyntaxElement::into_node)
+            .filter_map(Expr::cast)
+            .next()
+    }
+}
+
+/// The `Var` node.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Var(::langmeld::SyntaxNode);
+
+impl ::langmeld::ast::AstNode for Var {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        kind.0 == 38
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        Self::can_cast(node.kind()).then(|| Self(node))
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        &self.0
+    }
+}
+
+/// One of the nodes `Expr` stands for.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Expr {
+    /// The `Literal` node.
+    Literal(Literal),
+    /// The `Paren` node.
+    Paren(Paren),
+    /// The `Var` node.
+    Var(Var),
+    /// The `If` node.
+    If(If),
+    /// The `Neg` node.
+    Neg(Neg),
+    /// The `Mul` node.
+    Mul(Mul),
+    /// The `Add` node.
+    Add(Add),
+    /// The `Cmp` node.
+    Cmp(Cmp),
+    /// The `Call` node.
+    Call(Call),
+}
+
+impl ::langmeld::ast::AstNode for Expr {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        Literal::can_cast(kind)
+            || Paren::can_cast(kind)
+            || Var::can_cast(kind)
+            || If::can_cast(kind)
+            || Neg::can_cast(kind)
+            || Mul::can_cast(kind)
+            || Add::can_cast(kind)
+            || Cmp::can_cast(kind)
+            || Call::can_cast(kind)
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        if Literal::can_cast(node.kind()) {
+            return Literal::cast(node).map(Self::Literal);
+        }
+        if Paren::can_cast(node.kind()) {
+            return Paren::cast(node).map(Self::Paren);
+        }
+        if Var::can_cast(node.kind()) {
+            return Var::cast(node).map(Self::Var);
+        }
+        if If::can_cast(node.kind()) {
+            return If::cast(node).map(Self::If);
+        }
+        if Neg::can_cast(node.kind()) {
+            return Neg::cast(node).map(Self::Neg);
+        }
+        if Mul::can_cast(node.kind()) {
+            return Mul::cast(node).map(Self::Mul);
+        }
+        if Add::can_cast(node.kind()) {
+            return Add::cast(node).map(Self::Add);
+        }
+        if Cmp::can_cast(node.kind()) {
+            return Cmp::cast(node).map(Self::Cmp);
+        }
+        if Call::can_cast(node.kind()) {
+            return Call::cast(node).map(Self::Call);
+        }
+        ::core::option::Option::None
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        match self {
+            Self::Literal(it) => it.syntax(),
+            Self::Paren(it) => it.syntax(),
+            Self::Var(it) => it.syntax(),
+            Self::If(it) => it.syntax(),
+            Self::Neg(it) => it.syntax(),
+            Self::Mul(it) => it.syntax(),
+            Self::Add(it) => it.syntax(),
+            Self::Cmp(it) => it.syntax(),
+            Self::Call(it) => it.syntax(),
+        }
+    }
+}
+
+/// One of the nodes `Item` stands for.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Item {
+    /// The `LetStmt` node.
+    LetStmt(LetStmt),
+    /// The `FnDecl` node.
+    FnDecl(FnDecl),
+    /// The `ExprStmt` node.
+    ExprStmt(ExprStmt),
+}
+
+impl ::langmeld::ast::AstNode for Item {
+    fn can_cast(kind: ::langmeld::SyntaxKind) -> bool {
+        LetStmt::can_cast(kind) || FnDecl::can_cast(kind) || ExprStmt::can_cast(kind)
+    }
+
+    fn cast(node: ::langmeld::SyntaxNode) -> ::core::option::Option<Self> {
+        if LetStmt::can_cast(node.kind()) {
+            return LetStmt::cast(node).map(Self::LetStmt);
+        }
+        if FnDecl::can_cast(node.kind()) {
+            return FnDecl::cast(node).map(Self::FnDecl);
+        }
+        if ExprStmt::can_cast(node.kind()) {
+            return ExprStmt::cast(node).map(Self::ExprStmt);
+        }
+        ::core::option::Option::None
+    }
+
+    fn syntax(&self) -> &::langmeld::SyntaxNode {
+        match self {
+            Self::LetStmt(it) => it.syntax(),
+            Self::FnDecl(it) => it.syntax(),
+            Self::ExprStmt(it) => it.syntax(),
+        }
+    }
+}
+
+/// Handles each kind of node. No method has a default, so that code visiting trees
+/// stops compiling when the grammar gains a node.
+pub trait Visitor {
+    /// What handling a node gives.
+    type Output;
+
+    /// Handles a `Add`.
+    fn visit_add(&mut self, node: &Add) -> Self::Output;
+
+    /// Handles a `Block`.
+    fn visit_block(&mut self, node: &Block) -> Self::Output;
+
+    /// Handles a `Call`.
+    fn visit_call(&mut self, node: &Call) -> Self::Output;
+
+    /// Handles a `Cmp`.
+    fn visit_cmp(&mut self, node: &Cmp) -> Self::Output;
+
+    /// Handles a `ExprStmt`.
+    fn visit_expr_stmt(&mut self, node: &ExprStmt) -> Self::Output;
+
+    /// Handles a `File`.
+    fn visit_file(&mut self, node: &File) -> Self::Output;
+
+    /// Handles a `FnDecl`.
+    fn visit_fn_decl(&mut self, node: &FnDecl) -> Self::Output;
+
+    /// Handles a `If`.
+    fn visit_if(&mut self, node: &If) -> Self::Output;
+
+    /// Handles a `LetStmt`.
+    fn visit_let_stmt(&mut self, node: &LetStmt) -> Self::Output;
+
+    /// Handles a `Literal`.
+    fn visit_literal(&mut self, node: &Literal) -> Self::Output;
+
+    /// Handles a `Mul`.
+    fn visit_mul(&mut self, node: &Mul) -> Self::Output;
+
+    /// Handles a `Name`.
+    fn visit_name(&mut self, node: &Name) -> Self::Output;
+
+    /// Handles a `NameRef`.
+    fn visit_name_ref(&mut self, node: &NameRef) -> Self::Output;
+
+    /// Handles a `Neg`.
+    fn visit_neg(&mut self, node: &Neg) -> Self::Output;
+
+    /// Handles a `Param`.
+    fn visit_param(&mut self, node: &Param) -> Self::Output;
+
+    /// Handles a `Paren`.
+    fn visit_paren(&mut self, node: &Paren) -> Self::Output;
+
+    /// Handles a `Var`.
+    fn visit_var(&mut self, node: &Var) -> Self::Output;
+}
+
+/// Gives `node` to the method of `visitor` for its kind. Nodes of unexpected text
+/// have none.
+pub fn visit<V: Visitor + ?Sized>(
+    visitor: &mut V,
+    node: ::langmeld::SyntaxNode,
+) -> ::core::option::Option<V::Output> {
+    match node.kind().0 {
+        42 => Add::cast(node).map(|it| visitor.visit_add(&it)),
+        32 => Block::cast(node).map(|it| visitor.visit_block(&it)),
+        44 => Call::cast(node).map(|it| visitor.visit_call(&it)),
+        43 => Cmp::cast(node).map(|it| visitor.visit_cmp(&it)),
+        33 => ExprStmt::cast(node).map(|it| visitor.visit_expr_stmt(&it)),
+        28 => File::cast(node).map(|it| visitor.visit_file(&it)),
+        30 => FnDecl::cast(node).map(|it| visitor.visit_fn_decl(&it)),
+        39 => If::cast(node).map(|it| visitor.visit_if(&it)),
+        29 => LetStmt::cast(node).map(|it| visitor.visit_let_stmt(&it)),
+        36 => Literal::cast(node).map(|it| visitor.visit_literal(&it)),
+        41 => Mul::cast(node).map(|it| visitor.visit_mul(&it)),
+        34 => Name::cast(node).map(|it| visitor.visit_name(&it)),
+        35 => NameRef::cast(node).map(|it| visitor.visit_name_ref(&it)),
+        40 => Neg::cast(node).map(|it| visitor.visit_neg(&it)),
+        31 => Param::cast(node).map(|it| visitor.visit_param(&it)),
+        37 => Paren::cast(node).map(|it| visitor.visit_paren(&it)),
+        38 => Var::cast(node).map(|it| visitor.visit_var(&it)),
+        _ => ::core::option::Option::None,
+    }
+}
+
+/// The language, as the build script compiled it.
+pub fn source() -> ::langmeld::Source {
+    ::langmeld::Source::embedded(include_bytes!(concat!(env!("OUT_DIR"), "/language.bin")))
+}
+
+/// The language, read once.
+pub fn language() -> &'static ::langmeld::Language {
+    static LOADED: ::std::sync::OnceLock<::langmeld::Loaded> = ::std::sync::OnceLock::new();
+    &LOADED
+        .get_or_init(|| {
+            ::langmeld::load_language(source())
+                .expect("the build script compiled it with this version")
+        })
+        .language
+}

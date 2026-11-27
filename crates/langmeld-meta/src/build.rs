@@ -6,6 +6,9 @@
 //! langmeld_meta::build::embed().expect("the grammar compiles");
 //! ```
 //!
+//! [`generate`] does the same and also writes the Rust types of the language's trees,
+//! made by [`codegen`](crate::codegen).
+//!
 //! The program then includes the result:
 //!
 //! ```ignore
@@ -73,7 +76,9 @@ pub fn write(loaded: &Loaded) -> Result<Vec<u8>, EmbedError> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use native::{BuildError, Compiled, OUTPUT_NAME, compile, embed};
+pub use native::{
+    BuildError, Compiled, OUTPUT_NAME, SYNTAX_NAME, compile, compile_with_types, embed, generate,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
@@ -84,10 +89,13 @@ mod native {
     use langmeld_syntax::{FileId, SourceFile};
 
     use crate::manifest::{FILE_NAME, Manifest};
-    use crate::{Source, load_language, place, render};
+    use crate::{Loaded, Source, codegen, load_language, place, render};
 
     /// The name of the file [`embed`] writes into the output folder.
     pub const OUTPUT_NAME: &str = "language.bin";
+
+    /// The name of the file [`generate`] writes the types of the language to.
+    pub const SYNTAX_NAME: &str = "syntax.rs";
 
     /// What compiling a grammar did.
     #[derive(Debug)]
@@ -148,10 +156,8 @@ mod native {
         Ok(project.join(manifest.root))
     }
 
-    /// Checks the grammar of the language project in the folder `project` and writes it,
-    /// compiled, to the file `out`. The code of `extern` declarations is not needed here;
-    /// the program gives it when it includes the result.
-    pub fn compile(project: &Path, out: &Path) -> Result<Compiled, BuildError> {
+    /// Reads and checks the language project in the folder `project`.
+    fn load(project: &Path) -> Result<(Loaded, Compiled), BuildError> {
         let mut read = Vec::new();
         let root = root_of(project, &mut read)?;
         let loaded = load_language(Source::path(&root).generic())
@@ -174,25 +180,51 @@ mod native {
                 format!("{at}{}: {}", found.code, found.message)
             })
             .collect();
-        let bytes = super::write(&loaded).map_err(|problem| BuildError::Io(problem.to_string()))?;
-        std::fs::write(out, bytes).map_err(|problem| {
-            BuildError::Io(format!("cannot write {}: {problem}", out.display()))
-        })?;
-        Ok(Compiled { read, warnings })
+        Ok((loaded, Compiled { read, warnings }))
     }
 
-    /// For a build script: compiles the grammar of the package into
-    /// `$OUT_DIR/language.bin`, shows warnings through Cargo, and has Cargo run the
-    /// script again when a file it read changes.
-    pub fn embed() -> Result<(), BuildError> {
-        let variable = |name: &'static str| {
-            std::env::var_os(name)
-                .map(PathBuf::from)
-                .ok_or(BuildError::NotABuildScript(name))
-        };
-        let project = variable("CARGO_MANIFEST_DIR")?;
-        let out = variable("OUT_DIR")?.join(OUTPUT_NAME);
-        let compiled = compile(&project, &out)?;
+    fn write(path: &Path, bytes: &[u8]) -> Result<(), BuildError> {
+        std::fs::write(path, bytes).map_err(|problem| {
+            BuildError::Io(format!("cannot write {}: {problem}", path.display()))
+        })
+    }
+
+    fn write_language(loaded: &Loaded, out: &Path) -> Result<(), BuildError> {
+        let bytes = super::write(loaded).map_err(|problem| BuildError::Io(problem.to_string()))?;
+        write(out, &bytes)
+    }
+
+    /// Checks the grammar of the language project in the folder `project` and writes it,
+    /// compiled, to the file `out`. The code of `extern` declarations is not needed here;
+    /// the program gives it when it includes the result.
+    pub fn compile(project: &Path, out: &Path) -> Result<Compiled, BuildError> {
+        let (loaded, compiled) = load(project)?;
+        write_language(&loaded, out)?;
+        Ok(compiled)
+    }
+
+    /// Like [`compile`], and also writes the Rust types of the language, made by
+    /// [`codegen`], into the folder `out`: the language as [`OUTPUT_NAME`] and the types
+    /// as [`SYNTAX_NAME`].
+    pub fn compile_with_types(project: &Path, out: &Path) -> Result<Compiled, BuildError> {
+        let (loaded, mut compiled) = load(project)?;
+        let code = codegen::generate(&loaded.language)
+            .map_err(|problem| BuildError::Problems(problem.to_string()))?;
+        compiled.warnings.extend(code.warnings);
+        write(&out.join(SYNTAX_NAME), code.source.as_bytes())?;
+        write_language(&loaded, &out.join(OUTPUT_NAME))?;
+        Ok(compiled)
+    }
+
+    /// A folder that Cargo names in a variable.
+    fn folder(name: &'static str) -> Result<PathBuf, BuildError> {
+        std::env::var_os(name)
+            .map(PathBuf::from)
+            .ok_or(BuildError::NotABuildScript(name))
+    }
+
+    /// Tells Cargo what was read, and shows the warnings.
+    fn tell_cargo(compiled: &Compiled) -> Result<(), BuildError> {
         let mut output = std::io::stdout().lock();
         let lines = compiled
             .read
@@ -209,5 +241,28 @@ mod native {
                 .map_err(|problem| BuildError::Io(problem.to_string()))?;
         }
         Ok(())
+    }
+
+    /// For a build script: compiles the grammar of the package into
+    /// `$OUT_DIR/language.bin`, shows warnings through Cargo, and has Cargo run the
+    /// script again when a file it read changes.
+    pub fn embed() -> Result<(), BuildError> {
+        let project = folder("CARGO_MANIFEST_DIR")?;
+        let compiled = compile(&project, &folder("OUT_DIR")?.join(OUTPUT_NAME))?;
+        tell_cargo(&compiled)
+    }
+
+    /// For a build script: like [`embed`], and also writes the types of the language into
+    /// `$OUT_DIR/syntax.rs`, which the package includes in a module:
+    ///
+    /// ```ignore
+    /// pub mod syntax {
+    ///     langmeld::include_syntax!();
+    /// }
+    /// ```
+    pub fn generate() -> Result<(), BuildError> {
+        let project = folder("CARGO_MANIFEST_DIR")?;
+        let compiled = compile_with_types(&project, &folder("OUT_DIR")?)?;
+        tell_cargo(&compiled)
     }
 }
