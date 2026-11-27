@@ -8,6 +8,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-27
+
 ### Added
 
 - Names across files, from the `bind` block of a grammar: `langmeld::bind` (feature `bind`)
