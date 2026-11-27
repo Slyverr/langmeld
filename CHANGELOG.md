@@ -10,6 +10,9 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ### Added
 
+- `langmeld.toml`, the file of a language project, is read with every mistake reported at
+  its place: the root file, how binaries are laid out, the project file and the editor
+  package. It cannot repeat what the `language` block of the grammar already says.
 - Strings with holes can be declared in a grammar (`Token::interpolated`): the quotes, the
   text and each hole's expression become one node.
 - Grammar problems can point at the place a rule or name was written

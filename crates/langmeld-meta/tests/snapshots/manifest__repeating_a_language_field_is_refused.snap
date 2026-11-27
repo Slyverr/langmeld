@@ -1,0 +1,17 @@
+---
+source: crates/langmeld-meta/tests/manifest.rs
+expression: "read(\"extensions = [\\\"calc\\\"]\\n\\n[language]\\nname = \\\"Calc\\\"\\n\").expect_err(\"repeated\")"
+---
+error[LM-M003]: `extensions` is already described by the `language` block of the grammar
+ --> langmeld.toml:1:1
+  |
+1 | extensions = ["calc"]
+  | ^^^^^^^^^^
+  = note: To fix this, remove it from this file, because the `language` block is the only place for it.
+
+error[LM-M003]: `language` is already described by the `language` block of the grammar
+ --> langmeld.toml:3:2
+  |
+3 | [language]
+  |  ^^^^^^^^
+  = note: To fix this, remove it from this file, because the `language` block is the only place for it.
