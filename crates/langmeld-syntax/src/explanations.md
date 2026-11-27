@@ -299,6 +299,18 @@ The bytes are damaged, were compiled by another version of Langmeld, or lack the
 custom rule. Compile the grammar again with this version, and give the code of every
 `extern` declaration.
 
+## LM-F016
+An `editor` line names something the language does not have.
+
+A line such as `symbol Function kind function name name` or `fold Block` names a rule or an
+expression. Check the spelling against the declaration in the file; a token is not a node.
+
+## LM-F017
+A `symbol` line names a part the node does not label.
+
+`symbol Function kind function name title` lists each `Function` by the part labelled
+`title`. Put the label in the rule, as in `title:ident`, or name a label the rule has.
+
 ## LM-M003
 A field of the language is written in `langmeld.toml`.
 

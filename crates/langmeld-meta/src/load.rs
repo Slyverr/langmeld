@@ -451,14 +451,20 @@ pub fn load_language(source: Source) -> Result<Loaded, LoadError> {
         return Err(fail(sources, problems));
     }
     match lowered.builder.build() {
-        Ok(language) if problems.is_empty() => Ok(Loaded {
-            language,
-            files: sources,
-            extensions: lowered.extensions,
-            bindings: lowered.bindings,
-            editor: lowered.editor,
-        }),
-        Ok(_) => Err(fail(sources, problems)),
+        Ok(language) => {
+            problems.extend(crate::editor::check(&language, &lowered.editor));
+            if problems.is_empty() {
+                Ok(Loaded {
+                    language,
+                    files: sources,
+                    extensions: lowered.extensions,
+                    bindings: lowered.bindings,
+                    editor: lowered.editor,
+                })
+            } else {
+                Err(fail(sources, problems))
+            }
+        }
         Err(found) => {
             problems.extend(found);
             Err(fail(sources, problems))
