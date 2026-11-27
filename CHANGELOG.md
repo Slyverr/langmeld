@@ -8,6 +8,14 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- A lexer built from declared tokens: patterns and presets for numbers, strings, characters
+  and identifiers, reserved and contextual keywords, nested comments, newline-ended
+  statements, string holes, and tokens lexed by your own code.
+- Building blocks for a hand-written parser that give a lossless syntax tree and one
+  diagnostic per mistake, with limits that report instead of crashing.
+
 ## [0.1.0] - 2026-11-27
 
 ### Added
