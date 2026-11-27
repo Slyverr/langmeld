@@ -1,0 +1,23 @@
+[package]
+name = "langmeld-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+langmeld-syntax = { path = "../crates/langmeld-syntax" }
+libfuzzer-sys = "0.4.13"
+
+[[bin]]
+name = "line_index"
+path = "fuzz_targets/line_index.rs"
+test = false
+doc = false
+bench = false
+
+# Fuzzing needs nightly, so this package is its own workspace.
+[workspace]
