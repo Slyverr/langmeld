@@ -144,6 +144,69 @@ impl Diagnostic {
     }
 }
 
+/// Problems collected while checking, given back in a fixed order: by file, place and
+/// code, whatever order they were found in, so that output and snapshots are stable.
+///
+/// ```
+/// use langmeld_syntax::{Diagnostic, Diagnostics, FileId, TextRange, TextSize};
+///
+/// let at = |start: u32| TextRange::empty(TextSize::new(start));
+/// let mut found = Diagnostics::new();
+/// found.push(Diagnostic::error("X-002", FileId::new(0), at(5), "later"));
+/// found.push(Diagnostic::error("X-001", FileId::new(0), at(1), "earlier"));
+/// assert!(found.has_errors());
+/// let codes: Vec<_> = found.into_sorted().iter().map(|d| d.code).collect();
+/// assert_eq!(codes, ["X-001", "X-002"]);
+/// ```
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Diagnostics {
+    found: Vec<Diagnostic>,
+}
+
+impl Diagnostics {
+    /// No problems yet.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a problem.
+    pub fn push(&mut self, diagnostic: Diagnostic) {
+        self.found.push(diagnostic);
+    }
+
+    /// How many problems there are.
+    pub fn len(&self) -> usize {
+        self.found.len()
+    }
+
+    /// Whether nothing was found.
+    pub fn is_empty(&self) -> bool {
+        self.found.is_empty()
+    }
+
+    /// Whether any problem is an error.
+    pub fn has_errors(&self) -> bool {
+        self.found
+            .iter()
+            .any(|found| found.severity == Severity::Error)
+    }
+
+    /// The problems, by file, place and code.
+    pub fn into_sorted(mut self) -> Vec<Diagnostic> {
+        self.found.sort_by(|a, b| {
+            let key = |d: &Diagnostic| (d.file, d.range.start(), d.range.end(), d.code);
+            key(a).cmp(&key(b)).then_with(|| a.message.cmp(&b.message))
+        });
+        self.found
+    }
+}
+
+impl Extend<Diagnostic> for Diagnostics {
+    fn extend<T: IntoIterator<Item = Diagnostic>>(&mut self, diagnostics: T) {
+        self.found.extend(diagnostics);
+    }
+}
+
 /// A related place, with a short explanation.
 ///
 /// ```
