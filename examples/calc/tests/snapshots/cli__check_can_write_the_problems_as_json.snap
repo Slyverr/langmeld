@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"check\", \"--format\", \"json\", \"tests/files/broken.calc\"])"
+---
+exit: 1
+--- stdout
+{"diagnostics":[{"code":"LM-P001","fixes":[],"labels":[],"message":"expected an expression, found `;`","notes":[],"place":{"end":{"column":10,"line":1,"offset":9},"file":"tests/files/broken.calc","start":{"column":9,"line":1,"offset":8}},"severity":"error"},{"code":"LM-P001","fixes":[],"labels":[],"message":"expected ident, found `=`","notes":[],"place":{"end":{"column":6,"line":3,"offset":26},"file":"tests/files/broken.calc","start":{"column":5,"line":3,"offset":25}},"severity":"error"}],"errors":2,"files":1,"warnings":0}
+--- stderr

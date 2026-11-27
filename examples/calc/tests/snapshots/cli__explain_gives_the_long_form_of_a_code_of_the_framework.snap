@@ -1,0 +1,13 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"explain\", \"LM-P006\"])"
+---
+exit: 0
+--- stdout
+LM-P006
+
+Operators that do not chain are chained.
+
+Operators declared `none`, such as comparisons, cannot follow one another, as in
+`a < b < c`. Add parentheses around one of the operations.
+--- stderr

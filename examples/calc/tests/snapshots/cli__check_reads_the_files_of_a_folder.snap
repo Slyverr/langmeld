@@ -1,0 +1,19 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"check\", \"tests/files\"])"
+---
+exit: 1
+--- stdout
+checked 3 files, 2 errors, 0 warnings
+--- stderr
+error[LM-P001]: expected an expression, found `;`
+ --> tests/files/broken.calc:1:9
+  |
+1 | let x = ;
+  |         ^
+
+error[LM-P001]: expected ident, found `=`
+ --> tests/files/broken.calc:3:5
+  |
+3 | let = 3;
+  |     ^

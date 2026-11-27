@@ -8,15 +8,23 @@ license.workspace = true
 repository.workspace = true
 publish = false
 
+[[bin]]
+name = "calc"
+path = "src/main.rs"
+
 [dependencies]
-langmeld-syntax = { path = "../../crates/langmeld-syntax" }
+langmeld = { workspace = true, features = ["cli", "kit"] }
+langmeld-syntax.workspace = true
 
 [dev-dependencies]
-langmeld = { path = "../../crates/langmeld" }
+assert_cmd.workspace = true
 handwritten-calc = { path = "../handwritten-calc" }
+insta.workspace = true
+langmeld-meta.workspace = true
+proptest.workspace = true
 
 [build-dependencies]
-langmeld = { path = "../../crates/langmeld" }
+langmeld.workspace = true
 
 [lints]
 workspace = true

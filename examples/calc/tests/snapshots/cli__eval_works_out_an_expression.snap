@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"eval\", \"(1 + 2) * 3\"])"
+---
+exit: 0
+--- stdout
+9
+--- stderr

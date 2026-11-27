@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc_in(&folder, &[\"check\"])"
+---
+exit: 2
+--- stdout
+--- stderr
+error: no .calc files found

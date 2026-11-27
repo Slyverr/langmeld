@@ -1,0 +1,8 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc(&[\"eval\", \"let x = 4; x * x;\"])"
+---
+exit: 0
+--- stdout
+16
+--- stderr

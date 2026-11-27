@@ -1,0 +1,20 @@
+---
+source: examples/calc/tests/cli.rs
+expression: "calc_in(&folder, &[\"test\"])"
+---
+exit: 1
+--- stdout
+corpus/cases.txt: 0 passed, 1 failed
+  FAIL wrong tree (line 1)
+    expected:
+      File
+    actual:
+      File
+        LetStmt
+          "let"
+          Name "x"
+          "="
+          Literal "1"
+          ";"
+test result: FAILED. 1 of 1 cases failed
+--- stderr
