@@ -2,8 +2,8 @@
 
 use langmeld_syntax::pattern::{field, lit, many, opt, r, sep};
 use langmeld_syntax::{
-    Assoc, ExprSpec, FileId, IdentStyle, IntPreset, Language, Preset,
-    SourceFile, StringPreset, Token, TokenClass, parse, seq,
+    Assoc, ExprSpec, FileId, IdentStyle, IntPreset, Language, Preset, SourceFile, StringPreset,
+    Token, TokenClass, parse, seq,
 };
 
 fn language() -> Language {

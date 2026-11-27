@@ -85,3 +85,61 @@ fn a_name_leads_to_its_declaration() {
     assert_eq!(goes("rule ", 0), None);
     assert_eq!(goes("first", 0), None);
 }
+
+const LISTED: &str = "langmeld 1\nlanguage T { extensions \"t\" }\n\
+    tokens { skip ws = / +/ ident = preset ident(ascii) }\n\
+    rule File = Item*\nrule Item = \"item\" title:ident\n";
+
+fn refused(editor: &str) -> String {
+    let text = format!("{LISTED}editor {{\n{editor}\n}}\n");
+    match langmeld_meta::load_language(langmeld_meta::Source::text("t.langmeld", text)) {
+        Ok(_) => panic!("accepted"),
+        Err(error) => error.rendered(),
+    }
+}
+
+#[test]
+fn a_node_that_does_not_exist_is_refused_once() {
+    assert_eq!(
+        refused("  symbol Itme kind function name title"),
+        "error[LM-F016]: `symbol` names `Itme`, which is not a rule or expression of the language\n \
+         --> t.langmeld:7:3\n  |\n7 |   symbol Itme kind function name title\n  |   \
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  = note: To fix this, write the name of a rule, \
+         or of an expression, as declared in the file.\n\n"
+    );
+}
+
+#[test]
+fn a_label_that_does_not_exist_is_refused_with_the_labels_there_are() {
+    assert_eq!(
+        refused("  symbol Item kind function name name"),
+        "error[LM-F017]: `Item` has no part labelled `name`, so it has no name to list\n \
+         --> t.langmeld:7:3\n  |\n7 |   symbol Item kind function name name\n  |   \
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  = note: To fix this, label the part that holds \
+         the name in the rule, as in `name:ident`, or name another part; its labelled parts are \
+         `title`.\n\n"
+    );
+}
+
+#[test]
+fn folds_and_highlights_of_missing_nodes_are_refused() {
+    assert_eq!(
+        refused("  fold File, Blok\n  highlight Nothing by_binding"),
+        "error[LM-F016]: `fold` names `Blok`, which is not a rule or expression of the language\n \
+         --> t.langmeld:7:3\n  |\n7 |   fold File, Blok\n  |   ^^^^^^^^^^^^^^^\n  = note: To \
+         fix this, write the name of a rule, or of an expression, as declared in the file.\n\n\
+         error[LM-F016]: `highlight` names `Nothing`, which is not a rule or expression of the \
+         language\n --> t.langmeld:8:3\n  |\n8 |   highlight Nothing by_binding\n  |   \
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  = note: To fix this, write the name of a rule, or of an \
+         expression, as declared in the file.\n\n"
+    );
+}
+
+#[test]
+fn right_lines_are_accepted() {
+    let text =
+        format!("{LISTED}editor {{\n  symbol Item kind function name title\n  fold File\n}}\n");
+    let loaded = langmeld_meta::load_language(langmeld_meta::Source::text("t.langmeld", text))
+        .expect("accepted");
+    assert_eq!(loaded.editor.rules.len(), 2);
+}
