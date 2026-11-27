@@ -280,6 +280,7 @@ dependencies = [
  "langmeld-ide",
  "langmeld-meta",
  "langmeld-syntax",
+ "serde",
  "serde_json",
  "toml",
 ]
@@ -308,6 +309,7 @@ dependencies = [
  "lsp-types",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

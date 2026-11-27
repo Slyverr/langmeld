@@ -656,6 +656,23 @@
                 }
               }
             }
+          },
+          {
+            "kind": 14,
+            "label": "use",
+            "textEdit": {
+              "newText": "use",
+              "range": {
+                "end": {
+                  "character": 2,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              }
+            }
           }
         ]
       }
@@ -680,11 +697,407 @@
       {
         "id": 7,
         "jsonrpc": "2.0",
-        "result": null
+        "result": {
+          "range": {
+            "end": {
+              "character": 8,
+              "line": 2
+            },
+            "start": {
+              "character": 3,
+              "line": 2
+            }
+          },
+          "uri": "file:///work/main.calc"
+        }
       }
     ],
     "send": {
       "id": 7,
+      "jsonrpc": "2.0",
+      "method": "textDocument/definition",
+      "params": {
+        "position": {
+          "character": 14,
+          "line": 5
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 8,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "range": {
+              "end": {
+                "character": 8,
+                "line": 2
+              },
+              "start": {
+                "character": 3,
+                "line": 2
+              }
+            },
+            "uri": "file:///work/main.calc"
+          },
+          {
+            "range": {
+              "end": {
+                "character": 17,
+                "line": 5
+              },
+              "start": {
+                "character": 12,
+                "line": 5
+              }
+            },
+            "uri": "file:///work/main.calc"
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 8,
+      "jsonrpc": "2.0",
+      "method": "textDocument/references",
+      "params": {
+        "context": {
+          "includeDeclaration": true
+        },
+        "position": {
+          "character": 14,
+          "line": 5
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 9,
+        "jsonrpc": "2.0",
+        "result": {
+          "placeholder": "twice",
+          "range": {
+            "end": {
+              "character": 17,
+              "line": 5
+            },
+            "start": {
+              "character": 12,
+              "line": 5
+            }
+          }
+        }
+      }
+    ],
+    "send": {
+      "id": 9,
+      "jsonrpc": "2.0",
+      "method": "textDocument/prepareRename",
+      "params": {
+        "position": {
+          "character": 14,
+          "line": 5
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 10,
+        "jsonrpc": "2.0",
+        "result": {
+          "changes": {
+            "file:///work/main.calc": [
+              {
+                "newText": "double",
+                "range": {
+                  "end": {
+                    "character": 8,
+                    "line": 2
+                  },
+                  "start": {
+                    "character": 3,
+                    "line": 2
+                  }
+                }
+              },
+              {
+                "newText": "double",
+                "range": {
+                  "end": {
+                    "character": 17,
+                    "line": 5
+                  },
+                  "start": {
+                    "character": 12,
+                    "line": 5
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "send": {
+      "id": 10,
+      "jsonrpc": "2.0",
+      "method": "textDocument/rename",
+      "params": {
+        "newName": "double",
+        "position": {
+          "character": 14,
+          "line": 5
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 11,
+        "jsonrpc": "2.0",
+        "result": {
+          "contents": {
+            "kind": "markdown",
+            "value": "`twice`: value, in main.calc\n\n```calc\nfn twice(x) {\n```"
+          },
+          "range": {
+            "end": {
+              "character": 17,
+              "line": 5
+            },
+            "start": {
+              "character": 12,
+              "line": 5
+            }
+          }
+        }
+      }
+    ],
+    "send": {
+      "id": 11,
+      "jsonrpc": "2.0",
+      "method": "textDocument/hover",
+      "params": {
+        "position": {
+          "character": 14,
+          "line": 5
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 12,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "kind": 12,
+            "location": {
+              "range": {
+                "end": {
+                  "character": 8,
+                  "line": 2
+                },
+                "start": {
+                  "character": 3,
+                  "line": 2
+                }
+              },
+              "uri": "file:///work/main.calc"
+            },
+            "name": "twice"
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 12,
+      "jsonrpc": "2.0",
+      "method": "workspace/symbol",
+      "params": {
+        "query": "tw"
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "jsonrpc": "2.0",
+        "method": "textDocument/publishDiagnostics",
+        "params": {
+          "diagnostics": [
+            {
+              "code": "LM-P001",
+              "message": "expected `,` or `)`, found `;`",
+              "range": {
+                "end": {
+                  "character": 21,
+                  "line": 5
+                },
+                "start": {
+                  "character": 20,
+                  "line": 5
+                }
+              },
+              "severity": 1,
+              "source": "calc"
+            },
+            {
+              "code": "LM-B001",
+              "message": "`twise` is not defined\ndid you mean `twice`?",
+              "range": {
+                "end": {
+                  "character": 5,
+                  "line": 6
+                },
+                "start": {
+                  "character": 0,
+                  "line": 6
+                }
+              },
+              "severity": 1,
+              "source": "calc"
+            }
+          ],
+          "uri": "file:///work/main.calc",
+          "version": 4
+        }
+      }
+    ],
+    "send": {
+      "jsonrpc": "2.0",
+      "method": "textDocument/didChange",
+      "params": {
+        "contentChanges": [
+          {
+            "range": {
+              "end": {
+                "character": 2,
+                "line": 6
+              },
+              "start": {
+                "character": 0,
+                "line": 6
+              }
+            },
+            "text": "twise(1);"
+          }
+        ],
+        "textDocument": {
+          "uri": "file:///work/main.calc",
+          "version": 4
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 13,
+        "jsonrpc": "2.0",
+        "result": [
+          {
+            "diagnostics": [
+              {
+                "code": "LM-B001",
+                "message": "`twise` is not defined\ndid you mean `twice`?",
+                "range": {
+                  "end": {
+                    "character": 5,
+                    "line": 6
+                  },
+                  "start": {
+                    "character": 0,
+                    "line": 6
+                  }
+                },
+                "severity": 1,
+                "source": "calc"
+              }
+            ],
+            "edit": {
+              "changes": {
+                "file:///work/main.calc": [
+                  {
+                    "newText": "twice",
+                    "range": {
+                      "end": {
+                        "character": 5,
+                        "line": 6
+                      },
+                      "start": {
+                        "character": 0,
+                        "line": 6
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "kind": "quickfix",
+            "title": "use `twice`"
+          }
+        ]
+      }
+    ],
+    "send": {
+      "id": 13,
+      "jsonrpc": "2.0",
+      "method": "textDocument/codeAction",
+      "params": {
+        "context": {
+          "diagnostics": []
+        },
+        "range": {
+          "end": {
+            "character": 3,
+            "line": 6
+          },
+          "start": {
+            "character": 3,
+            "line": 6
+          }
+        },
+        "textDocument": {
+          "uri": "file:///work/main.calc"
+        }
+      }
+    }
+  },
+  {
+    "replies": [
+      {
+        "id": 14,
+        "jsonrpc": "2.0",
+        "result": null
+      }
+    ],
+    "send": {
+      "id": 14,
       "jsonrpc": "2.0",
       "method": "shutdown",
       "params": null

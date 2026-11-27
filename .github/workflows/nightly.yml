@@ -41,6 +41,7 @@ jobs:
             langmeld_loader,
             manifest,
             lsp_session,
+            binding,
           ]
     steps:
       - uses: actions/checkout@v7

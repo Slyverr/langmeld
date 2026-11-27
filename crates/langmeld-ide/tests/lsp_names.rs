@@ -455,3 +455,64 @@ fn project_files_are_checked_and_their_keys_completed() {
     );
     assert!(symbols["result"].is_null(), "{symbols}");
 }
+
+struct Calc;
+
+impl LanguageHooks for Calc {
+    fn resolver(&self) -> Option<&dyn langmeld_ide::bind::Resolver> {
+        Some(&calc::Builtins)
+    }
+}
+
+#[test]
+fn a_two_file_calc_program_is_navigated_and_renamed() {
+    let mut files = MemoryFiles::default();
+    files.insert("/work/lib.calc", "fn twice(n) { n + n }\n");
+    let mut server = Server::new(calc::syntax::loaded(), Calc).files(files);
+    let mut id = 0;
+    let mut request = |method: &str, params: Value| -> Vec<Value> {
+        let message = if method.starts_with("textDocument/did") {
+            json!({ "jsonrpc": "2.0", "method": method, "params": params })
+        } else {
+            id += 1;
+            json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
+        };
+        server
+            .handle_json(&message.to_string())
+            .iter()
+            .map(|text| serde_json::from_str(text).expect("JSON"))
+            .collect()
+    };
+    request(
+        "initialize",
+        json!({ "capabilities": {}, "rootUri": "file:///work" }),
+    );
+    let main = "file:///work/main.calc";
+    let published = request(
+        "textDocument/didOpen",
+        json!({ "textDocument": { "uri": main, "languageId": "calc", "version": 1,
+                "text": "use \"lib.calc\";\nprint(twice(2));\nprint(twise(3));\n" } }),
+    );
+    let found = &published[0]["params"]["diagnostics"];
+    assert_eq!(found.as_array().map(Vec::len), Some(1), "{found}");
+    assert_eq!(
+        found[0]["message"],
+        "`twise` is not defined\ndid you mean `twice`?"
+    );
+    let at = |line: u32, character: u32| {
+        json!({ "textDocument": { "uri": main },
+                "position": { "line": line, "character": character },
+                "context": { "includeDeclaration": true }, "newName": "double" })
+    };
+    let definition = request("textDocument/definition", at(1, 8));
+    assert_eq!(location(&definition[0]["result"]), "lib.calc 0:3-8");
+    let imported = request("textDocument/definition", at(0, 7));
+    assert_eq!(location(&imported[0]["result"]), "lib.calc 0:0-0");
+    let uses = request("textDocument/references", at(1, 8));
+    assert_eq!(uses[0]["result"].as_array().map(Vec::len), Some(2));
+    let renamed = request("textDocument/rename", at(1, 8));
+    let changes = renamed[0]["result"]["changes"]
+        .as_object()
+        .expect("by file");
+    assert_eq!(changes.len(), 2, "{renamed:?}");
+}

@@ -102,6 +102,10 @@ impl LanguageHooks for Checks {
             Vec::new()
         }
     }
+
+    fn resolver(&self) -> Option<&dyn langmeld_ide::bind::Resolver> {
+        Some(&calc::Builtins)
+    }
 }
 
 fn message(value: Value) -> Message {
