@@ -1,0 +1,36 @@
+# Tests
+
+| Folder | Contains |
+|--------|----------|
+| `corpus/` | Framework behavior: grammar errors, error recovery, every diagnostic code |
+| `real-code/` | Syntax that real languages use, one topic per file |
+
+Run them with `cargo nextest run -p langmeld-syntax --test corpus`.
+
+## File format
+
+A corpus file is a `.txt` file holding any number of cases:
+
+```text
+=== let with a missing semicolon
+let x = 1
+let y = 2;
+---
+File
+  LetStmt "let" Name("x") "=" Literal(1) !error(expected ";")
+```
+
+- `=== ` starts a case. The rest of the line is its name, unique within the file.
+- The source runs up to the first line that is exactly `---`, so a source cannot contain
+  such a line. Its bytes are kept, including `\r\n`. The line ending just before `---` is
+  not part of the source; add an empty line to end the source with one.
+- The expected output runs up to the next `=== ` line. Its line endings and trailing empty
+  lines are ignored.
+- A name followed by `[expected-failure]` marks a case that cannot pass yet. The run fails
+  if such a case starts to pass, so that the marker gets removed.
+
+Until a case has a grammar that parses it, mark it `[expected-failure]`; its expected tree is a
+sketch to be confirmed once the case passes.
+
+The list of cases and their outcomes is snapshotted with
+[insta](https://insta.rs/). After a deliberate change, review it with `cargo insta review`.

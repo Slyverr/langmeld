@@ -1,0 +1,17 @@
+=== float with a negative exponent [expected-failure]
+1.5e-3
+---
+File
+  Literal(1.5e-3)
+
+=== hexadecimal with underscores [expected-failure]
+0xff_ff
+---
+File
+  Literal(0xff_ff)
+
+=== character in single quotes [expected-failure]
+'c'
+---
+File
+  Literal('c')
