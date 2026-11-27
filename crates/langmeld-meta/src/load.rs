@@ -70,6 +70,7 @@ enum Origin {
         name: String,
         text: String,
     },
+    Embedded(Vec<u8>),
 }
 
 /// Where a language is loaded from, and the Rust code it needs.
@@ -106,6 +107,12 @@ impl Source {
             name: name.into(),
             text: text.into(),
         })
+    }
+
+    /// A language compiled ahead of time by [`build::embed`](crate::build::embed), as a
+    /// program includes it. Its custom rules and tokens still need their code.
+    pub fn embedded(bytes: &[u8]) -> Self {
+        Self::new(Origin::Embedded(bytes.to_vec()))
     }
 
     fn new(origin: Origin) -> Self {
@@ -335,6 +342,7 @@ pub fn load_language(source: Source) -> Result<Loaded, LoadError> {
             (path, read)
         }
         Origin::Text { name, text } => (name, Ok::<_, String>(text)),
+        Origin::Embedded(bytes) => return crate::build::read(&bytes, &externals),
     };
     let text = match root {
         Ok(text) => text,

@@ -83,6 +83,7 @@ that starts "To fix this". Mistakes of the text itself are reported with the cod
 | `LM-F012` | A custom rule is parsed without its Rust code, so it is read as one error |
 | `LM-F013` | A second `language` block |
 | `LM-F014` | No `language` block |
+| `LM-F015` | A compiled language cannot be read: it is damaged, was compiled by another version, or lacks the code of a custom rule |
 
 Problems found by checking the grammar (`LM-G001` and the others above) are reported at
 the rule they are about in the `.langmeld` file; a name that is not declared is

@@ -10,6 +10,9 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ### Added
 
+- A language can be compiled ahead of time from a build script (`build::embed`) and a program
+  includes the result, so it starts without reading or checking the grammar. A language
+  declared with the builder can be written as bytes and read back too.
 - A language can be written in a `.langmeld` file and loaded with `load_language`. The
   file is checked, and every mistake is one diagnostic at its place in the file, with a
   note that says how to fix it. Files can import others, and custom rules and tokens get
