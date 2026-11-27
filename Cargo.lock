@@ -654,8 +654,10 @@ dependencies = [
  "langmeld-syntax",
  "lsp-server",
  "lsp-types",
+ "proptest",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

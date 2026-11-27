@@ -95,6 +95,18 @@ Problems found by checking the grammar (`LM-G001` and the others above) are repo
 the rule they are about in the `.langmeld` file; a name that is not declared is
 reported at the place it is used.
 
+## Problems in names
+
+Found by binding, from the `bind` block of a language, in the files of a project.
+
+| Code | Meaning |
+|------|---------|
+| `LM-B001` | A name is used that nothing visible there defines; the note suggests a close name |
+| `LM-B002` | A name that must be the only one (`unique`, or `global`) is defined twice; the first is shown with it |
+| `LM-B003` | An imported file cannot be read, or the project already holds all the files it can |
+| `LM-B004` | A name is defined and nothing uses it (a warning, which a language asks for) |
+| `LM-B005` | A member is named that what it belongs to does not have (reported by the language's code) |
+
 ## Problems in `langmeld.toml`
 
 | Code | Meaning |
@@ -103,6 +115,12 @@ reported at the place it is used.
 | `LM-M002` | A setting that does not exist |
 | `LM-M003` | A field of the `language` block is repeated; it is written in the grammar only |
 | `LM-M004` | A setting has a value of the wrong kind, or one that is not allowed |
+
+## Problems in the project file of a language's users
+
+| Code | Meaning |
+|------|---------|
+| `LM-M005` | The file is not TOML, has a setting the language does not know, or a value of the wrong kind; the problem is marked in the file |
 
 ## Problems in editors
 
