@@ -13,7 +13,8 @@ comes next.
 
 ## Installation
 
-Langmeld isn't published on crates.io yet. With [Nix](https://nixos.org/) flakes enabled:
+The crates are on crates.io (`langmeld` is the one to depend on). The `langmeld` command can
+also be run with [Nix](https://nixos.org/) flakes enabled:
 
 ```sh
 nix run github:Slyverr/langmeld
@@ -52,7 +53,7 @@ In-depth docs (architecture, guides, reference) are in [docs/](docs/README.md).
 
 ## Project status
 
-Experimental. See [CHANGELOG.md](CHANGELOG.md)
+Experimental: the API may change in any minor release. See [CHANGELOG.md](CHANGELOG.md)
 for what changed in each version.
 
 ## Contributing

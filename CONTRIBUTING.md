@@ -188,8 +188,10 @@ separate pull request for the release.
 5. Pushing the tag runs the release workflow. It checks that the tag matches the workspace
    version, builds the `langmeld` binaries for Linux, macOS and Windows, and creates the
    GitHub Release with the changelog section as its notes.
-6. Publishing to crates.io happens in the same workflow, once `publish = false` is removed
-   from the crates to publish and the repository variable `PUBLISH_CRATES` is `true`.
+6. Publishing to crates.io happens in the same workflow when the repository variable
+   `PUBLISH_CRATES` is `true`. It publishes the five crates in dependency order with the
+   pinned toolchain, and skips a crate whose version is already on crates.io, so a failed
+   run can be repeated.
 
 ## Reporting issues
 

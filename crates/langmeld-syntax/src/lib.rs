@@ -1,6 +1,8 @@
 //! Core types for building languages: source files, positions, diagnostics,
 //! a lexer, parser primitives and syntax trees.
 //!
+//! **Experimental:** the API may change in any minor release.
+//!
 //! - Files: [`FileId`] names a file, and [`SourceFile`] holds its name and text.
 //! - Positions: [`TextRange`] and [`TextSize`] are byte offsets, and
 //!   [`LineIndex`] converts them to lines and columns in UTF-8 bytes

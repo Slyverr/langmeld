@@ -1,6 +1,6 @@
 [package]
 name = "langmeld"
-description = "Experimental Rust framework for building languages. This is the crate users depend on."
+description = "Experimental Rust framework for building languages; the API may change in any minor release. This is the crate users depend on."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,6 @@ repository.workspace = true
 readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
-publish.workspace = true
 
 [dependencies]
 langmeld-cli = { workspace = true, optional = true }

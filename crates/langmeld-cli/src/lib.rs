@@ -1,6 +1,8 @@
 //! The command line of a language: the commands every language needs, and room for its
 //! own. The `langmeld` binary is built on the same parts.
 //!
+//! **Experimental:** the API may change in any minor release.
+//!
 //! ```no_run
 //! use std::process::ExitCode;
 //!
