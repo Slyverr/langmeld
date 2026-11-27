@@ -1,0 +1,18 @@
+[package]
+name = "calc"
+description = "The Calc example language, declared as a grammar."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+langmeld-syntax = { path = "../../crates/langmeld-syntax" }
+
+[dev-dependencies]
+handwritten-calc = { path = "../handwritten-calc" }
+
+[lints]
+workspace = true
