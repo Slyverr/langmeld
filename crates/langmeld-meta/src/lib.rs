@@ -11,6 +11,7 @@ pub mod build;
 pub mod codegen;
 pub mod corpus;
 mod declared;
+mod editor;
 mod load;
 mod lower;
 mod manifest;
@@ -20,6 +21,7 @@ mod render;
 mod tree;
 
 pub use declared::{Binding, Bindings, Editor, EditorRule, Path, Place};
+pub use editor::{declaration, grammar_editor, grammar_language};
 #[cfg(not(target_arch = "wasm32"))]
 pub use load::DiskFiles;
 pub use load::{Files, LoadError, Loaded, MemoryFiles, Source, load_language, render_warnings};
