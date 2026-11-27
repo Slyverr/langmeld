@@ -8,6 +8,43 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+### Added
+
+- A language server for any language, from its grammar alone, in `langmeld::ide` (feature
+  `lsp`): errors while typing, colours, an outline, folding, selection ranges and keyword
+  completion. Columns are counted in UTF-8 or UTF-16 as the editor asks, a change older than
+  the text is ignored, a failure in one request is logged and answered with nothing, and a
+  document over 16 MiB gets one problem (`LM-E001`) instead of being parsed. The same
+  server runs in a web worker: `Server::handle_json` takes and gives JSON text.
+- `mylang lsp`: programs made with `langmeld::cli::App` get the command, with
+  `App::editor` giving the `editor` block and `check_with` the language's own checks.
+  `langmeld init` projects have it.
+- `langmeld package vscode` writes a Visual Studio Code extension from the grammar and
+  `langmeld.toml`, with its language configuration (comments, brackets, word pattern) taken
+  from the grammar.
+- `langmeld lsp` serves `.langmeld` files: syntax errors, the problems of the grammar for
+  the whole project, outline, folding, colours and go-to-definition on rule names.
+- The `editor` block of a grammar is checked: a line that names a rule the language does
+  not have (`LM-F016`) or a label a node does not give (`LM-F017`) is refused.
+- `Language::expected` says what may come after some text, `Language::token_class` what
+  sort of token a kind is, and `Language::field` finds a labelled part of a node.
+- Calc has its own check, `CALC010`, for a division by a literal zero, and an example of
+  its server in a browser, behind Monaco, in `examples/web`.
+- `syntax::loaded()`, written in the generated code, gives the language and what it tells
+  editors.
+- `Source::reading` says where a grammar's imports are read from, as an editor needs to
+  read the files it has open.
+- Fuzzing of the language servers (`lsp_session`), the edit latency of a file of 10,000
+  lines in the nightly run's summary with its bar of 50 ms, and tests that run the generated
+  extension in Visual Studio Code and the browser example in a headless browser.
+
+### Changed
+
+- The `lsp` feature of `langmeld` (and of `langmeld-cli`, on by default for the `langmeld`
+  command) adds the server; a program that does not use it builds as before.
+- Calc's program is behind the `cli` feature, on by default, so that its language can be
+  built for the browser without a command line.
+
 ## [0.5.0] - 2026-11-27
 
 ### Added
