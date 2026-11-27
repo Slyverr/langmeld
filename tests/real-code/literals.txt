@@ -13,9 +13,3 @@ File
   ExprStmt
     Literal "0xff_ff"
     ";"
-
-=== character in single quotes [expected-failure]
-'c'
----
-File
-  Literal('c')

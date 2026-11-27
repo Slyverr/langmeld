@@ -4,11 +4,6 @@ expression: report
 ---
 errors.txt: one missing value gives one error: passed, 1 diagnostics
 expressions.txt: calls and groups nest inside each other: passed, 0 diagnostics
-generics.txt: nested generics close with two angle brackets: expected failure, 0 diagnostics
 literals.txt: float with a negative exponent: passed, 0 diagnostics
 literals.txt: hexadecimal with underscores: passed, 0 diagnostics
-literals.txt: character in single quotes: expected failure, 0 diagnostics
 names.txt: keyword used as a name: passed, 1 diagnostics
-operators.txt: unary minus right after an assignment: expected failure, 0 diagnostics
-operators.txt: unary minus right after not-equal: expected failure, 0 diagnostics
-operators.txt: shift right: expected failure, 0 diagnostics

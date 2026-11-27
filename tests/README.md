@@ -14,7 +14,7 @@ whose line endings end statements, and `tokens/interpolated/` one whose strings 
 
 Run them with `cargo nextest run -p langmeld-syntax --test corpus`.
 
-The syntax cases of `real-code/` run against `examples/handwritten-calc` (`cargo nextest run -p handwritten-calc`). A case that Calc's syntax does not cover stays marked `[expected-failure]`.
+The syntax cases of `real-code/` run against `examples/handwritten-calc` (`cargo nextest run -p handwritten-calc`) and `examples/calc`. The files about syntax that Calc does not have (`generics.txt`, `operators.txt`, `characters.txt`) run instead against small grammars declared in `crates/langmeld-syntax/tests/support/real_code.rs`, by `cargo nextest run -p langmeld-syntax --test corpus`.
 
 ## File format
 
@@ -39,7 +39,8 @@ File
   if such a case starts to pass, so that the marker gets removed.
 
 Until a case has a grammar that parses it, mark it `[expected-failure]`; its expected tree is a
-sketch to be confirmed once the case passes.
+sketch to be confirmed once the case passes. A tree is written one node or token per line,
+without trivia; a node holding a single token takes one line.
 
 The list of cases and their outcomes is snapshotted with
 [insta](https://insta.rs/). After a deliberate change, review it with `cargo insta review`.

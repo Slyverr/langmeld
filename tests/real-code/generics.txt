@@ -1,5 +1,15 @@
-=== nested generics close with two angle brackets [expected-failure]
+=== nested generics close with two angle brackets
 Vec<Vec<T>>
 ---
 File
-  Type NameRef("Vec") "<" Type NameRef("Vec") "<" Type NameRef("T") ">" ">"
+  Type
+    NameRef "Vec"
+    "<"
+    Type
+      NameRef "Vec"
+      "<"
+      Type
+        NameRef "T"
+      ">"
+    ">"
+
