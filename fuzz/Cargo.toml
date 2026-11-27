@@ -82,6 +82,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "binding"
+path = "fuzz_targets/binding.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "lsp_session"
 path = "fuzz_targets/lsp_session.rs"
 test = false

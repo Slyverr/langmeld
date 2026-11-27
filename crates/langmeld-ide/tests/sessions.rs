@@ -24,6 +24,10 @@ impl LanguageHooks for Checks {
             Vec::new()
         }
     }
+
+    fn resolver(&self) -> Option<&dyn langmeld_ide::bind::Resolver> {
+        Some(&calc::Builtins)
+    }
 }
 
 /// What the person does, in order. Positions are written in the encoding of the session.
@@ -94,7 +98,51 @@ fn script(encoding: &str) -> Vec<Value> {
             "textDocument/completion",
             json!({ "textDocument": document, "position": at(6, 2) }),
         ),
-        request(7, "shutdown", Value::Null),
+        // Names: where `twice` is defined, who uses it, and what renaming it would do.
+        // On the last line `twice` stands after only ASCII, so its columns are the same.
+        request(
+            7,
+            "textDocument/definition",
+            json!({ "textDocument": document, "position": at(5, 14) }),
+        ),
+        request(
+            8,
+            "textDocument/references",
+            json!({ "textDocument": document, "position": at(5, 14),
+                    "context": { "includeDeclaration": true } }),
+        ),
+        request(
+            9,
+            "textDocument/prepareRename",
+            json!({ "textDocument": document, "position": at(5, 14) }),
+        ),
+        request(
+            10,
+            "textDocument/rename",
+            json!({ "textDocument": document, "position": at(5, 14), "newName": "double" }),
+        ),
+        request(
+            11,
+            "textDocument/hover",
+            json!({ "textDocument": document, "position": at(5, 14) }),
+        ),
+        request(12, "workspace/symbol", json!({ "query": "tw" })),
+        // A name that is close to one that is defined, and the fix offered for it.
+        notification(
+            "textDocument/didChange",
+            json!({ "textDocument": { "uri": URI, "version": 4 },
+                    "contentChanges": [{
+                        "range": { "start": at(6, 0), "end": at(6, 2) },
+                        "text": "twise(1);" }] }),
+        ),
+        request(
+            13,
+            "textDocument/codeAction",
+            json!({ "textDocument": document,
+                    "range": { "start": at(6, 3), "end": at(6, 3) },
+                    "context": { "diagnostics": [] } }),
+        ),
+        request(14, "shutdown", Value::Null),
         notification("exit", Value::Null),
     ]
 }

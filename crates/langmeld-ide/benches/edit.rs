@@ -18,6 +18,10 @@ impl LanguageHooks for Checks {
             Vec::new()
         }
     }
+
+    fn resolver(&self) -> Option<&dyn langmeld_ide::bind::Resolver> {
+        Some(&calc::Builtins)
+    }
 }
 
 fn send(server: &mut Server<'_, Checks>, message: &Value) -> usize {
@@ -31,9 +35,12 @@ fn opened(lines: usize) -> Server<'static, Checks> {
     let initialize = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": { "capabilities": {} } });
     send(&mut server, &initialize);
-    let text: String = (0..lines)
-        .map(|n| format!("let value{n} = {n} * (2 + other) - call({n}, \"text\"); // note\n"))
-        .collect();
+    let text: String =
+        std::iter::once("let other = 1;\nfn call(a, b) { a }\n".to_owned())
+            .chain((0..lines).map(|n| {
+                format!("let value{n} = {n} * (2 + other) - call({n}, \"text\"); // note\n")
+            }))
+            .collect();
     let open = json!({ "jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
         "textDocument": { "uri": URI, "languageId": "calc", "version": 1, "text": text } } });
     send(&mut server, &open);
