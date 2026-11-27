@@ -8,6 +8,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-27
+
 ### Added
 
 - Declare a language as a grammar with a builder: rules, repetition, choices, operators
