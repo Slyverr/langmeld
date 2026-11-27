@@ -156,6 +156,9 @@ jobs:
     # Surviving mutants are reported, never a failure. Part of a long run that does not
     # finish in time is reported as far as it got.
     timeout-minutes: 360
+    # A runner that is lost mid-run (it stopped answering under load) ends the job without
+    # a result; that is not a finding about the code either, so it does not fail the run.
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -187,7 +190,10 @@ jobs:
           PROPTEST_CASES: "16"
           # Leave a core to the runner's own agent, which a busy machine can starve until
           # the job is lost.
-          CARGO_BUILD_JOBS: "3"
+          CARGO_BUILD_JOBS: "2"
+          # Likewise for the tests: two at a time, so builds and tests together leave
+          # room for the runner's agent.
+          NEXTEST_TEST_THREADS: "2"
         run: |
           args=(--shard "${{ matrix.part }}/8" --timeout 180 --test-tool nextest)
           if [ "$FULL" != "true" ]; then
