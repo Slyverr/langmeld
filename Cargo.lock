@@ -177,7 +177,7 @@ checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 
 [[package]]
 name = "calc"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "assert_cmd",
  "handwritten-calc",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "calc-web"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "calc",
  "langmeld",
@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "handwritten-calc"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "insta",
  "langmeld-syntax",
@@ -612,7 +612,7 @@ dependencies = [
 
 [[package]]
 name = "json"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "criterion",
  "langmeld",
@@ -621,7 +621,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "langmeld-cli",
  "langmeld-ide",
@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-cli"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-ide"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "calc",
  "criterion",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-meta"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "insta",
  "langmeld-syntax",
@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "langmeld-syntax"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "criterion",
  "insta",
@@ -1101,7 +1101,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "stress"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "langmeld",
  "langmeld-meta",
@@ -1283,7 +1283,7 @@ dependencies = [
 
 [[package]]
 name = "typed"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "langmeld",
  "trybuild",

@@ -65,7 +65,7 @@ A program made with `langmeld::cli::App` gets the command from `standard()`, wit
 `lsp` feature of `langmeld`:
 
 ```toml
-langmeld = { version = "0.6", features = ["cli", "kit", "lsp"] }
+langmeld = { version = "0.7", features = ["cli", "kit", "lsp"] }
 ```
 
 ```rust,ignore
