@@ -1,0 +1,95 @@
+=== unary minus right after an operator
+x*-1;
+---
+File
+  ExprStmt
+    Mul
+      Var
+        NameRef "x"
+      "*"
+      Neg
+        "-"
+        Literal "1"
+    ";"
+
+=== multiplication binds tighter, and addition groups left
+1 - 2 - 3 * 4;
+---
+File
+  ExprStmt
+    Add
+      Add
+        Literal "1"
+        "-"
+        Literal "2"
+      "-"
+      Mul
+        Literal "3"
+        "*"
+        Literal "4"
+    ";"
+
+=== calls bind tighter than minus
+-f(1.5e-3, "s")(true);
+---
+File
+  ExprStmt
+    Neg
+      "-"
+      Call
+        Call
+          Var
+            NameRef "f"
+          "("
+          Literal "1.5e-3"
+          ","
+          Literal "\"s\""
+          ")"
+        "("
+        Literal "true"
+        ")"
+    ";"
+
+=== comparison of sums in a group
+(0xff_ff < a + 1) == false;
+---
+File
+  ExprStmt
+    Cmp
+      Paren
+        "("
+        Cmp
+          Literal "0xff_ff"
+          "<"
+          Add
+            Var
+              NameRef "a"
+            "+"
+            Literal "1"
+        ")"
+      "=="
+      Literal "false"
+    ";"
+
+=== if with else
+if a { 1 } else { 2 };
+---
+File
+  ExprStmt
+    If
+      "if"
+      Var
+        NameRef "a"
+      Block
+        "{"
+        ExprStmt
+          Literal "1"
+        "}"
+      "else"
+      Block
+        "{"
+        ExprStmt
+          Literal "2"
+        "}"
+    ";"
+

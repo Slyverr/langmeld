@@ -14,6 +14,8 @@ whose line endings end statements, and `tokens/interpolated/` one whose strings 
 
 Run them with `cargo nextest run -p langmeld-syntax --test corpus`.
 
+The syntax cases of `real-code/` run against `examples/handwritten-calc` (`cargo nextest run -p handwritten-calc`). A case that Calc's syntax does not cover stays marked `[expected-failure]`.
+
 ## File format
 
 A corpus file is a `.txt` file holding any number of cases:

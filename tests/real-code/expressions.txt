@@ -1,10 +1,27 @@
-=== calls and groups nest inside each other [expected-failure]
-f((1 + 2) * g(x))
+=== calls and groups nest inside each other
+f((1 + 2) * g(x));
 ---
 File
-  Call NameRef("f") "("
-    Infix
-      Paren "(" Infix Literal(1) "+" Literal(2) ")"
-      "*"
-      Call NameRef("g") "(" NameRef("x") ")"
-    ")"
+  ExprStmt
+    Call
+      Var
+        NameRef "f"
+      "("
+      Mul
+        Paren
+          "("
+          Add
+            Literal "1"
+            "+"
+            Literal "2"
+          ")"
+        "*"
+        Call
+          Var
+            NameRef "g"
+          "("
+          Var
+            NameRef "x"
+          ")"
+      ")"
+    ";"
