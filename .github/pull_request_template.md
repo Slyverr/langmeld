@@ -10,6 +10,6 @@
 
 ## Checklist
 
-- [ ] Format check, lint, tests and WASM check pass
+- [ ] `cargo xtask check` passes
 - [ ] Tests and docs cover the change, where relevant
 - [ ] CHANGELOG.md updated, if users will notice the change

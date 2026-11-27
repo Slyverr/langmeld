@@ -47,10 +47,12 @@ Verify it works by running the tests (see Commands).
 | Setup | `cargo fetch --locked` |
 | Build | `cargo build --workspace --locked` |
 | Run | `cargo run -p langmeld-cli --locked` |
-| Test | `cargo test --workspace --locked` |
+| Test | `cargo nextest run --workspace --locked` (doc tests: `cargo test --workspace --doc --locked`) |
 | Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Format | `cargo fmt --all` (check only: add `--check`) |
 | WASM check | `cargo build -p langmeld-syntax --target wasm32-unknown-unknown --locked` |
+| **Check (local)** | `cargo xtask check`: format, lint, tests and WASM build in under two minutes |
+| Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests and WASM tests in Node |
 
 ## Project structure
 
@@ -61,8 +63,12 @@ Verify it works by running the tests (see Commands).
 | `crates/langmeld-meta/` | `.langmeld` format, `langmeld.toml`, code generation |
 | `crates/langmeld-ide/` | Binding, projects, language server, editor packaging |
 | `crates/langmeld-cli/` | The `langmeld` binary and the CLI kit |
+| `tests/` | Corpus files and the runner that checks them |
+| `fuzz/` | Fuzz targets (nightly Rust; its own workspace) |
+| `xtask/` | The `cargo xtask` commands (its own workspace) |
 | `docs/` | In-depth documentation |
 | `.github/` | Issue and pull request templates |
+| `.github/workflows/` | CI on every pull request, and the longer nightly run |
 | `nix/` | The Nix development shell, loaded by `flake.nix` |
 
 ## Workflow
@@ -71,7 +77,7 @@ Verify it works by running the tests (see Commands).
 2. Branch from `main`: `<type>/<short-description>` (e.g. `feat/export-csv`,
    `fix/login-crash`). Fork the repository first if you can't push to it.
 3. Keep changes focused: one concern per branch, no unrelated refactors.
-4. Before pushing, run the format check, lint, tests and WASM check (see Commands).
+4. Before pushing, run `cargo xtask check` (see Commands).
 5. Update [CHANGELOG.md](CHANGELOG.md) in the same commit as a user-facing change (see
    Changelog).
 6. Update docs affected by the change (see Documentation).

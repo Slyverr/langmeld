@@ -22,6 +22,11 @@ Folders and files are created only when they get content; some may not exist yet
 Every document is listed here with a one-line summary, grouped by the folders above.
 Update this list when adding, renaming or removing a document.
 
+### Top level
+
+- [dogfood-log.md](dogfood-log.md): problems met while building real languages with Langmeld
+- [learning/notes.md](learning/notes.md): the maintainer's own explanations of the ideas the parser rests on
+
 ## Rules
 
 - **One fact, one place.** The project README owns the intro, install and quickstart;
