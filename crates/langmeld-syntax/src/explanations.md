@@ -321,3 +321,10 @@ The name, extensions, comments and terminators of a language are written once, i
 A setting has a value of the wrong kind, or one that is not allowed.
 
 The message says what the setting takes. Fix the value at the place marked.
+
+## LM-E001
+A file is too large for the language server.
+
+The server parses the whole text of a file after every change, so it stops at 16 MiB (a
+program that serves a language can change that) and shows no other problem for the file
+until it is smaller. Split the file into smaller ones.

@@ -100,3 +100,10 @@ reported at the place it is used.
 | `LM-M003` | A field of the `language` block is repeated; it is written in the grammar only |
 | `LM-M004` | A setting has a value of the wrong kind, or one that is not allowed |
 
+## Problems in editors
+
+| Code | Meaning |
+|------|---------|
+| `LM-E001` | The language server was sent a file larger than it parses, so it shows this one problem instead of the file's own |
+
+

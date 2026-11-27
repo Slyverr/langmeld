@@ -47,13 +47,34 @@ impl Transport for StdioTransport {
     }
 }
 
+/// How many unreadable messages in a row end the service. A client that sends nothing
+/// else is not worth answering.
+const MOST_UNREADABLE: u32 = 1000;
+
 /// Gives `server` every message of `transport` until the client asks it to exit or
 /// goes away, and returns the exit code: 0 after a proper shutdown, 1 otherwise.
+///
+/// A message that cannot be read is logged to the client and skipped.
 pub fn serve_with<T: Transport, H: LanguageHooks>(
     mut transport: T,
     mut server: Server<'_, H>,
 ) -> io::Result<u8> {
-    while let Some(message) = transport.receive()? {
+    let mut unreadable = 0;
+    loop {
+        let message = match transport.receive() {
+            Ok(Some(message)) => message,
+            Ok(None) => return Ok(1),
+            Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+                unreadable += 1;
+                if unreadable > MOST_UNREADABLE {
+                    return Err(error);
+                }
+                transport.send(super::log(format!("a message could not be read: {error}")))?;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        unreadable = 0;
         for reply in server.handle(message) {
             transport.send(reply)?;
         }
@@ -61,7 +82,6 @@ pub fn serve_with<T: Transport, H: LanguageHooks>(
             return Ok(code);
         }
     }
-    Ok(1)
 }
 
 /// Serves `language` on the standard input and output. See [`serve_with`]. `editor` is
