@@ -10,7 +10,7 @@ use super::builder::ParseFn;
 pub(crate) type NodeId = usize;
 
 /// A set of token kinds.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct KindSet(Vec<u64>);
 
 impl KindSet {
@@ -51,7 +51,7 @@ impl KindSet {
 }
 
 /// Chooses between alternatives by looking at the next tokens.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Table {
     /// By kind number.
     pub(crate) kinds: Vec<Entry>,
@@ -62,7 +62,7 @@ pub(crate) struct Table {
     pub(crate) otherwise: Option<u16>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Entry {
     #[default]
     Miss,
@@ -76,7 +76,7 @@ pub(crate) const ENTER: u16 = 0;
 /// The choice that passes them by.
 pub(crate) const PASS: u16 = 1;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Node {
     Token(SyntaxKind),
     Contextual(SyntaxKind),
@@ -138,7 +138,7 @@ pub(crate) enum Node {
     Missing,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Rule {
     pub(crate) name: String,
     /// `None` for a choice of rules, which adds no node.
@@ -148,13 +148,13 @@ pub(crate) struct Rule {
 }
 
 /// The token or glued tokens of an operator.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Symbol {
     pub(crate) parts: Vec<SyntaxKind>,
     pub(crate) kind: SyntaxKind,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Operation {
     Infix {
         assoc: Assoc,
@@ -166,7 +166,7 @@ pub(crate) enum Operation {
 }
 
 /// An operator that continues an expression.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Continuation {
     pub(crate) symbol: Symbol,
     pub(crate) node: SyntaxKind,
@@ -175,7 +175,7 @@ pub(crate) struct Continuation {
 }
 
 /// What can start an operand.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Start {
     Atom {
         node: SyntaxKind,
@@ -188,7 +188,7 @@ pub(crate) enum Start {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Expr {
     pub(crate) name: String,
     pub(crate) description: String,
@@ -200,16 +200,19 @@ pub(crate) struct Expr {
     pub(crate) by_first: Vec<Vec<usize>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Extern {
     pub(crate) name: String,
+    #[serde(with = "crate::embed::rule_code")]
     pub(crate) parse: Arc<ParseFn>,
     /// The tokens it can start with; empty if unknown.
     pub(crate) first: Vec<SyntaxKind>,
 }
 
 /// Something that can be referred to by name and parsed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub(crate) enum Callee {
     Rule(usize),
     Expr(usize),

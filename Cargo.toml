@@ -27,6 +27,7 @@ regex-automata = { version = "0.4.19", default-features = false, features = [
     "dfa-build",
     "dfa-search",
 ] }
+postcard = { version = "1", default-features = false, features = ["use-std"] }
 rowan = "0.16.1"
 text-size = "1.1.1"
 unicode-ident = "1.0.27"

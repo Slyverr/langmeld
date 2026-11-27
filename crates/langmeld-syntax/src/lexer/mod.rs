@@ -21,17 +21,18 @@ pub use spec::{
     StringPreset, Terminators, TokenSpec,
 };
 
-use spec::{ExternalFn, Matcher};
+pub(crate) use spec::ExternalFn;
+use spec::Matcher;
 
 /// A token matched by the pattern automaton.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 struct Pattern {
     spec: usize,
     /// Fixed text is preferred to patterns of the same length.
     rank: u8,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Comment {
     spec: usize,
     open: String,
@@ -41,22 +42,22 @@ struct Comment {
     longer: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Scanner {
     spec: usize,
     kind: ScannerKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 enum ScannerKind {
     XidIdent,
     Char,
     String(StringPreset),
-    External(Arc<ExternalFn>),
+    External(#[serde(with = "crate::embed::token_code")] Arc<ExternalFn>),
 }
 
 /// What is known about one kind of token.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 struct KindInfo {
     kind: SyntaxKind,
     /// The first declaration of the kind.
@@ -68,7 +69,7 @@ struct KindInfo {
 
 /// Answers about kinds, worked out once so that a parser never searches the
 /// declarations. Sorted by kind, so a lookup is a binary search without hashing.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct Kinds {
     infos: Vec<KindInfo>,
 }
@@ -186,9 +187,10 @@ pub struct Lexed {
 /// assert_eq!(kinds, [LET, SPACE, NAME]);
 /// # Ok::<(), langmeld_syntax::TextTooLarge>(())
 /// ```
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Lexer {
     specs: Vec<TokenSpec>,
+    #[serde(with = "crate::embed::automaton")]
     dfa: Option<dense::DFA<Vec<u32>>>,
     patterns: Vec<Pattern>,
     /// Longest opener first.
@@ -203,6 +205,24 @@ pub struct Lexer {
 
 impl Lexer {
     /// Starts declaring tokens.
+    /// Gives the code of external tokens to a lexer read back from bytes.
+    pub(crate) fn bind(&mut self, externals: &crate::Externals) -> Result<(), crate::EmbedError> {
+        for (index, spec) in self.specs.iter_mut().enumerate() {
+            if !matches!(spec.matcher, Matcher::External(_)) {
+                continue;
+            }
+            let code = externals
+                .token_code(&spec.name)
+                .ok_or_else(|| crate::EmbedError::MissingToken(spec.name.clone()))?;
+            for scanner in self.scanners.iter_mut().filter(|s| s.spec == index) {
+                scanner.kind = ScannerKind::External(code.clone());
+            }
+            spec.matcher = Matcher::External(code);
+        }
+        Ok(())
+    }
+
+    /// Starts declaring a lexer.
     pub fn builder() -> LexerBuilder {
         LexerBuilder::default()
     }

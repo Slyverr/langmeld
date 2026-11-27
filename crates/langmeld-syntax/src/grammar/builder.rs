@@ -202,7 +202,7 @@ impl Token {
 /// // `a < b < c` is an error.
 /// assert_ne!(Assoc::None, Assoc::Left);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Assoc {
     /// `a - b - c` is `(a - b) - c`.
     Left,

@@ -53,6 +53,14 @@ impl Externals {
         self
     }
 
+    pub(crate) fn rule_code(&self, name: &str) -> Option<Arc<RuleCode>> {
+        self.rules.get(name).cloned()
+    }
+
+    pub(crate) fn token_code(&self, name: &str) -> Option<Arc<TokenCode>> {
+        self.tokens.get(name).cloned()
+    }
+
     /// The custom rule called `name`, if its code was given.
     pub fn extern_rule(&self, name: &str) -> Option<ExternRule> {
         let code = self.rules.get(name)?.clone();

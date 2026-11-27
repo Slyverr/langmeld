@@ -9,7 +9,9 @@
 /// const NAME: SyntaxKind = SyntaxKind(1);
 /// assert_ne!(NAME, SyntaxKind::ERROR);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct SyntaxKind(pub u16);
 
 impl SyntaxKind {

@@ -17,6 +17,7 @@ use std::fmt;
 
 use crate::{Diagnostic, Lexer, Parse, ParseLimits, Parser, Severity, SourceFile, SyntaxKind};
 
+pub(crate) use builder::ParseFn;
 pub use builder::{Assoc, ExprSpec, ExternRule, LanguageBuilder, Token};
 pub use lookahead::Lookahead;
 pub use pattern::Pattern;
@@ -52,6 +53,7 @@ use ir::{Callee, Expr, Extern, KindSet, Node, Rule};
 /// assert_eq!(language.kind_name(setting.kind()), "Setting");
 /// # Ok::<(), langmeld_syntax::TextTooLarge>(())
 /// ```
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Language {
     name: String,
     lexer: Lexer,
@@ -61,9 +63,12 @@ pub struct Language {
     externs: Vec<Extern>,
     root: Callee,
     kind_names: Vec<String>,
+    #[serde(with = "crate::embed::sorted")]
     node_kinds: HashMap<String, SyntaxKind>,
     /// Declared tokens by name, and literals by text.
+    #[serde(with = "crate::embed::sorted")]
     token_kinds: HashMap<String, SyntaxKind>,
+    #[serde(with = "crate::embed::sorted")]
     callees: HashMap<String, Callee>,
     /// The kind of a line ending that terminates, if lines do.
     newline: Option<SyntaxKind>,
@@ -72,9 +77,11 @@ pub struct Language {
     /// The kinds that close a block, before which a terminator may be left out.
     closers: KindSet,
     /// Contextual words, which are identifiers until a rule asks for them.
+    #[serde(with = "crate::embed::sorted")]
     words: HashMap<String, SyntaxKind>,
     parse_limits: ParseLimits,
     schema: Schema,
+    #[serde(skip)]
     warnings: Vec<Diagnostic>,
 }
 
@@ -226,6 +233,48 @@ impl Language {
     /// token always settles it.
     pub fn max_lookahead(&self) -> usize {
         lookahead::deepest(self)
+    }
+
+    /// The language as bytes that [`Language::from_bytes`] reads back without checking
+    /// the grammar again. Code of custom rules and tokens is not written; the reader
+    /// gives it.
+    ///
+    /// ```
+    /// use langmeld_syntax::pattern::{lit, many};
+    /// use langmeld_syntax::{Externals, Language};
+    ///
+    /// let language = Language::builder("Bangs")
+    ///     .rule("File", many(lit("!")))
+    ///     .build()
+    ///     .expect("the grammar is valid");
+    /// let bytes = language.to_bytes()?;
+    /// let again = Language::from_bytes(&bytes, &Externals::new())?;
+    /// assert_eq!(again.kind("File"), language.kind("File"));
+    /// # Ok::<(), langmeld_syntax::EmbedError>(())
+    /// ```
+    pub fn to_bytes(&self) -> Result<Vec<u8>, crate::EmbedError> {
+        let payload = postcard::to_stdvec(self)
+            .map_err(|error| crate::EmbedError::Write(error.to_string()))?;
+        Ok(crate::embed::wrap(&payload))
+    }
+
+    /// Reads a language written by [`Language::to_bytes`] of the same version of this
+    /// crate. `externals` gives the code of its custom rules and tokens.
+    pub fn from_bytes(
+        bytes: &[u8],
+        externals: &crate::Externals,
+    ) -> Result<Self, crate::EmbedError> {
+        let payload = crate::embed::unwrap(bytes)?;
+        let mut language: Self =
+            postcard::from_bytes(payload).map_err(|_| crate::EmbedError::Damaged)?;
+        language.lexer.bind(externals)?;
+        for rule in &mut language.externs {
+            let code = externals
+                .rule_code(&rule.name)
+                .ok_or_else(|| crate::EmbedError::MissingRule(rule.name.clone()))?;
+            rule.parse = code;
+        }
+        Ok(language)
     }
 
     /// Problems that do not stop the grammar from being used, such as a rule that

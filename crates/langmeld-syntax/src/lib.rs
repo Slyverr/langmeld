@@ -31,6 +31,7 @@
 //! filesystem, time or stdio.
 
 mod diagnostic;
+mod embed;
 mod externals;
 mod file;
 mod grammar;
@@ -42,6 +43,7 @@ mod macros;
 mod parser;
 
 pub use diagnostic::{Diagnostic, Fix, Label, Severity, TextEdit};
+pub use embed::EmbedError;
 pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{
