@@ -49,8 +49,16 @@ fn distance(a: &str, b: &str) -> usize {
     row[b.len()]
 }
 
-/// The name among `known` that `name` is most likely a misspelling of.
-pub(super) fn closest<'a>(name: &str, known: &[&'a str]) -> Option<&'a str> {
+/// The name among `known` that `name` is most likely a misspelling of, if one is close
+/// enough to be worth suggesting.
+///
+/// ```
+/// use langmeld_syntax::closest;
+///
+/// assert_eq!(closest("Itme", &["Item", "File"]), Some("Item"));
+/// assert_eq!(closest("Zebra", &["Item", "File"]), None);
+/// ```
+pub fn closest<'a>(name: &str, known: &[&'a str]) -> Option<&'a str> {
     let allowed = name.chars().count() / 3 + 1;
     known
         .iter()

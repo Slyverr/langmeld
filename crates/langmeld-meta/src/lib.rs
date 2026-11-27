@@ -16,11 +16,12 @@ mod load;
 mod lower;
 mod manifest;
 mod meta;
+mod names;
 mod problem;
 mod render;
 mod tree;
 
-pub use declared::{Binding, Bindings, Editor, EditorRule, Path, Place};
+pub use declared::{BindRules, Binding, Editor, EditorRule, Path, Place};
 pub use editor::{declaration, grammar_editor, grammar_language};
 #[cfg(not(target_arch = "wasm32"))]
 pub use load::DiskFiles;

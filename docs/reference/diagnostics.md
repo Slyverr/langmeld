@@ -86,6 +86,10 @@ that starts "To fix this". Mistakes of the text itself are reported with the cod
 | `LM-F015` | A compiled language cannot be read: it is damaged, was compiled by another version, or lacks the code of a custom rule |
 | `LM-F016` | An `editor` line names a rule or expression the language does not have |
 | `LM-F017` | A `symbol` line names a part the node does not label |
+| `LM-F018` | A `bind` line names a rule or expression the language does not have |
+| `LM-F019` | A `bind` line names a part the node does not label, or a path that is not a node and a label |
+| `LM-F020` | Words after `defines` that contradict each other, such as `after` with `hoisted` |
+| `LM-F021` | The `from` or `of` part of a `bind` line belongs to another node than the line's |
 
 Problems found by checking the grammar (`LM-G001` and the others above) are reported at
 the rule they are about in the `.langmeld` file; a name that is not declared is

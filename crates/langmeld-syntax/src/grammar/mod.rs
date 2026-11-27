@@ -9,6 +9,7 @@ mod lookahead;
 pub mod pattern;
 mod places;
 mod problem;
+pub use problem::closest;
 mod recovery;
 mod schema;
 mod schema_of;

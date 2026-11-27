@@ -56,7 +56,7 @@ pub fn grammar_editor() -> &'static Editor {
     })
 }
 
-fn range(place: Place) -> (FileId, TextRange) {
+pub(crate) fn range(place: Place) -> (FileId, TextRange) {
     (
         FileId::new(place.file),
         TextRange::new(TextSize::from(place.start), TextSize::from(place.end)),

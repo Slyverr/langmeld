@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use langmeld_syntax::{Diagnostic, EmbedError, Externals, FileId, Language, TextRange, TextSize};
 
-use crate::declared::{Bindings, Editor};
+use crate::declared::{BindRules, Editor};
 use crate::load::{LoadError, Loaded};
 use crate::problem::problem;
 
@@ -29,7 +29,7 @@ use crate::problem::problem;
 struct Package {
     language: Vec<u8>,
     extensions: Vec<String>,
-    bindings: Bindings,
+    bindings: BindRules,
     editor: Editor,
 }
 

@@ -58,7 +58,8 @@ const WORDS: [&str; 41] = [
 ];
 
 /// More contextual words, which do not fit the line above.
-const MORE_WORDS: [&str; 7] = [
+const MORE_WORDS: [&str; 8] = [
+    "member",
     "shadowing",
     "skip",
     "symbol",
@@ -402,7 +403,13 @@ fn build() -> Result<Language, Vec<Diagnostic>> {
         )
         .rule(
             "Refers",
-            seq![lit("refers"), field("namespace", r("ident"))],
+            seq![
+                lit("refers"),
+                choice![
+                    seq![lit("member"), lit("of"), r("Path")],
+                    field("namespace", r("ident"))
+                ]
+            ],
         )
         .rule(
             "Imports",

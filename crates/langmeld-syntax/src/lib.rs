@@ -55,7 +55,7 @@ pub use externals::Externals;
 pub use file::{FileId, SourceFile};
 pub use grammar::{
     Assoc, Cardinality, ExprSpec, ExternRule, FieldSchema, Language, LanguageBuilder, Lookahead,
-    NodeSchema, Pattern, Place, Schema, SchemaError, Token, parse, pattern,
+    NodeSchema, Pattern, Place, Schema, SchemaError, Token, closest, parse, pattern,
 };
 pub use kind::{SyntaxElement, SyntaxKind, SyntaxLanguage, SyntaxNode, SyntaxToken};
 pub use lexeme::Lexeme;

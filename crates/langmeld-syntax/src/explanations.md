@@ -311,6 +311,32 @@ A `symbol` line names a part the node does not label.
 `symbol Function kind function name title` lists each `Function` by the part labelled
 `title`. Put the label in the rule, as in `title:ident`, or name a label the rule has.
 
+## LM-F018
+A `bind` line names something the language does not have.
+
+A line such as `scope Block` or `Let.name defines value` names a rule or an expression.
+Check the spelling against the declaration in the file; a token is not a node.
+
+## LM-F019
+A `bind` line names a part that the node does not label.
+
+`Let.name defines value` takes the name from the part labelled `name`. Put the label in the
+rule, as in `name:ident`, or name a label the rule has. A path is a node, or a node and one
+label.
+
+## LM-F020
+Words after `defines` contradict each other.
+
+`after` and `hoisted` say when a name becomes visible, `shadowing` and `unique` say what a
+second name of the same kind does, and `global` and `in parent` say where the name lives.
+Keep one of each pair.
+
+## LM-F021
+A `from` or `of` part belongs to another node than the line's.
+
+`Use.path imports value from Use.target` takes both parts from the same node. Name a part of
+the node the line is about, or write only the label of the part.
+
 ## LM-M003
 A field of the language is written in `langmeld.toml`.
 
