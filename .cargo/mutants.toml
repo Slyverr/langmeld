@@ -1,0 +1,13 @@
+# Mutation testing: `cargo mutants` changes the code a little at a time and checks that
+# a test notices. It looks only at the parts that decide what a language means.
+examine_globs = [
+    "crates/langmeld-syntax/src/grammar/**/*.rs",
+    "crates/langmeld-syntax/src/parser/**/*.rs",
+    "crates/langmeld-syntax/src/lexer/**/*.rs",
+]
+
+# A mutant that makes a loop run forever is stopped after this long, and reported as a
+# timeout: the longest passing test run, times the multiplier, but never less than the
+# minimum (in seconds).
+timeout_multiplier = 4.0
+minimum_test_timeout = 60.0

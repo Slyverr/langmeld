@@ -51,6 +51,7 @@ Verify it works by running the tests (see Commands).
 | Lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Format | `cargo fmt --all` (check only: add `--check`) |
 | WASM check | `cargo build -p langmeld-syntax --target wasm32-unknown-unknown --locked` |
+| Mutation tests | `cargo mutants` (needs time; the nightly run does it and only reports) |
 | **Check (local)** | `cargo xtask check`: format, lint, tests and WASM build in under two minutes |
 | Pull-request set | `cargo xtask ci`: the same with more test cases, plus doc tests and WASM tests in Node |
 

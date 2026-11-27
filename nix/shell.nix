@@ -3,6 +3,7 @@
   rust-bin,
   cargo-fuzz,
   cargo-insta,
+  cargo-mutants,
   cargo-nextest,
   nodejs,
   wasm-bindgen-cli,
@@ -15,6 +16,7 @@ mkShell {
     rustToolchain
     cargo-fuzz
     cargo-insta
+    cargo-mutants
     cargo-nextest
     nodejs
     wasm-bindgen-cli
