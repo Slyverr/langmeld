@@ -6,6 +6,9 @@ use std::process::ExitCode;
 use langmeld_meta::{Loaded, Source, load_language, render_warnings};
 use langmeld_syntax::Severity;
 
+use langmeld_cli::{Failure, error_line};
+
+use crate::exhaustive;
 use crate::project::{self, shown};
 
 /// What the grammar looks ahead for, as text.
@@ -28,7 +31,7 @@ fn explanation(loaded: &Loaded) -> String {
     out
 }
 
-pub(crate) fn run(path: &Path, explain: bool) -> ExitCode {
+pub(crate) fn run(path: &Path, explain: bool, exhaustive: bool) -> ExitCode {
     let found = match project::find(path) {
         Ok(found) => found,
         Err(refused) => {
@@ -49,6 +52,17 @@ pub(crate) fn run(path: &Path, explain: bool) -> ExitCode {
             );
             if explain {
                 print!("{}", explanation(&loaded));
+            }
+            if exhaustive {
+                return match exhaustive::run(&loaded.language, &found.dir) {
+                    Ok(()) => ExitCode::SUCCESS,
+                    Err(failure) => {
+                        if let Failure::Unable(reason) = &failure {
+                            error_line(&format!("error: {reason}"));
+                        }
+                        ExitCode::from(failure.code())
+                    }
+                };
             }
             ExitCode::SUCCESS
         }

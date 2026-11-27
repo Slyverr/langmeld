@@ -1,0 +1,8 @@
+---
+source: crates/langmeld-cli/tests/commands.rs
+expression: ran.shown()
+---
+exit: 2
+--- stdout
+--- stderr
+error: there is no diagnostic code `LM-X999`; codes look like `LM-P001`

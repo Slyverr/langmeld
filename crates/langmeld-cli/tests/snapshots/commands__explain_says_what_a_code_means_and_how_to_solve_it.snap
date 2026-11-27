@@ -1,0 +1,13 @@
+---
+source: crates/langmeld-cli/tests/commands.rs
+expression: ran.shown()
+---
+exit: 0
+--- stdout
+LM-P001
+
+Something else was expected.
+
+The source does not follow the grammar here. The message names what could come, and what
+came instead. Parsing goes on after it, so later problems are reported too.
+--- stderr
