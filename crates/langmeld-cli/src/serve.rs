@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use std::sync::Mutex;
 
 use langmeld_cli::{Failure, error_line};
-use langmeld_ide::LanguageHooks;
+use langmeld_ide::{LanguageHooks, Served};
 use langmeld_meta::{
     DiskFiles, Files, MANIFEST_NAME, Source, declaration, grammar_editor, grammar_language,
     load_language,
@@ -145,7 +145,10 @@ impl LanguageHooks for Grammars {
 }
 
 pub(crate) fn run() -> ExitCode {
-    let served = langmeld_ide::serve(grammar_language(), grammar_editor(), Grammars::default());
+    let served = langmeld_ide::serve(
+        Served::new(grammar_language()).editor(grammar_editor()),
+        Grammars::default(),
+    );
     let failure = match served {
         Ok(0) => return ExitCode::SUCCESS,
         Ok(_) => Failure::Found,

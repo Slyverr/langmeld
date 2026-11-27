@@ -5,7 +5,7 @@
 
 #![no_main]
 
-use langmeld_ide::{LanguageHooks, Message, Server};
+use langmeld_ide::{LanguageHooks, Message, Served, Server};
 use langmeld_meta::{grammar_editor, grammar_language};
 use libfuzzer_sys::fuzz_target;
 use serde_json::{Value, json};
@@ -230,8 +230,9 @@ fn session<H: LanguageHooks>(server: &mut Server<'_, H>, data: &[u8]) {
 
 fuzz_target!(|data: &[u8]| {
     let loaded = calc::syntax::loaded();
-    let mut calc = Server::new(&loaded.language, &loaded.editor, Checks).limit(1 << 16);
+    let mut calc = Server::new(loaded, Checks).limit(1 << 16);
     session(&mut calc, data);
-    let mut grammar = Server::new(grammar_language(), grammar_editor(), ()).limit(1 << 16);
+    let mut grammar =
+        Server::new(Served::new(grammar_language()).editor(grammar_editor()), ()).limit(1 << 16);
     session(&mut grammar, data);
 });

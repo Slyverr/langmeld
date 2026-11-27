@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Arg, ArgAction, ArgMatches, Command, value_parser};
+use langmeld_ide::Served;
 use langmeld_meta::Editor;
-use langmeld_syntax::{Diagnostic, Language, Parse, SourceFile, explain};
+use langmeld_syntax::{Diagnostic, Parse, SourceFile, explain};
 
 use crate::{Failure, Format, check_files, line, run_corpus};
 
@@ -44,8 +45,7 @@ impl langmeld_ide::LanguageHooks for Checks<'_, '_> {
 /// Every command ends with exit code 0 when all is well, 1 when it found problems and
 /// showed them, and 2 when it could not do its work.
 pub struct App<'l> {
-    language: &'l Language,
-    editor: Option<&'l Editor>,
+    served: Served<'l>,
     name: String,
     version: Option<String>,
     about: Option<String>,
@@ -56,12 +56,14 @@ pub struct App<'l> {
 }
 
 impl<'l> App<'l> {
-    /// A program for `language`, named after it, with no commands yet.
-    pub fn new(language: &'l Language) -> Self {
+    /// A program for `language`, named after it, with no commands yet. A language read
+    /// from a file is given as it is, such as `syntax::loaded()` of generated code, and
+    /// brings the rules that editors use.
+    pub fn new(language: impl Into<Served<'l>>) -> Self {
+        let served = language.into();
         Self {
-            language,
-            editor: None,
-            name: language.name().to_lowercase(),
+            served,
+            name: served.language().name().to_lowercase(),
             version: None,
             about: None,
             standard: false,
@@ -92,10 +94,10 @@ impl<'l> App<'l> {
         self
     }
 
-    /// What the language tells editors, as `Loaded::editor` has it, which `lsp` serves.
+    /// What a language that was not read from a file tells editors, which `lsp` serves.
     #[must_use]
     pub fn editor(mut self, editor: &'l Editor) -> Self {
-        self.editor = Some(editor);
+        self.served = self.served.editor(editor);
         self
     }
 
@@ -190,9 +192,8 @@ impl<'l> App<'l> {
     /// Serves the language to an editor until it asks to exit.
     #[cfg(feature = "lsp")]
     fn lsp(&self) -> Result<(), Failure> {
-        let none = Editor::default();
         let hooks = Checks(&self.host);
-        match langmeld_ide::serve(self.language, self.editor.unwrap_or(&none), hooks) {
+        match langmeld_ide::serve(self.served, hooks) {
             Ok(0) => Ok(()),
             Ok(_) => Err(Failure::Found),
             Err(problem) => Err(Failure::Unable(problem.to_string())),
@@ -217,14 +218,14 @@ impl<'l> App<'l> {
             Some("json") => Format::Json,
             _ => Format::Text,
         };
-        check_files(self.language, &paths, format, &self.host)
+        check_files(self.served.language(), &paths, format, &self.host)
     }
 
     fn test(&self, matches: &ArgMatches) -> Result<(), Failure> {
         let folder = matches
             .get_one::<PathBuf>("corpus")
             .map_or(Path::new("corpus"), PathBuf::as_path);
-        run_corpus(self.language, folder, matches.get_flag("update"))
+        run_corpus(self.served.language(), folder, matches.get_flag("update"))
     }
 
     fn explain(&self, matches: &ArgMatches) -> Result<(), Failure> {

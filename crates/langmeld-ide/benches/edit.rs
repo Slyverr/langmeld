@@ -27,7 +27,7 @@ fn send(server: &mut Server<'_, Checks>, message: &Value) -> usize {
 /// A server with a file of `lines` statements open.
 fn opened(lines: usize) -> Server<'static, Checks> {
     let loaded = calc::syntax::loaded();
-    let mut server = Server::new(&loaded.language, &loaded.editor, Checks);
+    let mut server = Server::new(loaded, Checks);
     let initialize = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": { "capabilities": {} } });
     send(&mut server, &initialize);

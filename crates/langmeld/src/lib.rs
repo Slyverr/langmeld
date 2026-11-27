@@ -68,7 +68,8 @@ pub mod cli {
 #[cfg(feature = "lsp")]
 pub mod ide {
     pub use langmeld_ide::{
-        DEFAULT_LIMIT, LanguageHooks, Message, Server, StdioTransport, Transport, serve, serve_with,
+        DEFAULT_LIMIT, LanguageHooks, Message, Served, Server, StdioTransport, Transport, serve,
+        serve_with,
     };
 }
 

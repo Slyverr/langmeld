@@ -49,7 +49,7 @@ struct Client<'l, H: LanguageHooks> {
 
 impl<'l, H: LanguageHooks> Client<'l, H> {
     fn new(loaded: &'l Loaded, hooks: H, encodings: &[&str]) -> (Self, Value) {
-        let server = Server::new(&loaded.language, &loaded.editor, hooks);
+        let server = Server::new(loaded, hooks);
         Self::over(server, encodings)
     }
 
@@ -547,7 +547,7 @@ fn a_failure_in_a_request_logs_and_answers_with_nothing() {
 #[test]
 fn a_document_over_the_limit_is_one_problem() {
     let loaded = shapes();
-    let server = Server::new(&loaded.language, &loaded.editor, ()).limit(16);
+    let server = Server::new(&loaded, ()).limit(16);
     let (mut client, _) = Client::over(server, &["utf-8"]);
     let found = client.open("let a = 1; let b = 2;");
     assert_eq!(found.len(), 1);
@@ -575,7 +575,7 @@ fn a_document_over_the_limit_is_one_problem() {
 #[test]
 fn it_follows_the_lifecycle() {
     let loaded = shapes();
-    let mut server = Server::new(&loaded.language, &loaded.editor, ());
+    let mut server = Server::new(&loaded, ());
     let request = |server: &mut Server<'_, ()>, id: u32, method: &str, params: Value| {
         let message = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
         let replies = server.handle_json(&message.to_string());
@@ -607,10 +607,10 @@ fn it_follows_the_lifecycle() {
     );
     assert_eq!(server.exit_code(), Some(0));
 
-    let mut abrupt = Server::new(&loaded.language, &loaded.editor, ());
+    let mut abrupt = Server::new(&loaded, ());
     abrupt.handle_json(r#"{"jsonrpc":"2.0","method":"exit"}"#);
     assert_eq!(abrupt.exit_code(), Some(1));
-    let garbage = Server::new(&loaded.language, &loaded.editor, ()).handle_json("not JSON");
+    let garbage = Server::new(&loaded, ()).handle_json("not JSON");
     assert_eq!(garbage.len(), 1);
     assert!(garbage[0].contains("-32700"), "{garbage:?}");
 }

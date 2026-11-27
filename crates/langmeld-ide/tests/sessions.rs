@@ -113,7 +113,7 @@ fn as_json(replies: Vec<Message>) -> Vec<Value> {
 
 fn transcript(encoding: &str) -> Value {
     let loaded = calc::syntax::loaded();
-    let mut server = Server::new(&loaded.language, &loaded.editor, Checks);
+    let mut server = Server::new(loaded, Checks);
     let steps: Vec<Value> = script(encoding)
         .into_iter()
         .map(|sent| {

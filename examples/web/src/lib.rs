@@ -29,7 +29,7 @@ impl CalcServer {
     #[allow(clippy::new_without_default)] // JavaScript calls `new`.
     pub fn new() -> Self {
         let loaded = calc::syntax::loaded();
-        Self(Server::new(&loaded.language, &loaded.editor, Checks))
+        Self(Server::new(loaded, Checks))
     }
 
     /// Takes a message of the protocol and gives the messages to post back.

@@ -12,6 +12,9 @@
 pub mod kit;
 #[cfg(feature = "lsp")]
 mod lsp;
+mod served;
+
+pub use served::Served;
 
 #[cfg(feature = "lsp")]
 pub use lsp::{

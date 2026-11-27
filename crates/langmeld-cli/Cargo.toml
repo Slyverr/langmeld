@@ -21,11 +21,11 @@ doc = false # would collide with the `langmeld` library docs
 [features]
 default = ["lsp"]
 # The `lsp` commands, which serve languages to editors, and `package vscode`.
-lsp = ["dep:langmeld-ide", "langmeld-ide/lsp"]
+lsp = ["langmeld-ide/lsp"]
 
 [dependencies]
 clap.workspace = true
-langmeld-ide = { workspace = true, optional = true }
+langmeld-ide.workspace = true
 langmeld-meta.workspace = true
 langmeld-syntax.workspace = true
 serde_json.workspace = true

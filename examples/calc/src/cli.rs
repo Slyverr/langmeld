@@ -48,11 +48,10 @@ fn eval_command(matches: &ArgMatches) -> Result<(), Failure> {
 
 /// The program, with every command.
 pub fn app() -> App<'static> {
-    let program = App::new(language())
+    let program = App::new(loaded())
         .name("calc")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Calc, a small calculator language built with Langmeld")
-        .editor(&loaded().editor)
         .check_with(divisions_by_zero)
         .standard()
         .command(
