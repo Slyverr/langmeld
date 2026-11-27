@@ -8,6 +8,8 @@ releases is described in [CONTRIBUTING.md](CONTRIBUTING.md#changelog).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-27
+
 ### Added
 
 - Core types for languages: source files with identities, byte ranges, line and column
