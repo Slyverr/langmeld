@@ -12,8 +12,16 @@ implemented yet.
 
 ## Installation
 
-There is nothing to install yet. Langmeld isn't published on crates.io. To build it from
-source, see [Setup](CONTRIBUTING.md#setup).
+Langmeld isn't published on crates.io yet. With [Nix](https://nixos.org/) flakes enabled:
+
+```sh
+nix run github:Slyverr/langmeld
+nix profile install github:Slyverr/langmeld
+```
+
+Prebuilt binaries for Linux, macOS and Windows are on the
+[GitHub Releases](https://github.com/Slyverr/langmeld/releases) page. To build from source,
+see [Setup](CONTRIBUTING.md#setup).
 
 ## Usage
 
