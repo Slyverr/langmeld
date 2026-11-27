@@ -1,17 +1,21 @@
-//! What a language server serves: a language together with what it tells editors.
+//! What a language server serves: a language together with the rules that travel with it.
 
-use langmeld_meta::{Editor, Loaded};
+use langmeld_meta::{BindRules, Editor, Loaded};
 use langmeld_syntax::Language;
 
 /// What no `editor { }` block says.
 static NO_EDITOR: Editor = Editor { rules: Vec::new() };
 
-/// A language together with the rules that travel with it: what it tells editors.
+/// What no `bind { }` block says.
+static NO_BINDINGS: BindRules = BindRules { rules: Vec::new() };
+
+/// A language together with the rules that travel with it: how its names bind, and what
+/// it tells editors.
 ///
-/// A language read from a `.langmeld` file carries its `editor { }` rules, so a
-/// [`Loaded`] is served as it is. A language written in Rust, or with a parser of its
-/// own, is a [`Language`], which tells editors nothing until it is given rules with
-/// [`editor`](Self::editor).
+/// A language read from a `.langmeld` file carries the rules of its `bind` and `editor`
+/// blocks, so a [`Loaded`] is served as it is. A language written in Rust, or with a
+/// parser of its own, is a [`Language`], which has no rules until it is given some with
+/// [`bindings`](Self::bindings) and [`editor`](Self::editor).
 ///
 /// ```
 /// use langmeld_ide::Served;
@@ -31,14 +35,17 @@ static NO_EDITOR: Editor = Editor { rules: Vec::new() };
 pub struct Served<'l> {
     language: &'l Language,
     editor: &'l Editor,
+    bindings: &'l BindRules,
 }
 
 impl<'l> Served<'l> {
-    /// A language that tells editors nothing beyond its grammar.
+    /// A language with no rules: its names do not bind, and it tells editors nothing
+    /// beyond its grammar.
     pub fn new(language: &'l Language) -> Self {
         Self {
             language,
             editor: &NO_EDITOR,
+            bindings: &NO_BINDINGS,
         }
     }
 
@@ -46,6 +53,13 @@ impl<'l> Served<'l> {
     #[must_use]
     pub fn editor(mut self, editor: &'l Editor) -> Self {
         self.editor = editor;
+        self
+    }
+
+    /// Gives the language the rules its names bind by, as [`Loaded::bindings`] has them.
+    #[must_use]
+    pub fn bindings(mut self, bindings: &'l BindRules) -> Self {
+        self.bindings = bindings;
         self
     }
 
@@ -58,6 +72,11 @@ impl<'l> Served<'l> {
     pub fn editor_rules(&self) -> &'l Editor {
         self.editor
     }
+
+    /// The rules its names bind by.
+    pub fn bind_rules(&self) -> &'l BindRules {
+        self.bindings
+    }
 }
 
 impl<'l> From<&'l Language> for Served<'l> {
@@ -68,6 +87,8 @@ impl<'l> From<&'l Language> for Served<'l> {
 
 impl<'l> From<&'l Loaded> for Served<'l> {
     fn from(loaded: &'l Loaded) -> Self {
-        Self::new(&loaded.language).editor(&loaded.editor)
+        Self::new(&loaded.language)
+            .editor(&loaded.editor)
+            .bindings(&loaded.bindings)
     }
 }

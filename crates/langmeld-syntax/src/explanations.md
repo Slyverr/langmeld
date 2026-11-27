@@ -348,6 +348,46 @@ A setting has a value of the wrong kind, or one that is not allowed.
 
 The message says what the setting takes. Fix the value at the place marked.
 
+## LM-M005
+The project file of a language's users cannot be read.
+
+The file that holds the settings of a project, such as `mylang.toml`, is not valid TOML, has
+a setting the language does not know, or has a value of the wrong kind. The message says
+which, and the place marked is where. Check the spelling of the key and the kind of its value.
+
+## LM-B001
+A name is used that nothing visible there defines.
+
+Check the spelling, define the name before it is used, or import the file that defines it.
+Where names are visible comes from the `bind` rules of the language. When a defined name is
+close to the one written, the note suggests it, and the editor offers to use it.
+
+## LM-B002
+A name that must be the only one is defined twice.
+
+Rename one of the two definitions, or remove one. The place shown with the problem is the
+first definition. A name defined `global` is the only one in the whole project, whatever file
+it is in.
+
+## LM-B003
+An imported file cannot be read.
+
+Imports name a file relative to the file that imports it, written with `/`. The file must
+exist and be written in the language. A project also holds only so many files: the problem
+says so if that is why, and the fix is to import fewer files.
+
+## LM-B004
+A name is defined and nothing uses it.
+
+Use it or remove it. A language reports this only if it asks to: it is a warning that
+`Bindings::unused` gives, and a language shows it from its `project_diagnostics`.
+
+## LM-B005
+A member is named that what it belongs to does not have.
+
+In `a.b`, `b` is a member of `a`. Check the spelling of the member, or define it. Only the
+code of the language knows what members something has, so it is the one that reports this.
+
 ## LM-E001
 A file is too large for the language server.
 

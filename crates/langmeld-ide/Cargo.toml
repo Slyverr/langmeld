@@ -15,7 +15,6 @@ categories.workspace = true
 lsp = [
     "dep:lsp-server",
     "dep:lsp-types",
-    "dep:serde",
     "dep:serde_json",
 ]
 
@@ -24,13 +23,15 @@ langmeld-meta.workspace = true
 langmeld-syntax.workspace = true
 lsp-server = { workspace = true, optional = true }
 lsp-types = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde.workspace = true
 serde_json = { workspace = true, optional = true }
+toml.workspace = true
 
 [dev-dependencies]
 calc = { path = "../../examples/calc" }
 criterion.workspace = true
 insta.workspace = true
+proptest.workspace = true
 serde_json.workspace = true
 
 [[test]]
