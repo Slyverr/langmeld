@@ -68,6 +68,8 @@ jobs:
             grammar_builder,
             parse_json,
             parse_calc,
+            langmeld_loader,
+            manifest,
           ]
     steps:
       - uses: actions/checkout@v7

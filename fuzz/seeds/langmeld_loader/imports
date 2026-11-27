@@ -1,0 +1,4 @@
+langmeld 1
+language L { }
+import "other.langmeld"
+rule File = Other

@@ -1,0 +1,4 @@
+root = 3
+extensions = ["x"]
+[bins]
+layuot = "split"

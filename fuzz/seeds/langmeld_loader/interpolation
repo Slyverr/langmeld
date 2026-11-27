@@ -1,0 +1,5 @@
+langmeld 1
+language L { }
+tokens { s = preset string(double, interpolate "{" "}" with E) }
+rule File = s*
+rule E = s

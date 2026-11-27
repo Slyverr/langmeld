@@ -1,0 +1,3 @@
+langmeld 1
+language L { }
+rule File = "a"
