@@ -1,0 +1,2 @@
+language L { }
+rule file_x = "a"

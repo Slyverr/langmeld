@@ -1,0 +1,5 @@
+langmeld 1
+language L { }
+extern rule R -> File first "("
+extern token T
+rule File = R T

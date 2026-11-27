@@ -12,6 +12,7 @@ cargo-fuzz = true
 calc = { path = "../examples/calc" }
 handwritten-calc = { path = "../examples/handwritten-calc" }
 json = { path = "../examples/json" }
+langmeld-meta = { path = "../crates/langmeld-meta" }
 langmeld-syntax = { path = "../crates/langmeld-syntax" }
 libfuzzer-sys = "0.4.13"
 
@@ -60,6 +61,20 @@ bench = false
 [[bin]]
 name = "parse_calc"
 path = "fuzz_targets/parse_calc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "langmeld_loader"
+path = "fuzz_targets/langmeld_loader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest"
+path = "fuzz_targets/manifest.rs"
 test = false
 doc = false
 bench = false

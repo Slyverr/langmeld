@@ -1,0 +1,4 @@
+langmeld 1
+language L { }
+rule File = Item
+rule Item = Item "+" "a" | "a"

@@ -1,0 +1,14 @@
+root = "x.langmeld"
+
+[bins]
+layout = "split"
+server = ["x", "lsp"]
+
+[project]
+manifest = "x.toml"
+
+[package.vscode]
+display-name = "X"
+publisher = "p"
+icon = "icon.png"
+out = "../vscode"
