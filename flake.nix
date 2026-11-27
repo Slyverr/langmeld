@@ -30,8 +30,22 @@
         );
     in
     {
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/shell.nix { };
-      });
+      devShells = forAllSystems (
+        pkgs:
+        let
+          manifest = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        in
+        {
+          default = pkgs.callPackage ./nix/shell.nix { };
+          # The oldest compiler the crates support.
+          msrv = pkgs.callPackage ./nix/shell.nix {
+            rustToolchain = pkgs.rust-bin.stable.${manifest.workspace.package.rust-version}.minimal;
+          };
+          # `cargo fuzz` needs a nightly compiler.
+          fuzz = pkgs.callPackage ./nix/shell.nix {
+            rustToolchain = pkgs.rust-bin.nightly."2026-11-25".minimal;
+          };
+        }
+      );
     };
 }
